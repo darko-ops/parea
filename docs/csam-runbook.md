@@ -136,7 +136,7 @@ preservation — do not wait for anyone.
    whatever channel you have established in advance. The alert is the start of
    a clock you do not control.
 4. **Record the outcome.** Set `reported_at` and `report_reference` on the
-   incident by hand. Setting `reported_at` starts the 90-day preservation
+   incident by hand. Setting `reported_at` starts the one-year preservation
    window (`PRESERVATION_DAYS` in `@parea/core`), after which the purge job
    becomes free to clean up.
 5. **If it was a false positive**, set `released_at`. That lifts the hold and

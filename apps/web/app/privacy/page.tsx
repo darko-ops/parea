@@ -39,10 +39,12 @@ export default function PrivacyPage() {
             It does not need to know who you are, and mostly it does not.
           </p>
           <p className="muted">
-            There is no advertising, no tracking, no analytics service, and
-            nothing is sold or shared for anyone else&rsquo;s purposes. An account
-            is optional. It holds your email address, a handle, and whatever
-            name and picture you choose to add &mdash; and nothing more.
+            There is no advertising, no tracking and no third-party analytics,
+            and nothing is sold or shared for anyone else&rsquo;s purposes.
+            Looking at a roll you were sent needs no account. Adding photos,
+            writing, reacting, and making rolls or groups do. An account holds
+            your email address, a handle, and whatever name and picture you
+            choose to add.
           </p>
         </section>
 
@@ -52,15 +54,25 @@ export default function PrivacyPage() {
           <h3>Photos and videos you upload</h3>
           <p className="muted">
             Kept at full quality, exactly as your camera produced them. Before
-            any of them is shown to anyone, precise location is removed from the
-            file &mdash; the image itself is untouched, only the metadata saying
-            where it was taken. The date, the camera model and the orientation
-            are kept, because the date is what puts the evening in order.
+            any of them is shown to anyone, the GPS coordinates are removed from
+            the file, along with the camera&rsquo;s serial number and the
+            owner&rsquo;s name if the camera recorded one &mdash; the image itself
+            is untouched. The date, the camera model and the orientation are
+            kept, because the date is what puts the evening in order.
+          </p>
+          <p className="muted">
+            Some apps write other details into a photo: a place name such as a
+            city, or the names of people they recognised in it. Those are not
+            yet removed from the full-quality original, which people in the
+            roll can download. The smaller copies shown on screen carry no
+            metadata at all.
           </p>
           <p className="muted">
             Between the moment you upload and the moment that processing
             finishes, the untouched original is in storage. Nothing serves it or
             lists it during that window, but it is honest to say that it exists.
+            If processing fails, or an upload is never finished, that original
+            stays in storage, unserved, and is not yet removed automatically.
           </p>
 
           <h3>Moments you share</h3>
@@ -102,8 +114,10 @@ export default function PrivacyPage() {
 
           <h3>An email address, only if you ask for an account</h3>
           <p className="muted">
-            An account does one thing: it makes a new phone still you. It grants
-            nothing you did not already have. Sign-in is a one-time code &mdash;
+            An account makes a new phone still you, and it is what lets you
+            take part: adding photos, writing and reacting, asking for a photo
+            to be taken down, and making rolls and groups all need one. Looking
+            at a roll you were sent does not. Sign-in is a one-time code &mdash;
             there is no password, because a password would be the most sensitive
             thing here, protecting the least.
           </p>
@@ -163,14 +177,19 @@ export default function PrivacyPage() {
             email address is never shown with either of them.
           </p>
           <p className="muted">
-            Two places show your name or handle to other people. Somebody
-            deciding whether to let you into their private roll sees it,
-            because that is the decision they are being asked to make. And once
-            you add photos to a roll, everyone who can see that roll can see
-            that they are yours &mdash; the photographs are grouped by who took
-            them, so that a set of two hundred from six people can be read at
-            all. Looking at a roll does not put you in that list; adding to
-            it does.
+            Your name or handle is shown to other people wherever you take part:
+            beside photographs you add, which are grouped by who took them so
+            that a set of two hundred from six people can be read at all; on
+            what you write and react with; in the groups you are in; to your
+            friends; and to somebody deciding whether to let you into their
+            private roll, because that is the decision they are being asked to
+            make.
+          </p>
+          <p className="muted">
+            Opening a roll also puts you on its list of people, which everyone
+            who can see the roll can see &mdash; your name or handle if you have
+            one, and otherwise nothing that identifies you. Leaving the roll
+            takes you off it.
           </p>
 
           <h3>A line about you, if you write one</h3>
@@ -244,9 +263,11 @@ export default function PrivacyPage() {
           <h3>Who you are friends with</h3>
           <p className="muted">
             That you asked somebody to be your friend, what they said, and who
-            is on your list. Friends exist so that somebody can put you into a
-            roll directly instead of sending you a link, and that is the whole
-            of what being one does.
+            is on your list. Being friends does three things: either of you can
+            put the other into a roll directly instead of sending a link; either
+            can add the other to a group or a chat, where anybody else would be
+            sent an invitation to accept first; and you see each
+            other&rsquo;s moments.
           </p>
           <p className="muted">
             Your handle can be searched for &mdash; by the whole of it or the
@@ -254,8 +275,10 @@ export default function PrivacyPage() {
             worked before, when nobody could be found at all. What a search
             returns is a handle and whatever name you chose to show: never your
             email address, never your rolls, never your photos, and never who
-            else you know. Nobody is listed, there are no suggestions, and
-            somebody has to be told your handle before they can look you up.
+            else you know. There is no public directory. The Find Friends page
+            does suggest people, drawn only from rolls you have both been in,
+            groups you are both in and friends you have in common, and it shows
+            each person the same way a search would.
           </p>
 
           <h3>What you did here</h3>
@@ -515,15 +538,29 @@ export default function PrivacyPage() {
             </li>
             <li>
               <strong>Expo</strong> &mdash; delivers push notifications to the
-              app, via Apple and Google.
+              app, via Apple and Google, and delivers updates to the app itself.
+              A notification carries what it is about &mdash; a name, the start
+              of a comment &mdash; so Expo, Apple and Google handle that text on
+              its way to your phone.
+            </li>
+            <li>
+              <strong>Sentry</strong> &mdash; receives reports of errors on our
+              servers so we can fix them. They are scrubbed before they leave: no
+              roll links, no email addresses, no phone numbers. Nothing from your
+              browser or phone is sent to it.
+            </li>
+            <li>
+              <strong>Upstash</strong> &mdash; queues photographs for processing.
+              It sees an identifier for each photo and nothing else.
             </li>
             <li>
               <strong>A child-safety scanning provider</strong> &mdash; see below.
             </li>
           </ul>
           <p className="muted">
-            These providers operate in the United States and elsewhere, so
-            uploading means your photos are stored and processed there.
+            Our database and website run in the United States, and photographs
+            are processed in the United Kingdom, so using Parea means your data
+            is stored and handled in both.
           </p>
         </section>
 
@@ -553,10 +590,40 @@ export default function PrivacyPage() {
           <p className="muted">
             A confirmed detection is reported to the National Center for Missing
             &amp; Exploited Children as United States law requires, and the file
-            and the records around it are preserved for at least 90 days from
+            and the records around it are preserved for at least a year from
             that report, and longer if we are asked to keep them. Deleting your
             account does not delete those records, and cannot.
           </p>
+        </section>
+
+        <section className="panel">
+          <h2>Why we are allowed to use it</h2>
+          <p className="muted">
+            Privacy law in the UK and the EU asks that every use of personal
+            data has a reason it recognises. Ours are:
+          </p>
+          <ul className="plain muted">
+            <li>
+              <strong>To provide the service you asked for</strong> &mdash;
+              storing and showing your photos, your account, your messages and
+              the rest of what is described above.
+            </li>
+            <li>
+              <strong>Our legitimate interest in keeping it safe and
+              working</strong> &mdash; rate limits, error reports, the five usage
+              facts, and handling reports and blocks.
+            </li>
+            <li>
+              <strong>Your consent</strong> &mdash; notifications, your phone
+              number and whether it can be used to find you, and access to your
+              photo library. Each can be withdrawn at any time, in the app or in
+              your phone&rsquo;s settings.
+            </li>
+            <li>
+              <strong>Legal obligation</strong> &mdash; keeping and reporting
+              child-safety records.
+            </li>
+          </ul>
         </section>
 
         <section className="panel">
@@ -566,7 +633,9 @@ export default function PrivacyPage() {
               <strong>Photos</strong> &mdash; until they are deleted. Deleting
               removes a photo from everyone&rsquo;s view immediately and it is
               never served again; the file itself is destroyed 30 days later.
-              There is no way to undo a deletion, including for us.
+              You cannot undo it and we do not restore deleted photos. Our
+              database keeps a few hours of history for recovering from faults,
+              after which the record is gone too.
             </li>
             <li>
               <strong>Sign-in codes</strong> &mdash; ten minutes, and they work
@@ -591,8 +660,25 @@ export default function PrivacyPage() {
               your account, which removes all of them.
             </li>
             <li>
-              <strong>Rolls and the records of who was in them</strong> &mdash;
-              until the roll is deleted.
+              <strong>Rolls</strong> &mdash; until the roll is deleted, which
+              deletes its photographs as above. The roll&rsquo;s name and the
+              record of who was in it are kept after that.
+            </li>
+            <li>
+              <strong>Moments</strong> &mdash; 24 hours, and deleted about an
+              hour after that.
+            </li>
+            <li>
+              <strong>What you write, react with, and your profile</strong>
+              &mdash; until you delete it, or delete your account.
+            </li>
+            <li>
+              <strong>The five usage facts</strong> &mdash; one year.
+            </li>
+            <li>
+              <strong>Reports, and the record of what was hidden or removed and
+              by whom</strong> &mdash; kept, because they may be needed long
+              after, including by law.
             </li>
             <li>
               <strong>Child-safety records</strong> &mdash; as described above,
@@ -610,7 +696,8 @@ export default function PrivacyPage() {
             </li>
             <li>
               <strong>Ask for a photo of you to be taken down</strong>, even if
-              you did not upload it and have no account. The request goes to
+              you did not upload it. It needs an account, so that the request is
+              somebody&rsquo;s and cannot be sent by the hundred. The request goes to
               whoever created the roll; if they have not answered in 48 hours
               the photo is hidden automatically while they decide.
             </li>
@@ -650,9 +737,11 @@ export default function PrivacyPage() {
           <h2>Children</h2>
           <p className="muted">
             Parea is not for people under 13, and not for anyone under the age at
-            which they can agree to this on their own where they live. We do not
-            knowingly keep anything from a child. If you believe a child has
-            uploaded to Parea, write to us and we will remove it.
+            which they can agree to this on their own where they live. When an
+            account is made we ask for a date of birth, and nobody under 13 can
+            make one; the date itself is not kept. We do not knowingly keep
+            anything from a child. If you believe a child has uploaded to Parea,
+            write to us and we will remove it.
           </p>
         </section>
 

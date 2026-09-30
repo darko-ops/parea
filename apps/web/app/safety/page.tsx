@@ -25,7 +25,7 @@ export default function SafetyPage() {
           <h2>Your photos</h2>
           <p className="muted">
             You can remove anything you uploaded, at any time, without asking
-            anyone. Precise location data is stripped from every photo before it
+            anyone. GPS coordinates are stripped from every photo before it
             is shown to anyone else — the image itself is untouched, only the
             metadata saying where it was taken.
           </p>
@@ -34,7 +34,7 @@ export default function SafetyPage() {
         <section className="panel">
           <h2>A photo of you that you did not upload</h2>
           <p className="muted">
-            Ask for it to be taken down. You do not need an account, and you do
+            Ask for it to be taken down. You need an account to ask, and you do
             not need to have uploaded anything. The request goes to whoever
             created the roll. If they have not answered within 48 hours the
             photo is hidden automatically while they decide.

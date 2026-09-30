@@ -198,7 +198,7 @@ describe('purge', () => {
 });
 
 describe('preservation window', () => {
-  it('is 90 days from the report, not from detection', () => {
+  it('is a year from the report, not from detection', () => {
     const reportedAt = new Date('2026-07-18T12:00:00Z');
     const until = preservationHold(reportedAt)!;
     expect(until.getTime() - reportedAt.getTime()).toBe(

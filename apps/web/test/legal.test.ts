@@ -47,9 +47,10 @@ const PROSE = PRIVACY.replace(/\s+/g, ' ');
 
 describe('the retention periods are the real ones', () => {
   it('states the preservation period from the statute constant', () => {
-    // 18 U.S.C. §2258A(h). If this ever moves, the page has to move with it.
-    expect(PRESERVATION_DAYS).toBe(90);
-    expect(PRIVACY).toContain(`${PRESERVATION_DAYS} days`);
+    // 18 U.S.C. §2258A(h), as extended by the REPORT Act. If this ever moves,
+    // the page has to move with it.
+    expect(PRESERVATION_DAYS).toBe(365);
+    expect(PROSE).toContain('preserved for at least a year from that report');
   });
 
   it('states the deletion grace window from the purge job', () => {
@@ -65,7 +66,7 @@ describe('the retention periods are the real ones', () => {
     // undoing an accidental deletion; nothing in the codebase clears
     // `deleted_at`, so that was a feature promised in a legal document and
     // never built. Asserted so it cannot come back.
-    expect(PRIVACY).toMatch(/no way to undo a deletion/);
+    expect(PROSE).toMatch(/You cannot undo it and we do not restore deleted photos/);
   });
 
   it('states the sign-in code lifetime', () => {
@@ -345,7 +346,10 @@ describe('App Store Guideline 1.2', () => {
   it('names the four mechanisms that back it up', () => {
     // Filtering, reporting with a timely response, blocking, and published
     // contact. All four are built; the terms are where they are promised.
-    expect(TERMS).toMatch(/24 hours/);
+    // The response time is the runbook's, 72 hours — and a child-abuse report
+    // hides the photo at once. The terms said 24 hours, which nothing staffs.
+    expect(TERMS.replace(/\s+/g, ' ')).toMatch(/within 72 hours/);
+    expect(TERMS.replace(/\s+/g, ' ')).toMatch(/hides the photo from everyone straight away/);
     expect(TERMS).toMatch(/[Bb]lock/);
     expect(TERMS).toMatch(/report/i);
     expect(TERMS).toContain('/safety');
@@ -446,15 +450,15 @@ describe('what showing a name beside a photograph discloses', () => {
     expect(namesThem, 'the event page no longer names contributors').toBe(true);
 
     expect(PROSE, 'the page does not say who can see your name').toMatch(
-      /everyone who can see that roll can see that they are yours/,
+      /beside photographs you add, which are grouped by who took them/,
     );
   });
 
-  it('keeps the distinction between looking and adding', () => {
-    // Looking at an album must not put somebody in the list, and the page has
-    // to keep saying which of the two does — "who was there" and "who added
-    // photographs" are different sets, and only one of them is published.
-    expect(PROSE).toMatch(/Looking at a roll does not put you in that list/);
+  it('says what opening a roll shows, as well as what adding does', () => {
+    // It used to say that looking put nobody in any list. Looking puts you on
+    // the roll's list of people, which everyone in the roll sees — so the page
+    // says that, alongside the photographs being attributed to who added them.
+    expect(PROSE).toMatch(/Opening a roll also puts you on its list of people/);
   });
 });
 
@@ -532,5 +536,16 @@ describe('what the carriers require', () => {
     // move `phone.ts` makes about "never stored" versus "never sent".
     expect(PRIVACY).toMatch(/the number reaches the\s+company that delivers the text/);
     expect(PRIVACY).toContain('Twilio');
+  });
+});
+
+describe('every processor the deployment uses is named', () => {
+  it('names error monitoring and the processing queue, which the code uses', () => {
+    // Both were in use and neither was listed. Sentry receives server errors
+    // (`sentry.server.config.ts`); Upstash QStash carries a photo's id to the
+    // deriver (`src/queue.ts`).
+    expect(read('../sentry.server.config.ts')).toMatch(/Sentry\.init/);
+    expect(PROSE).toMatch(/Sentry/);
+    expect(PROSE).toMatch(/Upstash/);
   });
 });

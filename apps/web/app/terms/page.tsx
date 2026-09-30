@@ -47,7 +47,8 @@ export default function TermsPage() {
           <h2>Who can use it</h2>
           <p className="muted">
             You must be at least 13, and old enough where you live to agree to
-            this on your own. If you are using Parea on behalf of an
+            this on your own. We ask for your date of birth when you make an
+            account, and do not keep it. If you are using Parea on behalf of an
             organisation, you are saying you are allowed to agree to it for them.
           </p>
         </section>
@@ -106,12 +107,13 @@ export default function TermsPage() {
           <p className="muted">
             Every photo has a report action on it, and reports come to us rather
             than to whoever created the roll, because sometimes that is the
-            person who is the problem. Reports are reviewed and acted on within
-            24 hours.
+            person who is the problem. A report of child abuse hides the photo
+            from everyone straight away while a person reviews it. Other reports
+            are reviewed and acted on within 72 hours.
           </p>
           <p className="muted">
-            You can also ask for a photo of you to be taken down without an
-            account and without having uploaded anything. That request goes to
+            You can also ask for a photo of you to be taken down without having
+            uploaded anything; you need an account to ask. That request goes to
             whoever created the roll, and if they have not answered within 48
             hours the photo is hidden automatically while they decide.
           </p>
@@ -150,13 +152,21 @@ export default function TermsPage() {
         </section>
 
         <section className="panel">
-          <h2>Links are the key</h2>
+          <h2>Who can see a roll, and who can add to it</h2>
           <p className="muted">
-            Anyone holding a roll&rsquo;s link can see the photos in it and add
-            their own. There is no other lock. Share links the way you would
-            share a key: with the people who were there, and not in public. If a
-            link gets out, whoever created the roll can rotate it, which
-            instantly invalidates the old one.
+            Whoever makes a roll decides. A public roll can be opened by anyone
+            who has its link or finds it on its maker&rsquo;s profile. A private
+            roll shows only its name to people who are not in it; they can ask
+            to come in, and its maker decides. Adding photos always needs an
+            account, and the roll&rsquo;s maker chooses who may add.
+          </p>
+          <p className="muted">
+            Share a roll&rsquo;s link the way you would share a key: with the
+            people who were there, and not in public. If a link gets out, its
+            maker can rotate it, which stops the old one working. A public roll
+            needs no link to open, so rotating does not shut anybody out of one;
+            making it private does. A roll&rsquo;s spoken code works only for
+            somebody signed in.
           </p>
         </section>
 
