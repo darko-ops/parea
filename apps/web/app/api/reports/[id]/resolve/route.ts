@@ -13,6 +13,7 @@ import { NextResponse } from 'next/server';
 
 import { findEventById, guard, toResponse } from '@/access';
 import { getDb } from '@/db';
+import { restorePhotoLinks, revokePhotoLinks } from '@/revoke';
 import { getStorage } from '@/storage';
 import { notifyRemovalAnswered } from '@/notify';
 import { currentActorId, requesterFor } from '@/session';
@@ -101,12 +102,15 @@ export async function POST(
       .where(eq(schema.photos.id, found.photo.id));
 
     await dropDerivatives(db, found.photo.id);
+    await revokePhotoLinks(found.photo);
   } else {
     // Declining also lifts an auto-hide that already took effect.
     await db
       .update(schema.photos)
       .set({ hiddenAt: null })
       .where(eq(schema.photos.id, found.photo.id));
+    // Shown again, so the links that the auto-hide took back work again.
+    await restorePhotoLinks(found.photo);
   }
 
   await recordModeration(db, {

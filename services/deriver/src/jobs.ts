@@ -25,7 +25,7 @@ import {
   staleSessions,
 } from '@parea/core';
 import { sendAll, toMessage } from '@parea/push';
-import { allDerivativeKeysFor } from '@parea/urls';
+import { allDerivativeKeysFor, revokedMarkerKey } from '@parea/urls';
 import {
   and,
   count,
@@ -69,7 +69,11 @@ function db() {
  * The report stays `open`, because the host has not actually decided anything;
  * the deadline passing is not a decision.
  */
-export async function autoHide(database: ReturnType<typeof db>): Promise<number> {
+export async function autoHide(
+  database: ReturnType<typeof db>,
+  /** Where the revocation markers go; optional so a caller with no store still hides. */
+  objects?: ObjectStore,
+): Promise<number> {
   const due = await database
     .select({ id: schema.reports.id, photoId: schema.reports.photoId })
     .from(schema.reports)
@@ -88,9 +92,25 @@ export async function autoHide(database: ReturnType<typeof db>): Promise<number>
       .update(schema.photos)
       .set({ hiddenAt: new Date() })
       .where(and(eq(schema.photos.id, report.photoId), isNull(schema.photos.hiddenAt)))
-      .returning({ id: schema.photos.id, eventId: schema.photos.eventId });
+      .returning({
+        id: schema.photos.id,
+        eventId: schema.photos.eventId,
+        contentHash: schema.photos.contentHash,
+      });
 
     for (const photo of updated) {
+      // Hidden from every listing above; this takes back the links already
+      // handed out, which went on working for up to two hours. See
+      // `revokedMarkerKey`. Best-effort: the hide has happened either way.
+      if (objects && photo.contentHash) {
+        await objects
+          .put(
+            revokedMarkerKey(photo.eventId, Buffer.from(photo.contentHash).toString('hex')),
+            Buffer.from('1'),
+            'text/plain',
+          )
+          .catch((err) => console.error(`auto-hide: could not revoke ${photo.id}: ${err}`));
+      }
       // A null actor with a named rule: nobody decided this, a deadline
       // passed. Without the row the only evidence is a `hidden_at` timestamp
       // and an inference from a report that is still open.
@@ -638,7 +658,7 @@ async function runAll(
   };
 
   await run('seed-codes', () => seedCodes(database));
-  await run('auto-hide', () => autoHide(database));
+  await run('auto-hide', () => autoHide(database, objects));
   await run('nudge', () => nudge(database));
   await run('sweep-abandoned', () => sweepAbandoned(database, objects));
   await run('purge', () => purge(database, objects));

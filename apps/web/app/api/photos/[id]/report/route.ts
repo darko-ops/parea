@@ -24,6 +24,7 @@ import { NextResponse } from 'next/server';
 
 import { guard, toResponse } from '@/access';
 import { getDb } from '@/db';
+import { revokePhotoLinks } from '@/revoke';
 import { findPhotoWithEvent } from '@/moderation';
 import {
   QUARANTINE_ON_REPORT_LIMIT,
@@ -125,6 +126,8 @@ async function quarantineOnReport(
     .update(schema.photos)
     .set({ status: 'quarantined', hiddenAt: new Date() })
     .where(eq(schema.photos.id, photo.id));
+  // Out of every listing above; and out of every URL already handed out here.
+  await revokePhotoLinks(photo);
 
   const [incident] = await db
     .insert(schema.safetyIncidents)

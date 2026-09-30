@@ -33,6 +33,7 @@ import {
   epochMarkerKey,
   formatOf,
   objectKeyFor,
+  revokedMarkerKey,
   verifyImageRequest,
 } from '@parea/urls';
 
@@ -66,6 +67,14 @@ export default {
       // The link was rotated after this URL was minted.
       return new Response('revoked', { status: 410 });
     }
+
+    /*
+     * And this one photograph, which may have been taken down since the URL
+     * was signed. Checked before the cache, or a copy cached an hour ago would
+     * go on being served. Answered as not found — the same as a photo that
+     * never existed — so a URL is not a way to learn one was removed.
+     */
+    if (await isRevoked(check.ref.eventId, check.ref.hash, env, ctx)) return notFound();
 
     const hit = await cache.match(request);
     if (hit) return hit;
@@ -145,6 +154,35 @@ async function currentEpochFor(
     ),
   );
   return epoch;
+}
+
+/**
+ * Whether a photograph's links have been revoked, cached for as long as the
+ * epoch is — so a removal reaches every edge within a minute, at the cost of
+ * one small read per photo per minute per location.
+ */
+async function isRevoked(
+  eventId: string,
+  hash: string,
+  env: Env,
+  ctx: ExecutionContext,
+): Promise<boolean> {
+  const cacheKey = new Request(`https://revoked.internal/${eventId}/${hash}`);
+  const cache = caches.default;
+
+  const cached = await cache.match(cacheKey);
+  if (cached) return (await cached.text()) === '1';
+
+  const revoked = (await env.BUCKET.head(revokedMarkerKey(eventId, hash))) !== null;
+  ctx.waitUntil(
+    cache.put(
+      cacheKey,
+      new Response(revoked ? '1' : '0', {
+        headers: { 'cache-control': `public, max-age=${EPOCH_TTL_SECONDS}` },
+      }),
+    ),
+  );
+  return revoked;
 }
 
 /** Seconds until this URL stops working. Never negative, never beyond an hour. */

@@ -22,6 +22,7 @@ import { NextResponse } from 'next/server';
 
 import { findEventById, guard, toResponse } from '@/access';
 import { getDb } from '@/db';
+import { revokeEventLinks } from '@/revoke';
 import { requesterFor } from '@/session';
 
 export const runtime = 'nodejs';
@@ -181,6 +182,9 @@ export async function DELETE(
     .update(schema.photos)
     .set({ deletedAt: now })
     .where(eq(schema.photos.eventId, event.id));
+
+  // Every link into it, at once — the same move rotating the link makes.
+  await revokeEventLinks(event);
 
   // Free the spoken code immediately — no reason to hold it for a dead event.
   await db

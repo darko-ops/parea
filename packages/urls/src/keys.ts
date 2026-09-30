@@ -107,6 +107,21 @@ export function epochMarkerKey(eventId: string): string {
 }
 
 /**
+ * Where the marker lives that says one photograph's links no longer work.
+ *
+ * The epoch above revokes a whole event at once, for a rotated link. A single
+ * photograph removed, hidden or quarantined had nothing: its signed URLs went
+ * on working for up to two hours, and the Worker's cache went on serving it,
+ * because the Worker checks a signature and an epoch and never the photo.
+ * Present means revoked; the Worker answers it as not found, and checks before
+ * its cache so a cached copy is not served either. Deleted again when a hidden
+ * photo is unhidden.
+ */
+export function revokedMarkerKey(eventId: string, hash: string): string {
+  return `ev/${eventId}/.revoked/${hash}`;
+}
+
+/**
  * Object key for a reference. Must match what the deriver writes.
  *
  * Derivatives are siblings of the original (`<key>.thumb.jpg`) rather than

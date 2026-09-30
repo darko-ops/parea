@@ -6,7 +6,7 @@
  * bad URL never reaches storage.
  */
 
-import { epochMarkerKey, signImagePath, type ImageRef } from '@parea/urls';
+import { epochMarkerKey, revokedMarkerKey, signImagePath, type ImageRef } from '@parea/urls';
 import { describe, expect, it, vi } from 'vitest';
 
 import worker, { type Env } from '../src/index';
@@ -29,6 +29,11 @@ function makeEnv(objects: Record<string, string> = {}) {
   const env: Env = {
     IMAGE_SECRET: SECRET,
     BUCKET: {
+      // Existence checks — the revocation marker — are not object reads, and
+      // counting them would hide whether photo bytes came from cache.
+      async head(key: string) {
+        return objects[key] === undefined ? null : { size: objects[key]!.length };
+      },
       async get(key: string) {
         allReads.push(key);
         const value = objects[key];
@@ -286,3 +291,35 @@ describe('refusals', () => {
       .toBe(405);
   });
 });
+
+describe('one photograph taken back', () => {
+  /*
+   * A photo removed, hidden or quarantined kept working at every URL already
+   * handed out, for up to two hours, and from the edge cache after that was
+   * warm. The Worker checked a signature and an epoch and never the photo.
+   */
+  it('refuses a photo whose links were revoked, even one already cached', async () => {
+    makeCache();
+    const objects: Record<string, string> = { ...OBJECTS };
+    const { env } = makeEnv(objects);
+    const path = await signImagePath(SECRET, ref);
+    expect((await fetchPath(env, path)).status).toBe(200);
+
+    objects[revokedMarkerKey(EVENT, HASH)] = '1';
+    makeCache(); // revocation answers are edge-cached for a minute; skip that window
+    const cache = (globalThis as any).caches.default;
+    // Put the photo back in the cache, as if another viewer had warmed it.
+    await cache.put(new Request(`https://img.example${path}`), new Response('thumbnail-bytes'));
+
+    const after = await fetchPath(env, path);
+    expect(after.status).toBe(404);
+    expect(await after.text()).toBe('not found');
+  });
+
+  it('serves a photo with no marker, which is every photo never taken down', async () => {
+    makeCache();
+    const { env } = makeEnv(OBJECTS);
+    expect((await fetchPath(env, await signImagePath(SECRET, ref))).status).toBe(200);
+  });
+});
+

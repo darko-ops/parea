@@ -33,6 +33,7 @@ import { createHmac, timingSafeEqual } from 'node:crypto';
 
 import type { Db } from './db';
 import { mergeActor } from './merge';
+import { revokePhotoLinks } from './revoke';
 
 /** Long enough to find the mail, short enough that a leaked one is stale. */
 export const CODE_TTL_MS = 10 * 60_000;
@@ -630,7 +631,13 @@ export async function deleteEverything(db: Db, actorId: string): Promise<number>
     .update(schema.photos)
     .set({ deletedAt: new Date() })
     .where(and(eq(schema.photos.uploaderId, actorId), isNull(schema.photos.deletedAt)))
-    .returning({ id: schema.photos.id, eventId: schema.photos.eventId });
+    .returning({
+      id: schema.photos.id,
+      eventId: schema.photos.eventId,
+      contentHash: schema.photos.contentHash,
+    });
+  // Every link to them stops working too. See `./revoke`.
+  await revokePhotoLinks(removed);
 
   // One row each. A bulk deletion that leaves no trace is the case where
   // "where did all of these go" has no answer at all, and it is the largest

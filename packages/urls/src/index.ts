@@ -30,6 +30,7 @@ export {
   derivativeKey,
   derivativeKeyFrom,
   epochMarkerKey,
+  revokedMarkerKey,
   extensionOf,
   formatFromExtension,
   formatOf,

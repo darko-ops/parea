@@ -16,6 +16,7 @@ import { and, eq } from 'drizzle-orm';
 import { NextResponse } from 'next/server';
 
 import { getDb } from '@/db';
+import { revokePhotoLinks } from '@/revoke';
 import { currentActorId } from '@/session';
 
 export const runtime = 'nodejs';
@@ -47,7 +48,9 @@ export async function DELETE(
         eq(schema.photos.uploaderId, actorId),
       ),
     )
-    .returning({ id: schema.photos.id });
+    .returning({ id: schema.photos.id, eventId: schema.photos.eventId, contentHash: schema.photos.contentHash });
+  // And the links already handed out stop working. See `@/revoke`.
+  await revokePhotoLinks(updated);
 
   if (updated.length > 0 && existing) {
     await recordModeration(db, {
