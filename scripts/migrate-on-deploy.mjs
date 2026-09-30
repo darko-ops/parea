@@ -91,6 +91,7 @@ if (!process.env.VERCEL_GIT_PROVIDER && process.env.ALLOW_CLI_MIGRATION !== '1')
 const pending = await pendingMigrations();
 if (pending === 0) {
   console.log('migrations: none pending.');
+  await checkSnapshotAccess();
   process.exit(0);
 }
 
@@ -119,6 +120,37 @@ async function pendingMigrations() {
   } catch (err) {
     console.warn(`migrations: could not count pending (${err?.message ?? err}); assuming some.`);
     return null;
+  }
+}
+
+/**
+ * Whether the snapshot below would work, asked on a deploy that has nothing to
+ * migrate.
+ *
+ * Otherwise a wrong key or project id is found out on the first deploy that
+ * does have a migration — which is the deploy that then fails, because a
+ * snapshot that cannot be taken stops it. One read-only call, logged either
+ * way, never fatal here.
+ */
+async function checkSnapshotAccess() {
+  const key = process.env.NEON_API_KEY;
+  const project = process.env.NEON_PROJECT_ID;
+  if (!key || !project) return;
+  try {
+    const res = await fetch(`https://console.neon.tech/api/v2/projects/${project}/branches`, {
+      headers: { authorization: `Bearer ${key}` },
+    });
+    if (res.ok) {
+      const { branches = [] } = await res.json();
+      console.log(`migrations: snapshot access ok (${branches.length} branches in the project).`);
+    } else {
+      console.warn(
+        `migrations: WARNING — Neon refused the snapshot check (${res.status}). ` +
+          'The next deploy with a migration will fail until NEON_API_KEY and NEON_PROJECT_ID match.',
+      );
+    }
+  } catch (err) {
+    console.warn(`migrations: could not reach Neon to check snapshot access (${err?.message ?? err}).`);
   }
 }
 
