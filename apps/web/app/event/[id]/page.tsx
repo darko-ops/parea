@@ -10,7 +10,7 @@ import { getDb } from '@/db';
 import { messagesFor } from '@/messages';
 import { findGroup } from '@/groups';
 import { hostingFor } from '@/hosts';
-import { membersOf, rosterFor } from '@/members';
+import { mayListMembers, membersOf, rosterFor, visibleMembers } from '@/members';
 import type { EventTab } from '@/../app/components/EventView';
 import { hasDerivatives, imageSources, imageSrc, imageSrcSet, photosWithCard } from '@/images';
 import { viewerContext } from '@/moderation';
@@ -125,6 +125,10 @@ export default async function EventPage({
    * and somebody without an account has kept nothing.
    */
   const accountId = await currentAccountActorId();
+  const showMembers = mayListMembers(
+    (await decide(db, event, 'contribute', requester)).allow,
+    accountId,
+  );
   const favourites = new Set(
     accountId == null || rows.length === 0
       ? []
@@ -304,10 +308,11 @@ export default async function EventPage({
           // Both frames carry it, for the reason the access fields do: a field
           // in one and not the other is a head that changes a second after it
           // draws.
-          members: await membersOf(db, event.id),
+          // Only for signed-in participants — see `mayListMembers`.
+          members: visibleMembers(await membersOf(db, event.id), showMembers),
           // The People tab's fuller answer: everybody in it with what they
           // have put in, plus whoever was asked and has not arrived.
-          roster: await rosterFor(db, event.id, photoCounts(rows)),
+          roster: showMembers ? await rosterFor(db, event.id, photoCounts(rows)) : [],
           messages,
           // `contribute` and an account, matching what the POST actually enforces.
     // Computed from the same helper rather than from `viewerId != null`, which

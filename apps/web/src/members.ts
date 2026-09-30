@@ -53,6 +53,26 @@ export type Member = {
  */
 export const MEMBER_LIMIT = 200;
 
+/**
+ * Whether this viewer is shown who else is in the album.
+ *
+ * Holding the link is enough to see the photographs, and it used to be enough
+ * to see everybody who had ever opened them too — names, handles and ids,
+ * including people who only looked. A link forwarded once too often then
+ * handed a stranger a list of people. So the roster goes to somebody taking
+ * part under their own name: an account, and permission to contribute, which
+ * is the same pair `canPost` asks for. Everybody else is shown the host alone
+ * (`visibleMembers`), who is named on the album anyway, and no roster.
+ */
+export function mayListMembers(canContribute: boolean, accountActorId: string | null): boolean {
+  return canContribute && accountActorId != null;
+}
+
+/** The members a viewer is shown: everybody, or only the host. */
+export function visibleMembers(members: Member[], mayList: boolean): Member[] {
+  return mayList ? members : members.filter((member) => member.isCreator);
+}
+
 export async function membersOf(
   db: Db,
   eventId: string,

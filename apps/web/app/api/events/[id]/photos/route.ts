@@ -22,7 +22,7 @@ import { contributorKey, contributorsOf } from '@/contributors';
 import { tagsForPhotos } from '@/photoTags';
 import { getDb } from '@/db';
 import { hostingFor } from '@/hosts';
-import { invitedTo, membersOf, rosterFrom } from '@/members';
+import { invitedTo, mayListMembers, membersOf, rosterFrom, visibleMembers } from '@/members';
 import { messagesFor } from '@/messages';
 import { findGroup } from '@/groups';
 import { hasDerivatives, imageSources, imageSrc, imageSrcSet, photosWithCard } from '@/images';
@@ -262,6 +262,7 @@ export async function GET(
      */
     reactionLines(db, event.id, viewerId, (actorId) => contributorKey(event.id, actorId))
   ]);
+  const showMembers = mayListMembers(contributeDecision.allow, accountActorId);
 
   // See the note on the read: a set, because the question is membership.
   /*
@@ -548,8 +549,9 @@ export async function GET(
     },
     contributors,
     people,
-    members,
-    roster: rosterFrom(members, invited, photoCounts(rows)),
+    // Only for signed-in participants — see `mayListMembers`.
+    members: visibleMembers(members, showMembers),
+    roster: showMembers ? rosterFrom(members, invited, photoCounts(rows)) : [],
     /*
      * One conversation, in one order.
      *

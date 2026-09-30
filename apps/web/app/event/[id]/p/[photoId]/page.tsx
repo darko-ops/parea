@@ -27,7 +27,7 @@ import { decide, findEventById } from '@/access';
 import { contributorKey, contributorsOf } from '@/contributors';
 import { getDb } from '@/db';
 import { hasDerivatives, imageSources, imageSrc } from '@/images';
-import { membersOf } from '@/members';
+import { mayListMembers, membersOf, visibleMembers } from '@/members';
 import { messagesFor } from '@/messages';
 import { viewerContext } from '@/moderation';
 import { reactionsForPhotos } from '@/photoReactions';
@@ -238,7 +238,10 @@ export default async function PhotoPage({
          */
         reactions={(await reactionsForPhotos(db, [photo.id], viewerId)).get(photo.id) ?? []}
         people={await contributorsOf(db, event.id, rows, viewerId)}
-        members={await membersOf(db, event.id)}
+        members={visibleMembers(
+          await membersOf(db, event.id),
+          mayListMembers((await decide(db, event, 'contribute', requester)).allow, accountId),
+        )}
         canPost={
           (await decide(db, event, 'contribute', requester)).allow && accountId != null
         }
