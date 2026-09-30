@@ -68,6 +68,19 @@ Once a quarter, and after any change to the above: branch production from an
 hour ago, connect to it, count the rows in `photo` and `account`, and delete the
 branch. Write the date and how long it took here.
 
+With the Neon CLI (`npx neonctl`, signed in once):
+
+```
+npx neonctl branches create --project-id still-dust-88337211 \
+  --name restore-drill-$(date -u +%Y%m%d) --parent <UTC timestamp> --type read_only
+npx neonctl connection-string restore-drill-<date> --project-id still-dust-88337211
+#   … connect and count, without printing the connection string anywhere …
+npx neonctl branches delete restore-drill-<date> --project-id still-dust-88337211
+```
+
+A read-only branch cannot be written to by mistake, and deleting it keeps the
+copy of since-deleted data from outliving the one-day window.
+
 | Date | Restored to | Took | Notes |
 |---|---|---|---|
-| | | | |
+| 2026-09-30 | 1 hour back, and 21:50 UTC (before migration 0054) | ~11 s to branch, count and delete | Project `parea-prod` (`still-dust-88337211`), history 1 day. Counts matched production (3 accounts, 20 actors, 27 events, 240 photos). The 21:50 copy showed 54 migrations against production's 55, proving it was the earlier state. Read-only branches, deleted after. |
