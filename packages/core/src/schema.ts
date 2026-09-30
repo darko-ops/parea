@@ -420,6 +420,16 @@ export const sessions = pgTable(
      * existed and still works, and one naming a revoked row must not.
      */
     revokedAt: timestamp('revoked_at', { withTimezone: true }),
+    /**
+     * When somebody last proved who they are on this device — a code or a
+     * passkey — as opposed to when the row was made or last used.
+     *
+     * Null for a guest session and for one minted for an old credential,
+     * neither of which records a sign-in. Asked before anything that adds a
+     * way into the account (a passkey), so that a stolen cookie is not
+     * enough to make itself permanent.
+     */
+    signedInAt: timestamp('signed_in_at', { withTimezone: true }),
     createdAt: createdAt(),
   },
   (t) => [index('session_actor_idx').on(t.actorId, t.lastSeenAt)],

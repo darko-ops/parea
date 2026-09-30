@@ -37,6 +37,8 @@ import {
   resolveSession,
   revokeOtherSessions,
   revokeSession,
+  RECENT_SIGN_IN_SECONDS,
+  signedInRecently,
   startSession,
   staleSessions,
 } from '../src/sessions';
@@ -578,5 +580,42 @@ describe('what a revoked credential can still reach', () => {
      */
     expect(authorize(null, 'view', { event: albumWith(PUBLIC) }, stillHolds).allow).toBe(true);
     expect(authorize(null, 'view', { event: albumWith(PUBLIC) }, {}).allow).toBe(true);
+  });
+});
+
+// --- recent sign-in, for adding a passkey ------------------------------------
+
+describe('a recent sign-in', () => {
+  it('is recorded by a sign-in and not by a guest session', async () => {
+    const id = await actor();
+    const guest = await startSession(db, { actorId: id, kind: 'browser', method: 'guest' });
+    const signed = await startSession(db, { actorId: id, kind: 'browser', method: 'code' });
+    expect(await signedInRecently(db, guest.id)).toBe(false);
+    expect(await signedInRecently(db, signed.id)).toBe(true);
+  });
+
+  it('is recorded when a guest session is adopted by a sign-in', async () => {
+    const id = await actor();
+    const session = await startSession(db, { actorId: id, kind: 'browser', method: 'guest' });
+    await adoptSession(db, session.id, id, 'passkey');
+    expect(await signedInRecently(db, session.id)).toBe(true);
+  });
+
+  it('runs out after the window', async () => {
+    const id = await actor();
+    const session = await startSession(db, { actorId: id, kind: 'browser', method: 'code' });
+    const later = new Date(Date.now() + (RECENT_SIGN_IN_SECONDS + 60) * 1000);
+    expect(await signedInRecently(db, session.id, later)).toBe(false);
+  });
+
+  it('is never true for a credential with no session, or a revoked one', async () => {
+    const id = await actor();
+    const session = await startSession(db, { actorId: id, kind: 'browser', method: 'code' });
+    await db
+      .update(schema.sessions)
+      .set({ revokedAt: new Date() })
+      .where(eq(schema.sessions.id, session.id));
+    expect(await signedInRecently(db, null)).toBe(false);
+    expect(await signedInRecently(db, session.id)).toBe(false);
   });
 });

@@ -241,6 +241,27 @@ export function mailerFromEnv(
  * arriving unbidden is the one moment this product has to tell someone
  * something is wrong.
  */
+/**
+ * Said to the account's own address whenever a passkey is added to it.
+ *
+ * A passkey is a way in that survives being signed out everywhere, so one
+ * added by somebody else is the thing a person most needs to hear about, and
+ * the only place they are sure to hear it is their inbox.
+ */
+export function passkeyAddedEmail(label: string | null): { subject: string; text: string } {
+  return {
+    subject: 'A passkey was added to your Parea account',
+    text: [
+      `A passkey${label ? ` on ${label}` : ''} can now sign in to your Parea account.`,
+      '',
+      'If that was you, there is nothing to do.',
+      '',
+      'If it was not, open Parea, go to your profile, then Devices: remove the',
+      'passkey and sign out everywhere. A code to this address still gets you in.',
+    ].join('\n'),
+  };
+}
+
 export function signInEmail(code: string): { subject: string; text: string } {
   return {
     subject: `${code} is your Parea code`,

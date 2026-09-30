@@ -14,7 +14,8 @@ import { NextResponse } from 'next/server';
 import { getDb } from '@/db';
 import { registrationOptions } from '@/passkeys';
 import { PASSKEY_CHALLENGE_LIMIT, withinLimit } from '@/ratelimit';
-import { currentActorId, requestHost } from '@/session';
+import { currentActorId, currentSessionId, requestHost } from '@/session';
+import { signedInRecently } from '@/sessions';
 
 export const runtime = 'nodejs';
 
@@ -42,6 +43,15 @@ export async function POST(request: Request) {
     .limit(1);
 
   if (!row) return NextResponse.json({ error: 'sign_in_required' }, { status: 401 });
+
+  /*
+   * A passkey outlives being signed out everywhere, so a stolen cookie that
+   * could enrol one would make itself permanent. Only a device that proved
+   * who it is within the hour may add one — see `RECENT_SIGN_IN_SECONDS`.
+   */
+  if (!(await signedInRecently(db, await currentSessionId()))) {
+    return NextResponse.json({ error: 'recent_sign_in_required' }, { status: 403 });
+  }
 
   /*
    * Whether this client has a biometric of its own to offer.

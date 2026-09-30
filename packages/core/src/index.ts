@@ -63,6 +63,7 @@ export {
   redact,
   SEND_TIMEOUT_MS,
   signInEmail,
+  passkeyAddedEmail,
   UnconfiguredMailer,
   type Mailer,
   type Message,

@@ -5,13 +5,17 @@
  * passkey is a key to one, and a guest has nothing for it to open.
  */
 
+import { mailerFromEnv, passkeyAddedEmail, redact, schema } from '@parea/core';
+import { eq } from 'drizzle-orm';
 import { NextResponse } from 'next/server';
 
 import { getDb } from '@/db';
 import { listPasskeys, verifyRegistration } from '@/passkeys';
+import { signedInRecently } from '@/sessions';
 import {
   currentAccountActorId,
   currentActorId,
+  currentSessionId,
   fromBrowser,
   requestHost,
   userAgent,
@@ -56,10 +60,17 @@ export async function POST(request: Request) {
    * than saying nothing: the list exists so somebody can tell their devices
    * apart.
    */
+  // Asked again here, not only when the options were issued: the challenge
+  // lives for minutes and the rule is about the moment the key is kept.
+  const db = getDb();
+  if (!(await signedInRecently(db, await currentSessionId()))) {
+    return NextResponse.json({ error: 'recent_sign_in_required' }, { status: 403 });
+  }
+
   const browser = await fromBrowser();
   const kind = browser ? 'browser' : body.platform === 'android' ? 'android' : 'ios';
 
-  const outcome = await verifyRegistration(getDb(), {
+  const outcome = await verifyRegistration(db, {
     actorId,
     response: body.response as never,
     host: await requestHost(),
@@ -81,5 +92,34 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: outcome.reason }, { status });
   }
 
+  await tellTheOwner(db, actorId, outcome.passkey.label);
   return NextResponse.json({ passkey: outcome.passkey }, { status: 201 });
+}
+
+/**
+ * An email to the account's address saying a passkey was added.
+ *
+ * Best effort, and after the key is kept: a mail outage must not undo an
+ * enrolment the person is watching succeed. Logged without the address.
+ */
+async function tellTheOwner(
+  db: ReturnType<typeof getDb>,
+  actorId: string,
+  label: string | null,
+): Promise<void> {
+  let email = '';
+  try {
+    const [row] = await db
+      .select({ email: schema.accounts.email })
+      .from(schema.actors)
+      .innerJoin(schema.accounts, eq(schema.accounts.id, schema.actors.accountId))
+      .where(eq(schema.actors.id, actorId))
+      .limit(1);
+    if (!row?.email) return;
+    email = row.email;
+    await mailerFromEnv().send({ to: email, ...passkeyAddedEmail(label) });
+  } catch (err) {
+    const detail = err instanceof Error ? err.message : String(err);
+    console.error(`passkey-added email not sent: ${redact(detail, email)}`);
+  }
 }

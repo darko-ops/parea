@@ -79,6 +79,13 @@ function readFailure(err: unknown): string | typeof CANCELLED {
 }
 
 /**
+ * Adding a passkey needs a sign-in within the hour, so that a stolen cookie
+ * cannot enrol one. Said as what to do about it.
+ */
+const STALE_SIGN_IN =
+  'To add a passkey, sign in again first: sign out, then back in with a code.';
+
+/**
  * Makes a passkey and registers it.
  *
  * Two requests around one platform prompt: the options carry a challenge the
@@ -102,6 +109,7 @@ export async function addPasskey(): Promise<Result<{ id: string; label: string |
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ platform: local }),
     });
+    if (optionsResponse.status === 403) return { ok: false, message: STALE_SIGN_IN };
     if (!optionsResponse.ok) {
       return {
         ok: false,
@@ -122,6 +130,7 @@ export async function addPasskey(): Promise<Result<{ id: string; label: string |
       body: JSON.stringify({ response: attestation }),
     });
 
+    if (saved.status === 403) return { ok: false, message: STALE_SIGN_IN };
     if (saved.status === 409) {
       return { ok: false, message: 'This device already has a passkey for your account.' };
     }

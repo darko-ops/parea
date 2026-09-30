@@ -70,6 +70,8 @@ export async function startSession(
       client: description.client,
       platform: description.platform,
       method: input.method,
+      // Every call that is not a sign-in passes `guest`; see `signedInAt`.
+      signedInAt: input.method === 'guest' ? null : new Date(),
     })
     .returning({ id: schema.sessions.id });
   return { id: row!.id };
@@ -96,10 +98,41 @@ export async function adoptSession(
 ): Promise<boolean> {
   const updated = await db
     .update(schema.sessions)
-    .set({ actorId, method, lastSeenAt: new Date() })
+    .set({
+      actorId,
+      method,
+      lastSeenAt: new Date(),
+      signedInAt: method === 'guest' ? null : new Date(),
+    })
     .where(and(eq(schema.sessions.id, sessionId), isNull(schema.sessions.revokedAt)))
     .returning({ id: schema.sessions.id });
   return updated.length > 0;
+}
+
+/**
+ * How recent a sign-in has to be to add a way into the account.
+ *
+ * An hour: long enough that the offer straight after signing in, and a trip
+ * to the Devices screen in the same sitting, both work without a second code;
+ * short enough that a cookie lifted from somebody's browser next week cannot
+ * enrol a passkey of its own and outlive being signed out.
+ */
+export const RECENT_SIGN_IN_SECONDS = 3600;
+
+/** Whether this session signed in within `RECENT_SIGN_IN_SECONDS`. */
+export async function signedInRecently(
+  db: Db,
+  sessionId: string | null,
+  now: Date = new Date(),
+): Promise<boolean> {
+  if (!sessionId) return false;
+  const [row] = await db
+    .select({ signedInAt: schema.sessions.signedInAt })
+    .from(schema.sessions)
+    .where(and(eq(schema.sessions.id, sessionId), isNull(schema.sessions.revokedAt)))
+    .limit(1);
+  const at = row?.signedInAt;
+  return at != null && now.getTime() - at.getTime() <= RECENT_SIGN_IN_SECONDS * 1000;
 }
 
 /**
