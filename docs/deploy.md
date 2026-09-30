@@ -161,10 +161,10 @@ Deploy `apps/web` to Vercel with the environment below. The build fails without
 Then check it:
 
 ```
-curl -s https://<app>/api/health | jq
+curl -s -H "authorization: Bearer $HEALTH_TOKEN" https://<app>/api/health | jq
 ```
 
-It answers 503 while anything required is missing, and names what. A load
+With the token (`HEALTH_TOKEN`, readable in the Vercel dashboard) it checks the database and answers 503 while anything required is missing, and names what. Without it, it only says the site is up — deliberately, so a monitor cannot keep the database awake and a stranger cannot read the configuration. A load
 balancer can use it; it reports names and booleans, never values.
 
 ## 4b. Mail

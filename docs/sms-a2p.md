@@ -50,7 +50,7 @@ change. That is a deliberate fail-closed state, not a broken one.
    - accepted **and nothing arrives** → carrier filtering. Config is right; the
      campaign is the only thing left. Nothing in this repository can see that.
 6. Redeploy, so the vars reach the running app.
-7. Check `/api/health` — all five present, `missing` empty either way since none
+7. Check `/api/health` with the `HEALTH_TOKEN` header — all five present, `missing` empty either way since none
    are required in production.
 
 ## The campaign form, answered

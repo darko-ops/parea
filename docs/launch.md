@@ -62,7 +62,7 @@ commonly breaks certificate issuance outright.
 "Resolving" is the whole claim for the first two: the names answer with the
 right values. Nothing is served at them yet, and an A record pointing at
 Vercel's anycast address says nothing about whether a project is attached to
-it — `curl -s https://parea.photos/api/health` is what answers that, and it is
+it — `curl -s -H "authorization: Bearer $HEALTH_TOKEN" https://parea.photos/api/health` is what answers that, and it is
 §4's job.
 
 - [ ] **Inbound email.** Routing is switched on; nothing has been received

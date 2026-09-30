@@ -19,23 +19,31 @@ import { describeConfig, missingInProduction } from '@/env';
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
-export async function GET() {
+/**
+ * Two answers: one for anybody, one for whoever runs the deployment.
+ *
+ * It used to give everybody the full answer — a query against the database on
+ * every request, and the name of every setting and whether it was set. The
+ * first made it the cheapest way to keep a scale-to-zero database awake, and
+ * on a plan measured in compute-hours a monitor pinging it each minute, or a
+ * script pinging it faster, could spend the month. The second told anybody
+ * which providers were configured and which were not.
+ *
+ * So the public answer is "the website is up" and touches nothing, which is
+ * what an uptime monitor needs. The full check — database, and every setting —
+ * is for requests carrying `HEALTH_TOKEN`, which the operator reads from the
+ * Vercel dashboard: `curl -H "authorization: Bearer $HEALTH_TOKEN" …/api/health`.
+ */
+export async function GET(request: Request) {
+  const token = process.env.HEALTH_TOKEN;
+  const deep = Boolean(token) && request.headers.get('authorization') === `Bearer ${token}`;
+  if (!deep) return NextResponse.json({ status: 'ok' });
+
   let database = false;
   try {
     await getDb().execute(sql`select 1`);
     database = true;
   } catch (err) {
-    /*
-     * Logged, not returned.
-     *
-     * This used to put 120 characters of driver output in the response, which
-     * for postgres.js is typically the host and port it failed to reach — so
-     * an endpoint whose own header promises "names and booleans only, never
-     * values" was publishing the database endpoint to anybody who asked. The
-     * boolean and the 503 are what a load balancer acts on; the sentence is
-     * for whoever reads the logs, and that is the difference between operating
-     * this and probing it.
-     */
     console.error('health: database unreachable:', err instanceof Error ? err.message : err);
   }
 
