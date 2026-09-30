@@ -7,7 +7,7 @@ such applications ask: who you are, what the service is, how images flow, what
 you do on a match, and volume. Anything in **[brackets]** is yours to fill in.
 
 Register with NCMEC's CyberTipline as an electronic service provider first
-(<https://report.cybertip.org/ispregistration>). Vetting commonly asks for it,
+(<https://esp.ncmec.org/registration>). Vetting commonly asks for it,
 and a match has to be reportable the day it happens.
 
 ---
