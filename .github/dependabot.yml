@@ -1,0 +1,37 @@
+# Dependency updates — security review L14.
+#
+# Weekly and grouped, so a week's minor and patch bumps arrive as one pull
+# request to read rather than twenty. Security updates are separate from this
+# schedule: GitHub opens those as soon as an advisory lands (vulnerability
+# alerts and security updates are enabled on the repository).
+#
+# Production deploys from this branch, so a merged update ships. Read the
+# changelog of anything that is not a patch, and let CI finish first.
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 5
+    groups:
+      minor-and-patch:
+        update-types: [minor, patch]
+    ignore:
+      # Majors are a decision, not a chore. Expo and React Native move together
+      # and only with an SDK upgrade; Next.js majors change conventions.
+      - dependency-name: '*'
+        update-types: ['version-update:semver-major']
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly
+
+  # The deriver's base image, which carries libheif and exiftool. A monthly
+  # rebuild on a fresh base is how Debian's security fixes reach it.
+  - package-ecosystem: docker
+    directory: /services/deriver
+    schedule:
+      interval: monthly
