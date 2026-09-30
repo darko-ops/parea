@@ -52,7 +52,8 @@ deployment with neither refuses to start in production.
 consequences for getting it wrong in either direction, and in the US it
 requires being a registered electronic service provider with credentials
 obtained in advance. There is no code path that files a report, and
-`reported_at` is not settable by any automated path.
+`reported_at` is not settable by any automated path. What it does do is keep the
+deadline: see "The 72-hour reporting deadline" below.
 
 **It does not tell the uploader, or the host.** Neither is notified, and the
 quarantined photo appears in no host-facing queue.
@@ -111,6 +112,34 @@ statement is that this SLA holds while the operator is contactable, and the
 mitigating fact is that the automatic effects — quarantine, incident,
 preservation — do not wait for anyone.
 
+## The 72-hour reporting deadline
+
+**Every child-safety incident is reported, or released as a false match,
+within 72 hours of `detected_at`.** This is a commitment made when applying
+for PhotoDNA: every match is reported through the PhotoDNA reporting API
+within 72 hours of the match response, and missing it can get the service
+suspended. US law asks for "as soon as reasonably possible"; this is the
+number that makes that checkable, and it applies to incidents opened by a
+user's report too.
+
+The product keeps the clock, so a person does not have to:
+
+| Since detection | What happens |
+|---|---|
+| 0 hours | Quarantine, incident, responder alerted (the alert above) |
+| 24 hours | One reminder to `SAFETY_ALERT_EMAIL` and Sentry |
+| 48 hours onward | A reminder every hour |
+| 72 hours | Every hour, marked **OVERDUE**, Sentry at `fatal` |
+
+Reminders stop the moment `reported_at` or `released_at` is set. They come
+from the Vercel cron `/api/cron/safety-deadlines` (hourly, at :40), not from
+the Fly jobs machine, so they do not depend on the job whose heartbeat is
+separately watched.
+
+A match from PhotoDNA is reported **through the PhotoDNA reporting API**, as
+agreed; a user report that proves real is reported through the CyberTipline
+directly. Both are recorded the same way, step 4 below.
+
 ## If you get an alert
 
 1. **Do not open the image.** Viewing or downloading suspected material is
@@ -132,9 +161,10 @@ preservation — do not wait for anyone.
 
    Null the column and delete the object for each one. Do not open either
    image to decide — step 1 applies to these as much as to the photograph.
-3. **Contact counsel and file.** Whatever your counsel directs, through
-   whatever channel you have established in advance. The alert is the start of
-   a clock you do not control.
+3. **File within 72 hours of detection.** A PhotoDNA match through the
+   PhotoDNA reporting API; anything else through the NCMEC CyberTipline.
+   Involve counsel as they have directed in advance, but do not let that
+   stretch the deadline above — the reminders will say how long is left.
 4. **Record the outcome.** Set `reported_at` and `report_reference` on the
    incident by hand. Setting `reported_at` starts the one-year preservation
    window (`PRESERVATION_DAYS` in `@parea/core`), after which the purge job

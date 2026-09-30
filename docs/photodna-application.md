@@ -68,7 +68,11 @@ Built and tested today, waiting only on a scanner:
   REPORT Act), and cannot be deleted by the uploader or by routine clean-up.
 - A **safety incident** is recorded with the content hash, the match details
   and the account involved, and our responder is **alerted by email** at once.
-- We **report to NCMEC** through the CyberTipline and act on the account.
+- We **report every match through the PhotoDNA reporting API within 72
+  hours** of the match response, and act on the account. The deadline is
+  tracked by the system: a reminder goes to our safety address at 24 hours,
+  then every hour from 48 hours until the report is recorded, and past 72
+  hours it escalates as overdue.
 - Staff do **not** open or view matched images. The incident record carries
   what a report needs.
 
