@@ -37,14 +37,17 @@ import {
   UnconfiguredTexter,
   verifyText,
 } from '@parea/core';
+import * as Sentry from '@sentry/nextjs';
 import { eq } from 'drizzle-orm';
 import { NextResponse } from 'next/server';
 
 import { isSignedIn } from '@/access';
 import { getDb } from '@/db';
-import { lastTwo, normalisePhone, startVerification } from '@/phone';
+import { lastTwo, normalisePhone, startVerification, textableCountry } from '@/phone';
 import {
+  PHONE_ACCOUNT_LIMIT,
   PHONE_CODE_LIMIT,
+  PHONE_DAILY_LIMIT,
   PHONE_NUMBER_LIMIT,
   withinLimit,
   withinLimitFor,
@@ -94,14 +97,35 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'needs_country_code' }, { status: 400 });
   }
 
+  // Only to the countries this service texts — see `textableCountry`.
+  if (!textableCountry(e164)) {
+    return NextResponse.json({ error: 'country_not_supported' }, { status: 400 });
+  }
+
   const secret = process.env.SESSION_SECRET;
   if (!secret) return NextResponse.json({ error: 'not_configured' }, { status: 503 });
 
   // Sending a text on demand to a number the caller chose is a way to spend
   // this deployment's money on waking strangers' phones up, so it is bounded
   // harder than the rest of the API and in two directions.
-  if (!(await withinLimit(session.db, PHONE_CODE_LIMIT, secret))) {
+  if (
+    !(await withinLimit(session.db, PHONE_CODE_LIMIT, secret)) ||
+    !(await withinLimitFor(session.db, PHONE_ACCOUNT_LIMIT, secret, session.actorId))
+  ) {
     return NextResponse.json({ error: 'too_many_requests' }, { status: 429 });
+  }
+
+  /*
+   * The daily ceiling for everybody together. Tripping it is either a very good
+   * day or an attack, and both are worth hearing about — so it tells Sentry,
+   * and texting pauses until the window rolls over.
+   */
+  if (!(await withinLimitFor(session.db, PHONE_DAILY_LIMIT, secret, 'all'))) {
+    Sentry.captureMessage('Phone verification texts hit the daily ceiling', {
+      level: 'error',
+      tags: { kind: 'sms_ceiling' },
+    });
+    return NextResponse.json({ error: 'try_later' }, { status: 503 });
   }
 
   /*

@@ -307,3 +307,54 @@ export async function confirmVerification(
 
   return { ok: true, phoneHash: row.phoneHash, phoneLast2: row.phoneLast2 };
 }
+
+/**
+ * Where a verification text may go — security review H10.
+ *
+ * Texting a number the caller typed is the one thing in the product that spends
+ * money on a stranger's say-so, and toll fraud ("SMS pumping") works by typing
+ * premium-rate numbers in countries a service never meant to serve. So texts go
+ * only to the countries in `SMS_COUNTRIES` (ISO codes, comma-separated; default
+ * US, Canada, UK). Twilio's Geo Permissions carry the same list, so either one
+ * alone would stop it; keep them in step.
+ */
+const CALLING_CODES: Record<string, string> = {
+  US: '1', CA: '1', GB: '44', IE: '353', FR: '33', DE: '49', ES: '34', IT: '39',
+  NL: '31', BE: '32', PT: '351', SE: '46', DK: '45', NO: '47', FI: '358',
+  AT: '43', CH: '41', PL: '48', AU: '61', NZ: '64',
+};
+
+/**
+ * +1 area codes that are not the US or Canada — the Caribbean and Atlantic
+ * members of the North American plan. They share the prefix and are among the
+ * most abused destinations for pumping, so allowing "US" must not allow them.
+ * US territories (Puerto Rico, the Virgin Islands, Guam) stay allowed.
+ */
+const NANP_ELSEWHERE = new Set([
+  '242', '246', '264', '268', '284', '345', '441', '473', '649', '658', '664',
+  '721', '758', '767', '784', '809', '829', '849', '868', '869', '876',
+]);
+
+export function smsCountries(env: string | undefined = process.env.SMS_COUNTRIES): string[] {
+  const list = (env ?? 'US,CA,GB')
+    .split(',')
+    .map((c) => c.trim().toUpperCase())
+    .filter((c) => c in CALLING_CODES);
+  return list.length > 0 ? list : ['US', 'CA', 'GB'];
+}
+
+/** Whether a verification text may be sent to this E.164 number. */
+export function textableCountry(e164: string, allowed: string[] = smsCountries()): boolean {
+  const digits = e164.slice(1);
+  for (const country of allowed) {
+    const code = CALLING_CODES[country]!;
+    if (!digits.startsWith(code)) continue;
+    if (code === '1') {
+      // A North American number is ten digits after the 1.
+      if (digits.length !== 11) return false;
+      if (NANP_ELSEWHERE.has(digits.slice(1, 4))) return false;
+    }
+    return true;
+  }
+  return false;
+}

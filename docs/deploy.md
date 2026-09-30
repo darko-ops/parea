@@ -411,6 +411,7 @@ Generate with `openssl rand -base64 32`.
 | `SMS_API_KEY` | ● | | confirming a phone number. One value: `<sid>:<token>` for Twilio, `<key>:<secret>` for Vonage, the access key alone for MessageBird |
 | `SMS_FROM` | ● | | the number or sender ID texts come from |
 | `SMS_API_URL` | ● | | required for `twilio`, whose path carries the account SID |
+| `SMS_COUNTRIES` | ● | | ISO codes texts may go to, comma-separated; default `US,CA,GB`. Caribbean +1 numbers are refused even with `US`. Keep in step with Twilio Geo Permissions |
 | `PHONE_PEPPER` | ● | | the key numbers are hashed with. Falls back to `SESSION_SECRET`; rotating either makes everybody confirm their number again |
 | `QSTASH_TOKEN` | ● | | without it an upload is refused rather than never derived |
 | `QSTASH_URL` | | ● | only when the QStash account is outside the default region |

@@ -193,6 +193,10 @@ export function FindFriends({
       setError(
         err instanceof ApiError && err.body.error === 'needs_country_code'
           ? 'Start with the country code, like +44 or +1.'
+          : err instanceof ApiError && err.body.error === 'country_not_supported'
+            ? 'Numbers from that country are not supported yet.'
+          : err instanceof ApiError && err.body.error === 'try_later'
+            ? 'Confirming numbers is paused for today. Try again tomorrow.'
           : err instanceof ApiError && err.body.error === 'too_many_requests'
             ? 'That is a lot of codes for one hour. Try again later.'
             : err instanceof ApiError && err.body.error === 'not_configured'

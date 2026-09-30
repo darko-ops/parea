@@ -535,6 +535,31 @@ export const PHONE_CODE_LIMIT: Limit = {
  * distinguishable "that number has had enough" is an oracle on whether somebody
  * has been asked about.
  */
+/**
+ * Verification texts per account per day — H10. An account costs one email
+ * code, so without this one account could text a new number every few minutes
+ * all day within the per-source limit.
+ */
+export const PHONE_ACCOUNT_LIMIT: Limit = {
+  name: 'phone-account',
+  max: 5,
+  windowSeconds: 86_400,
+  failClosed: true,
+};
+
+/**
+ * The whole service's verification texts per day: a circuit breaker. However
+ * an attack spreads itself across addresses and accounts, this is the most a
+ * day can cost. Generous against real use (a few people verifying a number)
+ * and closed when the limiter cannot answer.
+ */
+export const PHONE_DAILY_LIMIT: Limit = {
+  name: 'phone-daily',
+  max: 200,
+  windowSeconds: 86_400,
+  failClosed: true,
+};
+
 export const PHONE_NUMBER_LIMIT: Limit = {
   name: 'phone-number',
   max: 3,
