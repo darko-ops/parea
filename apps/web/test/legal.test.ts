@@ -211,6 +211,7 @@ describe('the closed list of what is collected', () => {
       'derivative', // resized copies of a photo already accounted for.
       'groups', // a name and a slug; who is in it is `group_member`.
       'moderation_flag', // a classifier's opinion of a photo.
+      'job_run', // when the hourly clean-up last ran, and its last error line.
     ]);
 
     const DISCLOSED: Record<string, RegExp> = {

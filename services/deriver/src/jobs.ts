@@ -514,10 +514,56 @@ export async function nudge(database: ReturnType<typeof db>): Promise<number> {
   return notified;
 }
 
+/** The heartbeat's name for a full run on the hourly schedule. */
+export const HOURLY = 'hourly';
+
+/**
+ * Stamps the heartbeat a watcher reads — see `job_run` in the schema.
+ *
+ * Only for a full run: a single job run by hand says nothing about whether the
+ * schedule is healthy. Written with a fresh connection on failure, because the
+ * usual cause of a failed run is the database itself, and then this cannot be
+ * written either — which is exactly the case the watcher is for: it alerts on
+ * a success that is too old, not on a failure it was told about.
+ */
+export async function recordRun(
+  database: ReturnType<typeof db>,
+  outcome: { ok: true } | { ok: false; error: unknown },
+  now = new Date(),
+): Promise<void> {
+  const set = outcome.ok
+    ? { lastSucceededAt: now }
+    : {
+        lastFailedAt: now,
+        lastError: (outcome.error instanceof Error ? outcome.error.message : String(outcome.error))
+          .split('\n')[0]!
+          .slice(0, 300),
+      };
+  await database
+    .insert(schema.jobRuns)
+    .values({ name: HOURLY, ...set })
+    .onConflictDoUpdate({ target: schema.jobRuns.name, set });
+}
+
 async function main(): Promise<void> {
   const database = db();
   const objects = objectStoreFromEnv();
   const only = process.argv[2];
+  try {
+    await runAll(database, objects, only);
+  } catch (err) {
+    if (!only) await recordRun(database, { ok: false, error: err }).catch(() => {});
+    throw err;
+  }
+  if (!only) await recordRun(database, { ok: true });
+  process.exit(0);
+}
+
+async function runAll(
+  database: ReturnType<typeof db>,
+  objects: ReturnType<typeof objectStoreFromEnv>,
+  only: string | undefined,
+): Promise<void> {
 
   const run = async (name: string, fn: () => Promise<number>) => {
     if (only && only !== name) return;
@@ -544,7 +590,6 @@ async function main(): Promise<void> {
   if (!only || only === 'metrics') {
     console.log(`\nmetrics — design §18\n${formatReport(await report(database))}`);
   }
-  process.exit(0);
 }
 
 if (process.argv[1]?.endsWith('jobs.ts')) {

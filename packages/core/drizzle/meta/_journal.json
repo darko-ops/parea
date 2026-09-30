@@ -351,6 +351,13 @@
       "when": 1790718380509,
       "tag": "0049_account_age_check",
       "breakpoints": true
+    },
+    {
+      "idx": 50,
+      "version": "7",
+      "when": 1790737379090,
+      "tag": "0050_job_heartbeat",
+      "breakpoints": true
     }
   ]
 }

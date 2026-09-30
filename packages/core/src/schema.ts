@@ -37,6 +37,28 @@ const createdAt = () =>
 
 // --- identity --------------------------------------------------------------
 
+/**
+ * When a scheduled job last ran, and how it went — the heartbeat a watcher
+ * reads.
+ *
+ * The hourly clean-up once failed silently for a week: pointed at a database
+ * that refused every connection, it exited with an error each hour and nothing
+ * anywhere noticed. The job writes here at the end of every full run; a cron on
+ * Vercel — different infrastructure, so it cannot go down with the job —
+ * reads it and raises an alert when the last success is too old. See
+ * `/api/cron/jobs-heartbeat`.
+ */
+export const jobRuns = pgTable('job_run', {
+  /** Which schedule: `hourly`. */
+  name: text('name').primaryKey(),
+  lastSucceededAt: timestamp('last_succeeded_at', { withTimezone: true }),
+  lastFailedAt: timestamp('last_failed_at', { withTimezone: true }),
+  /** The first line of the last failure, for the alert. Never data, only the error. */
+  lastError: text('last_error'),
+  /** When the watcher last raised an alert, so one outage is one alert, not one an hour. */
+  lastAlertedAt: timestamp('last_alerted_at', { withTimezone: true }),
+});
+
 export const accounts = pgTable('account', {
   id: uuid('id').primaryKey().defaultRandom(),
   /** Normalised before it gets here — see `normaliseEmail`. */
