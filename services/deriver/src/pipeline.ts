@@ -38,7 +38,7 @@ import {
 } from './derivatives';
 import {
   extractMetadata,
-  hasLocation,
+  hasPrivateMetadata,
   imageDataHash,
   stripPrivateMetadata,
 } from './metadata';
@@ -130,9 +130,10 @@ export async function processPhoto(
       return fail(db, photoId, 'pixel_data_changed');
     }
 
-    if (await hasLocation(working)) {
-      // The strip reported success but location survived — a format exiftool
-      // handles partially. Serving it would break the guarantee in the UI.
+    if (await hasPrivateMetadata(working)) {
+      // The strip reported success but a location or a person's name survived
+      // — a format exiftool handles partially, or a check that could not read
+      // the file. Serving it would break the guarantee on the privacy page.
       return fail(db, photoId, 'location_not_removed');
     }
 

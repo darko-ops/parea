@@ -54,18 +54,17 @@ export default function PrivacyPage() {
           <h3>Photos and videos you upload</h3>
           <p className="muted">
             Kept at full quality, exactly as your camera produced them. Before
-            any of them is shown to anyone, the GPS coordinates are removed from
-            the file, along with the camera&rsquo;s serial number and the
-            owner&rsquo;s name if the camera recorded one &mdash; the image itself
-            is untouched. The date, the camera model and the orientation are
-            kept, because the date is what puts the evening in order.
-          </p>
-          <p className="muted">
-            Some apps write other details into a photo: a place name such as a
-            city, or the names of people they recognised in it. Those are not
-            yet removed from the full-quality original, which people in the
-            roll can download. The smaller copies shown on screen carry no
-            metadata at all.
+            any of them is shown to anyone, everything in the file that says
+            where it was taken is removed &mdash; GPS coordinates, and the place
+            names some apps add, such as a city &mdash; along with the names of
+            people an app recognised in it, the camera&rsquo;s serial number, the
+            owner&rsquo;s name if the camera recorded one, and any small preview
+            copy embedded in the file. The image itself is untouched, and this
+            is checked before a photo is shown: if anything that should have
+            gone is still there, the photo is not published. The date, the
+            camera model and the orientation are kept, because the date is what
+            puts the evening in order. The smaller copies shown on screen carry
+            no metadata at all.
           </p>
           <p className="muted">
             Between the moment you upload and the moment that processing

@@ -17,12 +17,22 @@
 import { runParser } from './subprocess';
 
 /**
- * Removed: anything that says where the photo was taken, or which specific
- * device took it.
+ * Removed: anything that says where the photo was taken, who is in it, or
+ * which specific device took it.
  *
  * Kept, deliberately: orientation (the image is unviewable without it),
  * DateTimeOriginal (the grid is chronological), camera make/model and exposure
  * (interesting, not identifying).
+ *
+ * The list used to stop at GPS coordinates, and a photo that had been through
+ * a photo app kept the rest of where it was taken — a city, a sub-location,
+ * "location shown" and "location created" blocks, a GPS *destination* — and
+ * the names of the people the app had recognised in it, in three different
+ * face-region formats. Every viewer can download the original, so those went
+ * to everyone in the roll. `-Location:all=` takes the whole of exiftool's
+ * location category, whichever standard wrote it; the face regions and the
+ * embedded previews (which can hold the photo before it was cropped) are
+ * named one by one.
  */
 const STRIP_ARGS = [
   '-gps:all=',
@@ -42,6 +52,19 @@ const STRIP_ARGS = [
   '-CameraOwnerName=',
   '-Artist=',
   '-XMP:Creator=',
+  // Where, in every standard that can say it: IPTC and XMP place names,
+  // location shown/created, GPS destination.
+  '-Location:all=',
+  // Who: face regions (Metadata Working Group, Microsoft People) and the
+  // IPTC list of people shown.
+  '-XMP-mwg-rs:all=',
+  '-XMP-MP:all=',
+  '-XMP-iptcExt:PersonInImage=',
+  '-XMP-iptcExt:PersonInImageWDetails=',
+  // And the small copies a camera or editor embeds, which can be the photo
+  // before it was cropped.
+  '-ThumbnailImage=',
+  '-PreviewImage=',
 ];
 
 export type ExtractedMetadata = {
@@ -105,15 +128,30 @@ export async function extractMetadata(path: string): Promise<ExtractedMetadata> 
   };
 }
 
-/** Confirms the strip actually removed location, so a silent failure is caught. */
-export async function hasLocation(path: string): Promise<boolean> {
-  const out = await exiftool([
-    '-s3', '-n',
-    '-GPSLatitude', '-GPSLongitude', '-XMP:GPSLatitude',
-    '-QuickTime:GPSCoordinates',
-    path,
-  ]).catch(() => '');
-  return out.trim().length > 0;
+/**
+ * Confirms the strip removed everything it promises, so a silent failure is
+ * caught: any location field, and any name of a person in the photo.
+ *
+ * It asked about four GPS tags, so a photo could keep its city and the names
+ * of the people in it and pass. And it answered "nothing here" when exiftool
+ * failed, which is the one answer a check must not give when it could not
+ * look: now a failure to read counts as not verified, and the photo is refused
+ * rather than served.
+ */
+export async function hasPrivateMetadata(path: string): Promise<boolean> {
+  try {
+    const out = await exiftool([
+      '-s3', '-n',
+      '-Location:all',
+      '-XMP-mwg-rs:RegionName',
+      '-XMP-MP:RegionPersonDisplayName',
+      '-XMP-iptcExt:PersonInImage',
+      path,
+    ]);
+    return out.trim().length > 0;
+  } catch {
+    return true;
+  }
 }
 
 function blank(): ExtractedMetadata {

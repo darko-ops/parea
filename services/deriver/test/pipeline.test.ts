@@ -29,7 +29,7 @@ import {
 } from '../src/pipeline';
 import { canDecode, canDecodeViaHeifConvert, canEncodeAvif } from '../src/derivatives';
 import { HEVC_HEIC_SAMPLE } from '../src/fixture';
-import { imageDataHash, parseExifDate, parseOffsetMinutes } from '../src/metadata';
+import { hasPrivateMetadata, imageDataHash, parseExifDate, parseOffsetMinutes } from '../src/metadata';
 import { LocalObjectStore } from '../src/objects';
 import { MODERATORS, postureFromEnv } from '../src/moderation';
 import { processPhoto } from '../src/pipeline';
@@ -119,6 +119,52 @@ async function seedPhoto(bytes: Buffer, mime = 'image/jpeg') {
     .returning();
   return { actor, event, photo, key };
 }
+
+describe('what a downloaded original no longer says', () => {
+  it('drops place names and the names of the people in it, and keeps the date and camera', async () => {
+    /*
+     * A photo that has been through a photo app carries more than GPS: a city
+     * and a sub-location, "location shown" and "location created" blocks, a
+     * GPS destination, and the names of the people the app recognised, in
+     * three different formats. The strip used to stop at GPS, and every viewer
+     * can download the original.
+     */
+    const path = join(dir, 'places-and-faces.jpg');
+    await writeFile(path, await geotaggedJpeg(31));
+    await run('exiftool', [
+      '-overwrite_original', '-q',
+      '-IPTC:Sub-location=Our House', '-IPTC:Province-State=London',
+      '-XMP-photoshop:City=Camden', '-XMP-photoshop:Country=UK',
+      '-XMP-iptcCore:Location=Our House',
+      '-XMP-iptcExt:LocationShownCity=Camden',
+      '-XMP-exif:GPSDestLatitude=51.5',
+      '-XMP-iptcExt:PersonInImage=Ana Example',
+      '-XMP-mwg-rs:RegionInfo={AppliedToDimensions={W=800,H=600,Unit=pixel},RegionList=[{Area={X=0.5,Y=0.5,W=0.2,H=0.2,Unit=normalized},Name=Ana Example,Type=Face}]}',
+      '-XMP-MP:RegionInfoMP={Regions=[{PersonDisplayName=Jack Example}]}',
+      path,
+    ]);
+
+    const { photo } = await seedPhoto(await readFile(path));
+    const outcome = await processPhoto({ db, objects, scanner }, photo.id);
+    expect(outcome.status).toBe('ready');
+
+    const [row] = await db.select().from(schema.photos).where(eq(schema.photos.id, photo.id));
+    const out = join(dir, 'downloaded.jpg');
+    await writeFile(out, (await objects.get(row.storageKey))!);
+    const { stdout } = await run('exiftool', [
+      '-s3', '-Location:all', '-XMP-mwg-rs:all', '-XMP-MP:all', '-PersonInImage', out,
+    ]);
+    expect(stdout.trim(), 'no place and no person may survive').toBe('');
+    const { stdout: kept } = await run('exiftool', ['-s3', '-Model', '-DateTimeOriginal', out]);
+    expect(kept.trim().split('\n')).toEqual(['iPhone 15 Pro', '2026:07:18 21:14:07']);
+  });
+
+  it('counts a file it cannot read as not verified', async () => {
+    // The check used to answer "nothing here" when exiftool failed, which is
+    // the one answer it must not give when it could not look.
+    expect(await hasPrivateMetadata(join(dir, 'no-such-file.jpg'))).toBe(true);
+  });
+});
 
 describe('the promises this makes to users', () => {
   it('removes location, and keeps the time and camera', async () => {
