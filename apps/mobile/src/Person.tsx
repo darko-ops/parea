@@ -43,6 +43,7 @@ import { dateLabel } from '@parea/cards';
 import { Image } from 'expo-image';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
+  Alert,
   Animated,
   Linking,
   Pressable,
@@ -55,12 +56,13 @@ import {
 
 import type { Api, EventListing, Person, ProfileAlbum, SharedEvent, Standing } from './api';
 import { HangingTab, TAB_H } from './HangingTab';
-import { Back, RoundButton } from './RoundButton';
+import { Back, More, RoundButton } from './RoundButton';
 import { FrostedGlass } from './FrostedGlass';
 import { BELOW_TABS } from './chrome';
 import type { GroupTheme } from './Groups';
 import { initialOf, lensFor } from './lens';
 import { MomentsRow, MomentsViewer, useMoments } from './Moments';
+import { reportContent } from './report';
 import { Waiting } from './Waiting';
 
 /** The shelf's shape, matching the one the viewer's own profile draws. */
@@ -833,6 +835,34 @@ export function PersonScreen({
       />
 
       {back}
+      {/*
+        Everything else about this person, in the other corner: the `⋯` your
+        own profile keeps there, holding the one thing a page about somebody
+        else still needs — telling us about it. A list of one rather than a
+        Report button in the row under the name, where it would sit at the
+        same weight as Chat and read as something you do to people.
+
+        Not on your own page, which is the one person you cannot report.
+      */}
+      {standing !== 'self' && (
+        <View style={[styles.corner, styles.cornerRight]}>
+          <RoundButton
+            t={t}
+            onPress={() =>
+              Alert.alert(name, undefined, [
+                {
+                  text: 'Report',
+                  onPress: () => void reportContent(api, 'profile', person.actorId),
+                },
+                { text: 'Cancel', style: 'cancel' },
+              ])
+            }
+            accessibilityLabel="More"
+          >
+            <More color={t.fg} />
+          </RoundButton>
+        </View>
+      )}
     </View>
   );
 }
@@ -861,6 +891,7 @@ const styles = StyleSheet.create({
   /* Above the tab, and fixed: it does not scroll and is not part of it. The
      same corner, at the same height, as the profile's `⋯`. */
   corner: { position: 'absolute', top: 62, left: 20, zIndex: 3 },
+  cornerRight: { left: undefined, right: 20 },
   body: { fontSize: 16, lineHeight: 22 },
   small: { fontSize: 13 },
   /*

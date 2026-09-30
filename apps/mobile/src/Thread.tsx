@@ -146,6 +146,15 @@ export type ThreadActions = {
    * — where there is nothing for it to address.
    */
   unreact?: (photoId: string, emoji: string) => Promise<unknown>;
+  /**
+   * Reporting somebody else's message to us.
+   *
+   * Here rather than reached for inside the thread for the reason the others
+   * are: the two rooms' messages are rows of two different tables, and the
+   * report has to name the right one. The caller says what happens after —
+   * see `reportContent` in `report.ts`, which both rooms use.
+   */
+  report?: (messageId: string) => Promise<unknown>;
 };
 
 export function Thread({
@@ -432,6 +441,12 @@ export function Thread({
                   ? () => void unreact(item.photoId!, item.emoji!)
                   : undefined
               }
+              /* Never on your own words: there is nobody to report. */
+              onReport={
+                actions.report && !item.author.mine
+                  ? () => void actions.report!(item.id)
+                  : undefined
+              }
             />
           )}
         />
@@ -612,6 +627,7 @@ export function ThreadRow({
   onDelete,
   onEdit,
   onUnreact,
+  onReport,
   about,
   onOpenPhoto,
   onOpenMoment,
@@ -635,6 +651,11 @@ export function ThreadRow({
    * caller has no way to reach it.
    */
   onUnreact?: () => void;
+  /**
+   * Sending somebody else's comment to us. Absent on your own, and wherever
+   * the caller has no route to report this room's rows through.
+   */
+  onReport?: () => void;
   /** The photograph this comment is about, where it is about one. */
   about?: { id: string; src: string } | null;
   onOpenPhoto?: (photoId: string) => void;
@@ -665,8 +686,13 @@ export function ThreadRow({
    * reaction to leave on it, which is what makes a long press the way to
    * react to a comment rather than a menu for its author. A row with neither
    * takes no long press at all, so nothing opens an empty sheet.
+   *
+   * And somebody else's always does where it can be reported, whether or not
+   * this reader may answer it — someone who can only read a room is the one
+   * with nothing else to do about what is said in it.
    */
-  const holdable = mine || (canPost && canReact);
+  const report = !mine ? onReport : undefined;
+  const holdable = mine || (canPost && canReact) || report != null;
   const lens = lensFor(message.author.key);
 
   /**
@@ -809,6 +835,7 @@ export function ThreadRow({
             onMore={() => {}}
             onEdit={null}
             onDelete={takeBack ?? null}
+            onReport={null}
             deleteLabel="Remove my reaction"
             deleteNote="The line goes with it."
             onClose={() => setHeld(false)}
@@ -906,7 +933,20 @@ export function ThreadRow({
               iOS puts the alternative.
             */
             accessibilityActions={
-              holdable ? [{ name: 'longpress', label: mine ? 'React, edit or delete' : 'React' }] : undefined
+              holdable
+                ? [
+                    {
+                      name: 'longpress',
+                      label: mine
+                        ? 'React, edit or delete'
+                        : canPost && canReact
+                          ? report
+                            ? 'React or report'
+                            : 'React'
+                          : 'Report',
+                    },
+                  ]
+                : undefined
             }
             onAccessibilityAction={
               holdable
@@ -1060,6 +1100,7 @@ export function ThreadRow({
           }}
           onEdit={mine && onEdit ? () => setEditing(message.body) : null}
           onDelete={mine ? onDelete : null}
+          onReport={report ?? null}
           deleteLabel="Delete this comment"
           deleteNote="It leaves a gap saying it was deleted."
           onClose={() => setHeld(false)}
@@ -1112,6 +1153,7 @@ function HeldSheet({
   onMore,
   onEdit,
   onDelete,
+  onReport,
   deleteLabel,
   deleteNote,
   onClose,
@@ -1126,6 +1168,8 @@ function HeldSheet({
   onEdit: (() => void) | null;
   /** Null where it is not yours to remove. */
   onDelete: (() => void) | null;
+  /** Null on your own, and where the room has no way to report. */
+  onReport: (() => void) | null;
   deleteLabel: string;
   /** What removing it actually does, beside the button that does it. */
   deleteNote: string;
@@ -1180,7 +1224,7 @@ function HeldSheet({
             </View>
           )}
 
-          {reactions && (onEdit || onDelete) && (
+          {reactions && (onEdit || onDelete || onReport) && (
             <View style={[styles.heldRule, { backgroundColor: t.line }]} />
           )}
 
@@ -1211,6 +1255,27 @@ function HeldSheet({
                   panel after it. One sheet, and the thing worth knowing is in
                   front of the decision. */}
               <Text style={[styles.heldNote, { color: t.dim }]}>{deleteNote}</Text>
+            </Pressable>
+          )}
+
+          {/*
+            Somebody else's words, sent to us. The same word and the same
+            line under it as a photograph's sheet, because it is the same act:
+            what separates reporting from anything else here is who hears it.
+          */}
+          {onReport && (
+            <Pressable
+              onPress={() => {
+                onClose();
+                onReport();
+              }}
+              accessibilityRole="button"
+              style={({ pressed }) => [styles.heldDo, pressed && { opacity: 0.5 }]}
+            >
+              <Text style={[styles.heldDoText, { color: t.fg }]}>Report</Text>
+              <Text style={[styles.heldNote, { color: t.dim }]}>
+                Comes to us rather than to whoever wrote it.
+              </Text>
             </Pressable>
           )}
         </View>

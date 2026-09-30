@@ -590,6 +590,30 @@ export const groupMembers = pgTable(
 );
 
 /**
+ * Somebody an admin took out of a group.
+ *
+ * Kept so that "removed" means something: without it, anybody who had ever
+ * taken part in one of the group's events walked straight back in through the
+ * same door that let them in the first time (`participatedInGroup`). A row
+ * here shuts that door and nothing else — an admin can still invite them back,
+ * and approving a request from them does the same; either clears it.
+ */
+export const groupRemovals = pgTable(
+  'group_removal',
+  {
+    groupId: uuid('group_id')
+      .notNull()
+      .references(() => groups.id, { onDelete: 'cascade' }),
+    actorId: uuid('actor_id')
+      .notNull()
+      .references(() => actors.id, { onDelete: 'cascade' }),
+    removedBy: uuid('removed_by').references(() => actors.id, { onDelete: 'set null' }),
+    createdAt: createdAt(),
+  },
+  (t) => [primaryKey({ columns: [t.groupId, t.actorId] })],
+);
+
+/**
  * Asking to join a findable group — design §3.
  *
  * Only needed for the search path: someone who found a group by name has no
@@ -1185,6 +1209,48 @@ export const reports = pgTable(
   (t) => [
     index('report_open_idx').on(t.status, t.autoHideAt),
     index('report_photo_idx').on(t.photoId),
+  ],
+);
+
+/**
+ * A report about anything that is not a roll photo.
+ *
+ * Moments, their comments, messages in an album or a group, a person's
+ * profile, and a group's name and picture. Photos have `report` above, which
+ * carries removal requests and the auto-hide clock; none of that applies here.
+ * Everything in this table comes to us rather than to a host, because the host
+ * of a group chat or the author of a moment may be exactly who is being
+ * reported, and every row sends an alert (`alertReport`).
+ *
+ * `targetId` is not a foreign key: it names a row in one of six tables. The
+ * report outlives the thing reported, which is usually deleted as the outcome.
+ */
+export const contentReports = pgTable(
+  'content_report',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    targetKind: text('target_kind', {
+      enum: ['moment', 'moment_comment', 'event_message', 'group_message', 'profile', 'group'],
+    }).notNull(),
+    targetId: uuid('target_id').notNull(),
+    /** Whose it is — the author, the profile's owner, the group's creator. */
+    subjectActorId: uuid('subject_actor_id').references(() => actors.id, {
+      onDelete: 'set null',
+    }),
+    reporterActorId: uuid('reporter_actor_id').references(() => actors.id, {
+      onDelete: 'set null',
+    }),
+    kind: text('kind', { enum: ['abuse', 'other', 'child_safety'] }).notNull(),
+    note: text('note'),
+    status: text('status', { enum: ['open', 'actioned', 'declined'] })
+      .notNull()
+      .default('open'),
+    resolvedAt: timestamp('resolved_at', { withTimezone: true }),
+    createdAt: createdAt(),
+  },
+  (t) => [
+    index('content_report_open_idx').on(t.status, t.createdAt),
+    index('content_report_target_idx').on(t.targetKind, t.targetId),
   ],
 );
 

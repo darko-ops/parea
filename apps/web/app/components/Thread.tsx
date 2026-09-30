@@ -33,6 +33,7 @@ import { REACTIONS } from '@/reactions';
 import { Face } from './Faces';
 import { IconGlyph } from './IconGlyph';
 import { Menu } from './Menu';
+import { reportContent, reportSaid } from './report';
 import { SignIn, useSession } from './SignIn';
 import { useImageFailure } from './useImageFailure';
 
@@ -287,6 +288,7 @@ export function Thread({
             onSave={(body) => save(message.id, body)}
             onDelete={() => remove(message.id)}
             onReact={(emoji) => react(message.id, emoji)}
+            reportAs={room.kind === 'group' ? 'group_message' : 'event_message'}
             about={aboutOf(message.photoId)}
           />
         ))}
@@ -465,6 +467,7 @@ function Row({
   onSave,
   onDelete,
   onReact,
+  reportAs,
   about,
 }: {
   message: Message;
@@ -475,11 +478,14 @@ function Row({
   onSave: (body: string) => void;
   onDelete: () => void;
   onReact: (emoji: string) => void;
+  /** Which table the line is in, which is what `/api/reports` is told. */
+  reportAs: 'event_message' | 'group_message';
   /** The photograph this line is about, and its page. Null where there is none. */
   about?: { src: string; href: string } | null;
 }) {
   const [body, setBody] = useState(message.body);
   const [picking, setPicking] = useState(false);
+  const [said, setSaid] = useState<string | null>(null);
   const pickerRef = useDismiss(picking, useCallback(() => setPicking(false), []));
   /*
    * The thumbnail's failure path, which this page needs like every other.
@@ -573,6 +579,11 @@ function Row({
           {message.author.mine && !editing && (
             <MessageMenu onEdit={onEdit} onDelete={onDelete} />
           )}
+          {!message.author.mine && (
+            <OthersMenu
+              onReport={async () => setSaid(reportSaid(await reportContent(reportAs, message.id)))}
+            />
+          )}
         </div>
 
         {/*
@@ -644,6 +655,8 @@ function Row({
             {withMentions(message.body)}
           </p>
         )}
+
+        {said && <p className="photo-said">{said}</p>}
 
         {(message.reactions.length > 0 || canPost) && (
           <div className="reactions">
@@ -717,6 +730,23 @@ function MessageMenu({ onEdit, onDelete }: { onEdit: () => void; onDelete: () =>
             Delete
           </button>
         </>
+      )}
+    </Menu>
+  );
+}
+
+/**
+ * The same three dots on somebody else's message, with the one thing you can
+ * do about it. Reachable, as the photograph's report is, without being a word
+ * sitting under every line anybody wrote.
+ */
+function OthersMenu({ onReport }: { onReport: () => void }) {
+  return (
+    <Menu label="Options for this message">
+      {(close) => (
+        <button role="menuitem" onClick={() => { close(); onReport(); }}>
+          Report
+        </button>
       )}
     </Menu>
   );

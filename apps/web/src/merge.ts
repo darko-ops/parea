@@ -107,6 +107,14 @@ const OWNED: {
   { table: 'event_host_request', column: 'resolved_by' },
   { table: 'report', column: 'reporter_actor_id' },
   { table: 'report', column: 'resolved_by' },
+  { table: 'content_report', column: 'reporter_actor_id' },
+  // Whoever was reported, followed to wherever they signed in — otherwise a
+  // report names an actor nothing points at, and acting on it reaches nobody.
+  { table: 'content_report', column: 'subject_actor_id' },
+  // A removal follows the person, or signing in on a new phone would be a way
+  // back into the group they were taken out of.
+  { table: 'group_removal', column: 'actor_id', uniqueWith: ['group_id'] },
+  { table: 'group_removal', column: 'removed_by' },
   { table: 'moderation_flag', column: 'resolved_by' },
   { table: 'block', column: 'blocker_actor_id', uniqueWith: ['blocked_actor_id'] },
   { table: 'block', column: 'blocked_actor_id', uniqueWith: ['blocker_actor_id'] },

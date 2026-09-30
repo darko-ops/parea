@@ -44,8 +44,11 @@ export default function SafetyPage() {
         <section className="panel">
           <h2>Something that should not be here</h2>
           <p className="muted">
-            Report it. Reports come to us rather than to the roll&rsquo;s host,
-            because sometimes the host is the problem. You can also block someone,
+            Report it — photos, moments, comments, messages, profiles and groups
+            each have a report action. Reports come to us rather than to the
+            roll&rsquo;s host, because sometimes the host is the problem, and
+            are reviewed within 72 hours; a report of child abuse is looked at
+            straight away. You can also block someone,
             which hides everything they upload from your view and stops them
             joining rolls you created. Blocking is private — they are not told.
           </p>

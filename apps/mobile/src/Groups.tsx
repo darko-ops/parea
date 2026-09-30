@@ -72,6 +72,7 @@ import { Glyph, type GlyphName } from './Glyph';
 import { GroupChat } from './GroupThread';
 import { initialOf, lensFor } from './lens';
 import { More, RoundButton } from './RoundButton';
+import { reportContent } from './report';
 import { Waiting } from './Waiting';
 
 const plural = (n: number, one: string, many = `${one}s`) =>
@@ -293,6 +294,23 @@ export function GroupScreen({
     ]);
   }, [api, groupId, onBack]);
 
+  /**
+   * Reporting the room itself — its name, its picture, what it is for.
+   *
+   * Members reach it from the sheet; a door has no sheet, so it is a list of
+   * one there, the way somebody's page offers it.
+   */
+  const report = useCallback(
+    () => void reportContent(api, 'group', groupId),
+    [api, groupId],
+  );
+  const offerReport = useCallback(() => {
+    Alert.alert(group?.name ?? 'This group', undefined, [
+      { text: 'Report', onPress: report },
+      { text: 'Cancel', style: 'cancel' },
+    ]);
+  }, [group?.name, report]);
+
   const resolve = useCallback(
     async (requestId: string, action: 'approve' | 'decline') => {
       setRequests((prev) => prev.filter((r) => r.id !== requestId));
@@ -370,7 +388,7 @@ export function GroupScreen({
             <Text style={[styles.back, { color: t.fg }]}>‹</Text>
           </RoundButton>
 
-          {group.member && (
+          {group.member ? (
             /*
               Everything else about the room, behind the same `⋯` an album's
               own settings sit behind. The chat disc that was beside it is a
@@ -379,6 +397,16 @@ export function GroupScreen({
               go.
             */
             <RoundButton t={t} onPress={() => setMore(true)} accessibilityLabel="Group settings">
+              <More color={t.fg} />
+            </RoundButton>
+          ) : (
+            /*
+              And for somebody at the door, the one thing a room they are not
+              in can still need from them: telling us about it. A findable
+              group is the one surface in the product strangers can search,
+              so it is the one a stranger most needs to be able to report.
+            */
+            <RoundButton t={t} onPress={offerReport} accessibilityLabel="More">
               <More color={t.fg} />
             </RoundButton>
           )}
@@ -641,6 +669,10 @@ export function GroupScreen({
           onChoosePhoto={choosePhoto}
           onRemovePhoto={removePhoto}
           onLeave={leave}
+          /* Not in a room of two, which is a conversation with one person
+             rather than a group: what is said there is reported line by
+             line, and the room is only the two of you. */
+          onReport={group.memberCount > 2 ? report : null}
           onClose={() => setMore(false)}
         />
       )}
@@ -836,6 +868,7 @@ function GroupMore({
   onChoosePhoto,
   onRemovePhoto,
   onLeave,
+  onReport,
   onClose,
 }: {
   t: GroupTheme;
@@ -856,6 +889,8 @@ function GroupMore({
   onChoosePhoto: () => Promise<boolean>;
   onRemovePhoto: () => Promise<void>;
   onLeave: () => void;
+  /** Null for a room of two. See the call site. */
+  onReport: (() => void) | null;
   onClose: () => void;
 }) {
   const [draft, setDraft] = useState(named ?? '');
@@ -976,6 +1011,18 @@ function GroupMore({
             }}
             t={t}
           />
+          {/* Under leaving, which is about you: this is about the room, and
+              it comes to us rather than to its admins. */}
+          {onReport && (
+            <Button
+              label="Report"
+              onPress={() => {
+                onClose();
+                onReport();
+              }}
+              t={t}
+            />
+          )}
           <Button label="Close" onPress={onClose} t={t} />
         </View>
       </View>

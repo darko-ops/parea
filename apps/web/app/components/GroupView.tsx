@@ -36,6 +36,7 @@ import { GroupChat } from './GroupChat';
 import { MemberPicker, nameOf, type Person } from './MemberPicker';
 import { RailIcon, type RailGlyph } from './RailIcon';
 import { Menu } from './Menu';
+import { reportContent, reportSaid } from './report';
 import { SiteFooter } from './SiteFooter';
 import { useImageFailure } from './useImageFailure';
 
@@ -129,6 +130,11 @@ export function GroupView({ group, tab }: { group: GroupData; tab: GroupTab }) {
   const [inviting, setInviting] = useState(false);
   const [picked, setPicked] = useState<Person[]>([]);
   const [asked, setAsked] = useState<number | null>(null);
+  /** What a report came back as. See `reportSaid`. */
+  const [said, setSaid] = useState<string | null>(null);
+  const report = useCallback(async () => {
+    setSaid(reportSaid(await reportContent('group', group.id)));
+  }, [group.id]);
 
   /**
    * Sending the guest list.
@@ -276,6 +282,17 @@ export function GroupView({ group, tab }: { group: GroupData; tab: GroupTab }) {
             </>
           )}
           {error && <p className="door-said">{error}</p>}
+          {/*
+            The door shows a name, and a name is something somebody can object
+            to without being let in — which is who sees this card.
+          */}
+          {said ? (
+            <p className="door-said">{said}</p>
+          ) : (
+            <button type="button" className="link-button door-said" onClick={report}>
+              Report this group
+            </button>
+          )}
         </div>
         <SiteFooter />
       </main>
@@ -332,11 +349,11 @@ export function GroupView({ group, tab }: { group: GroupData; tab: GroupTab }) {
         </div>
         <div className="group-actions">
           {/*
-            One item, and no "Manage group" beside it.
+            Report and Leave, and no "Manage group" beside them.
 
             The handoff asks for one for an admin, and there is no such screen:
             `/group/<id>` is the only group route this product has. A menu item
-            leading to a 404 is worse than a menu with one thing in it, and
+            leading to a 404 is worse than a short menu, and
             building the screen is a separate ticket — group membership is
             opt-in by design, so "manage" would have to answer who may remove
             somebody and whether that is the same power as approving a join.
@@ -344,6 +361,16 @@ export function GroupView({ group, tab }: { group: GroupData; tab: GroupTab }) {
           <Menu label="More about this group" glyph="···" tone="round">
             {(close) => (
               <>
+                {/* The room itself — its name and its picture. A message in it
+                    is reported from the message. */}
+                <button
+                  onClick={() => {
+                    close();
+                    void report();
+                  }}
+                >
+                  Report this group
+                </button>
                 {/*
                   Leaving is in the menu rather than loose in the page, which
                   is where it was. A destructive action sitting in the open at
@@ -366,6 +393,8 @@ export function GroupView({ group, tab }: { group: GroupData; tab: GroupTab }) {
           </Menu>
         </div>
       </header>
+
+      {said && <p className="photo-said">{said}</p>}
 
       {/*
         Three tabs, and the same three an album has.

@@ -56,6 +56,71 @@ export async function alertResponder(summary: QuarantineAlert): Promise<void> {
   if (email) await viaEmail(email, summary);
 }
 
+/**
+ * Somebody reported something.
+ *
+ * Every report that comes to us rather than to a host, so that "reports are
+ * reviewed by a person" is true without that person having to remember to
+ * look. No content in it — the kind, what was reported and its id — for the
+ * same reason the quarantine alert carries none: the row is where the detail
+ * lives, and an inbox is not where it should be copied.
+ */
+export type ReportAlert = {
+  reportId: string;
+  /** `photo`, or one of `content_report.target_kind`. */
+  target: string;
+  targetId: string;
+  kind: string;
+};
+
+export async function alertReport(report: ReportAlert): Promise<void> {
+  const url = process.env.SAFETY_ALERT_WEBHOOK;
+  const email = process.env.SAFETY_ALERT_EMAIL;
+  if (!url && !email) {
+    if (process.env.NODE_ENV === 'production') {
+      console.error(
+        `SAFETY: report ${report.reportId} (${report.kind} on ${report.target}) ` +
+          'was filed and no SAFETY_ALERT_WEBHOOK or SAFETY_ALERT_EMAIL is set to say so.',
+      );
+    }
+    return;
+  }
+  if (url) {
+    try {
+      await fetch(url, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ type: 'report', ...report }),
+      });
+    } catch (err) {
+      console.error(`SAFETY: webhook alert failed for report ${report.reportId}`, err);
+    }
+  }
+  if (email) {
+    try {
+      const { mailerFromEnv } = await import('./email');
+      const urgent = report.kind === 'child_safety';
+      await mailerFromEnv().send({
+        to: email,
+        subject: `Parea ${urgent ? 'URGENT child-safety ' : ''}report: ${report.target} ${report.reportId}`,
+        text: [
+          `A ${report.kind.replace('_', ' ')} report was filed about a ${report.target.replace('_', ' ')}.`,
+          '',
+          `report:  ${report.reportId}`,
+          `target:  ${report.target} ${report.targetId}`,
+          `kind:    ${report.kind}`,
+          '',
+          urgent
+            ? 'Child safety: follow docs/csam-runbook.md now. Do not open any image.'
+            : 'Review it within the time the safety page promises: docs/incident-response.md.',
+        ].join('\n'),
+      });
+    } catch (err) {
+      console.error(`SAFETY: email alert failed for report ${report.reportId}`, err);
+    }
+  }
+}
+
 async function viaWebhook(url: string, summary: QuarantineAlert): Promise<void> {
   try {
     await fetch(url, {

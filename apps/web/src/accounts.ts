@@ -582,6 +582,14 @@ async function eraseActors(db: Db, ids: string[]): Promise<string[]> {
     where id in (${list})
   `);
 
+  // The groups they were in, before the memberships go — see below.
+  const groupsRows = (await db.execute(sql`
+    select distinct group_id from "group_member" where actor_id in (${list})
+  `)) as unknown as { group_id: string }[] | { rows: { group_id: string }[] };
+  const theirGroups = (Array.isArray(groupsRows) ? groupsRows : groupsRows.rows).map(
+    (row) => row.group_id,
+  );
+
   // Signed out everywhere, and no phone of theirs is sent anything again.
   await db.execute(sql`update "session" set revoked_at = now() where actor_id in (${list}) and revoked_at is null`);
   for (const table of [
@@ -610,6 +618,28 @@ async function eraseActors(db: Db, ids: string[]): Promise<string[]> {
   ]) {
     await db.execute(sql`delete from ${sql.identifier(table)} where actor_id in (${list})`);
   }
+  /*
+   * A group whose only admin this was keeps somebody who can run it: the
+   * member who has been in it longest. The same rule as `ensureAdmin`, as one
+   * statement over every group they left.
+   */
+  if (theirGroups.length > 0) {
+    const groupList = sql.join(theirGroups.map((id) => sql`${id}::uuid`), sql`, `);
+    await db.execute(sql`
+      update "group_member" gm set role = 'admin'
+      from (
+        select distinct on (g.group_id) g.group_id, g.actor_id
+        from "group_member" g
+        where g.group_id in (${groupList})
+          and not exists (
+            select 1 from "group_member" a where a.group_id = g.group_id and a.role = 'admin'
+          )
+        order by g.group_id, g.joined_at asc
+      ) heir
+      where gm.group_id = heir.group_id and gm.actor_id = heir.actor_id
+    `);
+  }
+
   // The other ends of what they were part of.
   await db.execute(sql`delete from "friendship" where friend_actor_id in (${list})`);
   await db.execute(sql`delete from "friend_request" where from_actor_id in (${list}) or to_actor_id in (${list})`);

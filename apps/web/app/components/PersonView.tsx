@@ -61,7 +61,9 @@ import { Avatar } from './Avatar';
 import { CoverImage } from './CoverImage';
 import { EventCard } from './EventCard';
 import { FrostedGlass } from './FrostedGlass';
+import { Menu } from './Menu';
 import { MomentStrip } from './MomentStrip';
+import { reportContent, reportSaid } from './report';
 
 export type ProfileAlbumCard = {
   id: string;
@@ -243,6 +245,7 @@ export function PersonView({
     };
   }, [armed]);
   const [error, setError] = useState<string | null>(null);
+  const [said, setSaid] = useState<string | null>(null);
 
   /*
    * Their name, or their handle standing in for one.
@@ -549,10 +552,31 @@ export function PersonView({
               </button>
             </div>
           )}
+          {/*
+            Report, behind a `···` after the two that matter — the photograph's
+            idiom: reachable in one press, not a third pill on the row. What it
+            covers is what this page shows of them: the name, the picture, the
+            bio and the link. Never on yourself, which this page never is.
+          */}
+          {standing !== 'self' && (
+            <Menu label="More about this person" glyph="···" tone="quiet" align="right">
+              {(close) => (
+                <button
+                  role="menuitem"
+                  onClick={async () => {
+                    close();
+                    setSaid(reportSaid(await reportContent('profile', person.actorId)));
+                  }}
+                >
+                  Report
+                </button>
+              )}
+            </Menu>
+          )}
         </div>
       </header>
 
-      {error && <p className="panel-note">{error}</p>}
+      {(error ?? said) && <p className="panel-note">{error ?? said}</p>}
 
       {/* Theirs, newest first — the same tiles as Home's stream, and pressing
           one steps through only this person's. */}

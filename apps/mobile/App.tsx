@@ -90,6 +90,7 @@ import { arrivalFromUrl } from './src/links';
 import { notificationTarget } from './src/notifications';
 import { AutoSelect } from './src/AutoSelect';
 import { Waiting } from './src/Waiting';
+import { reportContent } from './src/report';
 import {
   PICKED,
   adoptIntoOutbox,
@@ -3493,6 +3494,8 @@ function EventScreen({
        * toggles, so this is how somebody takes one back from the board.
        */
       unreact: (photoId: string, emoji: string) => api.reactToPhoto(photoId, emoji),
+      /* Somebody else's line, to us. `Thread` keeps it off your own. */
+      report: (id: string) => reportContent(api, 'event_message', id),
     }),
     [api, event.id],
   );

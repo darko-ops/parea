@@ -1168,6 +1168,18 @@ function titled<
   };
 }
 
+/**
+ * What `POST /api/reports` can be about. A roll's photograph is not here: it
+ * has its own route, `report` below, which predates this one.
+ */
+export type TargetKind =
+  | 'moment'
+  | 'moment_comment'
+  | 'event_message'
+  | 'group_message'
+  | 'profile'
+  | 'group';
+
 export class ApiError extends Error {
   constructor(
     readonly status: number,
@@ -2662,6 +2674,26 @@ export class Api {
     return this.call(`/api/photos/${photoId}/report`, {
       method: 'POST',
       body: JSON.stringify({ kind: 'abuse' }),
+    });
+  }
+
+  /**
+   * Reporting anything that is not a roll's photograph: a line in a thread, a
+   * moment or a comment under one, somebody's page, a group.
+   *
+   * One route for all of them rather than one per table, because a report is
+   * the same act whatever it is about — it comes to us, and the only thing
+   * that differs is which row it names. The server refuses your own things
+   * (`own_content`); the screens do not offer it there in the first place.
+   */
+  reportContent(
+    targetKind: TargetKind,
+    targetId: string,
+    kind: 'abuse' | 'other' | 'child_safety' = 'abuse',
+  ): Promise<unknown> {
+    return this.call('/api/reports', {
+      method: 'POST',
+      body: JSON.stringify({ targetKind, targetId, kind }),
     });
   }
 

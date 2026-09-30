@@ -226,10 +226,12 @@ describe('the rules carried over from the web', () => {
 
     /*
      * Held by anybody who has something to do to it: yours for edit and
-     * delete, somebody else's when there is a reaction to leave on it. A row
-     * with neither takes no long press, so nothing opens an empty sheet.
+     * delete, somebody else's when there is a reaction to leave on it or it
+     * can be reported. A row with none takes no long press, so nothing opens
+     * an empty sheet — and Report is never offered on your own.
      */
-    expect(THREAD).toMatch(/const holdable = mine \|\| \(canPost && canReact\);/);
+    expect(THREAD).toMatch(/const report = !mine \? onReport : undefined;/);
+    expect(THREAD).toMatch(/const holdable = mine \|\| \(canPost && canReact\) \|\| report != null;/);
     expect(THREAD).toMatch(/onLongPress=\{holdable \? open : undefined\}/);
     /*
      * Shortened from the 500ms default. This is the only way to reach any of
@@ -242,7 +244,8 @@ describe('the rules carried over from the web', () => {
      * screen reader and impossible for some people to perform; the actions
      * rotor is where iOS puts the alternative.
      */
-    expect(THREAD).toMatch(/label: mine \? 'React, edit or delete' : 'React'/);
+    expect(THREAD).toMatch(/label: mine\s*\? 'React, edit or delete'/);
+    expect(THREAD).toMatch(/'React or report'/);
     expect(THREAD).toMatch(/actionName === 'longpress'\) open\(\)/);
     /*
      * The consequence sits beside the button rather than in a second panel

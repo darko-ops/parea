@@ -5,7 +5,7 @@
  *
  * A moment's own conversation — it has no roll, so there is no roll thread
  * to put it in. Oldest first, as a conversation reads. Your own lines can be
- * taken back; nobody else's.
+ * taken back; anybody else's can be reported, in the same slot and as quietly.
  *
  * The box marks itself `data-holding` while it is in use, so the moment's
  * clock waits for somebody writing rather than moving the picture on under
@@ -17,6 +17,7 @@ import { useState } from 'react';
 import type { MomentComment } from '@/moments';
 
 import { Face } from './Faces';
+import { reportContent, reportSaid } from './report';
 
 export function MomentComments({
   momentId,
@@ -30,6 +31,7 @@ export function MomentComments({
   const [busy, setBusy] = useState(false);
   const [focused, setFocused] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [said, setSaid] = useState<string | null>(null);
 
   async function post() {
     const body = draft.trim();
@@ -100,6 +102,18 @@ export function MomentComments({
                   Delete
                 </button>
               )}
+              {!c.author.mine && (
+                <button
+                  type="button"
+                  className="link-button moment-comment-remove"
+                  onClick={async () =>
+                    setSaid(reportSaid(await reportContent('moment_comment', c.id)))
+                  }
+                  aria-label={`Report ${c.author.name}'s comment`}
+                >
+                  Report
+                </button>
+              )}
             </li>
           ))}
         </ul>
@@ -127,7 +141,7 @@ export function MomentComments({
           {busy ? 'Posting…' : 'Post'}
         </button>
       </form>
-      {error && <p className="photo-said">{error}</p>}
+      {(error ?? said) && <p className="photo-said">{error ?? said}</p>}
     </section>
   );
 }

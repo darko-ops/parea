@@ -14,7 +14,14 @@ import { and, eq } from 'drizzle-orm';
 import { NextResponse } from 'next/server';
 
 import { getDb } from '@/db';
-import { addMember, findGroup, membershipOf, participatedInGroup } from '@/groups';
+import {
+  addMember,
+  ensureAdmin,
+  findGroup,
+  membershipOf,
+  participatedInGroup,
+  removeMember,
+} from '@/groups';
 import { currentActorId } from '@/session';
 
 export const runtime = 'nodejs';
@@ -43,7 +50,7 @@ export async function POST(
 }
 
 export async function DELETE(
-  _request: Request,
+  request: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
   const { id } = await params;
@@ -51,6 +58,20 @@ export async function DELETE(
   if (!actorId) return NextResponse.json({ error: 'no_actor' }, { status: 403 });
 
   const db = getDb();
+
+  /*
+   * Somebody else, named: an admin taking a member out. See `removeMember` for
+   * who may be removed, and `group_removal` for why they cannot simply walk
+   * back in.
+   */
+  const target = new URL(request.url).searchParams.get('actorId');
+  if (target && target !== actorId) {
+    const outcome = await removeMember(db, id, actorId, target);
+    if (outcome === 'removed') return NextResponse.json({ removed: true });
+    const status = outcome === 'not_admin' ? 403 : outcome === 'not_member' ? 404 : 409;
+    return NextResponse.json({ error: outcome }, { status });
+  }
+
   // Leaving is unconditional and needs no permission. Membership that cannot
   // be given up is not membership.
   await db
@@ -61,5 +82,7 @@ export async function DELETE(
         eq(schema.groupMembers.actorId, actorId),
       ),
     );
+  // If that was the last admin, somebody still in it becomes one.
+  await ensureAdmin(db, id);
   return NextResponse.json({ member: false });
 }

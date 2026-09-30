@@ -293,7 +293,12 @@ export default function PrivacyPage() {
             kept for the same reason the one above it is, so that asking twice
             is not two questions and a no stays a no. That
             you asked for a photo of you to be taken down, along with whatever
-            you wrote in the note. That somebody invited you into a roll, or
+            you wrote in the note. That you reported something &mdash; a photo, a
+            moment, a comment, a message, a profile or a group &mdash; with
+            whatever you wrote and whose it was; and that you were reported,
+            which is how a report reaches the person who reviews it. That a
+            group&rsquo;s admin took you out of it, and who did &mdash; kept so
+            that being removed is not undone by rejoining. That somebody invited you into a roll, or
             into a group, who it was, and whether you accepted &mdash; kept so
             that being asked twice is not two questions, and so a decline stays
             declined. That you blocked somebody &mdash; kept so it

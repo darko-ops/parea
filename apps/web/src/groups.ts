@@ -96,6 +96,11 @@ export async function participatedInGroup(
     from "actor" a
     where a.id = ${actorId}
       and a.account_id is not null
+      -- An admin took them out; taking part once is no longer a way back in.
+      and not exists (
+        select 1 from "group_removal" gr
+        where gr.group_id = ${groupId} and gr.actor_id = ${actorId}
+      )
       and exists (
         select 1 from "event" e
         where e.group_id = ${groupId}
@@ -142,6 +147,75 @@ export async function addMember(
     .insert(schema.groupMembers)
     .values({ groupId, actorId, role })
     .onConflictDoNothing();
+  // Every way in that reaches here is somebody deciding they should be: an
+  // admin's invitation accepted, a request approved, a group being made. Any
+  // earlier removal is answered by that.
+  await db
+    .delete(schema.groupRemovals)
+    .where(and(eq(schema.groupRemovals.groupId, groupId), eq(schema.groupRemovals.actorId, actorId)));
+}
+
+/**
+ * An admin takes somebody out of a group.
+ *
+ * Members only, not other admins: two admins removing each other is a fight
+ * the product should not referee, and an admin who wants to leave can.
+ * Returns what happened, so the route can say so.
+ */
+export async function removeMember(
+  db: Db,
+  groupId: string,
+  admin: string,
+  target: string,
+): Promise<'removed' | 'not_admin' | 'not_member' | 'is_admin'> {
+  const [mine, theirs] = await Promise.all([
+    membershipOf(db, groupId, admin),
+    membershipOf(db, groupId, target),
+  ]);
+  if (mine?.role !== 'admin') return 'not_admin';
+  if (!theirs) return 'not_member';
+  if (theirs.role === 'admin') return 'is_admin';
+
+  await db
+    .delete(schema.groupMembers)
+    .where(and(eq(schema.groupMembers.groupId, groupId), eq(schema.groupMembers.actorId, target)));
+  await db
+    .insert(schema.groupRemovals)
+    .values({ groupId, actorId: target, removedBy: admin })
+    .onConflictDoNothing();
+  return 'removed';
+}
+
+/**
+ * Makes sure a group with people in it has somebody who can run it.
+ *
+ * Called after anybody leaves. When the last admin goes — by leaving, or by
+ * deleting their account — the group used to carry on with nobody able to
+ * approve a request, invite anyone or remove anyone, for good. The member who
+ * has been in it longest becomes an admin instead: the closest thing a group
+ * has to somebody everyone already trusts.
+ */
+export async function ensureAdmin(db: Db, groupId: string): Promise<string | null> {
+  const [admin] = await db
+    .select({ actorId: schema.groupMembers.actorId })
+    .from(schema.groupMembers)
+    .where(and(eq(schema.groupMembers.groupId, groupId), eq(schema.groupMembers.role, 'admin')))
+    .limit(1);
+  if (admin) return null;
+
+  const [eldest] = await db
+    .select({ actorId: schema.groupMembers.actorId })
+    .from(schema.groupMembers)
+    .where(eq(schema.groupMembers.groupId, groupId))
+    .orderBy(asc(schema.groupMembers.joinedAt))
+    .limit(1);
+  if (!eldest) return null;
+
+  await db
+    .update(schema.groupMembers)
+    .set({ role: 'admin' })
+    .where(and(eq(schema.groupMembers.groupId, groupId), eq(schema.groupMembers.actorId, eldest.actorId)));
+  return eldest.actorId;
 }
 
 /**

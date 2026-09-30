@@ -31,6 +31,7 @@ import { StatusBar } from 'expo-status-bar';
 import type { Api, GroupKind, Message } from './api';
 import { RoomMark } from './Events';
 import type { GroupTheme } from './Groups';
+import { reportContent } from './report';
 import { Thread } from './Thread';
 
 /**
@@ -170,6 +171,8 @@ export function GroupChat({
        * carries, which are reactions on photographs. A group has none.
        */
       react: (id: string, emoji: string) => api.reactToGroupMessage(id, emoji),
+      /* Somebody else's message, to us. `Thread` keeps it off your own. */
+      report: (id: string) => reportContent(api, 'group_message', id),
     }),
     [api, group.id],
   );

@@ -105,9 +105,10 @@ export default function TermsPage() {
         <section className="panel">
           <h2>Reporting, and what happens next</h2>
           <p className="muted">
-            Every photo has a report action on it, and reports come to us rather
-            than to whoever created the roll, because sometimes that is the
-            person who is the problem. A report of child abuse hides the photo
+            Every photo, moment, comment, message, profile and group has a
+            report action on it, and reports come to us rather than to whoever
+            created the roll or the group, because sometimes that is the person
+            who is the problem. A report of child abuse hides the photo
             from everyone straight away while a person reviews it. Other reports
             are reviewed and acted on within 72 hours.
           </p>

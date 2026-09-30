@@ -234,6 +234,8 @@ describe('the closed list of what is collected', () => {
       group_member: /rolls and groups you are in/i,
       group_join_request: /asked to join a private roll or a group/,
       report: /asked for a photo of you to be taken down/,
+      content_report: /That you reported something/,
+      group_removal: /admin took you out of it/,
       block: /blocked somebody/,
       // Kept because the law requires it, and described at length in its own
       // section rather than in the list of ordinary collection.

@@ -47,6 +47,7 @@ import { ApiError, type Api, type FeedPhoto, type Moment } from './api';
 import type { GroupTheme } from './Groups';
 import { IconRing } from './IconField';
 import { PhotoViewer } from './PhotoViewer';
+import { reportContent } from './report';
 import { describeFile, fetchForMoment, putToStorage, saveToCameraRoll } from './platform';
 
 type ButtonComponent = (props: {
@@ -1017,7 +1018,19 @@ export function MomentsViewer({
                     }}
                   />
                 ) : (
-                  <Button t={t} label="Block this person" onPress={() => setConfirming(true)} />
+                  /* Report first, then block: one tells us, the other only
+                     changes what you see — the roll's sheet in that order. */
+                  <>
+                    <Button
+                      t={t}
+                      label="Report"
+                      onPress={() => {
+                        closeOptions();
+                        void reportContent(api, 'moment', photo.id);
+                      }}
+                    />
+                    <Button t={t} label="Block this person" onPress={() => setConfirming(true)} />
+                  </>
                 )}
                 <Button t={t} label="Cancel" onPress={closeOptions} />
               </View>

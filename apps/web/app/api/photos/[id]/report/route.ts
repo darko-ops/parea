@@ -18,7 +18,7 @@
  * No SLA is promised in the response, because none can currently be kept.
  */
 
-import { alertResponder, recordModeration, REASON, schema } from '@parea/core';
+import { alertReport, alertResponder, recordModeration, REASON, schema } from '@parea/core';
 import { eq } from 'drizzle-orm';
 import { NextResponse } from 'next/server';
 
@@ -74,12 +74,16 @@ export async function POST(
   if (!(await withinLimit(db, REPORT_LIMIT, secret))) {
     return NextResponse.json({ error: 'too_many_requests' }, { status: 429 });
   }
-  await db.insert(schema.reports).values({
-    photoId: id,
-    reporterActorId: reporter,
-    kind: kind as 'abuse' | 'other' | 'child_safety',
-    note,
-  });
+  const [filed] = await db
+    .insert(schema.reports)
+    .values({
+      photoId: id,
+      reporterActorId: reporter,
+      kind: kind as 'abuse' | 'other' | 'child_safety',
+      note,
+    })
+    .returning({ id: schema.reports.id });
+  let alerted = false;
 
   /*
    * Hidden on receipt — within reason.
@@ -97,7 +101,14 @@ export async function POST(
       : await withinLimit(db, QUARANTINE_ON_REPORT_LIMIT, secret);
     if (withinQuarantineBudget) {
       await quarantineOnReport(db, found.photo, found.event.id, reporter);
+      alerted = true;
     }
+  }
+
+  // Every report comes to a person, not only the ones that quarantine — those
+  // have already paged the responder above, and are not paged twice.
+  if (!alerted) {
+    await alertReport({ reportId: filed!.id, target: 'photo', targetId: id, kind });
   }
 
   // The same answer either way. A reporter learning that this particular kind

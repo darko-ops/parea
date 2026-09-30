@@ -26,6 +26,7 @@ import { MomentStrip } from './MomentStrip';
 import { PhotoReactions } from './PhotoReactions';
 import { Step } from './PhotoView';
 import { Menu } from './Menu';
+import { reportContent, reportSaid } from './report';
 import { useImageFailure } from './useImageFailure';
 
 export type MomentSubject = {
@@ -288,8 +289,8 @@ export function MomentView({
 }
 
 /**
- * What you can do about one moment: take your own back, or stop seeing
- * somebody's. Two presses for the block, as on a roll's photograph.
+ * What you can do about one moment: take your own back, or report somebody's,
+ * or stop seeing them. Two presses for the block, as on a roll's photograph.
  */
 function MomentActions({
   momentId,
@@ -310,6 +311,13 @@ function MomentActions({
     const res = await fetch(`/api/moments/${momentId}`, { method: 'DELETE' }).catch(() => null);
     if (res?.ok) return onGone();
     setSaid('Could not remove it. Try again.');
+    setBusy(false);
+  }
+
+  async function report() {
+    setBusy(true);
+    setSaid(null);
+    setSaid(reportSaid(await reportContent('moment', momentId)));
     setBusy(false);
   }
 
@@ -340,18 +348,25 @@ function MomentActions({
               </button>
               <p className="muted">Yours. Nobody has to approve this.</p>
             </>
-          ) : confirming ? (
-            <button
-              className="menu-danger"
-              onClick={() => { close(); setConfirming(false); void block(); }}
-              disabled={busy}
-            >
-              Block — hide all their photos
-            </button>
           ) : (
-            <button onClick={() => setConfirming(true)} disabled={busy}>
-              Block this person
-            </button>
+            <>
+              <button onClick={() => { close(); void report(); }} disabled={busy}>
+                Report
+              </button>
+              {confirming ? (
+                <button
+                  className="menu-danger"
+                  onClick={() => { close(); setConfirming(false); void block(); }}
+                  disabled={busy}
+                >
+                  Block — hide all their photos
+                </button>
+              ) : (
+                <button onClick={() => setConfirming(true)} disabled={busy}>
+                  Block this person
+                </button>
+              )}
+            </>
           )
         }
       </Menu>

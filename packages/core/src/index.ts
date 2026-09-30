@@ -96,7 +96,12 @@ export {
   SESSION_RETENTION_DAYS,
   staleSessions,
 } from './sessions';
-export { alertResponder, type QuarantineAlert } from './alerts';
+export {
+  alertReport,
+  alertResponder,
+  type QuarantineAlert,
+  type ReportAlert,
+} from './alerts';
 export {
   type CsamScanner,
   HttpHashScanner,

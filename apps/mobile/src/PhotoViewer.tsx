@@ -52,6 +52,7 @@ import { EmojiPicker } from './Emoji';
 import { Glyph } from './Glyph';
 import type { GroupTheme } from './Groups';
 import { useKeyboardUp } from './keyboard';
+import { reportContent } from './report';
 import { ThreadRow } from './Thread';
 
 /**
@@ -1287,6 +1288,16 @@ export function PhotoViewer({
                       !moment && message.emoji && message.author.mine
                         ? () => void say.unreact(message.emoji!)
                         : undefined
+                    }
+                    /* A roll's comment is a line of its thread and a moment's
+                       is its own row, so the report names whichever this is.
+                       `ThreadRow` keeps it off your own. */
+                    onReport={() =>
+                      void reportContent(
+                        api,
+                        moment ? 'moment_comment' : 'event_message',
+                        message.id,
+                      )
                     }
                     about={null}
                   />
