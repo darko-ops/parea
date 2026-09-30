@@ -1180,6 +1180,21 @@ export type TargetKind =
   | 'profile'
   | 'group';
 
+/**
+ * Refused because the sign-in on this phone is more than an hour old.
+ *
+ * Asked by the server before anything that adds a way into an account or
+ * takes one away — a passkey, signing other devices out, deleting the
+ * account — so that a stolen token cannot do those things.
+ */
+export function isStaleSignIn(err: unknown): boolean {
+  return err instanceof ApiError && err.status === 403 && err.code === 'recent_sign_in_required';
+}
+
+/** What to say about it, in the one place, so every screen says the same. */
+export const STALE_SIGN_IN_NOTE =
+  'For this, sign in again first: sign out, then back in with a code.';
+
 export class ApiError extends Error {
   constructor(
     readonly status: number,

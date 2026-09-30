@@ -20,7 +20,7 @@
 import { ago } from '@parea/cards';
 import { useCallback, useEffect, useState } from 'react';
 
-import { addPasskey, CANCELLED, passkeysAvailable } from './passkey';
+import { addPasskey, CANCELLED, passkeysAvailable, STALE_SIGN_IN } from './passkey';
 
 type Device = {
   id: string;
@@ -107,7 +107,11 @@ export function Devices({ onDone }: { onDone: () => void }) {
 
       setBusy(true);
       try {
-        await fetch(`/api/account/devices/${device.id}`, { method: 'DELETE' });
+        const res = await fetch(`/api/account/devices/${device.id}`, { method: 'DELETE' });
+        if (res.status === 403) {
+          setNote(STALE_SIGN_IN);
+          return;
+        }
         /*
          * Signing out the device you are holding is a full page load, for the
          * reason the Sign out button gives: everything on this site is rendered
@@ -133,6 +137,10 @@ export function Devices({ onDone }: { onDone: () => void }) {
     setBusy(true);
     try {
       const res = await fetch('/api/account/devices', { method: 'DELETE' });
+      if (res.status === 403) {
+        setNote(STALE_SIGN_IN);
+        return;
+      }
       const { ended } = (await res.json().catch(() => ({ ended: 0 }))) as { ended: number };
       await load();
       setNote(

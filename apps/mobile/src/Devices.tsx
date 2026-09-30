@@ -16,7 +16,7 @@ import { ago } from '@parea/cards';
 import { useCallback, useEffect, useState } from 'react';
 import { Alert, Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
-import type { Api, DeviceListing, PasskeyListing } from './api';
+import { isStaleSignIn, STALE_SIGN_IN_NOTE, type Api, type DeviceListing, type PasskeyListing } from './api';
 import type { TabTheme } from './Events';
 import { passkeysSupported } from './passkeys';
 import { addPasskey } from './signin';
@@ -129,7 +129,14 @@ export function DevicesCard({
             onPress: async () => {
               setBusy(true);
               try {
-                await api.endDevice(device.id).catch(() => {});
+                try {
+                  await api.endDevice(device.id);
+                } catch (err) {
+                  if (isStaleSignIn(err)) {
+                    setNote(STALE_SIGN_IN_NOTE);
+                    return;
+                  }
+                }
                 await load();
                 setNote(`${device.label} was signed out.`);
               } finally {
@@ -155,7 +162,15 @@ export function DevicesCard({
           onPress: async () => {
             setBusy(true);
             try {
-              const result = await api.endOtherDevices().catch(() => ({ ended: 0 }));
+              let result = { ended: 0 };
+              try {
+                result = await api.endOtherDevices();
+              } catch (err) {
+                if (isStaleSignIn(err)) {
+                  setNote(STALE_SIGN_IN_NOTE);
+                  return;
+                }
+              }
               await load();
               setNote(
                 result.ended === 0

@@ -11,7 +11,7 @@
  * the thing they just declined.
  */
 
-import { ApiError, type Api, type SignedIn } from './api';
+import { isStaleSignIn, STALE_SIGN_IN_NOTE, type Api, type SignedIn } from './api';
 import { assertPasskey, CANCELLED, createPasskey } from './passkeys';
 
 export type Flow<T> = { ok: true; value: T } | { ok: false; note: string | null };
@@ -20,9 +20,6 @@ export type Flow<T> = { ok: true; value: T } | { ok: false; note: string | null 
 function quiet(reason: string | typeof CANCELLED): { ok: false; note: string | null } {
   return { ok: false, note: reason === CANCELLED ? null : reason };
 }
-
-const STALE_SIGN_IN =
-  'To add a passkey, sign in again first: sign out, then back in with a code.';
 
 /**
  * Makes a passkey on this device and registers it.
@@ -37,8 +34,8 @@ export async function addPasskey(api: Api): Promise<Flow<void>> {
     options = await api.passkeyRegistrationOptions();
   } catch (err) {
     // The server wants a sign-in within the hour before it adds a way in.
-    if (err instanceof ApiError && err.status === 403) {
-      return { ok: false, note: STALE_SIGN_IN };
+    if (isStaleSignIn(err)) {
+      return { ok: false, note: STALE_SIGN_IN_NOTE };
     }
     return { ok: false, note: 'Could not start. Try again in a moment.' };
   }
@@ -49,8 +46,8 @@ export async function addPasskey(api: Api): Promise<Flow<void>> {
   try {
     await api.savePasskey(made.value);
   } catch (err) {
-    if (err instanceof ApiError && err.status === 403) {
-      return { ok: false, note: STALE_SIGN_IN };
+    if (isStaleSignIn(err)) {
+      return { ok: false, note: STALE_SIGN_IN_NOTE };
     }
     // The ceremony worked and the server would not keep it — most likely this
     // authenticator is already enrolled, which is the one case worth naming.

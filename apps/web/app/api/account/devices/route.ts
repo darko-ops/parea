@@ -20,7 +20,13 @@ import {
   issueActorCookie,
   userAgent,
 } from '@/session';
-import { listSessions, revokeOtherSessions, startSession } from '@/sessions';
+import {
+  listSessions,
+  revokeOtherSessions,
+  signedInRecently,
+  STALE_SIGN_IN,
+  startSession,
+} from '@/sessions';
 
 export const runtime = 'nodejs';
 
@@ -92,6 +98,17 @@ export async function DELETE() {
     return NextResponse.json({ error: 'sign_in_required' }, { status: 401 });
   }
 
-  const ended = await revokeOtherSessions(getDb(), actorId, credential.sessionId);
+  /*
+   * Signing everybody else out is the move a stolen session would make to keep
+   * the account to itself, so it needs a sign-in within the hour. Somebody
+   * locking an intruder out signs in again first — which also proves the
+   * intruder is the one being ended.
+   */
+  const db = getDb();
+  if (!(await signedInRecently(db, credential.sessionId))) {
+    return NextResponse.json(STALE_SIGN_IN, { status: 403 });
+  }
+
+  const ended = await revokeOtherSessions(db, actorId, credential.sessionId);
   return NextResponse.json({ ended });
 }

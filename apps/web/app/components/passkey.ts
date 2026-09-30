@@ -79,11 +79,12 @@ function readFailure(err: unknown): string | typeof CANCELLED {
 }
 
 /**
- * Adding a passkey needs a sign-in within the hour, so that a stolen cookie
- * cannot enrol one. Said as what to do about it.
+ * Adding a passkey, signing other devices out and deleting the account each
+ * need a sign-in within the hour, so that a stolen cookie cannot do them.
+ * Said as what to do about it; shared by every screen that can be refused.
  */
-const STALE_SIGN_IN =
-  'To add a passkey, sign in again first: sign out, then back in with a code.';
+export const STALE_SIGN_IN =
+  'For this, sign in again first: sign out, then back in with a code.';
 
 /**
  * Makes a passkey and registers it.

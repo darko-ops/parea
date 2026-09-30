@@ -38,8 +38,8 @@
 import { NextResponse } from 'next/server';
 
 import { getDb } from '@/db';
-import { currentAccountActorId } from '@/session';
-import { revokeSession } from '@/sessions';
+import { currentAccountActorId, currentSessionId } from '@/session';
+import { revokeSession, signedInRecently, STALE_SIGN_IN } from '@/sessions';
 
 export const runtime = 'nodejs';
 
@@ -56,7 +56,17 @@ export async function DELETE(_request: Request, { params }: { params: Promise<{ 
    * sentence explaining why. The client keeps the current row's button labelled
    * as itself; the server does not need a rule about it.
    */
-  const ended = await revokeSession(getDb(), actorId, id);
+  /*
+   * Ending another device needs a sign-in within the hour, for the reason the
+   * route above gives. Ending this one does not: that is signing out.
+   */
+  const db = getDb();
+  const current = await currentSessionId();
+  if (id !== current && !(await signedInRecently(db, current))) {
+    return NextResponse.json(STALE_SIGN_IN, { status: 403 });
+  }
+
+  const ended = await revokeSession(db, actorId, id);
   if (!ended) return NextResponse.json({ error: 'not_found' }, { status: 404 });
 
   return new NextResponse(null, { status: 204 });

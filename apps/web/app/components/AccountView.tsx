@@ -29,6 +29,7 @@ import { EditProfile } from './EditProfile';
 import { EventCard } from './EventCard';
 import { LoginScreen } from './LoginScreen';
 import { MomentStrip } from './MomentStrip';
+import { STALE_SIGN_IN } from './passkey';
 import { Shell } from './Shell';
 import { ShareProfile } from './ShareProfile';
 import { SignIn } from './SignIn';
@@ -128,6 +129,8 @@ export function AccountView() {
   const [friends, setFriends] = useState<number | null>(null);
   const [busy, setBusy] = useState(false);
   const [note, setNote] = useState<string | null>(null);
+  // Said beside the delete buttons, which are on a different screen from `note`.
+  const [deleteNote, setDeleteNote] = useState<string | null>(null);
   /** Your own moments, newest first, for the strip under the header. */
   const [moments, setMoments] = useState<MomentsResponse | null>(null);
 
@@ -198,7 +201,16 @@ export function AccountView() {
 
       setBusy(true);
       try {
-        await fetch(`/api/account${alsoPhotos ? '?photos=1' : ''}`, { method: 'DELETE' });
+        const res = await fetch(`/api/account${alsoPhotos ? '?photos=1' : ''}`, {
+          method: 'DELETE',
+        });
+        // Refused because the sign-in is more than an hour old: nothing was
+        // deleted, and the page must not reload as though it had been.
+        if (res.status === 403) {
+          setDeleteNote(STALE_SIGN_IN);
+          return;
+        }
+        setDeleteNote(null);
         setNote(null);
         await load();
       } finally {
@@ -384,6 +396,7 @@ export function AccountView() {
               Delete account and all my photos
             </button>
           </div>
+          {deleteNote && <p className="panel-note">{deleteNote}</p>}
         </section>
 
         <div className="row">

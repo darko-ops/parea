@@ -136,6 +136,12 @@ export async function signedInRecently(
 }
 
 /**
+ * The refusal every route asking for a recent sign-in gives, in one shape, so
+ * both clients can recognise it wherever it comes from.
+ */
+export const STALE_SIGN_IN = { error: 'recent_sign_in_required' } as const;
+
+/**
  * Who this session is, and a throttled note that it was here.
  *
  * One statement, doing both. The read has to happen on every authenticated

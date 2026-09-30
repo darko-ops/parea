@@ -21,7 +21,9 @@ import { NextResponse } from 'next/server';
 
 import { deleteAccount, deleteEverything } from '@/accounts';
 import { getDb } from '@/db';
-import { currentActorId } from '@/session';
+import { isSignedIn } from '@/access';
+import { currentActorId, currentSessionId } from '@/session';
+import { signedInRecently, STALE_SIGN_IN } from '@/sessions';
 
 export const runtime = 'nodejs';
 
@@ -213,6 +215,16 @@ export async function DELETE(request: Request) {
 
   const db = getDb();
   const alsoPhotos = new URL(request.url).searchParams.get('photos') === '1';
+
+  /*
+   * Deleting an account cannot be undone, so it is not something a cookie
+   * lifted from somebody's browser should be able to do: an account needs a
+   * sign-in within the hour, as adding a passkey does. A guest has no sign-in
+   * to repeat, and what it can delete is only what that browser made.
+   */
+  if ((await isSignedIn(db, actorId)) && !(await signedInRecently(db, await currentSessionId()))) {
+    return NextResponse.json(STALE_SIGN_IN, { status: 403 });
+  }
 
   // Photos first: doing it after the account is gone would leave a window in
   // which a crash loses the request entirely, and the person believes their

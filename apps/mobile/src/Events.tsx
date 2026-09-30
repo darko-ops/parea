@@ -45,7 +45,7 @@ import {
 } from 'react-native';
 
 import { useAppearance } from './appearance';
-import { ApiError } from './api';
+import { ApiError, isStaleSignIn, STALE_SIGN_IN_NOTE } from './api';
 import type {
   Api,
   Cluster,
@@ -3532,7 +3532,16 @@ export function AccountCard({
           text: 'Delete account',
           style: 'destructive',
           onPress: async () => {
-            await api.deleteAccount(false).catch(() => {});
+            try {
+              await api.deleteAccount(false);
+            } catch (err) {
+              // Refused is not deleted: the account is still there, and
+              // clearing it from the screen would say otherwise.
+              if (isStaleSignIn(err)) {
+                Alert.alert('Sign in again first', STALE_SIGN_IN_NOTE);
+                return;
+              }
+            }
             setAccount(null);
           },
         },
@@ -3540,7 +3549,15 @@ export function AccountCard({
           text: 'Delete account and my photos',
           style: 'destructive',
           onPress: async () => {
-            const result = await api.deleteAccount(true).catch(() => null);
+            let result: { photos: number } | null = null;
+            try {
+              result = await api.deleteAccount(true);
+            } catch (err) {
+              if (isStaleSignIn(err)) {
+                Alert.alert('Sign in again first', STALE_SIGN_IN_NOTE);
+                return;
+              }
+            }
             setAccount(null);
             if (result) {
               Alert.alert('Deleted', `${result.photos} photos removed.`);
