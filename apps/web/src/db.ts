@@ -25,7 +25,11 @@ let cached: Db | null = null;
  * and a secret does not belong in source. Nothing is enforced in production
  * itself, where reaching this host is the entire point — see `warnIfProduction`.
  */
-const PRODUCTION_DB_HOST = 'ep-flat-heart-ax915wla';
+// \`parea-prod\` (Neon project still-dust-88337211). It named the old project's
+// endpoint until 2026-09-30, which meant a laptop pointed at the real
+// production database got no warning at all — keep it in step if production
+// ever moves again.
+const PRODUCTION_DB_HOST = 'ep-wild-forest-b4ubak1w';
 
 /**
  * Warns when a local process is about to talk to the production database.
