@@ -170,6 +170,23 @@ else
   warn "      expire-manifests tmp/manifest/ --expire-days 1 --force"
 fi
 
+# Moments are sent to storage before they are posted (`moments/incoming/<actor>/`)
+# and moved out when they are; one that is sent and never posted has no row
+# anywhere for a job to find, so the bucket expires it. Posted moments live at
+# `moments/<actorId>/`, which an actor id never makes `incoming`.
+bold "Lifecycle rule on moments/incoming/"
+if npx --yes wrangler@latest r2 bucket lifecycle list "$BUCKET" 2>/dev/null \
+    | grep -q 'expire-moment-staging'; then
+  echo "  already set"
+elif npx --yes wrangler@latest r2 bucket lifecycle add "$BUCKET" \
+      expire-moment-staging moments/incoming/ --expire-days 1 --force >/dev/null 2>&1; then
+  echo "  set to expire after 1 day"
+else
+  warn "  FAILED — set it by hand:"
+  warn "    npx wrangler r2 bucket lifecycle add $BUCKET \\"
+  warn "      expire-moment-staging moments/incoming/ --expire-days 1 --force"
+fi
+
 # The browser PUTs straight to R2 with a presigned URL. Without a policy naming
 # the app's origin it refuses before sending, and nothing in the failure says
 # so: the presign succeeds, a pending row appears with a key, no bytes arrive,

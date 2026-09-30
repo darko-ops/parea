@@ -70,8 +70,10 @@ export default function PrivacyPage() {
             Between the moment you upload and the moment that processing
             finishes, the untouched original is in storage. Nothing serves it or
             lists it during that window, but it is honest to say that it exists.
-            If processing fails, or an upload is never finished, that original
-            stays in storage, unserved, and is not yet removed automatically.
+            An upload that is never finished is removed after a day, and one
+            that fails processing after a week; neither is shown to anyone in
+            the meantime. A moment you start and never post is removed after a
+            day as well.
           </p>
 
           <h3>Moments you share</h3>

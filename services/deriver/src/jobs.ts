@@ -49,6 +49,10 @@ import { objectStoreFromEnv, type ObjectStore } from './objects';
 
 /** How long a tombstoned photo's bytes survive before they are really gone. */
 const PURGE_GRACE_DAYS = 30;
+/** How long an upload may sit unfinished before it is given up on. */
+const ABANDONED_AFTER_HOURS = 24;
+/** How long a photo that failed processing is kept before its file goes. */
+const FAILED_KEPT_DAYS = 7;
 /** Dormancy before a spoken code returns to the pool. */
 const CODE_DORMANCY_DAYS = 90;
 
@@ -101,6 +105,68 @@ export async function autoHide(database: ReturnType<typeof db>): Promise<number>
     hidden += updated.length;
   }
   return hidden;
+}
+
+/**
+ * Uploads that never became photos: given up on, and their files removed.
+ *
+ * Two kinds, and neither was ever cleaned up. An upload whose URL was handed
+ * out and whose bytes never arrived — or arrived and were never confirmed —
+ * sat `pending` for good. A photo that failed processing sat `failed` for
+ * good. Both kept the original in storage, unserved but whole: the file as the
+ * camera wrote it, GPS and all, which the privacy page had to admit to. Both
+ * also kept counting against the album's cap, so a few accounts could fill an
+ * album by asking for uploads and never sending them.
+ *
+ * So: a day for an upload to arrive — its URL lives fifteen minutes, so a day
+ * is generous — and a week for a failure to be looked at. Then the stored file
+ * is deleted at once, because nothing was ever shown from it and there is
+ * nothing to hold it for, and the row is tombstoned, which takes it out of the
+ * cap; `purge` removes the row itself later. Anything under a child-safety
+ * hold is left exactly where it is.
+ */
+export async function sweepAbandoned(
+  database: ReturnType<typeof db>,
+  objects: ObjectStore,
+  now = new Date(),
+): Promise<number> {
+  const abandonedBefore = new Date(now.getTime() - ABANDONED_AFTER_HOURS * 3600_000);
+  const failedBefore = new Date(now.getTime() - FAILED_KEPT_DAYS * 24 * 3600_000);
+  const rows = await database
+    .select({ id: schema.photos.id, storageKey: schema.photos.storageKey })
+    .from(schema.photos)
+    .where(
+      and(
+        isNull(schema.photos.deletedAt),
+        or(
+          // Never confirmed as arrived. A confirmed upload still waiting to be
+          // processed — a scanner outage, the deriver down — is a real photo
+          // in a queue, and waits however long that takes.
+          and(
+            eq(schema.photos.status, 'pending'),
+            isNull(schema.photos.bytesAt),
+            lt(schema.photos.uploadedAt, abandonedBefore),
+          ),
+          and(eq(schema.photos.status, 'failed'), lt(schema.photos.uploadedAt, failedBefore)),
+        ),
+        notExists(
+          database
+            .select({ one: sql`1` })
+            .from(schema.safetyIncidents)
+            .where(eq(schema.safetyIncidents.photoId, schema.photos.id)),
+        ),
+      ),
+    )
+    .limit(500);
+
+  for (const row of rows) {
+    await objects.delete(row.storageKey).catch(() => {});
+    await database
+      .update(schema.photos)
+      .set({ status: 'failed', deletedAt: now })
+      .where(eq(schema.photos.id, row.id));
+  }
+  return rows.length;
 }
 
 /**
@@ -574,6 +640,7 @@ async function runAll(
   await run('seed-codes', () => seedCodes(database));
   await run('auto-hide', () => autoHide(database));
   await run('nudge', () => nudge(database));
+  await run('sweep-abandoned', () => sweepAbandoned(database, objects));
   await run('purge', () => purge(database, objects));
   await run('expire-moments', () => expireMoments(database, objects));
   await run('recycle-codes', () => recycleCodes(database));
