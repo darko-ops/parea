@@ -6,8 +6,8 @@
  * which is also what makes a HEIC off an iPhone something every client can
  * draw.
  *
- * Any member may set it, because any member may name the room — and it is
- * refused where naming is refused: a chat between two people is drawn as the
+ * Hosts and co-hosts set it, because they are the ones who name the room
+ * (security review L13) — and it is refused where naming is refused: a chat between two people is drawn as the
  * other person, and a picture over them would be a mask on somebody's face.
  *
  * Keyed by group *and* a fresh id, where the avatar is keyed by actor alone.
@@ -36,15 +36,24 @@ export const runtime = 'nodejs';
 const EDGE = 512;
 const MAX_BYTES = 12 * 1024 * 1024;
 
-/** The group, if the reader is in it and it is the kind that can have one. */
+/**
+ * The group, if the reader runs it and it is the kind that can have one.
+ *
+ * Hosts and co-hosts only — the `admin` role — for the reason renaming is
+ * theirs (L13): the picture is the group's face to everyone in it.
+ */
 async function editable(id: string) {
   const db = getDb();
   const group = await findGroup(db, id);
   if (!group) return { error: NextResponse.json({ error: 'not_found' }, { status: 404 }) };
   const actorId = await currentActorId();
   if (!actorId) return { error: NextResponse.json({ error: 'no_actor' }, { status: 403 }) };
-  if (!(await membershipOf(db, group.id, actorId))) {
+  const membership = await membershipOf(db, group.id, actorId);
+  if (!membership) {
     return { error: NextResponse.json({ error: 'not_found' }, { status: 404 }) };
+  }
+  if (membership.role !== 'admin') {
+    return { error: NextResponse.json({ error: 'admin_only' }, { status: 403 }) };
   }
   return { db, group, actorId };
 }

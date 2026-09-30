@@ -165,9 +165,13 @@ export async function GET(
  * the conversation has turned out to be a standing thing, which is the moment
  * a name is worth typing.
  *
- * ## Only a member, and only a room with more than two people in it
+ * ## Only a host or co-host, and only a room with more than two people in it
  *
- * The first is the ordinary rule. The second is the design: a conversation
+ * The first is a decision (security review L13): a group's name is its
+ * identity, and any member could change it — to anything, under everybody
+ * else's feet. So it is the admins', the people who run the group, the same
+ * as who is let in and who is taken out. A member who wants it changed asks.
+ * The second is the design: a conversation
  * with one person is called by their name and is not a room with a door on
  * it, so there is nothing here to name — naming it would turn a chat into a
  * group behind the other person's back, and put it on the Find shelf where
@@ -198,6 +202,9 @@ export async function PATCH(
   const actorId = await currentActorId();
   const membership = await membershipOf(db, group.id, actorId);
   if (!membership) return NextResponse.json({ error: 'not_found' }, { status: 404 });
+  if (membership.role !== 'admin') {
+    return NextResponse.json({ error: 'admin_only' }, { status: 403 });
+  }
 
   const body = (await request.json().catch(() => ({}))) as { name?: unknown };
   const name = typeof body.name === 'string' ? body.name.trim() : '';

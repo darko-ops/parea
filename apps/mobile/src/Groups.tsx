@@ -228,6 +228,28 @@ export function GroupScreen({
   }, [api, groupId, load]);
 
   /**
+   * A refusal because the viewer does not run the room.
+   *
+   * Naming the room and changing its picture are its hosts' to do, and the
+   * sheet only offers them to an admin — so this is reached when the screen's
+   * idea of who runs the room is stale: somebody stepped down, or was never
+   * up. Said once, then the room is read again so the controls go away.
+   * Answers whether it was that, so the caller can stay quiet about anything
+   * else the way it already did.
+   */
+  const hostsOnly = useCallback(
+    async (err: unknown): Promise<boolean> => {
+      if (!(err instanceof ApiError && err.status === 403 && err.body.error === 'admin_only')) {
+        return false;
+      }
+      Alert.alert('Not yours to change', "Only the group's hosts can change this.");
+      await load();
+      return true;
+    },
+    [load],
+  );
+
+  /**
    * Naming the room, or clearing the name back off it.
    *
    * The whole view is read again rather than the name being patched into the
@@ -238,14 +260,19 @@ export function GroupScreen({
    *
    * A failure leaves the room as it was and says nothing. It is the only
    * cosmetic write on this screen; an alert over a group because a name did
-   * not save is louder than the thing that did not happen.
+   * not save is louder than the thing that did not happen. The exception is
+   * being told it was not yours to name — see `hostsOnly`.
    */
   const rename = useCallback(
     async (name: string) => {
-      await api.nameGroup(groupId, name).catch(() => null);
+      try {
+        await api.nameGroup(groupId, name);
+      } catch (err) {
+        if (await hostsOnly(err)) return;
+      }
       setGroup(await api.group(groupId).catch(() => null));
     },
-    [api, groupId],
+    [api, groupId, hostsOnly],
   );
 
   /**
@@ -267,18 +294,25 @@ export function GroupScreen({
     try {
       const target = api.groupPhotoTarget(groupId);
       await uploadCover(target.url, target.headers, picked.assets[0].uri);
-    } catch {
+    } catch (err) {
+      // Refused as somebody who does not run the room: closes the sheet, which
+      // no longer has anything in it for them.
+      if (await hostsOnly(err)) return true;
       Alert.alert('Could not set that photo', 'Try again in a moment.');
       return false;
     }
     setGroup(await api.group(groupId).catch(() => null));
     return true;
-  }, [api, groupId]);
+  }, [api, groupId, hostsOnly]);
 
   const removePhoto = useCallback(async () => {
-    await api.removeGroupPhoto(groupId).catch(() => null);
+    try {
+      await api.removeGroupPhoto(groupId);
+    } catch (err) {
+      if (await hostsOnly(err)) return;
+    }
     setGroup(await api.group(groupId).catch(() => null));
-  }, [api, groupId]);
+  }, [api, groupId, hostsOnly]);
 
   const leave = useCallback(() => {
     Alert.alert('Leave this group?', 'You keep any roll links you already have.', [
@@ -741,8 +775,10 @@ export function GroupScreen({
           t={t}
           Button={Button}
           named={group.named}
-          // Two people is a conversation, not a room. See `GroupMore`.
-          nameable={group.memberCount > 2}
+          // Two people is a conversation, not a room; and a room's name and
+          // picture are its hosts' to change, which the server holds to as
+          // well. A member sees both and is offered neither. See `GroupMore`.
+          nameable={group.role === 'admin' && group.memberCount > 2}
           onName={rename}
           photoUrl={group.photoUrl}
           onChoosePhoto={choosePhoto}
@@ -914,7 +950,7 @@ function AlbumTile({
 
 /**
  * Everything else about the room: naming it, giving it a picture, and
- * leaving it.
+ * leaving it. The first two only for its hosts.
  *
  * ## Why naming lives here and not on the way in
  *
@@ -936,6 +972,14 @@ function AlbumTile({
  * thing done to the other person rather than with them. The server refuses it
  * too; this is so the control is not there to press. The way to make a group
  * out of a chat is to add somebody, which is a thing both people can see.
+ *
+ * ## Nor to anybody who does not run the room
+ *
+ * `nameable` is false for a member too. The name and the picture are what
+ * everybody in the room — and, for a findable one, everybody on Find — reads
+ * it as, so they are its hosts' to change; the server answers anybody else
+ * with `admin_only`. A member still sees both, in the head of the screen,
+ * and this sheet is left holding leaving and reporting.
  */
 function GroupMore({
   t,
@@ -960,7 +1004,10 @@ function GroupMore({
   }) => React.ReactElement;
   /** The name as stored, null for a room nobody has named. */
   named: string | null;
-  /** False for a conversation with one person. See above. */
+  /**
+   * False for a conversation with one person, and for anybody who does not
+   * run the room. See above.
+   */
   nameable: boolean;
   onName: (name: string) => Promise<void>;
   /** The room's own picture, if it has one. */

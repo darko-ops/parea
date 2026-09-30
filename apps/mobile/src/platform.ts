@@ -14,6 +14,7 @@ import { Platform } from 'react-native';
 
 import { Offline, SourceGone, type QueueItem, type QueueState } from '@parea/upload';
 
+import { ApiError } from './api';
 import { inOutbox, isLibraryAsset, sandboxCopy } from './library';
 
 const ACTOR_KEY = 'parea.actorToken';
@@ -529,8 +530,22 @@ export async function uploadCover(
     sessionType: 'background',
   });
   const result = await task.uploadAsync();
-  if (!result || result.status < 200 || result.status >= 300) {
-    throw new Error(`cover failed: ${result?.status ?? 'no response'}`);
+  if (!result) throw new Error('cover failed: no response');
+  if (result.status < 200 || result.status >= 300) {
+    // As an `ApiError`, with the route's word for why, so a caller can tell a
+    // refusal it should explain (a group photo from somebody who does not run
+    // the group) from a send that merely failed.
+    let body: Record<string, unknown> = {};
+    try {
+      body = JSON.parse(result.body) as Record<string, unknown>;
+    } catch {
+      // Not JSON — a proxy's page, or nothing. The status still says enough.
+    }
+    throw new ApiError(
+      result.status,
+      typeof body.error === 'string' ? body.error : 'unknown',
+      body,
+    );
   }
 }
 

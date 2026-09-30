@@ -379,6 +379,13 @@
       "when": 1790745430048,
       "tag": "0053_group_removal",
       "breakpoints": true
+    },
+    {
+      "idx": 54,
+      "version": "7",
+      "when": 1790805038724,
+      "tag": "0054_groups_without_admin",
+      "breakpoints": true
     }
   ]
 }
