@@ -33,6 +33,13 @@ export type DownloadManifest = {
   archiveName: string;
   createdAt: string;
   entries: ManifestEntry[];
+  /**
+   * The event's link epoch when this was minted. The zip Worker compares it
+   * with the current one, so rotating a link ends downloads already handed
+   * out, as it ends image URLs. Optional: manifests minted before this field
+   * existed are honoured for the fifteen minutes they live.
+   */
+  capEpoch?: number;
 };
 
 const encoder = new TextEncoder();
@@ -124,6 +131,7 @@ export function parseManifest(text: string): DownloadManifest | null {
   const m = value as Partial<DownloadManifest>;
   if (m.version !== MANIFEST_VERSION) return null;
   if (typeof m.eventId !== 'string' || !Array.isArray(m.entries)) return null;
+  if (m.capEpoch !== undefined && !Number.isSafeInteger(m.capEpoch)) return null;
 
   for (const entry of m.entries) {
     if (typeof entry?.key !== 'string' || typeof entry?.name !== 'string') return null;

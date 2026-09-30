@@ -24,6 +24,7 @@ import {
   verifyManifestToken,
   type DownloadManifest,
 } from '@parea/zip';
+import { epochMarkerKey } from '@parea/urls';
 
 export type Env = {
   BUCKET: R2Bucket;
@@ -53,6 +54,18 @@ export default {
 
     const manifest = parseManifest(await stored.text());
     if (!manifest) return new Response('bad manifest', { status: 500 });
+
+    /*
+     * Rotating an event's link ends image URLs signed under the old epoch; it
+     * did not end a download handed out a minute before, which went on
+     * working for its fifteen minutes. Checked against the same marker the
+     * image Worker reads.
+     */
+    if (manifest.capEpoch !== undefined) {
+      const marker = await env.BUCKET.get(epochMarkerKey(manifest.eventId));
+      const current = marker ? Number(await marker.text()) || 1 : 1;
+      if (manifest.capEpoch < current) return new Response('revoked', { status: 410 });
+    }
 
     return archive(manifest, env, request.method === 'HEAD');
   },

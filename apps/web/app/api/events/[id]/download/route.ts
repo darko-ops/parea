@@ -20,6 +20,7 @@ import { dedicatedSecret } from '@/env';
 import { findEventById, guard, toResponse } from '@/access';
 import { resolveArchive, type ArchiveFormat } from '@/archive';
 import { getDb } from '@/db';
+import { DOWNLOAD_LIMIT, withinLimit, withinLimitFor } from '@/ratelimit';
 import { viewerContext } from '@/moderation';
 import { clientOf, observe } from '@/observe';
 import { currentActorId, requesterFor } from '@/session';
@@ -78,6 +79,14 @@ export async function POST(
    * precisely so that this line has to be written.
    */
   const actorId = await currentActorId();
+  const limitSecret = process.env.SESSION_SECRET;
+  if (
+    !(await withinLimit(db, DOWNLOAD_LIMIT, limitSecret)) ||
+    (actorId && !(await withinLimitFor(db, DOWNLOAD_LIMIT, limitSecret, actorId)))
+  ) {
+    return NextResponse.json({ error: 'too_many_requests' }, { status: 429 });
+  }
+
   const archive = await resolveArchive(db, event.id, {
     selection,
     format,
@@ -102,6 +111,8 @@ export async function POST(
     archiveName: `${safeName(event.name)}${format === 'jpeg' ? ' JPEG' : ''}.zip`,
     createdAt: new Date().toISOString(),
     entries: archive.entries,
+    // Checked by the zip Worker, so rotating the link ends this download too.
+    capEpoch: event.capEpoch,
   };
 
   const secret = dedicatedSecret('MANIFEST_SECRET');

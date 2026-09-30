@@ -474,6 +474,20 @@ export const GUEST_SESSION_LIMIT: Limit = {
   windowSeconds: 3600,
 };
 
+/**
+ * Starting a download, per person and per address.
+ *
+ * Each one resolves the whole event and writes a manifest to R2, and the link
+ * it returns streams every original. Generous — somebody retrying a flaky
+ * download a dozen times is normal — and there to stop a script minting
+ * archives in a loop.
+ */
+export const DOWNLOAD_LIMIT: Limit = {
+  name: 'download',
+  max: 30,
+  windowSeconds: 3600,
+};
+
 export const JOIN_CODE_LIMIT: Limit = {
   name: 'join-code',
   max: 20,

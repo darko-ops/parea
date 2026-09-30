@@ -195,3 +195,34 @@ describe('when an object is missing', () => {
     await expect(res.arrayBuffer()).rejects.toThrow();
   });
 });
+
+describe('when the event link is rotated', () => {
+  const withEpoch = (capEpoch: number) => ({
+    ...manifest([{ key: 'ev/1/aaa', name: '0001.jpg', size: 9, crc32: 0, takenAt: '2026-07-18T21:14:06Z' }]),
+    capEpoch,
+  });
+
+  it('ends a download minted under the old epoch', async () => {
+    const { env, token } = await setup({
+      manifest: withEpoch(1),
+      photos: { 'ev/1/aaa': 'photo-one', 'ev/event-1/.epoch': '2' },
+    });
+    expect((await get(env, token)).status).toBe(410);
+  });
+
+  it('serves one minted under the current epoch', async () => {
+    const { env, token } = await setup({
+      manifest: withEpoch(2),
+      photos: { 'ev/1/aaa': 'photo-one', 'ev/event-1/.epoch': '2' },
+    });
+    expect((await get(env, token)).status).toBe(200);
+  });
+
+  it('treats a missing marker as the first epoch', async () => {
+    const { env, token } = await setup({
+      manifest: withEpoch(1),
+      photos: { 'ev/1/aaa': 'photo-one' },
+    });
+    expect((await get(env, token)).status).toBe(200);
+  });
+});
