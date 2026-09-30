@@ -60,7 +60,51 @@ function contentSecurityPolicy(): string {
   ].join('; ');
 }
 
+/**
+ * Where browsers send what the policy above would have blocked: Sentry's
+ * security endpoint, built from the DSN the server already reports errors to.
+ *
+ * The policy said "the console is the evidence for narrowing it later" — but
+ * nobody reads other people's consoles, so for its whole life it collected
+ * nothing. Null when there is no DSN, and then the policy simply reports
+ * nowhere, as before.
+ */
+function cspReportUri(): string | null {
+  const dsn = process.env.NEXT_PUBLIC_SENTRY_DSN;
+  if (!dsn) return null;
+  try {
+    const url = new URL(dsn);
+    const project = url.pathname.replace(/^\//, '');
+    if (!url.username || !project) return null;
+    return `${url.protocol}//${url.host}/api/${project}/security/?sentry_key=${url.username}`;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * The part of the policy that cannot break a page, enforced.
+ *
+ * None of these touch what Next needs to run: no plugins, no framing of this
+ * site by another (the attack `X-Frame-Options` already refuses), no `<base>`
+ * that could rewrite where every relative link and form points, and forms that
+ * submit only here. They were report-only alongside everything else, so an
+ * injected `<base>` or an `<object>` would have been reported and allowed.
+ */
+function enforcedPolicy(): string {
+  const report = cspReportUri();
+  return [
+    "object-src 'none'",
+    "frame-ancestors 'none'",
+    "base-uri 'self'",
+    "form-action 'self'",
+    ...(report ? [`report-uri ${report}`] : []),
+  ].join('; ');
+}
+
 const config: NextConfig = {
+  // Says nothing a visitor needs, and names the framework to anybody probing.
+  poweredByHeader: false,
   // @parea/core ships TypeScript source rather than a build step.
   transpilePackages: [
     '@parea/core',
@@ -163,7 +207,26 @@ const config: NextConfig = {
           // `X-Frame-Options` later is one edit rather than an omission.
           {
             key: 'Content-Security-Policy-Report-Only',
-            value: contentSecurityPolicy(),
+            value: [contentSecurityPolicy(), ...(cspReportUri() ? [`report-uri ${cspReportUri()}`] : [])].join('; '),
+          },
+          { key: 'Content-Security-Policy', value: enforcedPolicy() },
+          /*
+           * HTTPS on every host under the domain, for two years. Vercel sends
+           * this without `includeSubDomains`, which left `img.` and `zip.` to
+           * their own devices; all of them are HTTPS already, so this costs
+           * nothing. `preload` is not here: it asks browsers to hard-code the
+           * domain as HTTPS-only, which is slow to undo, and is the owner's
+           * decision.
+           */
+          { key: 'Strict-Transport-Security', value: 'max-age=63072000; includeSubDomains' },
+          /*
+           * Features the site never uses, switched off, so that no script on it
+           * — ours by mistake or anyone's by injection — can ask for them.
+           * The camera is for the app's code scanner, which is native.
+           */
+          {
+            key: 'Permissions-Policy',
+            value: 'camera=(), microphone=(), geolocation=(), payment=(), usb=()',
           },
         ],
       },
