@@ -292,8 +292,10 @@ export async function signIn(
   db: Db,
   email: string,
   actorId: string,
+  /** When the age check passed, for the sign-in that creates the account. */
+  created: { ageConfirmedAt?: Date } = {},
 ): Promise<SignInResult> {
-  const result = await bindAccount(db, email, actorId);
+  const result = await bindAccount(db, email, actorId, created.ageConfirmedAt ?? null);
   await ensureHandle(db, result.actorId);
   return result;
 }
@@ -324,10 +326,21 @@ async function link(db: Db, accountId: string, actorId: string): Promise<void> {
   }
 }
 
+/** Whether an address already has an account. For the age check, which asks only once. */
+export async function accountExists(db: Db, email: string): Promise<boolean> {
+  const [row] = await db
+    .select({ id: schema.accounts.id })
+    .from(schema.accounts)
+    .where(eq(schema.accounts.email, email))
+    .limit(1);
+  return row !== undefined;
+}
+
 async function bindAccount(
   db: Db,
   email: string,
   actorId: string,
+  ageConfirmedAt: Date | null,
 ): Promise<SignInResult> {
   const [existing] = await db
     .select()
@@ -336,7 +349,11 @@ async function bindAccount(
     .limit(1);
 
   if (!existing) {
-    const [account] = await db.insert(schema.accounts).values({ email }).returning();
+    // The age check and the terms are passed on one screen, so one moment.
+    const [account] = await db
+      .insert(schema.accounts)
+      .values({ email, ageConfirmedAt, termsAcceptedAt: ageConfirmedAt })
+      .returning();
     await link(db, account!.id, actorId);
     return { actorId, email, merged: false, created: true };
   }

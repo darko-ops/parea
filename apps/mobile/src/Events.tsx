@@ -55,6 +55,7 @@ import type {
   InvitablePerson,
   SuggestedPerson,
   MyGroupDetail,
+  SignedIn,
   ThreadLine,
 } from './api';
 
@@ -75,7 +76,9 @@ import {
   loadSearches,
   rememberSearch,
   saveActorToken,
+  ageRefused,
   currentPushToken,
+  rememberAgeRefused,
   signOutDevice,
   type RecentSearch,
 } from './platform';
@@ -3261,6 +3264,16 @@ export function AccountCard({
    * been replaced cannot ask anybody anything.
    */
   const [offer, setOffer] = useState(false);
+  /**
+   * A first account asks for a date of birth once the code is proved — see
+   * `@/age` on the server. The proof lets the date go back without a second
+   * code; `refused` is the answer for somebody who may not make one.
+   */
+  const [ageProof, setAgeProof] = useState<string | null>(null);
+  const [refused, setRefused] = useState(false);
+  const [day, setDay] = useState('');
+  const [month, setMonth] = useState('');
+  const [year, setYear] = useState('');
   /** The devices and passkeys card, in place of the signed-in one. */
   const [managing, setManaging] = useState(false);
 
@@ -3331,30 +3344,14 @@ export function AccountCard({
     }
   }, [api, email]);
 
-  const verify = useCallback(async () => {
-    setBusy(true);
-    setError(null);
-    try {
-      const result = await api.completeSignIn(email.trim(), code);
-      /*
-       * The keychain, not just the client in memory.
-       *
-       * `completeSignIn` sets the token on the `Api` instance, which is enough
-       * for the rest of this launch and nothing after it: the next cold start
-       * reads the keychain, finds whatever was there before signing in — on a
-       * new phone, nothing — and either carries on as the old actor or mints a
-       * fresh guest. Somebody who had just made an account opened the app
-       * again and was nobody.
-       *
-       * The token is also the one the account resolves to, which may not be
-       * the one this device presented: signing in folds this actor into the
-       * account's, and `result.merged` says when it did. Writing it here is
-       * what makes that fold outlive the session.
-       */
+  /** What happens once an account has answered — after a code, or after the date. */
+  const finish = useCallback(
+    async (result: SignedIn) => {
       await saveActorToken(result.actorToken);
       setAccount({ email: result.email });
       setSent(false);
       setCode('');
+      setAgeProof(null);
       if (result.merged) {
         // Said out loud rather than swapped silently: everything they added
         // on this phone has just become part of another identity, and that is
@@ -3365,34 +3362,33 @@ export function AccountCard({
         );
       }
 
-      /*
-       * The one moment worth interrupting for.
-       *
-       * Somebody who has just created an account also just fetched a code out of
-       * a mail app, so "next time, use Face ID" lands where the cost of the
-       * alternative is fresh. Later it is an interruption, and buried in the
-       * profile tab it is a thing nobody goes looking for.
-       *
-       * Three conditions, each removing a case where this would be a nuisance:
-       * only on the sign-in that made the account, only when there is no passkey
-       * on it already, and only where this phone could make one.
-       */
       if (result.created && !result.hasPasskey && canPasskey) {
         setOffer(true);
         return;
       }
 
       onSignedIn();
+    },
+    [onSignedIn],
+  );
+
+  const verify = useCallback(async () => {
+    setBusy(true);
+    setError(null);
+    try {
+      await finish(await api.completeSignIn(email.trim(), code));
     } catch (err) {
       /*
-       * A refused code and a refused *attempt* are different sentences.
-       *
-       * They used to be the same one, and it was the wrong one at exactly the
-       * wrong moment: somebody holding a good code was told it had not worked,
-       * so they asked for another — spending the allowance again — and were
-       * told the same thing about that one. Nothing in the message pointed at
-       * waiting, which was the only thing that would have helped.
+       * The code was right and the address is new: a first account asks for a
+       * date of birth. A phone already refused goes straight to the refusal
+       * rather than to a second try at the date.
        */
+      if (err instanceof ApiError && err.code === 'birth_date_required') {
+        setCode('');
+        if (await ageRefused()) setRefused(true);
+        else setAgeProof(typeof err.body.proof === 'string' ? err.body.proof : null);
+        return;
+      }
       setError(
         err instanceof ApiError && err.code === 'too_many_requests'
           ? 'Too many tries from here. Wait an hour, then use the code you have.'
@@ -3401,16 +3397,37 @@ export function AccountCard({
     } finally {
       setBusy(false);
     }
-  }, [api, code, email, onSignedIn]);
+  }, [api, code, email, finish]);
 
-  /**
-   * Signing in with a passkey, which is one press and no inbox.
-   *
-   * No offer afterwards: somebody who just used one has one. The token is
-   * written to the keychain for the same reason the code path writes it — the
-   * actor it names may not be the one this phone presented, because signing in
-   * folds this device's identity into the account's.
-   */
+  /** The date of birth, for the sign-in that makes the account. */
+  const confirmAge = useCallback(async () => {
+    if (!ageProof) return;
+    setBusy(true);
+    setError(null);
+    const birthDate = `${year.trim()}-${month.trim().padStart(2, '0')}-${day.trim().padStart(2, '0')}`;
+    try {
+      await finish(await api.confirmAge(email.trim(), ageProof, birthDate));
+    } catch (err) {
+      if (err instanceof ApiError && err.code === 'too_young') {
+        await rememberAgeRefused();
+        setAgeProof(null);
+        setRefused(true);
+      } else if (err instanceof ApiError && err.code === 'invalid_birth_date') {
+        if (typeof err.body.proof === 'string') setAgeProof(err.body.proof);
+        setError('That date does not look right. Check it and try again.');
+      } else if (err instanceof ApiError && err.code === 'invalid_code') {
+        // The ten minutes the address stays proved have passed.
+        setAgeProof(null);
+        setSent(false);
+        setError('That took a while. Ask for a new code to carry on.');
+      } else {
+        setError('Could not make the account. Try again in a moment.');
+      }
+    } finally {
+      setBusy(false);
+    }
+  }, [ageProof, api, day, email, finish, month, year]);
+
   const withPasskey = useCallback(async () => {
     setBusy(true);
     setError(null);
@@ -3543,6 +3560,98 @@ export function AccountCard({
    * either belongs on it: there is no address to type and nothing to sign out
    * of yet. Both buttons lead out, so there is no way to get stuck here.
    */
+  if (refused) {
+    return (
+      <View style={[styles.card, { backgroundColor: t.card, borderColor: t.line }]}>
+        <Text style={[styles.label, { color: t.fg }]}>You can’t make an account yet</Text>
+        <Text style={[styles.small, { color: t.dim }]}>
+          Parea isn’t available to you right now. You can still open rolls people
+          send you.
+        </Text>
+      </View>
+    );
+  }
+
+  /*
+   * A first account: the date of birth, and the terms, on one card.
+   *
+   * Asked without saying what it is checked against — a screen that names the
+   * cutoff answers its own question — and not kept: only the fact that the
+   * check passed goes on the account. Three fields rather than a picker,
+   * because a picker is a native module and this ships without a new build.
+   */
+  if (ageProof) {
+    const field = [styles.input, { color: t.fg, borderColor: t.line, backgroundColor: t.bg }];
+    return (
+      <View style={[styles.card, { backgroundColor: t.card, borderColor: t.line }]}>
+        <Text style={[styles.label, { color: t.fg }]}>One more thing</Text>
+        <Text style={[styles.small, { color: t.dim }]}>
+          This address is new to Parea, so this makes your account. What is your
+          date of birth?
+        </Text>
+        <View style={{ flexDirection: 'row', gap: 8 }}>
+          <TextInput
+            value={day}
+            onChangeText={setDay}
+            placeholder="Day"
+            placeholderTextColor={t.dim}
+            keyboardType="number-pad"
+            maxLength={2}
+            accessibilityLabel="Day you were born"
+            style={[...field, { flex: 1 }]}
+            autoFocus
+          />
+          <TextInput
+            value={month}
+            onChangeText={setMonth}
+            placeholder="Month"
+            placeholderTextColor={t.dim}
+            keyboardType="number-pad"
+            maxLength={2}
+            accessibilityLabel="Month you were born, as a number"
+            style={[...field, { flex: 1 }]}
+          />
+          <TextInput
+            value={year}
+            onChangeText={setYear}
+            placeholder="Year"
+            placeholderTextColor={t.dim}
+            keyboardType="number-pad"
+            maxLength={4}
+            accessibilityLabel="Year you were born"
+            style={[...field, { flex: 1.4 }]}
+          />
+        </View>
+        <Text style={[styles.small, { color: t.dim }]}>
+          Used to check you can make an account, and not kept. By creating an
+          account you agree to the{' '}
+          <Text
+            style={{ color: t.accent, textDecorationLine: 'underline' }}
+            onPress={() => void Linking.openURL('https://parea.photos/terms')}
+          >
+            Terms
+          </Text>{' '}
+          and the{' '}
+          <Text
+            style={{ color: t.accent, textDecorationLine: 'underline' }}
+            onPress={() => void Linking.openURL('https://parea.photos/privacy')}
+          >
+            Privacy Policy
+          </Text>
+          .
+        </Text>
+        <Button
+          label={busy ? 'Working…' : 'Create account'}
+          onPress={() => void confirmAge()}
+          disabled={busy || !day.trim() || !month.trim() || year.trim().length !== 4}
+          t={t}
+          primary
+        />
+        {error && <Text style={[styles.small, { color: t.dim }]}>{error}</Text>}
+      </View>
+    );
+  }
+
   if (offer) {
     return (
       <View style={[styles.card, { backgroundColor: t.card, borderColor: t.line }]}>

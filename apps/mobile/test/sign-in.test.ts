@@ -129,9 +129,11 @@ describe('the account outlives the launch', () => {
      * `api.completeSignIn` sets it in memory — see `api.ts`, which stays free
      * of anything device-shaped — so the write belongs at this call site.
      */
-    expect(CARD).toMatch(
-      /completeSignIn\([\s\S]{0,900}?saveActorToken\(result\.actorToken\)/,
-    );
+    // Both ways an account answers — a code, and the date of birth a first
+    // sign-in asks for — go through `finish`, which is where the write is.
+    expect(CARD).toMatch(/const finish = useCallback\(\s*async \(result: SignedIn\) => \{\s*await saveActorToken\(result\.actorToken\)/);
+    expect(CARD).toMatch(/await finish\(await api\.completeSignIn\(/);
+    expect(CARD).toMatch(/await finish\(await api\.confirmAge\(/);
     expect(EVENTS).toMatch(/import \{[^}]*saveActorToken[^}]*\} from '\.\/platform'/);
   });
 

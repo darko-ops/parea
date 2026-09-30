@@ -21,7 +21,8 @@
 import { normaliseEmail, normaliseSignInCode } from '@parea/core';
 import { NextResponse } from 'next/server';
 
-import { accountFor, consumeCode, signIn } from '@/accounts';
+import { accountExists, accountFor, consumeCode, signIn } from '@/accounts';
+import { MINIMUM_AGE, ageOn, ageProof, checkAgeProof } from '@/age';
 import { getDb } from '@/db';
 import { hasPasskey, passkeyOwnerHasAccount, verifyAuthentication } from '@/passkeys';
 import {
@@ -77,6 +78,10 @@ export async function POST(request: Request) {
     code?: unknown;
     passkey?: unknown;
     platform?: unknown;
+    /** `YYYY-MM-DD`, asked only when this sign-in would make the account. */
+    birthDate?: unknown;
+    /** From the answer that asked for it, so no second code is needed. */
+    proof?: unknown;
   };
 
   const db = getDb();
@@ -91,9 +96,54 @@ export async function POST(request: Request) {
    */
   const proven = body.passkey
     ? await provenByPasskey(db, body.passkey)
-    : await provenByCode(db, body.email, body.code);
+    : body.proof
+      ? provenByAgeProof(body.email, body.proof)
+      : await provenByCode(db, body.email, body.code);
 
   if (!proven.ok) return proven.response;
+
+  /*
+   * The age check, for the sign-in that would make the account.
+   *
+   * Only an email code can make one — a passkey belongs to an account that
+   * already exists — and only now, with the address proved, can the server
+   * say it is new without telling a stranger whether it has an account.
+   *
+   * No date: the answer asks for one, with a proof of the address good for
+   * ten minutes, so the next request carries the date and not a second code.
+   * Under the minimum: refused, and nothing is created. The date itself is
+   * never stored — see `@/age`.
+   */
+  const exists = await accountExists(db, proven.email);
+  /*
+   * The proof finishes making an account and does nothing else. It is not a
+   * sign-in: once the address has an account — including the one this proof
+   * just made — presenting it again is refused like a wrong code.
+   */
+  if (body.proof && !body.passkey && exists) {
+    return NextResponse.json({ error: 'invalid_code' }, { status: 401 });
+  }
+
+  let ageConfirmedAt: Date | undefined;
+  if (!body.passkey && !exists) {
+    const secret = process.env.SESSION_SECRET;
+    if (!secret) return NextResponse.json({ error: 'not_configured' }, { status: 503 });
+    if (body.birthDate === undefined) {
+      return NextResponse.json(
+        { error: 'birth_date_required', proof: ageProof(secret, proven.email) },
+        { status: 428 },
+      );
+    }
+    const age = ageOn(body.birthDate);
+    if (age === null) {
+      return NextResponse.json(
+        { error: 'invalid_birth_date', proof: ageProof(secret, proven.email) },
+        { status: 400 },
+      );
+    }
+    if (age < MINIMUM_AGE) return NextResponse.json({ error: 'too_young' }, { status: 403 });
+    ageConfirmedAt = new Date();
+  }
 
   /*
    * Only now does an actor exist, if one did not — signing in *is* a
@@ -105,7 +155,7 @@ export async function POST(request: Request) {
    * `recordSession`.
    */
   const actorId = await ensureActor(db, undefined, { recordSession: false });
-  const result = await signIn(db, proven.email, actorId);
+  const result = await signIn(db, proven.email, actorId, { ageConfirmedAt });
 
   /*
    * This device goes on the list, under the actor the account resolved to.
@@ -237,6 +287,23 @@ async function provenByCode(
  * of request, and adding a third kind of request to it would reintroduce
  * exactly that. See the note on the limit.
  */
+/**
+ * The second half of a first sign-in: the address was proved a moment ago by
+ * a code, and this carries the date of birth that was asked for. See the age
+ * check in `POST`.
+ */
+function provenByAgeProof(rawEmail: unknown, proof: unknown): Proven {
+  const email = typeof rawEmail === 'string' ? normaliseEmail(rawEmail) : null;
+  const secret = process.env.SESSION_SECRET;
+  if (!email || !secret || !checkAgeProof(secret, email, proof)) {
+    return {
+      ok: false,
+      response: NextResponse.json({ error: 'invalid_code' }, { status: 401 }),
+    };
+  }
+  return { ok: true, email };
+}
+
 async function provenByPasskey(
   db: ReturnType<typeof getDb>,
   assertion: unknown,

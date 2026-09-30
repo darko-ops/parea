@@ -41,6 +41,17 @@ export const accounts = pgTable('account', {
   id: uuid('id').primaryKey().defaultRandom(),
   /** Normalised before it gets here — see `normaliseEmail`. */
   email: text('email').notNull().unique(),
+  /**
+   * When the person creating this account passed the age check, and when they
+   * agreed to the terms — the same moment, on the same screen.
+   *
+   * Only the fact and the time. The date of birth asked for is used to decide
+   * and then dropped: holding it would be one more piece of personal data kept
+   * for no purpose the product has. Null for accounts made before the check
+   * existed.
+   */
+  ageConfirmedAt: timestamp('age_confirmed_at', { withTimezone: true }),
+  termsAcceptedAt: timestamp('terms_accepted_at', { withTimezone: true }),
   createdAt: createdAt(),
 });
 

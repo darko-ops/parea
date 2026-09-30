@@ -761,6 +761,23 @@ export async function markLibraryAsked(): Promise<void> {
  * wrong question at the wrong moment, and a phone that never allowed them has
  * nothing registered to take back.
  */
+/**
+ * This phone was told it cannot make an account.
+ *
+ * Remembered so that changing the date and trying again is not the obvious
+ * next move — the neutral age screen is only neutral once. Not cleared by
+ * signing out, which hands the phone back to nobody in particular.
+ */
+const AGE_REFUSED_KEY = 'parea.age-refused';
+
+export async function ageRefused(): Promise<boolean> {
+  return (await SecureStore.getItemAsync(AGE_REFUSED_KEY).catch(() => null)) === '1';
+}
+
+export async function rememberAgeRefused(): Promise<void> {
+  await SecureStore.setItemAsync(AGE_REFUSED_KEY, '1').catch(() => {});
+}
+
 export async function currentPushToken(): Promise<string | null> {
   try {
     const existing = await Notifications.getPermissionsAsync();

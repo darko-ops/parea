@@ -39,7 +39,29 @@ import {
  * where it is set. Everything before it is the two-field form this screen has
  * always been.
  */
-type Stage = 'email' | 'code' | 'offer';
+type Stage = 'email' | 'code' | 'age' | 'refused' | 'offer';
+
+/**
+ * This browser was told it cannot make an account. Remembered so that changing
+ * the date and trying again is not the obvious next move — the neutral age
+ * screen is only neutral once. Per browser, and a convenience rather than a
+ * lock: nothing here is a secret.
+ */
+const REFUSED_KEY = 'parea.age-refused';
+const wasRefused = () => {
+  try {
+    return globalThis.localStorage?.getItem(REFUSED_KEY) === '1';
+  } catch {
+    return false;
+  }
+};
+const rememberRefusal = () => {
+  try {
+    globalThis.localStorage?.setItem(REFUSED_KEY, '1');
+  } catch {
+    // Private windows and blocked storage: the server still refuses.
+  }
+};
 
 /**
  * Whether this browser is signed in.
@@ -93,6 +115,9 @@ export function SignIn({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [merged, setMerged] = useState(false);
+  /** From the answer that asked for a date of birth. See the age check. */
+  const [proof, setProof] = useState<string | null>(null);
+  const [birthDate, setBirthDate] = useState('');
 
   /*
    * Whether to draw the passkey button, decided after mount.
@@ -137,23 +162,12 @@ export function SignIn({
     }
   }, [email]);
 
-  const verify = useCallback(async () => {
-    setBusy(true);
-    setError(null);
-    try {
-      const res = await fetch('/api/account/session', {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ email, code }),
-      });
-      if (res.status === 429) {
-        // Not the same sentence as a bad code: somebody holding a good one was
-        // told it had failed, and asked for another they could not have.
-        throw new Error('Too many tries from here. Wait an hour, then use the code you have.');
-      }
-      if (!res.ok) {
-        throw new Error('That code did not work. Codes expire after ten minutes.');
-      }
+  /**
+   * What happens once an account has answered — the same after a code and
+   * after the date of birth that a first sign-in asks for.
+   */
+  const finish = useCallback(
+    async (res: Response) => {
       const result = (await res.json()) as {
         merged: boolean;
         created: boolean;
@@ -170,12 +184,6 @@ export function SignIn({
        * the cost of the alternative is fresh. Any later and it is an
        * interruption; in Settings it is a thing nobody goes looking for.
        *
-       * Three conditions, and each removes a case where the card would be a
-       * nuisance rather than an offer: only on the sign-in that made the
-       * account, only if there is no passkey already on it, and only where the
-       * browser could actually make one. Failing any of them hands off exactly
-       * as this screen always did.
-       *
        * `onSignedIn` is *not* called yet, which is the whole mechanism: it
        * navigates, and a card rendered after it would be a card on a page that
        * is being replaced. Both buttons on the offer call it.
@@ -186,12 +194,85 @@ export function SignIn({
       }
 
       await onSignedIn();
+    },
+    [onSignedIn],
+  );
+
+  const verify = useCallback(async () => {
+    setBusy(true);
+    setError(null);
+    try {
+      const res = await fetch('/api/account/session', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ email, code }),
+      });
+      if (res.status === 429) {
+        // Not the same sentence as a bad code: somebody holding a good one was
+        // told it had failed, and asked for another they could not have.
+        throw new Error('Too many tries from here. Wait an hour, then use the code you have.');
+      }
+      /*
+       * The code was right and the address is new: a first account asks for a
+       * date of birth. Not before the code, because only a proved address can
+       * be told it has no account. A browser already refused goes straight to
+       * the refusal rather than to a second try at the date.
+       */
+      if (res.status === 428) {
+        const body = (await res.json()) as { proof?: string };
+        setCode('');
+        if (wasRefused()) {
+          setStage('refused');
+          return;
+        }
+        setProof(body.proof ?? null);
+        setStage('age');
+        return;
+      }
+      if (!res.ok) {
+        throw new Error('That code did not work. Codes expire after ten minutes.');
+      }
+      await finish(res);
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
     } finally {
       setBusy(false);
     }
-  }, [code, email, onSignedIn]);
+  }, [code, email, finish]);
+
+  /** The date of birth, for the sign-in that makes the account. */
+  const confirmAge = useCallback(async () => {
+    setBusy(true);
+    setError(null);
+    try {
+      const res = await fetch('/api/account/session', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ email, proof, birthDate }),
+      });
+      if (res.status === 403) {
+        rememberRefusal();
+        setStage('refused');
+        return;
+      }
+      if (res.status === 400) {
+        const body = (await res.json()) as { proof?: string };
+        if (body.proof) setProof(body.proof);
+        throw new Error('That date does not look right. Check it and try again.');
+      }
+      if (res.status === 401) {
+        // The ten minutes the address stays proved have passed.
+        setStage('email');
+        throw new Error('That took a while. Ask for a new code to carry on.');
+      }
+      if (!res.ok) throw new Error('Could not make the account. Try again in a moment.');
+      await finish(res);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setBusy(false);
+    }
+  }, [birthDate, email, finish, proof]);
 
   /**
    * Signing in with a passkey, which is one press and no form.
@@ -247,6 +328,59 @@ export function SignIn({
    * back to. Leaving the fields on screen would invite somebody to sign in
    * again on top of the session they already have.
    */
+  /*
+   * A first account: the date of birth, and the terms, on one screen.
+   *
+   * The date is asked for without saying what it is checked against — a
+   * screen that names the cutoff answers its own question — and it is not
+   * kept: only the fact that the check passed goes on the account.
+   */
+  if (stage === 'age') {
+    const today = new Date().toISOString().slice(0, 10);
+    return (
+      <section className="panel">
+        <h2>One more thing</h2>
+        <p className="muted">
+          This address is new to Parea, so this makes your account.
+        </p>
+        <label htmlFor="signin-birth-date">Your date of birth</label>
+        <input
+          id="signin-birth-date"
+          type="date"
+          max={today}
+          value={birthDate}
+          onChange={(e) => setBirthDate(e.target.value)}
+          autoFocus
+        />
+        <p className="muted">
+          Used to check you can make an account, and not kept.
+        </p>
+        <p className="muted">
+          By creating an account you agree to the <a href="/terms">Terms</a> and
+          the <a href="/privacy">Privacy Policy</a>.
+        </p>
+        <div className="row" style={{ marginTop: 16 }}>
+          <button onClick={confirmAge} disabled={busy || !birthDate}>
+            {busy ? 'Working…' : 'Create account'}
+          </button>
+        </div>
+        {error && <p className="muted">{error}</p>}
+      </section>
+    );
+  }
+
+  if (stage === 'refused') {
+    return (
+      <section className="panel">
+        <h2>You can&rsquo;t make an account yet</h2>
+        <p className="muted">
+          Parea isn&rsquo;t available to you right now. You can still open rolls
+          people send you.
+        </p>
+      </section>
+    );
+  }
+
   if (stage === 'offer') {
     return (
       <section className="panel">

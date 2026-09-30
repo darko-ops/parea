@@ -1750,6 +1750,20 @@ export class Api {
     return result;
   }
 
+  /**
+   * The second half of a first sign-in: the date of birth that was asked for,
+   * with the proof of the address the first half handed back. See `@/age` on
+   * the server. The date is used to decide and not kept.
+   */
+  async confirmAge(email: string, proof: string, birthDate: string): Promise<SignedIn> {
+    const result = await this.call<SignedIn>('/api/account/session', {
+      method: 'POST',
+      body: JSON.stringify({ email, proof, birthDate, platform: this.client }),
+    });
+    this.token = result.actorToken;
+    return result;
+  }
+
   async account(): Promise<Account | null> {
     const { account } = await this.call<{ account: Account | null }>(
       '/api/account/session',

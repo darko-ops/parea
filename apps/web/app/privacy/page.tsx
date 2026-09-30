@@ -108,6 +108,15 @@ export default function PrivacyPage() {
             thing here, protecting the least.
           </p>
 
+          <h3>That you passed the age check, when you make an account</h3>
+          <p className="muted">
+            The first time an address makes an account, we ask for a date of
+            birth to check the person is old enough to have one. The date is
+            used to decide and then dropped &mdash; what the account keeps is
+            only that the check was passed, and when, which is also when the
+            terms were agreed to. If the answer is no, no account is made.
+          </p>
+
           <h3>A record of where you are signed in</h3>
           <p className="muted">
             One row for each browser or app holding your account, so that you
