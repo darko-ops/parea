@@ -28,6 +28,7 @@ import { schema } from '@parea/core';
 import { and, eq, inArray } from 'drizzle-orm';
 
 import type { Db } from './db';
+import { dedicatedSecret } from './env';
 import { getStorage } from './storage';
 
 export type PhotoRef = {
@@ -38,7 +39,7 @@ export type PhotoRef = {
 
 function workerConfig(): { base: string; secret: string } | null {
   const base = process.env.IMAGE_BASE_URL;
-  const secret = process.env.IMAGE_SECRET ?? process.env.SESSION_SECRET;
+  const secret = dedicatedSecret('IMAGE_SECRET');
   return base && secret ? { base: base.replace(/\/$/, ''), secret } : null;
 }
 

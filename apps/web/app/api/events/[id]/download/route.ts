@@ -15,6 +15,7 @@
 
 import { signManifestToken, type DownloadManifest } from '@parea/zip';
 import { NextResponse } from 'next/server';
+import { dedicatedSecret } from '@/env';
 
 import { findEventById, guard, toResponse } from '@/access';
 import { resolveArchive, type ArchiveFormat } from '@/archive';
@@ -103,7 +104,7 @@ export async function POST(
     entries: archive.entries,
   };
 
-  const secret = process.env.MANIFEST_SECRET ?? process.env.SESSION_SECRET;
+  const secret = dedicatedSecret('MANIFEST_SECRET');
   const base = process.env.ZIP_BASE_URL;
   if (!secret || !base) {
     return NextResponse.json({ error: 'download_not_configured' }, { status: 503 });

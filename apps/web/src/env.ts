@@ -77,8 +77,8 @@ export function describeConfig(): ConfigItem[] {
       present: has('MANIFEST_SECRET'),
       // Falls back to SESSION_SECRET, which works only if the zip Worker was
       // given the same value. Silent mismatch otherwise: every download 404s.
-      consequence: 'falls back to SESSION_SECRET; must match the zip Worker',
-      requiredInProduction: false,
+      consequence: 'downloads refuse to start; must match the zip Worker',
+      requiredInProduction: true,
     },
     {
       name: 'IMAGE_BASE_URL',
@@ -90,8 +90,8 @@ export function describeConfig(): ConfigItem[] {
     {
       name: 'IMAGE_SECRET',
       present: has('IMAGE_SECRET'),
-      consequence: 'falls back to SESSION_SECRET; must match the image Worker',
-      requiredInProduction: false,
+      consequence: 'images are served as presigned originals, uncached; must match the image Worker',
+      requiredInProduction: true,
     },
     {
       name: 'SAFETY_CONTACT_EMAIL',
@@ -219,15 +219,14 @@ export function describeConfig(): ConfigItem[] {
     {
       name: 'PHONE_PEPPER',
       /*
-       * Falls back to `SESSION_SECRET`, and the fallback is the reason this is
-       * listed rather than left implicit. Rotating a dedicated pepper
-       * invalidates every stored number hash — everybody has to enter and verify
-       * their number again — so sharing the session secret is one fewer thing to
-       * configure and one more thing that cannot be rotated independently.
+       * Its own key, in production. It fell back to `SESSION_SECRET`, which
+       * tied two things that should rotate separately together — see
+       * `dedicatedSecret`. Rotating it still invalidates every stored number
+       * hash, so everybody would enter and verify their number again.
        */
       present: has('PHONE_PEPPER'),
-      consequence: 'falls back to SESSION_SECRET; rotating either re-verifies every number',
-      requiredInProduction: false,
+      consequence: 'phone numbers cannot be confirmed or matched; rotating it re-verifies every number',
+      requiredInProduction: true,
     },
     {
       name: 'APPLE_TEAM_ID',
@@ -269,4 +268,25 @@ export function describeConfig(): ConfigItem[] {
 
 export function missingInProduction(): ConfigItem[] {
   return describeConfig().filter((c) => c.requiredInProduction && !c.present);
+}
+
+/**
+ * A key that must be its own, in production.
+ *
+ * The image-signing, manifest-signing and phone-hashing keys each fell back to
+ * `SESSION_SECRET` when unset. Harmless where the two agree, and the wrong
+ * shape everywhere else: the image and zip Workers then have to be handed the
+ * session secret to verify anything, and a Worker's environment leaking would
+ * hand over the key that signs every session. So in production there is no
+ * fallback — a missing key is missing, and whatever needs it refuses rather
+ * than quietly sharing another. Previews and local development still fall
+ * back, because they are not worth a separate key each.
+ */
+export function dedicatedSecret(
+  name: 'IMAGE_SECRET' | 'MANIFEST_SECRET' | 'PHONE_PEPPER',
+): string | undefined {
+  const own = process.env[name];
+  if (own) return own;
+  if (process.env.VERCEL_ENV === 'production') return undefined;
+  return process.env.SESSION_SECRET;
 }

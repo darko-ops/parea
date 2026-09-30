@@ -46,6 +46,7 @@ import { and, desc, eq, gt, isNull, lt, sql } from 'drizzle-orm';
 import { createHmac, timingSafeEqual } from 'node:crypto';
 
 import type { Db } from './db';
+import { dedicatedSecret } from './env';
 
 /**
  * What a number has to look like before it can be hashed.
@@ -73,10 +74,10 @@ export function lastTwo(e164: string): string {
 }
 
 function key(): string {
-  const value = process.env.PHONE_PEPPER ?? process.env.SESSION_SECRET;
+  const value = dedicatedSecret('PHONE_PEPPER');
   if (!value) {
     if (process.env.NODE_ENV === 'production') {
-      throw new Error('PHONE_PEPPER or SESSION_SECRET is required in production');
+      throw new Error('PHONE_PEPPER is required in production');
     }
     return 'dev-pepper-not-for-production';
   }
