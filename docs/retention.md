@@ -22,7 +22,8 @@ number here, change the policy in the same commit.
 | Accounts, profiles, messages, reactions | until deleted by the person, or account deletion | `deleteAccount` in `apps/web/src/accounts.ts` |
 | Reports, moderation actions | kept | — (may be needed later, including by law) |
 | Child-safety incidents | as the law requires (90 days preservation in the US, longer if asked) | `safety_incident`, see [csam-runbook.md](csam-runbook.md) |
-| Database history | the Neon plan's restore window ("a few hours" in the policy) | Neon project settings — see [backup-restore.md](backup-restore.md) |
+| Database history | 1 day (Neon restore window) | Neon project settings → history retention — see [backup-restore.md](backup-restore.md) |
+| Pre-migration snapshot branches | at most 7 days, newest 3 | `pruneSnapshots` in `scripts/migrate-on-deploy.mjs`, on every production deploy |
 | Logs | Vercel, Fly and Sentry's own retention | the providers' plans |
 
 A job that stops running stops enforcing everything in its column; the

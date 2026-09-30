@@ -641,8 +641,9 @@ export default function PrivacyPage() {
               removes a photo from everyone&rsquo;s view immediately and it is
               never served again; the file itself is destroyed 30 days later.
               You cannot undo it and we do not restore deleted photos. Our
-              database keeps a few hours of history for recovering from faults,
-              after which the record is gone too.
+              database keeps one day of history for recovering from faults,
+              and a copy taken just before each update to its structure is
+              kept for at most a week; after that the record is gone too.
             </li>
             <li>
               <strong>Sign-in codes</strong> &mdash; ten minutes, and they work

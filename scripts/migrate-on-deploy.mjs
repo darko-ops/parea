@@ -52,8 +52,15 @@ import { fileURLToPath } from 'node:url';
    `@parea/core`, and the migrations live in that package. */
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 
-/** How many pre-migration snapshot branches to keep. */
+/** How many pre-migration snapshot branches to keep, at most. */
 const KEEP_SNAPSHOTS = 3;
+
+/**
+ * And for how long. A snapshot is a whole copy of the database, including
+ * whatever people deleted after it was taken, so it cannot be kept longer than
+ * the privacy policy says deleted data lingers: a week.
+ */
+const SNAPSHOT_DAYS = 7;
 
 const where = process.env.VERCEL_ENV;
 
@@ -143,6 +150,7 @@ async function checkSnapshotAccess() {
     if (res.ok) {
       const { branches = [] } = await res.json();
       console.log(`migrations: snapshot access ok (${branches.length} branches in the project).`);
+      await pruneSnapshots(key, project);
     } else {
       console.warn(
         `migrations: WARNING — Neon refused the snapshot check (${res.status}). ` +
@@ -192,13 +200,27 @@ async function snapshotBeforeMigrating(pending) {
   }
   console.log(`migrations: snapshot branch ${name} taken before ${pending ?? 'pending'} migration(s).`);
 
+  await pruneSnapshots(key, project);
+}
+
+/**
+ * Deletes snapshot branches past the newest `KEEP_SNAPSHOTS` or older than
+ * `SNAPSHOT_DAYS`. Run on every production deploy, not only migrating ones, so
+ * the week is kept even through a quiet month.
+ */
+async function pruneSnapshots(key, project) {
+  const api = `https://console.neon.tech/api/v2/projects/${project}/branches`;
+  const headers = { authorization: `Bearer ${key}`, 'content-type': 'application/json' };
   try {
     const listed = await fetch(api, { headers });
     const { branches = [] } = await listed.json();
-    const old = branches
+    const cutoff = Date.now() - SNAPSHOT_DAYS * 24 * 3600_000;
+    const snapshots = branches
       .filter((b) => typeof b.name === 'string' && b.name.startsWith('pre-migrate-'))
-      .sort((a, b) => String(b.created_at).localeCompare(String(a.created_at)))
-      .slice(KEEP_SNAPSHOTS);
+      .sort((a, b) => String(b.created_at).localeCompare(String(a.created_at)));
+    const old = snapshots.filter(
+      (b, i) => i >= KEEP_SNAPSHOTS || new Date(b.created_at).getTime() < cutoff,
+    );
     for (const branch of old) {
       await fetch(`${api}/${branch.id}`, { method: 'DELETE', headers });
       console.log(`migrations: removed old snapshot ${branch.name}`);

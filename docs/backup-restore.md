@@ -6,15 +6,17 @@ What can be recovered, from where, and how long it takes. Security review M16.
 
 **Point-in-time restore.** Neon keeps the write-ahead log for the project's
 history retention window and can restore, or branch from, any moment inside
-it. The window depends on the plan — a few hours on the free plan, days on a
-paid one — and it is set under the project's Settings → Storage. The privacy
-policy promises that deleted records are gone after "a few hours", so if the
-window is lengthened, change that sentence in the same change.
+it. Parea is on the Launch plan with the window set to **1 day** (project
+Settings → Storage → history retention). The privacy policy says the database
+keeps one day of history, so change that sentence in the same change as the
+setting.
 
 **Snapshot branches before migrations.** When `NEON_API_KEY` and
 `NEON_PROJECT_ID` are set in Vercel, every production deploy that has a
 migration to apply first takes a branch named `pre-migrate-<time>-<sha>`
-(`scripts/migrate-on-deploy.mjs`), keeping the newest three. Without those two
+(`scripts/migrate-on-deploy.mjs`). Every production deploy prunes them to the
+newest three and to at most seven days old, which is what the privacy policy
+promises for them. Without those two
 variables the deploy logs a warning and relies on point-in-time restore.
 
 **No off-site copy yet.** Everything above lives inside Neon. A scheduled
