@@ -13,16 +13,23 @@
 
 import { schema } from '@parea/core';
 import { sendAll, toMessage, type Notification } from '@parea/push';
-import { and, eq, inArray, isNotNull, ne } from 'drizzle-orm';
+import { and, eq, inArray, isNotNull, ne, or } from 'drizzle-orm';
 
 import type { Db } from './db';
 import { othersInGroups, titleFor } from './groups';
 
 async function deliver(
   db: Db,
-  actorIds: string[],
+  recipients: string[],
   notification: Notification,
+  /**
+   * Whose doing this is, where somebody is. Nobody across a block from them,
+   * in either direction, is told: a push naming somebody you blocked — or
+   * telling somebody who blocked you what you did — undoes the block.
+   */
+  from?: string,
 ): Promise<void> {
+  const actorIds = from ? await notBlockedWith(db, from, recipients) : recipients;
   if (actorIds.length === 0) return;
 
   const devices = await db
@@ -127,13 +134,18 @@ export async function notifyGroupEvent(
       input.groupName,
     );
     for (const [groupName, actorIds] of buckets) {
-      await deliver(db, actorIds, {
-        kind: 'group_event',
-        groupId: input.groupId,
-        groupName,
-        eventId: input.eventId,
-        eventName: input.eventName,
-      });
+      await deliver(
+        db,
+        actorIds,
+        {
+          kind: 'group_event',
+          groupId: input.groupId,
+          groupName,
+          eventId: input.eventId,
+          eventName: input.eventName,
+        },
+        input.createdBy,
+      );
     }
   } catch {
     // Deliberately silent. See the module header.
@@ -260,6 +272,7 @@ export async function notifyPhotoComment(
   db: Db,
   input: {
     toActorId: string;
+    fromActorId: string;
     eventId: string;
     eventName: string;
     who: string;
@@ -267,13 +280,18 @@ export async function notifyPhotoComment(
   },
 ): Promise<void> {
   try {
-    await deliver(db, [input.toActorId], {
-      kind: 'photo_comment',
-      eventId: input.eventId,
-      eventName: input.eventName,
-      who: input.who,
-      said: input.said,
-    });
+    await deliver(
+      db,
+      [input.toActorId],
+      {
+        kind: 'photo_comment',
+        eventId: input.eventId,
+        eventName: input.eventName,
+        who: input.who,
+        said: input.said,
+      },
+      input.fromActorId,
+    );
   } catch {
     /* see the module header */
   }
@@ -290,15 +308,20 @@ export async function notifyPhotoComment(
  */
 export async function notifyPhotoTagged(
   db: Db,
-  input: { toActorId: string; eventId: string; eventName: string; who: string },
+  input: { toActorId: string; fromActorId: string; eventId: string; eventName: string; who: string },
 ): Promise<void> {
   try {
-    await deliver(db, [input.toActorId], {
-      kind: 'photo_tagged',
-      eventId: input.eventId,
-      eventName: input.eventName,
-      who: input.who,
-    });
+    await deliver(
+      db,
+      [input.toActorId],
+      {
+        kind: 'photo_tagged',
+        eventId: input.eventId,
+        eventName: input.eventName,
+        who: input.who,
+      },
+      input.fromActorId,
+    );
   } catch {
     /* see the module header */
   }
@@ -437,4 +460,20 @@ export async function notifyMomentReaction(
   } catch {
     /* see the module header */
   }
+}
+
+/** Of `recipients`, the ones no block stands between and `from`. */
+async function notBlockedWith(db: Db, from: string, recipients: string[]): Promise<string[]> {
+  if (recipients.length === 0) return recipients;
+  const rows = await db
+    .select({ blocker: schema.blocks.blockerActorId, blocked: schema.blocks.blockedActorId })
+    .from(schema.blocks)
+    .where(
+      or(
+        and(eq(schema.blocks.blockerActorId, from), inArray(schema.blocks.blockedActorId, recipients)),
+        and(eq(schema.blocks.blockedActorId, from), inArray(schema.blocks.blockerActorId, recipients)),
+      ),
+    );
+  const across = new Set(rows.map((r) => (r.blocker === from ? r.blocked : r.blocker)));
+  return recipients.filter((id) => !across.has(id));
 }

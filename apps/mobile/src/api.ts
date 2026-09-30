@@ -75,6 +75,20 @@ export type DeviceListing = {
   current: boolean;
 };
 
+/**
+ * Somebody this account has blocked, as the settings list shows them.
+ *
+ * Only the blocker ever sees this — the other side is not told, and nothing on
+ * their screens says so. Newest first, from the server.
+ */
+export type BlockedPerson = {
+  actorId: string;
+  name: string;
+  handle: string | null;
+  avatarUrl: string | null;
+  blockedAt: string;
+};
+
 export type EventSummary = {
   id: string;
   name: string;
@@ -2733,6 +2747,24 @@ export class Api {
     return this.call('/api/blocks', {
       method: 'POST',
       body: JSON.stringify({ photoId }),
+    });
+  }
+
+  /** Everybody this account has blocked, newest first. Only the blocker sees it. */
+  blocked(): Promise<{ blocked: BlockedPerson[] }> {
+    return this.call<{ blocked: BlockedPerson[] }>('/api/blocks');
+  }
+
+  /**
+   * Undoing a block, by person rather than by photo.
+   *
+   * By actor id because the list is the only place this is offered, and the
+   * photograph that started it may be long gone. They are not told this either.
+   */
+  unblock(actorId: string): Promise<unknown> {
+    return this.call('/api/blocks', {
+      method: 'DELETE',
+      body: JSON.stringify({ actorId }),
     });
   }
 

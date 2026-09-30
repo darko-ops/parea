@@ -220,10 +220,11 @@ export async function eventsFor(
           where p.event_id = "event".id
             and p.status = 'ready' and p.deleted_at is null and p.hidden_at is null
             -- The same photographs the album shows this viewer: none from
-            -- somebody they blocked.
+            -- anybody a block stands between them and, either way round.
             and not exists (
               select 1 from "block" b
-              where b.blocker_actor_id = ${actorId} and b.blocked_actor_id = p.uploader_id
+              where (b.blocker_actor_id = ${actorId} and b.blocked_actor_id = p.uploader_id)
+                 or (b.blocked_actor_id = ${actorId} and b.blocker_actor_id = p.uploader_id)
             )
           order by p.uploaded_at desc
           limit ${MOSAIC_TILES}

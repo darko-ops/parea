@@ -2,18 +2,21 @@
  * Blocking a contributor — docs/design.md §13, and an App Store 1.2
  * requirement for any app carrying user-generated content.
  *
- * One-directional and silent. The blocked party is never told, because telling
- * them turns a safety tool into a confrontation — which is exactly what
- * someone reaching for it is trying to avoid.
+ * Silent. The blocked party is never told, because telling them turns a
+ * safety tool into a confrontation — which is exactly what someone reaching
+ * for it is trying to avoid.
  *
- * Two effects: their uploads disappear from your view everywhere, and they
- * cannot join events you administer.
+ * Both ways: the two of you stop seeing each other's photographs, messages,
+ * comments, reactions, tags and moments everywhere — including albums and
+ * groups you are both still in — and they cannot join events you administer.
+ * Only the person who blocked can see the block, on their list, and undo it.
  */
 
 import { schema } from '@parea/core';
-import { and, eq } from 'drizzle-orm';
+import { and, desc, eq } from 'drizzle-orm';
 import { NextResponse } from 'next/server';
 
+import { avatarUrl } from '@/accounts';
 import { getDb } from '@/db';
 import { findPhotoWithEvent } from '@/moderation';
 import { currentActorId } from '@/session';
@@ -78,16 +81,60 @@ export async function POST(request: Request) {
   return NextResponse.json({ blocked: true });
 }
 
+/**
+ * Everybody this person has blocked, newest first — the list in settings.
+ *
+ * Only their own blocks, never the ones against them: a block is silent, and
+ * a list of who has blocked you would announce every one.
+ */
+export async function GET() {
+  const actorId = await currentActorId();
+  if (!actorId) return NextResponse.json({ blocked: [] });
+
+  const rows = await getDb()
+    .select({
+      actorId: schema.actors.id,
+      displayName: schema.actors.displayName,
+      handle: schema.actors.handle,
+      avatarKey: schema.actors.avatarKey,
+      blockedAt: schema.blocks.createdAt,
+    })
+    .from(schema.blocks)
+    .innerJoin(schema.actors, eq(schema.actors.id, schema.blocks.blockedActorId))
+    .where(eq(schema.blocks.blockerActorId, actorId))
+    .orderBy(desc(schema.blocks.createdAt));
+
+  const blocked = await Promise.all(
+    rows.map(async (row) => ({
+      actorId: row.actorId,
+      name: row.displayName?.trim() || (row.handle ? `@${row.handle}` : 'Someone'),
+      handle: row.handle,
+      avatarUrl: await avatarUrl(row.avatarKey),
+      blockedAt: row.blockedAt.toISOString(),
+    })),
+  );
+  return NextResponse.json({ blocked });
+}
+
 export async function DELETE(request: Request) {
   const body = (await request.json().catch(() => ({}))) as {
     photoId?: unknown;
     momentId?: unknown;
+    actorId?: unknown;
   };
   const actorId = await currentActorId();
   if (!actorId) return NextResponse.json({ error: 'no_actor' }, { status: 403 });
 
   const db = getDb();
-  const target = await resolveTarget(db, body);
+  /*
+   * Or by the person, from the list. Safe to take an id here where blocking
+   * does not: this only ever deletes a row this person made, so it can say
+   * nothing about anybody they have not already blocked.
+   */
+  const target =
+    typeof body.actorId === 'string' && UUID.test(body.actorId)
+      ? body.actorId
+      : await resolveTarget(db, body);
   if (!target) return NextResponse.json({ error: 'not_found' }, { status: 404 });
 
   await db

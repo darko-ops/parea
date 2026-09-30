@@ -125,16 +125,19 @@ describe('the four ways a photo disappears', () => {
     expect(await visibleTo(event.id, null)).toContain(hostPhoto.id);
   });
 
-  it('hides a blocked uploader from the blocker only', async () => {
+  it('hides the two people on either side of a block from each other, and nobody else', async () => {
     const { host, guest, event, hostPhoto, guestPhoto } = await scene();
     await db
       .insert(schema.blocks)
       .values({ blockerActorId: host, blockedActorId: guest });
 
+    // Both ways: the blocker does not see the blocked person's photos, and the
+    // blocked person does not see the blocker's — even in an album they share.
     expect(await visibleTo(event.id, host)).toEqual([hostPhoto.id]);
-    // Everyone else, including the blocked person, sees no change — the block
-    // is private and one-directional.
-    expect((await visibleTo(event.id, guest)).sort()).toEqual(
+    expect(await visibleTo(event.id, guest)).toEqual([guestPhoto.id]);
+    // Everybody else sees no change.
+    const bystander = await actor();
+    expect((await visibleTo(event.id, bystander)).sort()).toEqual(
       [hostPhoto.id, guestPhoto.id].sort(),
     );
     expect((await visibleTo(event.id, null)).sort()).toEqual(

@@ -576,11 +576,12 @@ export async function activityFor(
           isNull(schema.events.deletedAt),
           // Your own photographs are not news to you.
           ne(schema.photos.uploaderId, actorId),
-          // Nor are the photographs of somebody you blocked, which the album
-          // itself no longer shows you.
+          // Nor are the photographs of anybody a block stands between you
+          // and, either way round, which the album itself no longer shows you.
           sql`not exists (
             select 1 from "block" b
-            where b.blocker_actor_id = ${actorId} and b.blocked_actor_id = ${schema.photos.uploaderId}
+            where (b.blocker_actor_id = ${actorId} and b.blocked_actor_id = ${schema.photos.uploaderId})
+               or (b.blocked_actor_id = ${actorId} and b.blocker_actor_id = ${schema.photos.uploaderId})
           )`,
           sql`${schema.photos.uploadedAt} > now() - interval '30 days'`,
         ),

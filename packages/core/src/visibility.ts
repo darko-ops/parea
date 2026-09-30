@@ -10,8 +10,10 @@
  *             investigation.
  *   hidden    a removal request went unanswered for 48 hours. Reversible — the
  *             host can still decline and the photo comes back.
- *   blocked   the viewer blocked the uploader. Personal, invisible to the
- *             uploader, and does not affect anyone else's view.
+ *   blocked   a block stands between the viewer and the uploader, in either
+ *             direction: you do not see the photographs of somebody you
+ *             blocked, and they do not see yours. Silent, and it does not
+ *             affect anyone else's view.
  *
  * Collapsing any pair of these would lose something. In particular, a hidden
  * photo must not be deleted: the wrong call in either direction is bad, but
@@ -23,7 +25,10 @@ import { and, eq, isNull, notInArray, type SQL } from 'drizzle-orm';
 import { photos } from './schema';
 
 export type ViewerContext = {
-  /** Actors this viewer has blocked. */
+  /**
+   * Actors on the other side of a block from this viewer — blocked by them, or
+   * blocking them. Both, because a block hides two people from each other.
+   */
   blockedActorIds: string[];
 };
 

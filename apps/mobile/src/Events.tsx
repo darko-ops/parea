@@ -82,6 +82,7 @@ import {
   signOutDevice,
   type RecentSearch,
 } from './platform';
+import { BlockedCard } from './Blocked';
 import { DevicesCard } from './Devices';
 import { passkeysSupported } from './passkeys';
 import { addPasskey, signInWithPasskey } from './signin';
@@ -3276,6 +3277,8 @@ export function AccountCard({
   const [year, setYear] = useState('');
   /** The devices and passkeys card, in place of the signed-in one. */
   const [managing, setManaging] = useState(false);
+  /** The blocked list, its own sheet beside the devices one. */
+  const [blocking, setBlocking] = useState(false);
 
   /*
    * Who this device already is, and — for a gate — telling the caller so.
@@ -3723,6 +3726,9 @@ export function AccountCard({
             ending something: it is where somebody checks what is signed in and
             adds a passkey. */}
         <Button label="Devices and passkeys" onPress={() => setManaging(true)} t={t} />
+        {/* Next to devices because it answers the same kind of question — who
+            can reach you — and is visited about as often. */}
+        <Button label="Blocked" onPress={() => setBlocking(true)} t={t} />
         {onSignedOut && <Button label="Sign out" onPress={signOut} t={t} />}
         <Button label="Delete account" onPress={remove} t={t} />
         {/*
@@ -3734,6 +3740,9 @@ export function AccountCard({
         */}
         {managing && (
           <DevicesCard api={api} t={t} Button={Button} onDone={() => setManaging(false)} />
+        )}
+        {blocking && (
+          <BlockedCard api={api} t={t} Button={Button} onDone={() => setBlocking(false)} />
         )}
       </View>
     );

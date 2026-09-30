@@ -48,9 +48,12 @@ export default function SafetyPage() {
             each have a report action. Reports come to us rather than to the
             roll&rsquo;s host, because sometimes the host is the problem, and
             are reviewed within 72 hours; a report of child abuse is looked at
-            straight away. You can also block someone,
-            which hides everything they upload from your view and stops them
-            joining rolls you created. Blocking is private — they are not told.
+            straight away. You can also block someone. The two of you then stop
+            seeing each other&rsquo;s photos, messages, comments, reactions and
+            moments everywhere, even in rolls and groups you are both in, and
+            they cannot join rolls you created. Blocking is private — they are
+            not told — and you can undo it from the Blocked list in your
+            settings.
           </p>
         </section>
 

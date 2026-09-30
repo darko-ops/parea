@@ -1081,7 +1081,9 @@ export async function myGroups(db: Db, actorId: string | null): Promise<MyGroup[
  * strip and the event's own card should not disagree about which photograph
  * stands for it.
  */
-export const EVENT_SHOT = sql<{ storageKey: string; hash: string | null } | null>`(
+export const eventShot = (viewer: string | null) => sql<
+  { storageKey: string; hash: string | null } | null
+>`(
   select json_build_object(
     'storageKey', p.storage_key,
     'hash', encode(p.content_hash, 'hex')
@@ -1089,6 +1091,13 @@ export const EVENT_SHOT = sql<{ storageKey: string; hash: string | null } | null
   from "photo" p
   where p.event_id = "event".id
     and p.status = 'ready' and p.deleted_at is null and p.hidden_at is null
+    -- Never a photograph from across a block, either way round: the album
+    -- does not show this viewer one, so its picture on a card must not.
+    and not exists (
+      select 1 from "block" b
+      where (b.blocker_actor_id = ${viewer} and b.blocked_actor_id = p.uploader_id)
+         or (b.blocked_actor_id = ${viewer} and b.blocker_actor_id = p.uploader_id)
+    )
   order by p.uploaded_at desc
   limit 1
 )`;
@@ -1117,6 +1126,11 @@ const FRESH = (actorId: string, since: Date) => sql<number>`(
   where p.event_id = "event".id
     and p.status = 'ready' and p.deleted_at is null and p.hidden_at is null
     and p.uploader_id is distinct from ${actorId}
+    and not exists (
+      select 1 from "block" b
+      where (b.blocker_actor_id = ${actorId} and b.blocked_actor_id = p.uploader_id)
+         or (b.blocked_actor_id = ${actorId} and b.blocker_actor_id = p.uploader_id)
+    )
     -- Bound as text and cast, not as a Date. The driver hands a Date straight
     -- to its binary encoder here and it arrives at a path expecting a string,
     -- which fails at bind time rather than in SQL — an error that reads like a
@@ -1184,7 +1198,7 @@ export async function groupArchive(
       eventDate: schema.events.eventDate,
       lastActiveAt: schema.events.lastActiveAt,
       createdAt: schema.events.createdAt,
-      shot: EVENT_SHOT,
+      shot: eventShot(actorId ?? null),
       photoCount: sql<number>`(
         select count(*)::int from "photo" p
         where p.event_id = "event".id

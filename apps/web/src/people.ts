@@ -47,7 +47,7 @@ import { and, desc, eq, isNull, or, sql } from 'drizzle-orm';
 
 import type { Db } from './db';
 import { eventsFor, type EventListing } from './events';
-import { EVENT_SHOT } from './groups';
+import { eventShot } from './groups';
 
 /**
  * Where you and they stand.
@@ -396,7 +396,7 @@ export async function albumsBy(
       accessPolicy: schema.events.accessPolicy,
       coverKey: schema.events.coverKey,
       capEpoch: schema.events.capEpoch,
-      shot: EVENT_SHOT,
+      shot: eventShot(viewerId),
       createdAt: schema.events.createdAt,
       lastActiveAt: schema.events.lastActiveAt,
       /*
@@ -409,7 +409,7 @@ export async function albumsBy(
        * true, so this counted zero photographs in every album on the page.
        *
        * The same hazard, spelt the same way, is in `groupArchive` and in the
-       * `EVENT_SHOT` and `FRESH` fragments beside it. Nowhere in this codebase
+       * `eventShot` and `FRESH` fragments beside it. Nowhere in this codebase
        * may a correlated subquery in a *select list* name an outer column any
        * other way — see the note on `joined` below for what it cost.
        */

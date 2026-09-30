@@ -14,6 +14,7 @@ import { findEventById, guard, toResponse } from '@/access';
 import { contributorKey } from '@/contributors';
 import { getDb } from '@/db';
 import { MAX_BODY, messagesFor, postMessage } from '@/messages';
+import { viewerContext } from '@/moderation';
 import { nameOf, notifyPhotoComment } from '@/notify';
 import { currentAccountActorId, currentActorId, requesterFor } from '@/session';
 
@@ -101,12 +102,18 @@ export async function POST(
   let photoId: string | null = null;
   let uploaderId: string | null = null;
   if (typeof body.photoId === 'string' && body.photoId) {
-    const { schema } = await import('@parea/core');
+    const { schema, visiblePhotos } = await import('@parea/core');
     const { and, eq } = await import('drizzle-orm');
     const [photo] = await db
       .select({ id: schema.photos.id, uploaderId: schema.photos.uploaderId })
       .from(schema.photos)
-      .where(and(eq(schema.photos.id, body.photoId), eq(schema.photos.eventId, event.id)));
+      // A photograph this person can see — not one across a block from them.
+      .where(
+        and(
+          eq(schema.photos.id, body.photoId),
+          visiblePhotos(event.id, await viewerContext(db, actorId)),
+        ),
+      );
     if (!photo) return NextResponse.json({ error: 'not_found' }, { status: 404 });
     photoId = photo.id;
     uploaderId = photo.uploaderId;
@@ -127,6 +134,7 @@ export async function POST(
   if (photoId && uploaderId && uploaderId !== actorId) {
     void notifyPhotoComment(db, {
       toActorId: uploaderId,
+      fromActorId: actorId,
       eventId: event.id,
       eventName: event.name,
       who: await nameOf(db, actorId),

@@ -1442,9 +1442,11 @@ export const moderationFlags = pgTable(
  * A personal block list — App Store Guideline 1.2 requires the ability to
  * block abusive users, and it is the right feature regardless.
  *
- * Two effects: the blocker stops seeing the blocked actor's uploads anywhere,
- * and the blocked actor cannot join events the blocker administers. It is
- * deliberately one-directional and invisible to the blocked party.
+ * Two effects. The two people stop seeing each other's photos, messages,
+ * comments, reactions, tags and moments anywhere — both ways, including in
+ * albums and groups they share. And the blocked actor cannot join events the
+ * blocker administers. Invisible to the blocked party: only the blocker's own
+ * list shows it, and only the blocker can undo it.
  */
 export const blocks = pgTable(
   'block',

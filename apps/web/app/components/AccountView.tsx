@@ -23,6 +23,7 @@ import type { MomentsResponse } from '@/moments';
 
 import { Appearance } from './Appearance';
 import { Avatar } from './Avatar';
+import { BlockedList } from './BlockedList';
 import { Devices } from './Devices';
 import { Discoverability } from './Discoverability';
 import { EditProfile } from './EditProfile';
@@ -375,6 +376,13 @@ export function AccountView() {
             </button>
           </div>
         </section>
+
+        {/*
+          After devices and before deleting, and drawn here rather than behind
+          a button of its own: a block is silent, so this list is the only
+          place anyone sees one, and it should not take a tap to find.
+        */}
+        <BlockedList />
 
         <section className="panel">
           <h2>Delete your account</h2>

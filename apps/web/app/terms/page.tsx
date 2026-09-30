@@ -119,9 +119,10 @@ export default function TermsPage() {
             hours the photo is hidden automatically while they decide.
           </p>
           <p className="muted">
-            You can block anyone. Blocking hides everything they upload from your
-            view and stops them joining rolls you created, and they are not
-            told.
+            You can block anyone. Blocking hides the two of you from each other
+            &mdash; photos, messages, comments, reactions and moments, even in
+            rolls and groups you share &mdash; and stops them joining rolls you
+            created. They are not told.
           </p>
           <p className="muted">
             Reach a human at <a href={`mailto:${SAFETY_CONTACT}`}>{SAFETY_CONTACT}</a>.

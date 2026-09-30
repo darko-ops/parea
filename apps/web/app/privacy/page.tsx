@@ -324,7 +324,8 @@ export default function PrivacyPage() {
             text; the place it was stays in the thread marked as deleted, so
             that the messages either side of it do not appear to be answering
             each other. Somebody you have blocked does not appear in the thread
-            you see, exactly as their photographs do not.
+            you see, and you do not appear in theirs, exactly as your
+            photographs are hidden from each other.
           </p>
           <p className="muted">
             You can also react to a photograph itself, without saying anything.
@@ -708,9 +709,11 @@ export default function PrivacyPage() {
               the photo is hidden automatically while they decide.
             </li>
             <li>
-              <strong>Block someone</strong>, which hides everything they upload
-              from your view and stops them joining rolls you created. They are
-              not told.
+              <strong>Block someone</strong>, which hides the two of you from
+              each other &mdash; photos, messages, comments, reactions and
+              moments, even in rolls and groups you share &mdash; and stops them
+              joining rolls you created. They are not told, and the Blocked list
+              in your settings undoes it.
             </li>
             <li>
               <strong>Delete your account</strong> at <a href="/account">/account</a>,

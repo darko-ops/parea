@@ -18,6 +18,7 @@ import { and, asc, eq, isNull, not, sql } from 'drizzle-orm';
 
 import { avatarUrl } from './accounts';
 import type { Db } from './db';
+import { blockedBetween } from './moderation';
 
 /** Longest message the database will take. Kept in step with the CHECK. */
 export const MAX_BODY = 2000;
@@ -125,7 +126,14 @@ export async function messagesFor(
       schema.eventMessages,
       eq(schema.eventMessages.id, schema.messageReactions.messageId),
     )
-    .where(eq(schema.eventMessages.eventId, eventId))
+    .where(
+      and(
+        eq(schema.eventMessages.eventId, eventId),
+        // Nobody across a block from the viewer, either way — the same rule
+        // as the messages themselves.
+        viewerId ? not(blockedBetween(viewerId, schema.messageReactions.actorId)) : undefined,
+      ),
+    )
     /*
      * Ordered, which it was not.
      *

@@ -4932,6 +4932,12 @@ button.link {
   white-space: nowrap;
   align-self: center;
 }
+/* A blocked person: the same row, with their face beside the name, because a
+   list of people to let back in should show who they are. When Unblock is
+   pressed the row becomes the question, and its buttons stay on one line. */
+.blocked-who { display: flex; align-items: center; gap: 12px; min-width: 0; }
+.blocked-ask { margin: 0; align-self: center; }
+.blocked-buttons { flex: none; margin: 0; flex-wrap: nowrap; }
 
 /* ---------------------------------------------------------------------------
    Dark: the few things drawn in fixed colours rather than tokens.

@@ -28,11 +28,12 @@
  */
 
 import { schema } from '@parea/core';
-import { and, eq, inArray } from 'drizzle-orm';
+import { and, eq, inArray, not } from 'drizzle-orm';
 
 import { avatarUrl } from './accounts';
 import { contributorKey } from './contributors';
 import type { Db } from './db';
+import { blockedBetween } from './moderation';
 
 export type PhotoTag = {
   /**
@@ -77,7 +78,15 @@ export async function tagsForPhotos(
     })
     .from(schema.photoTags)
     .innerJoin(schema.actors, eq(schema.actors.id, schema.photoTags.actorId))
-    .where(inArray(schema.photoTags.photoId, photoIds));
+    .where(
+      and(
+        inArray(schema.photoTags.photoId, photoIds),
+        // Neither the person tagged nor whoever tagged them may be across a
+        // block from the viewer: a tag is them, in a picture you are looking at.
+        viewerId ? not(blockedBetween(viewerId, schema.photoTags.actorId)) : undefined,
+        viewerId ? not(blockedBetween(viewerId, schema.photoTags.taggedBy)) : undefined,
+      ),
+    );
 
   // One presign per person rather than per row: somebody tagged in forty
   // photographs of one evening is one face, signed once.

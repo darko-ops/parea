@@ -39,6 +39,7 @@ import { and, asc, eq, isNull, not, sql } from 'drizzle-orm';
 
 import { avatarUrl } from './accounts';
 import { contributorKey } from './contributors';
+import { blockedBetween } from './moderation';
 import type { Db } from './db';
 import { getStorage } from './storage';
 import { MAX_BODY, type Message } from './messages';
@@ -93,7 +94,14 @@ export async function groupMessagesFor(
       schema.groupMessages,
       eq(schema.groupMessages.id, schema.groupMessageReactions.messageId),
     )
-    .where(eq(schema.groupMessages.groupId, groupId))
+    .where(
+      and(
+        eq(schema.groupMessages.groupId, groupId),
+        // Nobody across a block from the viewer, either way — the same rule
+        // as the messages themselves.
+        viewerId ? not(blockedBetween(viewerId, schema.groupMessageReactions.actorId)) : undefined,
+      ),
+    )
     // Ordered, because the tally is built by walking these rows and their
     // order is the order the pills come out in. See the long note on the
     // event version of this query — the bug is the same bug.

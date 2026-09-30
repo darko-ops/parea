@@ -27,7 +27,7 @@ import { findEventById, guard, toResponse } from '@/access';
 import { getDb } from '@/db';
 import { membersOf } from '@/members';
 import { nameOf, notifyPhotoTagged } from '@/notify';
-import { viewerContext } from '@/moderation';
+import { blockedEitherWay, viewerContext } from '@/moderation';
 import { tagPhoto, untagPhoto } from '@/photoTags';
 import { currentAccountActorId, currentActorId, requesterFor } from '@/session';
 
@@ -104,7 +104,12 @@ export async function POST(
    * this is the rule.
    */
   const members = await membersOf(db, found.event.id, found.event.createdBy);
-  if (!members.some((member) => member.actorId === target)) {
+  // Nor somebody across a block, either way. The same answer as not being in
+  // the album, so a tag attempt is not a way to learn that a block exists.
+  if (
+    !members.some((member) => member.actorId === target) ||
+    (await blockedEitherWay(db, actorId, target))
+  ) {
     return NextResponse.json({ error: 'not_in_event' }, { status: 403 });
   }
 
@@ -126,6 +131,7 @@ export async function POST(
   if (target !== actorId) {
     void notifyPhotoTagged(db, {
       toActorId: target,
+      fromActorId: actorId,
       eventId: found.event.id,
       eventName: found.event.name,
       who: await nameOf(db, actorId),

@@ -40,11 +40,12 @@
  */
 
 import { MOMENT_HOURS, schema } from '@parea/core';
-import { and, asc, desc, eq, inArray, isNull, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, inArray, isNull, not, sql } from 'drizzle-orm';
 
 import { avatarUrl } from './accounts';
 import { type Db, getDb } from './db';
 import { addMember, directChatWith } from './groups';
+import { blockedBetween } from './moderation';
 import { getStorage } from './storage';
 
 /** How long a moment is shown for. Shared with the deriver's clean-up. */
@@ -393,7 +394,14 @@ async function talkFor(
       })
       .from(schema.momentReactions)
       .innerJoin(schema.actors, eq(schema.actors.id, schema.momentReactions.actorId))
-      .where(inArray(schema.momentReactions.momentId, momentIds))
+      .where(
+        and(
+          inArray(schema.momentReactions.momentId, momentIds),
+          // A friend's moment can gather comments and reactions from people
+          // across a block from this viewer; those two never see each other.
+          not(blockedBetween(viewer, schema.momentReactions.actorId)),
+        ),
+      )
       .orderBy(desc(schema.momentReactions.createdAt)),
     db
       .select({
@@ -407,7 +415,12 @@ async function talkFor(
       })
       .from(schema.momentComments)
       .innerJoin(schema.actors, eq(schema.actors.id, schema.momentComments.actorId))
-      .where(inArray(schema.momentComments.momentId, momentIds))
+      .where(
+        and(
+          inArray(schema.momentComments.momentId, momentIds),
+          not(blockedBetween(viewer, schema.momentComments.actorId)),
+        ),
+      )
       .orderBy(asc(schema.momentComments.createdAt)),
   ]);
 
