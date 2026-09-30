@@ -1549,7 +1549,11 @@ export default function App() {
             groupId={route.id}
             t={t}
             onBack={leaveGroup}
-            onOpenEvent={open}
+            // With the group as the way back, so leaving the roll returns
+            // here rather than to the tabs — see `back` on the event route.
+            onOpenEvent={(event) =>
+              open(event, undefined, undefined, undefined, { screen: 'group', id: route.id })
+            }
             onCreateEvent={(name) => setRoute({ screen: 'pick', groupId: route.id, groupName: name })}
             /*
               No `onOpenThread` any more: the room holds its own conversation

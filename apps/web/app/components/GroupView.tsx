@@ -791,7 +791,7 @@ export function GroupView({ group, tab }: { group: GroupData; tab: GroupTab }) {
           */
           <div className="group-shelf">
             {group.events.map((event) => (
-              <a className="shelf-album" href={`/event/${event.id}`} key={event.id}>
+              <a className="shelf-album" href={`/event/${event.id}?group=${group.id}`} key={event.id}>
                 <span className="shelf-cover">
                   {event.cover ? (
                     <EventCover src={event.cover} />

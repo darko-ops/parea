@@ -258,11 +258,14 @@ export function EventView({
   eventId,
   tab,
   initial,
+  backHref = '/events',
 }: {
   eventId: string;
   /** Which pane, from the URL — so a link to the roster is a link. */
   tab: EventTab;
   initial: Feed;
+  /** Where the back arrow goes: the group it came from, or the rolls list. */
+  backHref?: string;
 }) {
   const [feed, setFeed] = useState<Feed>(initial);
   const [downloading, setDownloading] = useState(false);
@@ -567,7 +570,11 @@ export function EventView({
           {/* The way back, as a glyph and a hit area rather than a word: it is
               the one control here that is about the page rather than about the
               event. */}
-          <a href="/events" className="event-back" aria-label="Back to your rolls">
+          <a
+            href={backHref}
+            className="event-back"
+            aria-label={backHref === '/events' ? 'Back to your rolls' : 'Back to the group'}
+          >
             {'\u2039'}
           </a>
 
@@ -774,7 +781,7 @@ export function EventView({
             {TABS.map(([id, label, glyph]) => (
               <a
                 key={id}
-                href={id === 'photos' ? `/event/${eventId}` : `/event/${eventId}?tab=${id}`}
+                href={tabHref(eventId, id, backHref)}
                 className={`event-tab${tab === id ? ' event-tab-on' : ''}`}
                 aria-current={tab === id ? 'page' : undefined}
               >
@@ -1873,4 +1880,17 @@ function explainDownloadFailure(body: { error?: string; pending?: number; missin
     default:
       return 'Could not start the download.';
   }
+}
+
+/**
+ * A tab's link, carrying the group the roll was opened from, so switching
+ * tabs does not lose the way back to it.
+ */
+function tabHref(eventId: string, tab: EventTab, backHref: string): string {
+  const params = new URLSearchParams();
+  if (tab !== 'photos') params.set('tab', tab);
+  const group = backHref.startsWith('/group/') ? backHref.slice('/group/'.length) : null;
+  if (group) params.set('group', group);
+  const query = params.toString();
+  return query ? `/event/${eventId}?${query}` : `/event/${eventId}`;
 }
