@@ -85,8 +85,12 @@ RUN PAREA_MODERATION=manual NODE_ENV=development \
 # `/tmp`, which is world-writable. Nothing binds below port 1024 either — 8080
 # is above the privileged range, which is why that number and not 80.
 #
-# After every build step, so `npm ci` and the probe above still run as root.
-USER node
+# Started as root and dropped to `node` by the entrypoint itself, rather than
+# `USER node` here. The difference is the one thing `USER` cannot do: a process
+# that changes uid becomes non-dumpable, which hides its `/proc` — including
+# the environment holding every key above — from the parsers it starts, even
+# though they run as the same user. See `dropPrivileges` in `subprocess.ts`.
+# Both entrypoints, the deriver and the hourly jobs, drop before doing work.
 
 # The port `serve` listens on, and what `fly.toml` points `internal_port` at.
 EXPOSE 8080

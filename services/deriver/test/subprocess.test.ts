@@ -19,7 +19,9 @@
 
 import { describe, expect, it } from 'vitest';
 
-import { runParser } from '../src/subprocess';
+import { dropPrivileges, runParser } from '../src/subprocess';
+import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
 
 describe('a parser runs empty-handed', () => {
   /*
@@ -91,5 +93,27 @@ describe('a parser runs empty-handed', () => {
     );
     expect(source).not.toMatch(/shell:\s*true/);
     expect(source).not.toMatch(/\bexecSync\b|\bspawnSync\b/);
+  });
+});
+
+describe('sealing the parent', () => {
+  const read = (p: string) =>
+    readFileSync(fileURLToPath(new URL(`../${p}`, import.meta.url)), 'utf8');
+
+  it('drops root in both entrypoints before any work', () => {
+    for (const file of ['src/index.ts', 'src/jobs.ts']) {
+      expect(read(file), file).toMatch(/dropPrivileges\(\)/);
+    }
+  });
+
+  it('leaves the uid change to the process, so it becomes non-dumpable', () => {
+    // `USER node` would start the process as node and nothing would change
+    // uid — leaving /proc/<deriver>/environ readable by its own parsers.
+    expect(read('Dockerfile')).not.toMatch(/^USER /m);
+  });
+
+  it('does nothing outside a root container', () => {
+    if (process.getuid?.() === 0) return;
+    expect(dropPrivileges()).toBe('not-root');
   });
 });

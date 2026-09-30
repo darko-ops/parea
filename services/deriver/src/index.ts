@@ -30,6 +30,7 @@ import { promisify } from 'node:util';
 import postgres from 'postgres';
 
 import { createJobServer, JOB_PATH, receiverFromEnv } from './http';
+import { dropPrivileges, environSealed } from './subprocess';
 import { createHandler, DEFAULT_CONCURRENCY } from './serve';
 import {
   canDecode,
@@ -278,6 +279,12 @@ async function drain(limit: number, ingest: Ingest): Promise<number> {
 
 async function main(): Promise<void> {
   const command = process.argv[2] ?? 'once';
+
+  // Before anything parses a byte — see `dropPrivileges`.
+  const dropped = dropPrivileges();
+  if (dropped === 'dropped') {
+    console.log(`privileges  dropped to ${process.getuid?.()}; environ sealed: ${environSealed()}`);
+  }
 
   // Built once per process and threaded through, rather than rebuilt where
   // they are used. `drain` constructed all three itself, and under `watch`

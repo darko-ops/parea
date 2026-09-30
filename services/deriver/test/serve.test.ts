@@ -250,6 +250,32 @@ describe('what QStash is told to stop retrying', () => {
  * putting a row back to `pending` and draining it by hand, because `drain`
  * prints what `serve` threw away.
  */
+describe('when the scanner is down', () => {
+  it('asks to be retried rather than dead-lettered, and leaves the photo pending', async () => {
+    const { ScanUnavailable } = await import('@parea/core');
+    const photo = await seedPhoto(await jpeg(7));
+    const down = {
+      ...deps(),
+      scanner: {
+        name: 'test',
+        async scan(): Promise<never> {
+          throw new ScanUnavailable('provider timed out');
+        },
+      },
+    };
+    const err = vi.spyOn(console, 'error').mockImplementation(() => {});
+    try {
+      const reply = await createHandler(down as never)(photo.id);
+      expect(reply.status).toBe(503);
+      expect(reply.nonRetryable).toBeFalsy();
+    } finally {
+      err.mockRestore();
+    }
+    const [row] = await db.select().from(schema.photos).where(eq(schema.photos.id, photo.id));
+    expect(row.status).toBe('pending');
+  });
+});
+
 describe('what the log says', () => {
   it('names the reason, which is the only place it survives', async () => {
     const said: string[] = [];

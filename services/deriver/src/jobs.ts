@@ -45,6 +45,7 @@ import postgres from 'postgres';
 
 import { formatReport, report } from './metrics';
 import { objectStoreFromEnv, type ObjectStore } from './objects';
+import { dropPrivileges } from './subprocess';
 
 
 /** How long a tombstoned photo's bytes survive before they are really gone. */
@@ -632,6 +633,9 @@ export async function recordRun(
 }
 
 async function main(): Promise<void> {
+  // The image runs as root so the deriver can seal itself; this does not
+  // need root either. See `dropPrivileges`.
+  dropPrivileges();
   const database = db();
   const objects = objectStoreFromEnv();
   const only = process.argv[2];

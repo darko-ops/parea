@@ -47,6 +47,7 @@
  */
 
 import { execFile } from 'node:child_process';
+import { statSync } from 'node:fs';
 import { promisify } from 'node:util';
 
 const execFileAsync = promisify(execFile);
@@ -99,4 +100,43 @@ export async function runParser(
     timeout: TIMEOUT_MS,
     maxBuffer: options.maxBuffer ?? 8 * 1024 * 1024,
   });
+}
+
+/**
+ * Start as root, become `node`, and in doing so seal this process's secrets.
+ *
+ * An empty environment for the parser is not the whole story: a parser running
+ * as the same user as the deriver could still read `/proc/<parent>/environ`,
+ * which holds every key above. Linux hides a process's `/proc` files from its
+ * own user once the process is non-dumpable, and changing uid is the one thing
+ * Node can do that makes a process non-dumpable — the kernel resets the flag to
+ * `suid_dumpable`, which is 0. So the container starts as root and the first
+ * thing the entrypoint does is give that up; the parsers it later starts run
+ * as `node`, can ptrace nothing and read nothing of their parent's.
+ *
+ * Returns what happened, for the boot line. Outside a root container —
+ * a laptop, the test suite — there is nothing to drop and nothing changes.
+ */
+export function dropPrivileges(user = process.env.PAREA_RUN_AS ?? 'node'): 'dropped' | 'not-root' {
+  if (typeof process.getuid !== 'function' || process.getuid() !== 0) return 'not-root';
+  process.setgroups?.([]);
+  process.setgid!(user);
+  process.setuid!(user);
+  return 'dropped';
+}
+
+/**
+ * Whether a parser started now could read this process's environment.
+ *
+ * True when `/proc/self/environ` is owned by root while this process is not —
+ * the kernel's way of saying the process is non-dumpable. Null off Linux, where
+ * the question does not arise in the same form.
+ */
+export function environSealed(): boolean | null {
+  try {
+    const owner = statSync('/proc/self/environ').uid;
+    return owner === 0 && process.getuid?.() !== 0;
+  } catch {
+    return null;
+  }
 }

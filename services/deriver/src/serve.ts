@@ -137,6 +137,18 @@ export function createHandler(
         return { status: 200, body: `${outcome.status} ${photoId}` };
       }
       /*
+       * The one `failed` that is not terminal: the scanner could not be
+       * reached. The pipeline left the row `pending` on purpose, and answering
+       * 489 here sent the delivery to the dead letter queue anyway — so a
+       * scanner outage stranded every photograph uploaded during it, pending
+       * forever with nothing coming back for them. A 503 is retried by QStash
+       * on its own backoff, which is what "retry later" was meant to mean.
+       */
+      if (outcome.reason.startsWith('scan_unavailable')) {
+        console.error(`scan-wait   ${photoId}  ${outcome.reason}`);
+        return { status: 503, body: `retry ${photoId}: ${outcome.reason}` };
+      }
+      /*
        * The pipeline has already written `failed` to the row and decided this
        * is terminal — see the note above `fail`, which is only safe to be
        * terminal because of the gate that lets a photo through in the first

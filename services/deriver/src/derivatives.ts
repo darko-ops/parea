@@ -196,10 +196,36 @@ export async function buildDerivatives(
     // decoder, so `metadata()` succeeds on an iPhone photo and decoding it
     // fails with "bad seek". libheif with libde265 can decode it, so convert
     // to a raster sharp can definitely read and retry once.
+    //
+    // Only for bytes that are actually HEIF. Any decode failure used to reach
+    // libheif, which has open CVEs of its own — so a malformed JPEG built to
+    // fail sharp was a way to hand arbitrary bytes to a second, weaker parser.
+    if (!isHeif(input)) throw err;
     const raster = await heifConvert(input).catch(() => null);
     if (!raster) throw err;
     return encodeAll(raster, only);
   }
+}
+
+/**
+ * HEIF brands libheif is here to decode: the HEVC ones an iPhone writes, and
+ * the two generic image brands they are often filed under.
+ */
+const HEIF_BRANDS = new Set([
+  'heic', 'heix', 'heim', 'heis', 'hevc', 'hevx', 'hevm', 'hevs', 'mif1', 'msf1',
+]);
+
+/**
+ * Whether these bytes are an ISO BMFF file whose major brand is HEIF.
+ *
+ * Read from the file rather than the declared MIME type, which the uploader
+ * chose. `ftyp` at byte 4 and the brand after it — the same check `file(1)`
+ * makes.
+ */
+export function isHeif(input: Buffer): boolean {
+  if (input.length < 12) return false;
+  if (input.toString('latin1', 4, 8) !== 'ftyp') return false;
+  return HEIF_BRANDS.has(input.toString('latin1', 8, 12));
 }
 
 /**

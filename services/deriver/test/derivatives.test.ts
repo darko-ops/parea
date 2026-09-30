@@ -16,7 +16,7 @@
 import sharp from 'sharp';
 import { describe, expect, it } from 'vitest';
 
-import { buildDerivatives, DERIVATIVES, encodeAs } from '../src/derivatives';
+import { buildDerivatives, DERIVATIVES, encodeAs, isHeif } from '../src/derivatives';
 import type { ImageFormat } from '@parea/urls';
 
 const EDGE = { width: 480, height: 360 };
@@ -218,4 +218,27 @@ describe('what stays true either way', () => {
     expect(meta.width).toBe(200);
     expect(meta.height).toBe(150);
   }, 30_000);
+});
+
+describe('isHeif', () => {
+  const box = (brand: string) =>
+    Buffer.concat([Buffer.from([0, 0, 0, 24]), Buffer.from(`ftyp${brand}`, 'latin1'), Buffer.alloc(12)]);
+
+  it('recognises what an iPhone writes', () => {
+    expect(isHeif(box('heic'))).toBe(true);
+    expect(isHeif(box('mif1'))).toBe(true);
+  });
+
+  it('does not send a broken JPEG to libheif', () => {
+    expect(isHeif(Buffer.from([0xff, 0xd8, 0xff, 0xe0, 0, 16, 0x4a, 0x46, 0x49, 0x46, 0, 1]))).toBe(false);
+  });
+
+  it('does not take a video or an AVIF for one', () => {
+    expect(isHeif(box('isom'))).toBe(false);
+    expect(isHeif(box('avif'))).toBe(false);
+  });
+
+  it('refuses anything too short to have a box', () => {
+    expect(isHeif(Buffer.from('ftyp'))).toBe(false);
+  });
 });
