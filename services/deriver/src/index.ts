@@ -14,6 +14,9 @@
  *           stop. Needed once per size added after the product had events in
  *           it — `card` is the first. Safe to run repeatedly and safe to stop
  *           part-way: it selects on the absence of the row it writes.
+ *   restrip re-run the metadata strip over every stored original and fix any
+ *           that still carry a place or a person's name (security review M7).
+ *           One pass; safe to repeat.
  *
  * `watch` polls Postgres rather than consuming a Cloudflare Queue. The design
  * (§7.5) has R2 event notifications driving a queue, which is better: it
@@ -50,6 +53,8 @@ import {
 import { type CsamScanner, scannerFromEnv } from './safety';
 import {
   backfillDerivative,
+  readyPhotosAfter,
+  restripOriginal,
   pendingPhotoIds,
   photosMissingDerivative,
   processPhoto,
@@ -314,10 +319,11 @@ async function main(): Promise<void> {
     command !== 'once' &&
     command !== 'watch' &&
     command !== 'serve' &&
-    command !== 'backfill'
+    command !== 'backfill' &&
+    command !== 'restrip'
   ) {
     console.error(`unknown command: ${command}`);
-    console.error('usage: deriver <probe|once|watch|backfill <kind>>');
+    console.error('usage: deriver <probe|once|watch|backfill <kind>|restrip>');
     process.exit(2);
   }
 
@@ -447,6 +453,31 @@ async function main(): Promise<void> {
     }
     console.log(`backfill of ${kind} finished: ${done} encoded, ${failed} failed`);
     process.exit(failed > 0 ? 1 : 0);
+  }
+
+  /*
+   * One pass over every stored original, re-running today's metadata strip on
+   * any that still carry a place or a person's name — see `restripOriginal`.
+   * Keyset-paged by id, so it can be stopped and run again; a second run finds
+   * everything clean and writes nothing.
+   */
+  if (command === 'restrip') {
+    const deps = ingest();
+    const counts = { clean: 0, restripped: 0, failed: 0 };
+    let after: string | null = null;
+    for (;;) {
+      const ids = await readyPhotosAfter(deps.db, after, 100);
+      if (ids.length === 0) break;
+      for (const id of ids) {
+        const result = await restripOriginal(deps, id);
+        counts[result] += 1;
+        if (result === 'failed') console.error(`restrip failed  ${id}`);
+      }
+      after = ids[ids.length - 1]!;
+      console.log(`restrip: ${counts.clean} clean, ${counts.restripped} restripped, ${counts.failed} failed`);
+    }
+    console.log(`restrip finished: ${JSON.stringify(counts)}`);
+    process.exit(counts.failed > 0 ? 1 : 0);
   }
 
   // Refuse to start rather than fail one photo at a time.

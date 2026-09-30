@@ -596,3 +596,85 @@ export async function backfillDerivative(
 
   return 'done';
 }
+
+/**
+ * Strip an original that was stored before the strip was complete — M7.
+ *
+ * Until 30 September 2026 the strip removed GPS coordinates and left the rest
+ * of where a photo was taken (city, sub-location, "location shown") and the
+ * names in its face regions. New uploads lose all of that; the ones already
+ * stored kept it, and every viewer of an album can download originals. This
+ * re-runs today's strip on one stored original, in place.
+ *
+ * In place, at the same key: the key and `content_hash` name the bytes as they
+ * were first stored, and every image URL and derivative is addressed by that
+ * hash, so moving the object would break all of them for no gain. What must
+ * change is what describes the bytes exactly — `crc32` and `byte_size`, which
+ * a zip download writes into its headers and which would otherwise produce a
+ * corrupt archive. Derivatives are re-encoded by sharp and never carried the
+ * metadata, so they are left alone.
+ *
+ * Only `ready` photos. A quarantined one is evidence and is never rewritten.
+ * Idempotent: a clean original is read, checked and left untouched.
+ */
+export async function restripOriginal(
+  { db, objects }: { db: any; objects: ObjectStore },
+  photoId: string,
+): Promise<'clean' | 'restripped' | 'failed'> {
+  const [photo] = await db
+    .select()
+    .from(schema.photos)
+    .where(eq(schema.photos.id, photoId))
+    .limit(1);
+  if (!photo || photo.status !== 'ready' || photo.deletedAt) return 'clean';
+
+  const original = await objects.get(photo.storageKey);
+  if (!original) return 'failed';
+
+  const dir = await mkdtemp(join(tmpdir(), 'restrip-'));
+  try {
+    const working = join(dir, 'original');
+    await writeFile(working, original);
+    if (!(await hasPrivateMetadata(working))) return 'clean';
+
+    const pixelsBefore = await imageDataHash(working);
+    await stripPrivateMetadata(working);
+    const pixelsAfter = await imageDataHash(working);
+    // The same promise ingest keeps: metadata only, never the picture.
+    if (pixelsBefore && pixelsAfter && pixelsBefore !== pixelsAfter) return 'failed';
+    if (await hasPrivateMetadata(working)) return 'failed';
+
+    const stripped = await readFile(working);
+    await objects.put(photo.storageKey, stripped, photo.mime ?? 'application/octet-stream');
+    await db
+      .update(schema.photos)
+      .set({ crc32: crc32(stripped), byteSize: stripped.length })
+      .where(eq(schema.photos.id, photo.id));
+    return 'restripped';
+  } catch {
+    return 'failed';
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+}
+
+/** Ready photos in id order after `afterId`, for walking the whole table once. */
+export async function readyPhotosAfter(
+  db: any,
+  afterId: string | null,
+  limit = 100,
+): Promise<string[]> {
+  const rows = await db
+    .select({ id: schema.photos.id })
+    .from(schema.photos)
+    .where(
+      and(
+        eq(schema.photos.status, 'ready'),
+        isNull(schema.photos.deletedAt),
+        afterId ? sql`${schema.photos.id} > ${afterId}` : undefined,
+      ),
+    )
+    .orderBy(schema.photos.id)
+    .limit(limit);
+  return rows.map((row: { id: string }) => row.id);
+}
