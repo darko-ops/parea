@@ -497,7 +497,7 @@ export default function CreatePage() {
 
                 <div className="field">
                   <div className="field-head">
-                    <label className="field-label">EVENT COVER</label>
+                    <label className="field-label">ROLL COVER</label>
                     <span className="field-note">Optional</span>
                   </div>
                   {/*
