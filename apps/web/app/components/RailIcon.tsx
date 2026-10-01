@@ -67,7 +67,11 @@ export type RailGlyph =
   /* Who spoke last on a one-to-one: flying off for you, perched for them.
      The app's two birds, path for path. */
   | 'bird-flying'
-  | 'bird-perched';
+  | 'bird-perched'
+  /* A moment: a drop and the rings it sends out. The app's own, path for
+     path — the outer ring at the light weight, fading, so the three read as
+     one motion rather than as a target. */
+  | 'ripple';
 
 /**
  * The star, as a path.
@@ -255,6 +259,13 @@ export function RailIcon({
         </>
       )}
       {glyph === 'star' && <path d={STAR} />}
+      {glyph === 'ripple' && (
+        <>
+          <circle cx="12" cy="12" r="1.6" />
+          <circle cx="12" cy="12" r="5.4" />
+          <circle cx="12" cy="12" r="9.2" strokeWidth={weight * 0.8} strokeOpacity={0.6} />
+        </>
+      )}
       {glyph === 'profile' && (
         // A head and shoulders, which is what the avatar beside it will be.
         <>

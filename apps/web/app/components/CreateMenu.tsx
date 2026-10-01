@@ -56,18 +56,33 @@ export function CreateMenu({ className }: { className: string }) {
             </h2>
 
             <a ref={first} className="new-choice" href="/">
-              <span className="new-choice-name">Roll</span>
-              <span className="new-choice-why">A shared place for photos with your people.</span>
+              <span className="new-choice-icon">
+                <RailIcon glyph="photos" />
+              </span>
+              <span className="new-choice-text">
+                <span className="new-choice-name">Roll</span>
+                <span className="new-choice-why">A shared place for photos with your people.</span>
+              </span>
             </a>
 
             <a className="new-choice" href="/groups?new=1">
-              <span className="new-choice-name">Group</span>
-              <span className="new-choice-why">Your people, together for whatever comes next.</span>
+              <span className="new-choice-icon">
+                <RailIcon glyph="groups" />
+              </span>
+              <span className="new-choice-text">
+                <span className="new-choice-name">Group</span>
+                <span className="new-choice-why">Your people, together for whatever comes next.</span>
+              </span>
             </a>
 
             <a className="new-choice" href="/moments/new">
-              <span className="new-choice-name">Moment</span>
-              <span className="new-choice-why">Put one photo front and center for your people.</span>
+              <span className="new-choice-icon">
+                <RailIcon glyph="ripple" />
+              </span>
+              <span className="new-choice-text">
+                <span className="new-choice-name">Moment</span>
+                <span className="new-choice-why">Put one photo front and center for your people.</span>
+              </span>
             </a>
 
             <button

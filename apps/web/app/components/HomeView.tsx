@@ -139,13 +139,19 @@ export function HomeView({
             onOpen={setOpen}
           />
         </div>
-      </div>
 
-      {/*
-        One way into everybody's moments, with nobody's name on it — see
-        `MomentsBar`. The tiles are inside the viewer now, as its map.
-      */}
-      <MomentsBar moments={moments} at={momentsAt} />
+        {/*
+          One way into everybody's moments, with nobody's name on it — see
+          `MomentsBar`. The tiles are inside the viewer now, as its map.
+
+          Inside the head rather than under it, so a phone can put it where
+          the greeting is, beside search: on a 375px screen the greeting is a
+          line of grey saying the time of day, and the bar is the one thing at
+          the top worth a tap. On a laptop it takes the row under the head, as
+          before. Absent when there are no moments, and the greeting is back.
+        */}
+        <MomentsBar moments={moments} at={momentsAt} />
+      </div>
 
       <div className="cards">{shown}</div>
 

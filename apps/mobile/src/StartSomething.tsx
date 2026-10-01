@@ -17,6 +17,7 @@
 
 import { Modal, Pressable, StyleSheet, Text, View } from 'react-native';
 
+import { Glyph } from './Glyph';
 import type { GroupTheme } from './Groups';
 
 type ButtonComponent = (props: {
@@ -65,11 +66,11 @@ export function StartSomething({
 
             {(
               [
-                ['Roll', 'A shared place for photos with your people.', onAlbum],
-                ['Group', 'Your people, together for whatever comes next.', onGroup],
-                ['Moment', 'Put one photo front and center for your people.', onMoment],
+                ['Roll', 'A shared place for photos with your people.', onAlbum, 'photos'],
+                ['Group', 'Your people, together for whatever comes next.', onGroup, 'group'],
+                ['Moment', 'Put one photo front and center for your people.', onMoment, 'ripple'],
               ] as const
-            ).map(([name, why, go]) => (
+            ).map(([name, why, go, glyph]) => (
               <Pressable
                 key={name}
                 onPress={() => {
@@ -83,8 +84,14 @@ export function StartSomething({
                   { borderColor: t.line, backgroundColor: t.card, opacity: pressed ? 0.6 : 1 },
                 ]}
               >
-                <Text style={[styles.choiceName, { color: t.fg }]}>{name}</Text>
-                <Text style={[styles.choiceWhy, { color: t.dim }]}>{why}</Text>
+                {/* The glyph the rest of the app uses for each, in a soft well. */}
+                <View style={[styles.choiceIcon, { backgroundColor: t.line }]}>
+                  <Glyph name={glyph} size={22} color={t.fg} />
+                </View>
+                <View style={styles.choiceText}>
+                  <Text style={[styles.choiceName, { color: t.fg }]}>{name}</Text>
+                  <Text style={[styles.choiceWhy, { color: t.dim }]}>{why}</Text>
+                </View>
               </Pressable>
             ))}
 
@@ -102,7 +109,22 @@ const styles = StyleSheet.create({
   inner: { padding: 16, paddingBottom: 40, gap: 12 },
   title: { fontSize: 22, fontWeight: '700' },
   /* One of the choices: what it is, and what it is for. */
-  choice: { borderWidth: 1, borderRadius: 14, padding: 16, gap: 4 },
+  choice: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderRadius: 14,
+    padding: 16,
+    gap: 14,
+  },
+  choiceIcon: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  choiceText: { flex: 1, gap: 4 },
   choiceName: { fontSize: 16, fontWeight: '600' },
   choiceWhy: { fontSize: 13.5, lineHeight: 19 },
 });
