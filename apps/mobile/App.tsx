@@ -97,8 +97,10 @@ import {
   adoptIntoOutbox,
   isLibraryAsset,
   libraryAccess,
+  releaseCopies,
   requestLibraryAccess,
   resolveForUpload,
+  sweepOutbox,
   type LibraryAccess,
   type LibraryPhoto,
 } from './src/library';
@@ -137,10 +139,12 @@ import {
   type QueueState,
 } from '@parea/upload';
 import {
-  nextPreviews,
+  heldCopies,
+  nextPreviewsByEvent,
   previewLabel,
   previewsInFlight,
   type Preview,
+  type PreviewsByEvent,
 } from './src/previews';
 
 const API_BASE = process.env.EXPO_PUBLIC_API_URL ?? 'http://localhost:3000';
@@ -808,6 +812,85 @@ export default function App() {
   }, [runUploads]);
 
   /**
+   * The stand-ins in every roll, held here so that leaving one does not lose them.
+   *
+   * They lived on the roll's own screen, which was the same mistake the run
+   * made before it moved up here: a thing that outlives the screen, kept by
+   * the screen. A photograph whose bytes have landed is remembered by nothing
+   * else — the queue prunes it, and the feed does not carry it until the
+   * deriver has been round — so leaving a roll and coming back half a minute
+   * later showed an album that had apparently not taken what was just added to
+   * it. See `src/previews.ts`.
+   *
+   * Moved by the same saves that move the bar, and by each roll's feed as it
+   * is seen — the last one seen for a roll is kept, because it is what says a
+   * stand-in can go. For as long as the app is running and no longer: a
+   * relaunch starts from the queue, and the feed by then has nearly all of it.
+   */
+  const [previews, setPreviews] = useState<PreviewsByEvent>({});
+  const feedsSeen = useRef(new Map<string, ReadonlySet<string>>());
+  const uploadsNow = useRef(uploads);
+  uploadsNow.current = uploads;
+  const lookAtPreviews = useCallback(() => {
+    setPreviews((was) =>
+      nextPreviewsByEvent(was, uploadsNow.current.items, feedsSeen.current, Date.now(), previewUri),
+    );
+  }, []);
+  useEffect(() => lookAtPreviews(), [uploads, lookAtPreviews]);
+  const feedSeen = useCallback(
+    (eventId: string, ids: ReadonlySet<string>) => {
+      feedsSeen.current.set(eventId, ids);
+      lookAtPreviews();
+    },
+    [lookAtPreviews],
+  );
+
+  /*
+   * And looked at again now and then while one is on its way, with nothing
+   * else moving. A roll nobody has open sees no feed, so the give-up is the
+   * only thing that will ever clear its stand-ins — and the give-up is only
+   * noticed by looking.
+   */
+  const previewsComing = Object.values(previews).some(previewsInFlight);
+  useEffect(() => {
+    if (!previewsComing) return;
+    const timer = setInterval(lookAtPreviews, 30_000);
+    return () => clearInterval(timer);
+  }, [previewsComing, lookAtPreviews]);
+
+  /**
+   * The outbox copies, deleted when the last thing needing one lets it go.
+   *
+   * `uploadItem` used to do this the moment the bytes landed, which is before
+   * the stand-in drawing from the same file is finished with it. Now a copy
+   * goes when neither the queue nor any roll's stand-in holds it — and the
+   * queue is read off the disk once more first, because `uploads` can be a
+   * save behind somebody adding the same photograph again.
+   */
+  const held = useRef(new Set<string>());
+  useEffect(() => {
+    const now = heldCopies(uploads.items, previews);
+    const gone = [...held.current].filter((uri) => !now.has(uri));
+    held.current = now;
+    if (gone.length === 0) return;
+    void loadQueue()
+      .then((state) => releaseCopies(gone, state.items.map((item) => item.source)))
+      .catch(() => {});
+  }, [uploads, previews]);
+
+  /*
+   * And once, at launch, whatever nothing is left to let go of: copies whose
+   * uploads finished while the app was closed, or whose stand-ins went with
+   * the last process. Before anything can be picked, which is the one moment
+   * the outbox can hold a copy the queue does not name yet.
+   */
+  useEffect(() => {
+    void loadQueue()
+      .then((state) => sweepOutbox(state.items.map((item) => item.source)))
+      .catch(() => {});
+  }, []);
+
+  /**
    * Groups belong to the actor, not the device — so they are fetched rather
    * than remembered locally. A reinstall loses the event list and keeps the
    * groups, which is the right way round: a link is a thing you were sent, a
@@ -1382,6 +1465,8 @@ export default function App() {
             onCoverTroubleSeen={coverTroubleSeen}
             uploads={uploads}
             onRunUploads={runUploads}
+            previews={previews[route.event.id] ?? NO_PREVIEWS}
+            onFeedSeen={feedSeen}
             webBase={API_BASE}
             t={t}
             dark={dark}
@@ -2180,16 +2265,9 @@ const PAGE_TOP = COVER;
  */
 const KEYBOARD_BAR = 'parea-keyboard-bar';
 
-/**
- * What a stand-in tile draws: the phone's own copy of the photograph.
- *
- * The library asset where there is one, on iOS — the same `ph://` the
- * suggestion screen draws its tiles from — because the outbox copy is deleted
- * the moment its upload lands, which is a good while before the deriver has
- * been round. A picked photograph has no asset behind it, and Android's ids are
- * not `ph://` ones, so those draw the outbox copy and rely on the image keeping
- * what it has already decoded once the file goes.
- */
+/** A roll with no stand-ins, as one array rather than a new one per render. */
+const NO_PREVIEWS: readonly Preview[] = [];
+
 /**
  * One square in the album's grid: a photograph the server has, or a stand-in
  * for one it does not have yet. Marked rather than told apart by shape, so a
@@ -2199,6 +2277,16 @@ type StandIn = Preview & { standIn: true };
 type GridTile = FeedPhoto | StandIn;
 const isStandIn = (tile: GridTile): tile is StandIn => 'standIn' in tile;
 
+/**
+ * What a stand-in tile draws: the phone's own copy of the photograph.
+ *
+ * The library asset where there is one, on iOS — the same `ph://` the
+ * suggestion screen draws its tiles from, and readable for as long as the
+ * photograph is in the library. A picked photograph has no asset behind it,
+ * and Android's ids are not `ph://` ones, so those draw the outbox copy — which
+ * is why the copy is kept until the stand-in goes rather than deleted when its
+ * upload lands. See `releaseCopies`.
+ */
 function previewUri(item: QueueItem): string {
   if (RNPlatform.OS === 'ios' && isLibraryAsset(item.id)) {
     return item.id.startsWith('ph://') ? item.id : `ph://${item.id}`;
@@ -2217,6 +2305,8 @@ function EventScreen({
   onCoverTroubleSeen,
   uploads,
   onRunUploads,
+  previews,
+  onFeedSeen,
   webBase,
   t,
   dark,
@@ -2276,6 +2366,15 @@ function EventScreen({
    */
   uploads: QueueState;
   onRunUploads: () => Promise<void>;
+  /**
+   * This roll's stand-ins, and where to say what its feed holds.
+   *
+   * Kept by the app, so that they are still here when somebody leaves the
+   * roll and comes back. The feed is what retires one, and only this screen
+   * fetches it, so it is handed up each time it lands.
+   */
+  previews: readonly Preview[];
+  onFeedSeen: (eventId: string, ids: ReadonlySet<string>) => void;
   /** Where links live, for the one this screen hands to the share sheet. */
   webBase: string;
   t: Theme;
@@ -2669,22 +2768,16 @@ function EventScreen({
   /**
    * The photographs on their way, drawn before the server has them.
    *
-   * See `src/previews.ts` for why. State rather than a memo over `uploads`,
-   * because the queue forgets an item the moment its bytes are accepted and
-   * this is what remembers it until the feed carries the real one — which is
-   * the deriver's half of the wait, and the half that used to be an empty grid.
-   *
-   * Remembered for as long as the album is open and no longer. Leaving and
-   * coming back starts from the queue again, and anything finished by then is
-   * either in the feed or nearly; one refresh is the whole of what is lost.
+   * See `src/previews.ts` for why. Kept by the app rather than here — the
+   * queue forgets an item the moment its bytes are accepted, and a screen that
+   * remembered it only while open forgot it again the first time somebody went
+   * back and came in. This screen's part is the feed: each one that lands is
+   * handed up, and it is what says a stand-in's photograph has arrived.
    */
-  const [previews, setPreviews] = useState<Preview[]>([]);
   const feedIds = useMemo(() => new Set((feed?.photos ?? []).map((p) => p.id)), [feed]);
   useEffect(() => {
-    setPreviews((was) =>
-      nextPreviews(was, uploads.items, event.id, feedIds, Date.now(), previewUri),
-    );
-  }, [uploads, feedIds, event.id]);
+    if (feed) onFeedSeen(event.id, feedIds);
+  }, [feed, feedIds, event.id, onFeedSeen]);
   /*
    * And filtered again here, at render, against the feed in hand.
    *
@@ -3976,8 +4069,8 @@ function EventScreen({
    * `allowDownscaling` and `cachePolicy` are the memory half. The copy is the
    * camera's full file, and decoding twenty of those at full size to fill
    * 130-point squares is how a phone runs out — expo-image decodes to the size
-   * of the view instead. Held in memory, so a tile scrolled away and back after
-   * its upload has deleted the outbox copy can still find what it showed.
+   * of the view instead. Held in memory as well, so a tile scrolled away and
+   * back does not decode the file a second time.
    */
   const renderStandIn = useCallback(
     (item: StandIn) => {

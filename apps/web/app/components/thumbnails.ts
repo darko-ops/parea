@@ -15,8 +15,12 @@
 /** The longest side of a preview, in pixels — enough for a 2× strip tile. */
 export const PREVIEW_EDGE = 320;
 
-/** A made preview: its blob URL, and its size, which is the photo's shape. */
-export type Thumbnail = { url: string; width: number; height: number };
+/**
+ * A made preview: its blob URL, its size, which is the photo's shape, and the
+ * JPEG itself — which the gallery keeps, so a preview outlives the page that
+ * made it (see `upload/previews.ts`).
+ */
+export type Thumbnail = { url: string; width: number; height: number; blob: Blob };
 
 /**
  * A blob URL for a small preview of `file`, or null when this browser cannot
@@ -54,7 +58,7 @@ export async function thumbnail(file: File, edge = PREVIEW_EDGE): Promise<Thumbn
     // Release the canvas's backing store now rather than at collection.
     canvas.width = 0;
     canvas.height = 0;
-    return blob ? { url: URL.createObjectURL(blob), width, height } : null;
+    return blob ? { url: URL.createObjectURL(blob), width, height, blob } : null;
   } catch {
     return null;
   } finally {

@@ -36,6 +36,14 @@ export type Preview = {
   id: string;
   /** Something this phone can draw: the outbox copy, or the library asset. */
   uri: string;
+  /**
+   * The queue item's own file, which is what `uri` draws on Android and from
+   * the picker — and so a file that has to outlive the upload. `uploadItem`
+   * used to delete it the moment the bytes landed, and the stand-in drew from
+   * a decoded image that was gone the first time the roll was left and opened
+   * again. It is deleted when the stand-in goes now; see `heldCopies`.
+   */
+  copy: string;
   /** The server's name for it, once a presign has given it one. */
   photoId?: string;
   state: PreviewState;
@@ -120,10 +128,10 @@ export function nextPreviews(
     const state = stateOf(item);
     return {
       id: item.id,
-      // Kept once chosen: the outbox copy is deleted when its upload lands,
-      // and swapping the uri then would ask the image to load a file that has
-      // just gone, rather than keep the one it is already showing.
+      // Kept once chosen: a tile drawn from one file and then told to draw
+      // another flickers through a blank for no reason anybody can see.
       uri: before?.uri ?? uriOf(item),
+      copy: before?.copy ?? item.source,
       photoId: item.photoId,
       state,
       progress:
@@ -183,12 +191,86 @@ function sameAs(a: readonly Preview[], b: readonly Preview[]): boolean {
       (x, i) =>
         x.id === b[i]!.id &&
         x.uri === b[i]!.uri &&
+        x.copy === b[i]!.copy &&
         x.photoId === b[i]!.photoId &&
         x.state === b[i]!.state &&
         x.progress === b[i]!.progress &&
         x.processingSince === b[i]!.processingSince,
     )
   );
+}
+
+/**
+ * Every roll's stand-ins, by event id.
+ *
+ * Held by the app rather than by the roll, and that is the whole of what this
+ * shape is for. The roll's screen used to keep its own, so leaving it threw
+ * them away — and a stand-in whose upload has finished is remembered by nobody
+ * else: the queue prunes it, and the feed does not have it yet. Coming back to
+ * a roll thirty seconds after adding twenty photographs showed an album that
+ * had apparently not taken them, which is the thing stand-ins exist to stop.
+ */
+export type PreviewsByEvent = Readonly<Record<string, readonly Preview[]>>;
+
+const NOTHING_IN_FEED: ReadonlySet<string> = new Set();
+
+/**
+ * `nextPreviews`, for every roll at once.
+ *
+ * Every roll the queue has work for, and every roll already holding a
+ * stand-in — the second because a pruned item is in no queue, and its roll
+ * would otherwise never be looked at again. `feeds` is the last feed seen for
+ * each roll; one never opened has none, and its stand-ins wait for the give-up
+ * instead.
+ *
+ * The same object back when no roll's list moved, for the reason
+ * `nextPreviews` gives: this runs on every queue save.
+ */
+export function nextPreviewsByEvent(
+  was: PreviewsByEvent,
+  items: readonly QueueItem[],
+  feeds: ReadonlyMap<string, ReadonlySet<string>>,
+  now: number,
+  uriOf: (item: QueueItem) => string,
+): PreviewsByEvent {
+  const events = new Set([...Object.keys(was), ...items.map((item) => item.eventId)]);
+  const next: Record<string, readonly Preview[]> = {};
+  let moved = false;
+  for (const eventId of events) {
+    const before = was[eventId] ?? [];
+    const after = nextPreviews(
+      before,
+      items,
+      eventId,
+      feeds.get(eventId) ?? NOTHING_IN_FEED,
+      now,
+      uriOf,
+    );
+    if (after !== before) moved = true;
+    if (after.length > 0) next[eventId] = after;
+    else if (eventId in was) moved = true;
+  }
+  return moved ? next : was;
+}
+
+/**
+ * The files something still needs: a queued item's bytes, or a stand-in's.
+ *
+ * What is held one moment and not the next is what may be deleted — the queue
+ * has let the item go and no tile is drawing it. Both, rather than either:
+ * a photograph in the feed while its item is still waiting to be pruned is
+ * finished with as a stand-in and not yet as an upload, and the other way
+ * round is the whole deriver's wait.
+ */
+export function heldCopies(
+  items: readonly QueueItem[],
+  byEvent: PreviewsByEvent,
+): Set<string> {
+  const held = new Set(items.map((item) => item.source));
+  for (const previews of Object.values(byEvent)) {
+    for (const preview of previews) held.add(preview.copy);
+  }
+  return held;
 }
 
 /** Whether any stand-in is still on its way, which is a reason to keep asking. */

@@ -248,8 +248,9 @@ export function windowOf(photos: LibraryPhoto[]): Window | null {
  *
  * The cache rather than documents: these are reproducible from the library, so
  * iOS is welcome to reclaim them under pressure — which is exactly the bargain
- * `Paths.cache` describes. They are deleted on a successful upload anyway; see
- * `uploadItem`.
+ * `Paths.cache` describes. They are deleted once nothing needs them — the queue
+ * has let the item go and no stand-in in a roll is drawing it — by
+ * `releaseCopies`, and anything that slipped past that by `sweepOutbox`.
  */
 export const OUTBOX = 'outbox';
 
@@ -372,6 +373,88 @@ export async function adoptIntoOutbox(
 /** True for a path this app owns, and therefore one a background session can read. */
 export function inOutbox(uri: string): boolean {
   return uri.includes(`/${OUTBOX}/`);
+}
+
+/**
+ * A copy's name in the outbox, which is how two spellings of it are compared.
+ *
+ * Not the whole uri. The one a listing hands back and the one written into
+ * the queue months ago are the same file and need not be the same string —
+ * `/private/var` against `/var` on iOS, a space encoded or not — and a sweep
+ * that mistook a queued copy for a stray would delete a photograph that has
+ * not gone up yet. The names are unique by construction; see `outboxFile`.
+ */
+export function outboxName(uri: string): string {
+  const last = uri.split('/').pop() ?? '';
+  try {
+    return decodeURIComponent(last);
+  } catch {
+    return last;
+  }
+}
+
+/**
+ * Delete copies nothing needs any more, unless the queue has taken them back.
+ *
+ * `queued` is the queue as it is on disk now, not as it was when these were
+ * let go of: the suggestion screen names a copy by its library id, so the
+ * same photograph added to a second roll reuses the file a first roll's
+ * stand-in has just finished with.
+ *
+ * Only ever our own outbox, for the reason `uploadItem` gave when it was the
+ * one doing this — a caller can point it at anything, and deleting a file
+ * somebody else owns would be a fine way to eat a camera roll. Swallowed,
+ * because a copy that outlives its use is litter in a directory iOS empties
+ * under pressure, and there is no one to tell.
+ */
+export function releaseCopies(uris: Iterable<string>, queued: readonly string[]): void {
+  const keep = new Set(queued.map(outboxName));
+  for (const uri of uris) {
+    if (!inOutbox(uri) || keep.has(outboxName(uri))) continue;
+    try {
+      const file = new File(uri);
+      if (file.exists) file.delete();
+    } catch {}
+  }
+}
+
+/**
+ * How old a copy nobody has claimed has to be before a sweep takes it.
+ *
+ * An hour, which is far longer than the gap it guards: a copy is made a moment
+ * before its item is queued, and a sweep in that moment would find a file
+ * the queue does not name yet.
+ */
+export const OUTBOX_STRAY_MS = 60 * 60 * 1000;
+
+/**
+ * Delete what the outbox is still holding that the queue does not name.
+ *
+ * `releaseCopies` deletes a copy when its stand-in goes, and a stand-in lives
+ * as long as the app does — so a copy whose upload landed while the app was
+ * closed, or in the minutes before it was swiped away, has nobody left to let
+ * go of it. Called once, at launch, with the queue that is on disk.
+ *
+ * Old as well as unnamed, by the newer of the two times the file has, because
+ * the queue can be a moment behind the outbox. And kept when it has neither
+ * time: a stray that stays is a few megabytes in a cache the system empties,
+ * and a photograph deleted before it went up is gone.
+ */
+export function sweepOutbox(queued: readonly string[], now: number = Date.now()): number {
+  const dir = new Directory(Paths.cache, OUTBOX);
+  if (!dir.exists) return 0;
+  const keep = new Set(queued.map(outboxName));
+  let swept = 0;
+  for (const entry of dir.list()) {
+    if (!(entry instanceof File) || keep.has(outboxName(entry.uri))) continue;
+    try {
+      const at = Math.max(entry.modificationTime ?? 0, entry.creationTime ?? 0);
+      if (at === 0 || now - at < OUTBOX_STRAY_MS) continue;
+      entry.delete();
+      swept += 1;
+    } catch {}
+  }
+  return swept;
 }
 
 export async function resolveForUpload(

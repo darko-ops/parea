@@ -75,13 +75,15 @@ describe('thumbnail', () => {
     vi.stubGlobal('document', { createElement: () => canvas });
     vi.spyOn(URL, 'createObjectURL').mockReturnValue('blob:t');
     const photo = new File([new Uint8Array(4)], 'IMG.JPG', { type: 'image/jpeg' });
-    expect(await thumbnail(photo)).toEqual({ url: 'blob:t', width: 240, height: 320 });
+    expect(await thumbnail(photo)).toMatchObject({ url: 'blob:t', width: 240, height: 320 });
+    // And the JPEG itself, which the gallery keeps for when it is opened again.
+    expect((await thumbnail(photo))?.blob).toBeInstanceOf(Blob);
   });
 });
 
 describe('the hook', () => {
   it('makes previews from thumbnails one at a time, never from the original', () => {
-    expect(HOOK).toMatch(/if \(busy\.current\) return;/);
+    expect(HOOK).toMatch(/if \(!loaded \|\| busy\.current\) return;/);
     expect(HOOK).toMatch(/thumbnail\(file\)/);
     expect(HOOK).not.toMatch(/createObjectURL\(file/);
   });

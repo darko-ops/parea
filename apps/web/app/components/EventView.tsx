@@ -366,6 +366,7 @@ export function EventView({
   const shownIds = useMemo(() => new Set(feed.photos.map((p) => p.id)), [feed.photos]);
   // And the ones that have not, drawn in the gallery from the file in hand.
   const previews = useUploadPreviews({
+    eventId,
     items: uploads.items,
     fileOf: uploads.fileOf,
     shown: shownIds,
@@ -475,8 +476,15 @@ export function EventView({
    * as it is left open. After this many tries it stops and a reload is the
    * remedy — which is the honest position, since by then something is wrong.
    */
+  /*
+   * Also while the gallery shows photos it kept from an earlier visit as
+   * processing. They wait for a read of this page's own before believing
+   * "nothing arriving" — see `useUploadPreviews` — and without a poll a page
+   * opened on a feed that already said so would never make that read.
+   */
+  const waiting = previews.some((p) => p.state === 'processing');
   useEffect(() => {
-    if (!uploads.running && feed.arriving === 0) return;
+    if (!uploads.running && feed.arriving === 0 && !waiting) return;
 
     let tries = 0;
     const timer = setInterval(() => {
@@ -487,7 +495,7 @@ export function EventView({
       void refresh();
     }, 4000);
     return () => clearInterval(timer);
-  }, [uploads.running, feed.arriving, refresh]);
+  }, [uploads.running, feed.arriving, waiting, refresh]);
 
   const pick = useCallback(
     async (picked: File[]) => {

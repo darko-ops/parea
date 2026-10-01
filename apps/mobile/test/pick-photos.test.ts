@@ -264,15 +264,20 @@ describe('the sandbox copy', () => {
     expect(LIBRARY).toMatch(/if \(!copy\.exists\)/);
   });
 
-  it('deletes the copy once the bytes have landed, and not before', () => {
+  it('keeps the copy past the upload, for the stand-in drawing from it', () => {
     const PLATFORM = read('src/platform.ts');
-    // After a 2xx. A retry needs the bytes, so anything earlier is a queue that
-    // cannot try again.
-    const after = PLATFORM.slice(PLATFORM.indexOf('upload failed: ${result.status}'));
-    expect(after).toMatch(/new File\(source\)\.delete\(\)/);
-    // And only ever our own outbox: the same function sends covers, and
-    // deleting a file somebody else owns would be a way to eat a camera roll.
-    expect(after).toMatch(/inOutbox\(source\)/);
+    // Not after a 2xx any more: a picked or Android photograph's stand-in
+    // draws from this file until the deriver has been round. The app deletes
+    // it when nothing holds it — see instant-previews.test.ts.
+    const after = PLATFORM.slice(
+      PLATFORM.indexOf('upload failed: ${result.status}'),
+      PLATFORM.indexOf('export async function fetchForCover'),
+    );
+    expect(after).not.toMatch(/new File\(source\)\.delete\(\)/);
+    // And deletion is still only ever our own outbox: the same function sends
+    // covers, and deleting a file somebody else owns would eat a camera roll.
+    const LIBRARY_RELEASE = LIBRARY.slice(LIBRARY.indexOf('export function releaseCopies'));
+    expect(LIBRARY_RELEASE).toMatch(/inOutbox\(uri\)/);
   });
 
   it('keeps the copies somewhere the system may reclaim', () => {

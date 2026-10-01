@@ -19,7 +19,9 @@ import { describe, expect, it } from 'vitest';
 
 import {
   PROCESSING_GIVE_UP_MS,
+  heldCopies,
   nextPreviews,
+  nextPreviewsByEvent,
   previewLabel,
   previewsInFlight,
   type Preview,
@@ -119,6 +121,68 @@ describe('the deriver’s half of the wait', () => {
   });
 });
 
+describe('every roll at once', () => {
+  const feeds = new Map<string, ReadonlySet<string>>();
+
+  it('keeps each roll’s stand-ins under its own id', () => {
+    const next = nextPreviewsByEvent(
+      {},
+      [item('a', 'pending'), { ...item('b', 'pending'), eventId: 'event-2' }],
+      feeds,
+      0,
+      uri,
+    );
+    expect(Object.keys(next).sort()).toEqual([EVENT, 'event-2']);
+    expect(next[EVENT]!.map((p) => p.id)).toEqual(['a']);
+    expect(next['event-2']!.map((p) => p.id)).toEqual(['b']);
+  });
+
+  it('remembers a roll whose items the queue has pruned', () => {
+    // Nobody has the roll open and the queue is empty: the stand-in is held
+    // here or nowhere, which is what leaving a roll used to lose.
+    const was = nextPreviewsByEvent({}, [item('a', 'done', { photoId: 'p-a' })], feeds, 0, uri);
+    const after = nextPreviewsByEvent(was, [], feeds, 1000, uri);
+    expect(after[EVENT]).toEqual([
+      expect.objectContaining({ id: 'a', state: 'processing', processingSince: 0 }),
+    ]);
+  });
+
+  it('lets a roll go once its feed has the photograph, or the wait is given up', () => {
+    const was = nextPreviewsByEvent({}, [item('a', 'done', { photoId: 'p-a' })], feeds, 0, uri);
+    expect(nextPreviewsByEvent(was, [], new Map([[EVENT, new Set(['p-a'])]]), 1, uri)).toEqual({});
+    expect(nextPreviewsByEvent(was, [], feeds, PROCESSING_GIVE_UP_MS + 1, uri)).toEqual({});
+  });
+
+  it('comes back unchanged when no roll moved', () => {
+    const was = nextPreviewsByEvent({}, [item('a', 'pending')], feeds, 0, uri);
+    expect(nextPreviewsByEvent(was, [item('a', 'pending')], feeds, 0, uri)).toBe(was);
+  });
+});
+
+describe('the copies the stand-ins draw from', () => {
+  it('is held while queued, and while a stand-in is drawing it after that', () => {
+    const queued = [item('a', 'done', { photoId: 'p-a' })];
+    const byEvent = nextPreviewsByEvent({}, queued, new Map(), 0, () => 'ph://a');
+    expect(byEvent[EVENT]![0]!.copy).toBe('file:///cache/outbox/a.jpg');
+
+    // Pruned: the queue lets go, the stand-in does not.
+    const pruned = nextPreviewsByEvent(byEvent, [], new Map(), 1, () => 'ph://a');
+    expect(heldCopies([], pruned).has('file:///cache/outbox/a.jpg')).toBe(true);
+
+    // Arrived: nothing holds it, so it may be deleted.
+    const arrived = nextPreviewsByEvent(pruned, [], new Map([[EVENT, new Set(['p-a'])]]), 2, uri);
+    expect(heldCopies([], arrived).size).toBe(0);
+  });
+
+  it('is held by the queue while the stand-in has already gone', () => {
+    // In the feed and not yet pruned: finished as a stand-in, not as an upload.
+    const queued = [item('a', 'done', { photoId: 'p-a' })];
+    const byEvent = nextPreviewsByEvent({}, queued, new Map([[EVENT, new Set(['p-a'])]]), 0, uri);
+    expect(byEvent).toEqual({});
+    expect(heldCopies(queued, byEvent).has('file:///cache/outbox/a.jpg')).toBe(true);
+  });
+});
+
 describe('what leaves without arriving', () => {
   it('goes with an item that was forgotten before it had an id', () => {
     const was = nextPreviews([], [item('a', 'stale')], EVENT, none, 0, uri);
@@ -138,7 +202,13 @@ describe('the list itself', () => {
   });
 
   it('is in flight while anything is uploading or processing', () => {
-    const p = (state: Preview['state']): Preview => ({ id: state, uri: '', state, progress: null });
+    const p = (state: Preview['state']): Preview => ({
+      id: state,
+      uri: '',
+      copy: '',
+      state,
+      progress: null,
+    });
     expect(previewsInFlight([p('failed'), p('stale')])).toBe(false);
     expect(previewsInFlight([p('failed'), p('processing')])).toBe(true);
     expect(previewsInFlight([p('uploading')])).toBe(true);
@@ -150,7 +220,9 @@ describe('the list itself', () => {
   });
 });
 
-const APP = readFileSync(fileURLToPath(new URL('../App.tsx', import.meta.url)), 'utf8');
+const read = (path: string) =>
+  readFileSync(fileURLToPath(new URL(`../${path}`, import.meta.url)), 'utf8');
+const APP = read('App.tsx');
 
 describe('the roll’s grid', () => {
   const grid = APP.slice(APP.indexOf('ref={gridList}'), APP.indexOf('ref={keptList}'));
@@ -189,5 +261,59 @@ describe('the roll’s grid', () => {
 
   it('keeps polling the feed while a stand-in is waiting for it', () => {
     expect(APP).toMatch(/if \(previewsInFlight\(pendingTiles\)\) stillComing\.current = true;/);
+  });
+});
+
+describe('leaving a roll and coming back', () => {
+  const screen = APP.slice(APP.indexOf('function EventScreen('));
+
+  it('keeps the stand-ins in the app, not in the roll’s screen', () => {
+    expect(APP).toMatch(/const \[previews, setPreviews\] = useState<PreviewsByEvent>\(\{\}\);/);
+    expect(screen).not.toMatch(/useState<Preview\[\]>/);
+    expect(APP).toMatch(/previews=\{previews\[route\.event\.id\] \?\? NO_PREVIEWS\}/);
+    expect(APP).toMatch(/onFeedSeen=\{feedSeen\}/);
+  });
+
+  it('moves them on every queue save, whichever roll is open', () => {
+    expect(APP).toMatch(/useEffect\(\(\) => lookAtPreviews\(\), \[uploads, lookAtPreviews\]\);/);
+    expect(APP).toMatch(/nextPreviewsByEvent\(was, uploadsNow\.current\.items, feedsSeen\.current/);
+  });
+
+  it('hands each feed up, which is what retires a stand-in', () => {
+    expect(screen).toMatch(/if \(feed\) onFeedSeen\(event\.id, feedIds\);/);
+  });
+
+  it('looks again while one is coming, so a roll nobody has open still gives up', () => {
+    expect(APP).toMatch(/Object\.values\(previews\)\.some\(previewsInFlight\)/);
+    expect(APP).toMatch(/setInterval\(lookAtPreviews, 30_000\)/);
+  });
+});
+
+describe('the file a stand-in draws from', () => {
+  const PLATFORM = read('src/platform.ts');
+  const LIBRARY = read('src/library.ts');
+
+  it('is not deleted when its upload lands', () => {
+    const upload = PLATFORM.slice(
+      PLATFORM.indexOf('export async function uploadItem'),
+      PLATFORM.indexOf('export async function fetchForCover'),
+    );
+    expect(upload).not.toMatch(/\.delete\(\)/);
+  });
+
+  it('is deleted when neither the queue nor a stand-in holds it', () => {
+    expect(APP).toMatch(/const now = heldCopies\(uploads\.items, previews\);/);
+    expect(APP).toMatch(/releaseCopies\(gone, state\.items\.map\(\(item\) => item\.source\)\)/);
+    const release = LIBRARY.slice(LIBRARY.indexOf('export function releaseCopies'));
+    // Only our own, and never one the queue on disk has taken back.
+    expect(release).toMatch(/if \(!inOutbox\(uri\) \|\| keep\.has\(outboxName\(uri\)\)\) continue;/);
+  });
+
+  it('cannot pile up: what nothing names is swept at launch, once it is old', () => {
+    expect(APP).toMatch(/sweepOutbox\(state\.items\.map\(\(item\) => item\.source\)\)/);
+    const sweep = LIBRARY.slice(LIBRARY.indexOf('export function sweepOutbox'));
+    expect(LIBRARY).toMatch(/export const OUTBOX_STRAY_MS = 60 \* 60 \* 1000;/);
+    expect(sweep).toMatch(/keep\.has\(outboxName\(entry\.uri\)\)/);
+    expect(sweep).toMatch(/now - at < OUTBOX_STRAY_MS/);
   });
 });

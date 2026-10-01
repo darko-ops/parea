@@ -331,8 +331,8 @@ export async function uploadItem(item: QueueItem): Promise<void> {
    * Two conditions, and getting it down to one crashed the app. The queue is
    * persisted, so an item may carry the asset's own path from before the copy
    * existed — `/var/mobile/Media/DCIM/…`, which a background session can never
-   * open. But a copy this function made can also be *gone*: it is deleted after
-   * a successful upload, and `Paths.cache` is a directory iOS empties whenever
+   * open. But a copy this function made can also be *gone*: it is deleted once
+   * its upload is finished with, and `Paths.cache` is a directory iOS empties whenever
    * it likes. Checking only "is it ours" sent `UploadTask` at a path that had
    * been deleted, and the native side does not return an error for that — it
    * raises, and an uncaught ObjC exception takes the whole app down:
@@ -423,27 +423,19 @@ export async function uploadItem(item: QueueItem): Promise<void> {
   }
 
   /*
-   * The copy has done its job, so it goes.
+   * The copy stays, for now.
    *
-   * `resolveForUpload` copies each chosen photograph into the cache because a
-   * background session cannot read one out of the Photos container. That leaves
-   * a second copy of somebody's evening on their phone, and the moment it stops
-   * being needed is this one — after a 2xx, never before, because a retry needs
-   * the bytes.
+   * It used to go here, after the 2xx — the first moment a retry could no
+   * longer want it. But a retry is not the last thing that wants it: a photograph
+   * added from the picker, or on Android, is drawn in its roll from this very
+   * file until the deriver has been round, and deleting it here left that
+   * stand-in drawing from memory alone. Leaving the roll and coming back
+   * found nothing to draw.
    *
-   * Only ever our own outbox: the same function uploads covers and anything else
-   * a caller points it at, and deleting a file somebody else owns because it
-   * happened to be uploaded would be a fine way to eat a camera roll.
-   *
-   * Swallowed, because a copy that outlives its upload is litter in a directory
-   * iOS empties under pressure, and failing an upload that has already
-   * succeeded over it would be the worse outcome by far.
+   * So the app deletes it, when the queue has let the item go and no stand-in
+   * is drawing it — `releaseCopies` — and a sweep at launch takes whatever was
+   * still here when the app last stopped. See `src/previews.ts`.
    */
-  if (inOutbox(source)) {
-    try {
-      new File(source).delete();
-    } catch {}
-  }
 }
 
 /**
