@@ -1,6 +1,6 @@
 import { ago } from '@parea/cards';
 import { schema, visiblePhotos } from '@parea/core';
-import { and, countDistinct, desc, eq, inArray, isNull } from 'drizzle-orm';
+import { and, countDistinct, desc, eq, inArray, isNotNull, isNull } from 'drizzle-orm';
 import { notFound, redirect } from 'next/navigation';
 
 import { EventView } from '@/../app/components/EventView';
@@ -210,6 +210,10 @@ export default async function EventPage({
         eq(schema.photos.eventId, event.id),
         eq(schema.photos.status, 'pending'),
         isNull(schema.photos.deletedAt),
+        // Only photos whose bytes have landed and are being processed. A row
+        // reserved for an upload that never came is not arriving, and counting
+        // it left "4 arriving" on an album for a day after a failed upload.
+        isNotNull(schema.photos.bytesAt),
       ),
     );
 

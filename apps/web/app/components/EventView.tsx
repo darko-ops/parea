@@ -337,12 +337,28 @@ export function EventView({
     (m) => !m.author.mine && !m.deleted && (!lastSeen || m.createdAt > lastSeen),
   ).length;
 
+  /*
+   * Only the newest answer is kept.
+   *
+   * Two schedules ask for this — the 4-second poll and every upload as it
+   * lands — and their answers can come back in either order. An older one
+   * landing last used to put the page back a step: the "arriving" pill
+   * vanished and returned, and photos already shown blinked out and in.
+   */
+  const latestRefresh = useRef(0);
   const refresh = useCallback(async () => {
-    const res = await fetch(`/api/events/${eventId}/photos`);
-    if (res.ok) setFeed(await res.json());
+    const ticket = ++latestRefresh.current;
+    const res = await fetch(`/api/events/${eventId}/photos`).catch(() => null);
+    if (!res?.ok) return;
+    const next = (await res.json()) as Feed;
+    if (ticket !== latestRefresh.current) return;
+    setFeed(next);
   }, [eventId]);
 
   const uploads = useUploads(eventId, refresh);
+
+  // Which uploads have become photos on the page — see `Uploads`.
+  const shownIds = useMemo(() => new Set(feed.photos.map((p) => p.id)), [feed.photos]);
 
   /**
    * Handing somebody the camera, or taking it back.
@@ -1066,7 +1082,12 @@ export function EventView({
             At the foot, and folded away. It is a progress report: worth being
             able to open, never worth sitting between somebody and the pictures.
           */}
-          <Uploads uploads={uploads} onPick={() => inputRef.current?.click()} />
+          <Uploads
+            uploads={uploads}
+            shown={shownIds}
+            arriving={feed.arriving}
+            onPick={() => inputRef.current?.click()}
+          />
           <SiteFooter />
         </div>
       )}
@@ -1674,9 +1695,15 @@ function relativeDay(iso: string): string {
 
 function Uploads({
   uploads,
+  shown,
+  arriving,
   onPick,
 }: {
   uploads: ReturnType<typeof useUploads>;
+  /** Ids of the photos the page is showing — a photo is only done once here. */
+  shown: Set<string>;
+  /** Photos uploaded and still being processed, from the server. */
+  arriving: number;
   onPick: () => void;
 }) {
   /*
@@ -1687,12 +1714,32 @@ function Uploads({
    */
   const [choice, setChoice] = useState<boolean | null>(null);
   const needsAttention = uploads.stale.length > 0 || uploads.failed > 0;
-  const open = choice ?? (uploads.running || needsAttention);
-
   if (uploads.items.length === 0) return null;
 
   const total = uploads.items.length;
-  const done = uploads.done;
+  /*
+   * Done means on the page, not merely sent.
+   *
+   * The bar used to count an upload as finished when its bytes landed, and the
+   * photo appears a few seconds later, after processing — so the bar sat full
+   * over an album that had not changed. Now a sent photo is finished once it is
+   * showing, or once nothing is left arriving (a duplicate is dropped by
+   * processing and will never show; nothing arriving means it has been
+   * decided).
+   */
+  const finished = (item: (typeof uploads.items)[number]) =>
+    item.status === 'done' && ((item.photoId != null && shown.has(item.photoId)) || arriving === 0);
+  const done = uploads.items.filter(finished).length;
+  const processing = uploads.items.filter((i) => i.status === 'done' && !finished(i)).length;
+  // Open while sending or processing, or while something needs a decision.
+  const open = choice ?? (uploads.running || processing > 0 || needsAttention);
+  const progress =
+    total === 0
+      ? 0
+      : Math.round(
+          uploads.items.reduce((sum, i) => sum + (finished(i) ? 100 : fractionOf(i.status)), 0) /
+            total,
+        );
 
   return (
     <details
@@ -1708,24 +1755,32 @@ function Uploads({
           <strong>
             {uploads.running
               ? `Adding ${total} ${total === 1 ? 'photo' : 'photos'} · ${done} done`
-              : `Added ${done} of ${total}`}
+              : processing > 0
+                ? `Finishing ${processing} ${processing === 1 ? 'photo' : 'photos'}…`
+                : `Added ${done} of ${total}`}
           </strong>
           <span className="muted">
             {uploads.running
               ? 'Keep this tab open. A reload carries on from here.'
               : needsAttention
                 ? 'Some of these need another look.'
-                : 'Finished.'}
+                : processing > 0
+                  ? 'Sent. They appear here as they finish processing.'
+                  : 'Finished.'}
           </span>
         </span>
         <span className="bar" aria-hidden="true">
           <span
-            className={`bar-fill${uploads.running ? ' bar-moving' : ''}`}
-            style={{ width: `${total === 0 ? 0 : Math.round((done / total) * 100)}%` }}
+            className={`bar-fill${uploads.running || processing > 0 ? ' bar-moving' : ''}`}
+            style={{ width: `${progress}%` }}
           />
         </span>
         <span className="uploads-left">
-          {uploads.remaining > 0 ? `${uploads.remaining} to go` : 'done'}
+          {uploads.remaining > 0
+            ? `${uploads.remaining} to go`
+            : processing > 0
+              ? 'processing'
+              : 'done'}
         </span>
       </summary>
 
@@ -1764,7 +1819,7 @@ function Uploads({
                 <span className="upload-bar" aria-hidden="true">
                   <span
                     className="upload-bar-fill"
-                    style={{ width: `${fractionOf(item.status)}%` }}
+                    style={{ width: `${finished(item) ? 100 : fractionOf(item.status)}%` }}
                   />
                 </span>
               )}
@@ -1797,9 +1852,11 @@ function fractionOf(status: string): number {
     case 'presigned':
       return 15;
     case 'uploaded':
-      return 70;
+      return 60;
     case 'done':
-      return 100;
+      // Sent, and being processed; 100 is for when it is on the page — see
+      // `finished` in `Uploads`.
+      return 85;
     default:
       return 0;
   }

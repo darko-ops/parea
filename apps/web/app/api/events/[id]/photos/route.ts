@@ -12,7 +12,7 @@
 
 import { ago } from '@parea/cards';
 import { schema, visiblePhotos } from '@parea/core';
-import { and, countDistinct, desc, eq, inArray, isNull, sql } from 'drizzle-orm';
+import { and, countDistinct, desc, eq, inArray, isNotNull, isNull, sql } from 'drizzle-orm';
 import { NextResponse } from 'next/server';
 
 import { decide, findEventById, guard, toResponse } from '@/access';
@@ -135,6 +135,10 @@ export async function GET(
           eq(schema.photos.eventId, event.id),
           eq(schema.photos.status, 'pending'),
           isNull(schema.photos.deletedAt),
+          // Only photos whose bytes have landed and are being processed. A row
+          // reserved for an upload that never came is not arriving, and counting
+          // it left "4 arriving" on an album for a day after a failed upload.
+          isNotNull(schema.photos.bytesAt),
         ),
       ),
     // Folded into the feed rather than given its own timer. The event page

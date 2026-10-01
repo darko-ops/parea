@@ -485,7 +485,7 @@ describe('resuming survives an effect that runs twice', () => {
     // The flag being released is only safe because the cancelled invocation
     // checks before it touches anything.
     expect(hook).toMatch(/if \(cancelled\) return;/);
-    expect(hook).toMatch(/if \(!restored\) return;/);
+    expect(hook).toMatch(/if \(!restored\) \{[\s\S]*?return;\s*\}/);
   });
 
   /**

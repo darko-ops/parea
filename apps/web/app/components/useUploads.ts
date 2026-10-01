@@ -105,13 +105,35 @@ export function useUploads(eventId: string, onProgress?: () => void): UploadsVie
       store.current = opened;
       if (!opened) return;
 
+      /*
+       * Show the saved queue at once, before checking its files.
+       *
+       * The check reads every saved photo, and until it finished the panel was
+       * empty — so a refresh made the progress bar vanish and the page jump,
+       * then the bar came back. The saved state is already the right picture;
+       * the check only corrects the few that turn out unreadable.
+       */
+      const early = await opened.loadState(eventId).catch(() => null);
+      if (cancelled) return;
+      if (early && early.items.length > 0) {
+        setSnapshot({ items: [...early.items] });
+        setResumed(true);
+      }
+
       const restored = await restore(eventId, opened, { lent }).catch(() => null);
       if (cancelled) return;
       // Past the last point this run can be discarded, so the handles have
       // reached the queue that will actually send them — including when there
       // was nothing to restore, which means no queue is coming for them.
       release(eventId);
-      if (!restored) return;
+      if (!restored) {
+        // Nothing left to send after all: take back the early picture.
+        if (early) {
+          setSnapshot(EMPTY);
+          setResumed(false);
+        }
+        return;
+      }
 
       queue.current = restored.queue;
       files.current = restored.files;

@@ -195,23 +195,27 @@ export async function restore(
     return null;
   }
 
-  for (const item of outstanding) {
-    /*
-     * An item whose bytes are already in storage needs no handle. What is left
-     * for it is the confirmation, and probing for a `File` it will never be
-     * asked to read again would mark a photograph that uploaded perfectly well
-     * as stale — asking somebody to pick it a second time to fix nothing.
-     */
-    if (item.status === 'uploaded') continue;
+  // All at once rather than one after another: a resumed queue of fifty
+  // photos was fifty sequential reads before the panel could say anything.
+  await Promise.all(
+    outstanding.map(async (item) => {
+      /*
+       * An item whose bytes are already in storage needs no handle. What is
+       * left for it is the confirmation, and probing for a `File` it will never
+       * be asked to read again would mark a photograph that uploaded perfectly
+       * well as stale — asking somebody to pick it a second time to fix nothing.
+       */
+      if (item.status === 'uploaded') return;
 
-    const file = lent.get(item.id) ?? (await store.getFile(item.id));
-    if (file && (await readable(file))) {
-      files.set(item.id, file);
-    } else {
-      item.status = 'stale';
-      item.error = 'the browser can no longer read this file';
-    }
-  }
+      const file = lent.get(item.id) ?? (await store.getFile(item.id));
+      if (file && (await readable(file))) {
+        files.set(item.id, file);
+      } else {
+        item.status = 'stale';
+        item.error = 'the browser can no longer read this file';
+      }
+    }),
+  );
 
   const queue = new UploadQueue(
     browserDeps({ eventId, store, files, fetch }),
