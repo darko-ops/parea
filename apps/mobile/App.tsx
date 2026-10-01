@@ -1936,7 +1936,7 @@ export default function App() {
               t={t}
               Button={Button}
               gate
-              why="Sign in to Parea"
+              why="Sign in"
               onSignedIn={() => {
                 void refreshAccount();
                 void refreshEvents();

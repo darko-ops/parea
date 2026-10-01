@@ -66,6 +66,7 @@ import { ROUND, RoundButton } from './RoundButton';
 import { MomentsBar, MomentsViewer, useMoments } from './Moments';
 import { IconField } from './IconField';
 import { StartSomething } from './StartSomething';
+import { IconGlyph } from './IconGlyph';
 import { Wordmark } from './Wordmark';
 import type { GroupTheme } from './Groups';
 import { BELOW_TABS } from './chrome';
@@ -3885,6 +3886,18 @@ export function AccountCard({
 
   return (
     <View style={[styles.card, { backgroundColor: t.card, borderColor: t.line }]}>
+      {/*
+        The mark and the name, on the screen that stands in front of the whole
+        app — the first thing somebody new sees, and the web's sign-in card
+        opens the same way. Not on the optional card inside the profile, which
+        is a section of a page that already says where you are.
+      */}
+      {gate && (
+        <View style={styles.brand}>
+          <IconGlyph size={56} color={t.fg} />
+          <Wordmark color={t.fg} size={34} width={140} />
+        </View>
+      )}
       <Text style={[styles.label, { color: t.fg }]}>
         {why ?? 'Keep these on a new phone'}
       </Text>
@@ -4269,6 +4282,7 @@ const styles = StyleSheet.create({
   small: { fontSize: 13, lineHeight: 18 },
   input: { borderWidth: 1, borderRadius: 10, padding: 12, fontSize: 16 },
   /* Sign in | Create account: two halves of one control. */
+  brand: { alignItems: 'center', gap: 6, paddingTop: 8, paddingBottom: 4 },
   authSwitch: { flexDirection: 'row', borderWidth: 1, borderRadius: 12, padding: 3, gap: 3 },
   authOption: { flex: 1, borderRadius: 9, paddingVertical: 9, alignItems: 'center' },
   authOptionText: { fontSize: 14, fontWeight: '600' },
