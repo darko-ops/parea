@@ -165,7 +165,48 @@ const ROWS: {
 ];
 
 
+/*
+ * Who is signed in, for the line under Settings.
+ *
+ * Kept for the tab's session as well as asked for, so moving between pages
+ * draws the handle at once instead of an empty line that fills in a moment
+ * later — the rail is on every page, and a name that blinks on each one reads
+ * as the page not being sure who you are. Asked again on every mount all the
+ * same, because the stored one can be stale: a sign-out in another tab, or a
+ * handle changed in Edit profile.
+ */
+const HANDLE_KEY = 'parea.rail-handle';
+
+function useSignedInHandle(): string | null {
+  const [handle, setHandle] = useState<string | null>(null);
+  useEffect(() => {
+    try {
+      setHandle(sessionStorage.getItem(HANDLE_KEY));
+    } catch {
+      // Blocked storage: the handle arrives with the answer below instead.
+    }
+    let live = true;
+    fetch('/api/account/session')
+      .then((r) => r.json())
+      .then((body: { account?: { handle?: string | null } | null }) => {
+        if (!live) return;
+        const next = body.account?.handle ?? null;
+        setHandle(next);
+        try {
+          if (next) sessionStorage.setItem(HANDLE_KEY, next);
+          else sessionStorage.removeItem(HANDLE_KEY);
+        } catch {}
+      })
+      .catch(() => {});
+    return () => {
+      live = false;
+    };
+  }, []);
+  return handle;
+}
+
 export function Rail({ current }: { current: RailPage }) {
+  const handle = useSignedInHandle();
   const [open, setOpen] = useState(false);
   const close = useCallback(() => setOpen(false), []);
   const ref = useRef<HTMLElement>(null);
@@ -365,6 +406,16 @@ export function Rail({ current }: { current: RailPage }) {
           <RailIcon glyph="settings" weight={current === 'settings' ? 2.5 : 2} />
           <span className="rail-label">Settings</span>
         </a>
+        {/*
+          Who this is, in grey under Settings — the question a shared laptop
+          or a second account makes worth answering at a glance. Not a link:
+          You, above, is the way to the profile, and this is a label.
+        */}
+        {handle && (
+          <p className="rail-handle" title={`Signed in as @${handle}`}>
+            @{handle}
+          </p>
+        )}
         </div>
       </div>
     </nav>
