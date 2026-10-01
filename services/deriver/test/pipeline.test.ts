@@ -23,7 +23,9 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vites
 
 import { crc32 } from '../src/crc32';
 import {
+  backfillAvif,
   backfillDerivative,
+  photosMissingAvif,
   pendingPhotoIds,
   photosMissingDerivative,
 } from '../src/pipeline';
@@ -251,6 +253,8 @@ describe('pipeline results', () => {
   it('writes every size in every encoding, none larger than its bound', async () => {
     const { photo } = await seedPhoto(await geotaggedJpeg(5));
     await processPhoto({ db, objects, scanner }, photo.id);
+    // Ingest makes JPEG; the AVIF versions are the idle-time backlog's.
+    await backfillAvif({ db, objects }, photo.id);
 
     const rows = await db
       .select()
@@ -296,6 +300,8 @@ describe('pipeline results', () => {
     // encoder fails here rather than at the format table.
     const { photo } = await seedPhoto(await geotaggedJpeg(15));
     await processPhoto({ db, objects, scanner }, photo.id);
+    // Ingest makes JPEG; the AVIF versions are the idle-time backlog's.
+    await backfillAvif({ db, objects }, photo.id);
 
     const [row] = await db
       .select()
@@ -489,6 +495,8 @@ describe('HEIC', () => {
      */
     const { photo } = await seedPhoto(await geotaggedJpeg(6));
     await processPhoto({ db, objects, scanner }, photo.id);
+    // Ingest makes JPEG; the AVIF versions are the idle-time backlog's.
+    await backfillAvif({ db, objects }, photo.id);
 
     const cards = await db
       .select()
@@ -528,6 +536,8 @@ describe('HEIC', () => {
     // their own hashes.
     const { photo } = await seedPhoto(await geotaggedJpeg(7));
     await processPhoto({ db, objects, scanner }, photo.id);
+    // Ingest makes JPEG; the AVIF versions are the idle-time backlog's.
+    await backfillAvif({ db, objects }, photo.id);
 
     const before = await db
       .select()
@@ -549,12 +559,49 @@ describe('HEIC', () => {
     const { photo } = await seedPhoto(HEVC_HEIC_SAMPLE, 'image/heic');
     const outcome = await processPhoto({ db, objects, scanner }, photo.id);
     expect(outcome.status).toBe('ready');
+    await backfillAvif({ db, objects }, photo.id);
     const rows = await db
       .select()
       .from(schema.derivatives)
       .where(eq(schema.derivatives.photoId, photo.id));
     // Four sizes, two encodings for the three that are looked at on a screen.
     expect(rows).toHaveLength(7);
+  });
+});
+
+describe('JPEG first, AVIF after', () => {
+  it('makes only the JPEG sizes at ingest, so the photo is ready sooner', async () => {
+    const { photo } = await seedPhoto(await geotaggedJpeg(21));
+    const outcome = await processPhoto({ db, objects, scanner }, photo.id);
+    expect(outcome.status).toBe('ready');
+    const rows = await db.select().from(schema.derivatives).where(eq(schema.derivatives.photoId, photo.id));
+    expect(rows.map((r: any) => `${r.kind}.${r.format}`).sort()).toEqual([
+      'card.jpeg',
+      'full.jpeg',
+      'grid.jpeg',
+      'thumb.jpeg',
+    ]);
+    expect(await photosMissingAvif(db)).toContain(photo.id);
+  });
+
+  it('then fills in the AVIF versions once, and only those', async () => {
+    const { photo } = await seedPhoto(await geotaggedJpeg(22));
+    await processPhoto({ db, objects, scanner }, photo.id);
+
+    expect(await backfillAvif({ db, objects }, photo.id)).toBe('done');
+    expect(await photosMissingAvif(db)).not.toContain(photo.id);
+    // Asking again finds nothing to do.
+    expect(await backfillAvif({ db, objects }, photo.id)).toBe('skipped');
+
+    const avif = await db
+      .select()
+      .from(schema.derivatives)
+      .where(and(eq(schema.derivatives.photoId, photo.id), eq(schema.derivatives.format, 'avif')));
+    expect(avif.map((r: any) => r.kind).sort()).toEqual(['card', 'grid', 'thumb']);
+    for (const row of avif) {
+      const bytes = (await objects.get(row.storageKey))!;
+      expect(bytes.subarray(4, 12).toString('latin1')).toBe('ftypavif');
+    }
   });
 });
 

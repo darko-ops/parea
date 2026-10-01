@@ -13,13 +13,13 @@
  */
 
 import { recordModeration, REASON, schema } from '@parea/core';
-import { and, eq, isNotNull, isNull, lt, ne, or, sql } from 'drizzle-orm';
+import { and, desc, eq, isNotNull, isNull, lt, ne, or, sql } from 'drizzle-orm';
 import { createHash } from 'node:crypto';
 import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { derivativeKey, type ImageFormat } from '@parea/urls';
+import { derivativeKey, formatsFor, type ImageFormat, type ImageKind } from '@parea/urls';
 
 import { crc32 } from './crc32';
 import {
@@ -33,6 +33,7 @@ import {
 } from './moderation';
 import {
   buildDerivatives,
+  DERIVATIVES,
   readDimensions,
   type DerivativeKind,
 } from './derivatives';
@@ -224,7 +225,10 @@ export async function processPhoto(
 
     let derivatives;
     try {
-      derivatives = await buildDerivatives(stripped);
+      // JPEG only, so the photo appears as soon as it can. Its AVIF versions
+      // are made when the deriver is idle — see `backfillAvif` — and until
+      // then the image Worker answers an AVIF request with the JPEG.
+      derivatives = await buildDerivatives(stripped, undefined, ['jpeg']);
     } catch (err) {
       // The common cause is a build of sharp without an HEVC decoder, which is
       // an operational fault rather than a bad photo — hence the boot probe.
@@ -691,4 +695,94 @@ export async function readyPhotosAfter(
     .orderBy(schema.photos.id)
     .limit(limit);
   return rows.map((row: { id: string }) => row.id);
+}
+
+/** The sizes that have an AVIF version — see `formatsFor` in @parea/urls. */
+const AVIF_KINDS = DERIVATIVES.map((d) => d.kind).filter((kind) =>
+  formatsFor(kind as ImageKind).includes('avif'),
+);
+
+/**
+ * Ready photos with a JPEG size whose AVIF version has not been made yet,
+ * oldest first. Ingest makes JPEG only; these are what `backfillAvif` is for.
+ */
+export async function photosMissingAvif(db: any, limit = 20): Promise<string[]> {
+  const kinds = sql.join(AVIF_KINDS.map((k) => sql`${k}`), sql`, `);
+  const rows = await db
+    .select({ id: schema.photos.id })
+    .from(schema.photos)
+    .where(
+      and(
+        eq(schema.photos.status, 'ready'),
+        isNull(schema.photos.deletedAt),
+        isNotNull(schema.photos.contentHash),
+        sql`exists (
+          select 1 from "derivative" j
+          where j.photo_id = ${schema.photos.id} and j.format = 'jpeg' and j.kind in (${kinds})
+            and not exists (
+              select 1 from "derivative" a
+              where a.photo_id = j.photo_id and a.kind = j.kind and a.format = 'avif'
+            )
+        )`,
+      ),
+    )
+    .orderBy(desc(schema.photos.uploadedAt))
+    .limit(limit);
+  return rows.map((r: { id: string }) => r.id);
+}
+
+/**
+ * The AVIF versions of one ready photo's sizes — the half ingest leaves for
+ * later. Reads the stored (stripped) original, encodes only the sizes that
+ * have a JPEG and no AVIF yet, and records them; until it has, the image
+ * Worker serves the JPEG in their place. Idempotent: rows are
+ * `onConflictDoNothing` and the objects are keyed by content hash.
+ */
+export async function backfillAvif(
+  { db, objects }: { db: any; objects: ObjectStore },
+  photoId: string,
+): Promise<'done' | 'skipped' | 'failed'> {
+  const [photo] = await db
+    .select()
+    .from(schema.photos)
+    .where(eq(schema.photos.id, photoId))
+    .limit(1);
+  if (!photo || photo.status !== 'ready' || !photo.contentHash) return 'skipped';
+
+  const have = await db
+    .select({ kind: schema.derivatives.kind, format: schema.derivatives.format })
+    .from(schema.derivatives)
+    .where(eq(schema.derivatives.photoId, photoId));
+  const missing = AVIF_KINDS.filter(
+    (kind) =>
+      have.some((d: { kind: string; format: string }) => d.kind === kind && d.format === 'jpeg') &&
+      !have.some((d: { kind: string; format: string }) => d.kind === kind && d.format === 'avif'),
+  ) as DerivativeKind[];
+  if (missing.length === 0) return 'skipped';
+
+  const original = await objects.get(photo.storageKey);
+  if (!original) return 'failed';
+  const made = await buildDerivatives(original, missing, ['avif']).catch(() => null);
+  if (!made || made.length === 0) return 'failed';
+
+  const hex = photo.contentHash.toString('hex');
+  await Promise.all(
+    made.map((d) => objects.put(derivativeKey(photo.eventId, hex, d.kind, d.format), d.bytes, d.mime)),
+  );
+  await db
+    .insert(schema.derivatives)
+    .values(
+      made.map((d) => ({
+        photoId: photo.id,
+        kind: d.kind,
+        format: d.format,
+        storageKey: derivativeKey(photo.eventId, hex, d.kind, d.format),
+        width: d.width,
+        height: d.height,
+        mime: d.mime,
+        byteSize: d.bytes.length,
+      })),
+    )
+    .onConflictDoNothing();
+  return 'done';
 }

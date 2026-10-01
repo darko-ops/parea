@@ -85,8 +85,17 @@ export const DEFAULT_CONCURRENCY = 1;
 
 export function createHandler(
   deps: Deps,
-  options: { concurrency?: number } = {},
-): (photoId: string) => Promise<Reply> {
+  options: {
+    concurrency?: number;
+    /**
+     * Background work for when no photo is in hand — one unit per call,
+     * answering whether there may be more. The AVIF versions ingest skips
+     * (see `backfillAvif`). Run between deliveries, never during one, and it
+     * stops as soon as a delivery arrives.
+     */
+    idle?: () => Promise<boolean>;
+  } = {},
+): ((photoId: string) => Promise<Reply>) & { idleNow: () => Promise<void> } {
   const limit = options.concurrency ?? DEFAULT_CONCURRENCY;
 
   /*
@@ -108,7 +117,27 @@ export function createHandler(
    */
   const inFlight = new Set<string>();
 
-  return async function handle(photoId: string): Promise<Reply> {
+  /*
+   * Idle work, one unit at a time, checking between units whether a photo has
+   * arrived. A unit already started finishes — an AVIF set takes about a
+   * second — so a delivery waits at most that long for the CPU.
+   */
+  let idling: Promise<void> | null = null;
+  const idleNow = (): Promise<void> => {
+    if (!options.idle || idling) return idling ?? Promise.resolve();
+    idling = (async () => {
+      try {
+        while (inFlight.size === 0) {
+          if (!(await options.idle!().catch(() => false))) break;
+        }
+      } finally {
+        idling = null;
+      }
+    })();
+    return idling;
+  };
+
+  const handle = async function handle(photoId: string): Promise<Reply> {
     if (!photoId) return { status: 400, body: 'photoId required', nonRetryable: true };
 
     if (inFlight.has(photoId)) {
@@ -186,6 +215,9 @@ export function createHandler(
       return { status: 500, body: message };
     } finally {
       inFlight.delete(photoId);
+      // Not awaited: the reply goes now, and the idle work runs after it.
+      if (inFlight.size === 0) void idleNow();
     }
   };
+  return Object.assign(handle, { idleNow });
 }

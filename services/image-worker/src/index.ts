@@ -80,7 +80,23 @@ export default {
     if (hit) return hit;
 
     const key = objectKeyFor(check.ref);
-    const object = await env.BUCKET.get(key);
+    let object = await env.BUCKET.get(key);
+
+    /*
+     * An AVIF not made yet: answer with the JPEG.
+     *
+     * The deriver makes a photo's JPEG sizes first so it appears sooner, and
+     * its AVIF versions afterwards, when idle. In between, a browser that
+     * prefers AVIF asks for one that is not there — and a `<picture>` does not
+     * fall back on a 404, it shows a broken image. So the JPEG is served in its
+     * place, labelled as what it is, and kept out of the cache so the real AVIF
+     * takes over as soon as it exists.
+     */
+    let standIn = false;
+    if (!object && check.ref.kind !== 'orig' && formatOf(check.ref) === 'avif') {
+      object = await env.BUCKET.get(objectKeyFor({ ...check.ref, format: 'jpeg' }));
+      standIn = object !== null;
+    }
     if (!object) return notFound();
 
     const headers = new Headers();
@@ -88,7 +104,7 @@ export default {
     // reports, so a mislabelled object cannot make the Worker claim an AVIF is
     // a JPEG. Originals keep whatever they were stored as — HEIC stays HEIC.
     const declared =
-      check.ref.kind === 'orig' ? null : MIME[formatOf(check.ref)];
+      check.ref.kind === 'orig' ? null : standIn ? MIME.jpeg : MIME[formatOf(check.ref)];
     headers.set(
       'content-type',
       declared ?? object.httpMetadata?.contentType ?? 'application/octet-stream',
@@ -97,7 +113,12 @@ export default {
     headers.set('etag', object.httpEtag);
     // `private` keeps shared proxies out of it — these are people's photos —
     // while the Worker's own cache below still serves the whole event.
-    headers.set('cache-control', `private, max-age=${maxAge(check.expires)}`);
+    // A stand-in is only good until its AVIF is made, so the browser is told
+    // to ask again soon.
+    headers.set(
+      'cache-control',
+      standIn ? 'private, max-age=60' : `private, max-age=${maxAge(check.expires)}`,
+    );
     headers.set('x-content-type-options', 'nosniff');
     // Photos are never rendered as documents; if one is ever fetched as a
     // top-level navigation it should download, not execute.
@@ -108,6 +129,8 @@ export default {
     const response = new Response(object.body as ReadableStream<Uint8Array>, {
       headers,
     });
+
+    if (standIn) return response;
 
     // The URL dies at the same moment for every viewer, so the cache entry can
     // live exactly that long and never serve something whose URL has expired.

@@ -323,3 +323,39 @@ describe('one photograph taken back', () => {
   });
 });
 
+
+describe('an AVIF that has not been made yet', () => {
+  it('is answered with the JPEG, labelled as a JPEG, so the picture is not broken', async () => {
+    makeCache();
+    const { env } = makeEnv({ [`ev/${EVENT}/${HASH}.thumb.jpg`]: 'jpeg-bytes' });
+    const res = await fetchPath(env, await signImagePath(SECRET, { ...ref, format: 'avif' }));
+
+    expect(res.status).toBe(200);
+    expect(res.headers.get('content-type')).toBe('image/jpeg');
+    expect(await res.text()).toBe('jpeg-bytes');
+  });
+
+  it('is not cached, so the real AVIF takes over as soon as it exists', async () => {
+    const store = makeCache();
+    const path = await signImagePath(SECRET, { ...ref, format: 'avif' });
+    const { env } = makeEnv({ [`ev/${EVENT}/${HASH}.thumb.jpg`]: 'jpeg-bytes' });
+    const res = await fetchPath(env, path);
+
+    expect(res.headers.get('cache-control')).toBe('private, max-age=60');
+    expect([...store.keys()].some((url) => url.endsWith(path))).toBe(false);
+  });
+
+  it('is still not found when there is no JPEG either', async () => {
+    makeCache();
+    const { env } = makeEnv({});
+    const res = await fetchPath(env, await signImagePath(SECRET, { ...ref, format: 'avif' }));
+    expect(res.status).toBe(404);
+  });
+
+  it('never stands a JPEG in for an original', async () => {
+    makeCache();
+    const { env } = makeEnv({ [`ev/${EVENT}/${HASH}.thumb.jpg`]: 'jpeg-bytes' });
+    const res = await fetchPath(env, await signImagePath(SECRET, { ...ref, kind: 'orig' }));
+    expect(res.status).toBe(404);
+  });
+});

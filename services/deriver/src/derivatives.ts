@@ -188,9 +188,15 @@ export async function buildDerivatives(
    * objects to change nothing.
    */
   only?: readonly DerivativeKind[],
+  /**
+   * Which formats to make. Every one each size offers, by default. Ingest
+   * asks for JPEG only, so a photo appears as soon as it can; the AVIF
+   * versions come later, in idle time — see `backfillAvif`.
+   */
+  formats?: readonly ImageFormat[],
 ): Promise<Derivative[]> {
   try {
-    return await encodeAll(input, only);
+    return await encodeAll(input, only, formats);
   } catch (err) {
     // sharp's prebuilt libvips parses the HEIF container but has no HEVC
     // decoder, so `metadata()` succeeds on an iPhone photo and decoding it
@@ -203,7 +209,7 @@ export async function buildDerivatives(
     if (!isHeif(input)) throw err;
     const raster = await heifConvert(input).catch(() => null);
     if (!raster) throw err;
-    return encodeAll(raster, only);
+    return encodeAll(raster, only, formats);
   }
 }
 
@@ -304,6 +310,7 @@ async function decodeShared(input: Buffer): Promise<{
 async function encodeAll(
   input: Buffer,
   only?: readonly DerivativeKind[],
+  formats?: readonly ImageFormat[],
 ): Promise<Derivative[]> {
   const out: Derivative[] = [];
   const shared = await decodeShared(input);
@@ -311,6 +318,7 @@ async function encodeAll(
   for (const spec of DERIVATIVES) {
     if (only && !only.includes(spec.kind)) continue;
     for (const format of formatsFor(spec.kind)) {
+      if (formats && !formats.includes(format)) continue;
       const source = shared
         ? sharp(shared.data, { raw: shared.raw, limitInputPixels: MAX_INPUT_PIXELS })
         : sharp(input, { failOn: 'error', limitInputPixels: MAX_INPUT_PIXELS })

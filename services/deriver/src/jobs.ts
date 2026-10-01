@@ -45,6 +45,7 @@ import postgres from 'postgres';
 
 import { formatReport, report } from './metrics';
 import { objectStoreFromEnv, type ObjectStore } from './objects';
+import { backfillAvif, photosMissingAvif } from './pipeline';
 import { dropPrivileges } from './subprocess';
 
 
@@ -601,6 +602,33 @@ export async function nudge(database: ReturnType<typeof db>): Promise<number> {
   return notified;
 }
 
+/**
+ * AVIF versions the deriver has not caught up on — a safety net.
+ *
+ * Ingest makes JPEG only and the deriver makes the AVIF versions between
+ * deliveries, but a machine stopped mid-backlog leaves the rest. Bounded per
+ * run so the hourly job stays short; a photo whose AVIF fails is not retried
+ * within the run.
+ */
+export async function avifBacklog(
+  database: ReturnType<typeof db>,
+  objects: ObjectStore,
+  limit = 100,
+): Promise<number> {
+  let done = 0;
+  const tried = new Set<string>();
+  while (done < limit) {
+    const ids = (await photosMissingAvif(database, 20)).filter((id) => !tried.has(id));
+    if (ids.length === 0) break;
+    for (const id of ids) {
+      tried.add(id);
+      if ((await backfillAvif({ db: database, objects }, id).catch(() => 'failed')) === 'done') done += 1;
+      if (done >= limit) break;
+    }
+  }
+  return done;
+}
+
 /** The heartbeat's name for a full run on the hourly schedule. */
 export const HOURLY = 'hourly';
 
@@ -674,6 +702,7 @@ async function runAll(
   await run('expire-webauthn-challenges', () => expireWebauthnChallenges(database));
   await run('expire-phone-codes', () => expirePhoneCodes(database));
   await run('expire-sessions', () => expireSessions(database));
+  await run('avif-backlog', () => avifBacklog(database, objects));
 
   // Read-only, and last: a report is not a job, but this is the only process
   // with a database connection and a schedule, and §18's numbers are worth

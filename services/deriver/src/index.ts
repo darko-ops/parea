@@ -53,7 +53,9 @@ import {
 } from './moderation';
 import { type CsamScanner, scannerFromEnv } from './safety';
 import {
+  backfillAvif,
   backfillDerivative,
+  photosMissingAvif,
   readyPhotosAfter,
   restripOriginal,
   pendingPhotoIds,
@@ -403,11 +405,27 @@ async function main(): Promise<void> {
 
     const concurrency = Number(process.env.DERIVER_CONCURRENCY ?? DEFAULT_CONCURRENCY);
     const port = Number(process.env.PORT ?? 8080);
-    const server = createJobServer({
-      handle: createHandler(ingest(), { concurrency }),
-      receiver,
-      publicUrl,
+    const deps = ingest();
+    /*
+     * AVIF versions, made while nothing is waiting. Ingest makes JPEG only so a
+     * photo appears sooner; this catches up between deliveries. A photo whose
+     * AVIF fails is skipped for the rest of this process rather than retried in
+     * a loop — the hourly job has another go.
+     */
+    const avifFailed = new Set<string>();
+    const handle = createHandler(deps, {
+      concurrency,
+      idle: async () => {
+        const ids = (await photosMissingAvif(deps.db, 10)).filter((id) => !avifFailed.has(id));
+        const [next] = ids;
+        if (!next) return false;
+        const result = await backfillAvif(deps, next).catch(() => 'failed' as const);
+        if (result === 'failed') avifFailed.add(next);
+        console.log(`avif        ${next}  ${result}`);
+        return true;
+      },
     });
+    const server = createJobServer({ handle, receiver, publicUrl });
 
     /*
      * Finish what is in flight before going.
@@ -427,6 +445,8 @@ async function main(): Promise<void> {
 
     server.listen(port, () => {
       console.log(`serving ${JOB_PATH} on :${port}, ${concurrency} at a time`);
+      // Anything left from before this machine started.
+      void handle.idleNow();
     });
     return;
   }

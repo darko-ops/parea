@@ -294,3 +294,43 @@ describe('what the log says', () => {
     }
   });
 });
+
+describe('idle work between deliveries', () => {
+  it('runs after a delivery, one unit at a time, until there is none left', async () => {
+    let calls = 0;
+    const handle = createHandler(deps(), {
+      idle: async () => {
+        calls += 1;
+        return calls < 3; // three units of work, then nothing
+      },
+    });
+    await handle(crypto.randomUUID()); // a photo that cannot exist — still a delivery
+    await handle.idleNow();
+    expect(calls).toBe(3);
+  });
+
+  it('is never started twice at once', async () => {
+    let running = 0;
+    let most = 0;
+    const handle = createHandler(deps(), {
+      idle: async () => {
+        running += 1;
+        most = Math.max(most, running);
+        await new Promise((r) => setTimeout(r, 5));
+        running -= 1;
+        return false;
+      },
+    });
+    await Promise.all([handle.idleNow(), handle.idleNow(), handle.idleNow()]);
+    expect(most).toBe(1);
+  });
+
+  it('survives idle work that throws', async () => {
+    const handle = createHandler(deps(), {
+      idle: async () => {
+        throw new Error('storage blip');
+      },
+    });
+    await expect(handle.idleNow()).resolves.toBeUndefined();
+  });
+});
