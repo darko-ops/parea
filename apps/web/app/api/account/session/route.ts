@@ -18,7 +18,8 @@
  * knows which way somebody came in.
  */
 
-import { normaliseEmail, normaliseSignInCode } from '@parea/core';
+import { normaliseEmail, normaliseSignInCode, schema } from '@parea/core';
+import { eq } from 'drizzle-orm';
 import { NextResponse } from 'next/server';
 
 import { accountExists, accountFor, consumeCode, signIn } from '@/accounts';
@@ -82,6 +83,8 @@ export async function POST(request: Request) {
     birthDate?: unknown;
     /** From the answer that asked for it, so no second code is needed. */
     proof?: unknown;
+    /** The name typed on Create account. Used only if this makes the account. */
+    displayName?: unknown;
   };
 
   const db = getDb();
@@ -156,6 +159,23 @@ export async function POST(request: Request) {
    */
   const actorId = await ensureActor(db, undefined, { recordSession: false });
   const result = await signIn(db, proven.email, actorId, { ageConfirmedAt });
+
+  /*
+   * The name from the Create account form, on the account it just made.
+   *
+   * Only then. Somebody who pressed Create account with an address that
+   * already had one is signed in to it, and a name typed on that form must not
+   * quietly rename an account they made months ago. Bounded as Edit profile
+   * bounds it.
+   */
+  const displayName =
+    typeof body.displayName === 'string' ? body.displayName.trim().slice(0, 80) : '';
+  if (result.created && displayName) {
+    await db
+      .update(schema.actors)
+      .set({ displayName })
+      .where(eq(schema.actors.id, result.actorId));
+  }
 
   /*
    * This device goes on the list, under the actor the account resolved to.

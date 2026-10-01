@@ -160,6 +160,15 @@ export function SignIn({
   /** From the answer that asked for a date of birth. See the age check. */
   const [proof, setProof] = useState<string | null>(null);
   const [birthDate, setBirthDate] = useState('');
+  /*
+   * The rest of Create account, asked on the form itself rather than after the
+   * code. They used to appear only once the code proved a new address, so
+   * anybody whose address already had an account — or who never got that far —
+   * never saw the date of birth or the terms at all, and the account had no
+   * name until somebody went looking for Edit profile.
+   */
+  const [name, setName] = useState('');
+  const [agreed, setAgreed] = useState(false);
 
   /*
    * Whether to draw the passkey button, decided after mount.
@@ -251,8 +260,29 @@ export function SignIn({
       const res = await fetch('/api/account/session', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ email, code }),
+        // Create account sends everything at once; the server uses the date
+        // and the name only if this address turns out to be new.
+        body: JSON.stringify(
+          mode === 'create'
+            ? { email, code, birthDate, displayName: name.trim() }
+            : { email, code },
+        ),
       });
+      if (res.status === 403) {
+        rememberRefusal();
+        setStage('refused');
+        return;
+      }
+      if (res.status === 400) {
+        // The code was good and is spent; the proof lets the date be fixed
+        // without another.
+        const body = (await res.json().catch(() => ({}))) as { proof?: string };
+        if (body.proof) {
+          setProof(body.proof);
+          setStage('age');
+          throw new Error('That date does not look right. Check it and try again.');
+        }
+      }
       if (res.status === 429) {
         // Not the same sentence as a bad code: somebody holding a good one was
         // told it had failed, and asked for another they could not have.
@@ -286,7 +316,7 @@ export function SignIn({
     } finally {
       setBusy(false);
     }
-  }, [code, email, finish, mode]);
+  }, [birthDate, code, email, finish, mode, name]);
 
   /** The date of birth, for the sign-in that makes the account. */
   const confirmAge = useCallback(async () => {
@@ -296,7 +326,7 @@ export function SignIn({
       const res = await fetch('/api/account/session', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ email, proof, birthDate }),
+        body: JSON.stringify({ email, proof, birthDate, displayName: name.trim() }),
       });
       if (res.status === 403) {
         rememberRefusal();
@@ -320,7 +350,7 @@ export function SignIn({
     } finally {
       setBusy(false);
     }
-  }, [birthDate, email, finish, proof]);
+  }, [birthDate, email, finish, name, proof]);
 
   /**
    * Signing in with a passkey, which is one press and no form.
@@ -416,31 +446,22 @@ export function SignIn({
   }
 
   if (stage === 'age') {
-    const today = new Date().toISOString().slice(0, 10);
     return (
       <section className="panel">
-        <h2>One more thing</h2>
+        <h2>Finish your account</h2>
         <p className="muted">
-          This address is new to Parea, so this makes your account.
+          {email} is new to Parea, so this makes your account.
         </p>
-        <label htmlFor="signin-birth-date">Your date of birth</label>
-        <input
-          id="signin-birth-date"
-          type="date"
-          max={today}
-          value={birthDate}
-          onChange={(e) => setBirthDate(e.target.value)}
-          autoFocus
+        <AccountFields
+          name={name}
+          setName={setName}
+          birthDate={birthDate}
+          setBirthDate={setBirthDate}
+          agreed={agreed}
+          setAgreed={setAgreed}
         />
-        <p className="muted">
-          Used to check you can make an account, and not kept.
-        </p>
-        <p className="muted">
-          By creating an account you agree to the <a href="/terms">Terms</a> and
-          the <a href="/privacy">Privacy Policy</a>.
-        </p>
         <div className="row" style={{ marginTop: 16 }}>
-          <button onClick={confirmAge} disabled={busy || !birthDate}>
+          <button onClick={confirmAge} disabled={busy || !name.trim() || !birthDate || !agreed}>
             {busy ? 'Working…' : 'Create account'}
           </button>
         </div>
@@ -549,7 +570,23 @@ export function SignIn({
           : 'Enter the email you signed up with and we will send you a code.'}
       </p>
 
-      <label htmlFor="signin-email">Email</label>
+      {creating && stage === 'email' && (
+        <>
+          <label htmlFor="signin-name">Your name</label>
+          <input
+            id="signin-name"
+            autoComplete="name"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            placeholder="What friends call you"
+            maxLength={80}
+          />
+        </>
+      )}
+
+      <label htmlFor="signin-email" style={creating && stage === 'email' ? { marginTop: 16 } : undefined}>
+        Email
+      </label>
       <input
         id="signin-email"
         type="email"
@@ -559,6 +596,15 @@ export function SignIn({
         placeholder="you@example.com"
         disabled={stage === 'code'}
       />
+
+      {creating && stage === 'email' && (
+        <AccountFields
+          birthDate={birthDate}
+          setBirthDate={setBirthDate}
+          agreed={agreed}
+          setAgreed={setAgreed}
+        />
+      )}
 
       {stage === 'code' && (
         <>
@@ -585,13 +631,18 @@ export function SignIn({
       <div className="row" style={{ marginTop: 16 }}>
         <button
           onClick={stage === 'code' ? verify : request}
-          disabled={busy || (stage === 'code' ? code.length < 6 : !email.includes('@'))}
+          disabled={
+            busy ||
+            (stage === 'code'
+              ? code.length < 6
+              : !email.includes('@') || (creating && (!name.trim() || !birthDate || !agreed)))
+          }
         >
           {busy
             ? 'Working…'
             : stage === 'code'
               ? creating
-                ? 'Continue'
+                ? 'Create account'
                 : 'Sign in'
               : 'Send me a code'}
         </button>
@@ -628,5 +679,68 @@ export function SignIn({
       )}
       {error && <p className="muted">{error}</p>}
     </section>
+  );
+}
+
+/**
+ * The date of birth and the terms, and the name where the form has not already
+ * asked for it — the part of Create account that is not an email and a code.
+ *
+ * The terms are a box to tick rather than a sentence under a button, because a
+ * sentence nobody has to touch is a sentence nobody can be said to have read.
+ * The date is asked without naming the cutoff — a screen that names it answers
+ * its own question — and is not kept: only the fact that the check passed goes
+ * on the account.
+ */
+function AccountFields({
+  name,
+  setName,
+  birthDate,
+  setBirthDate,
+  agreed,
+  setAgreed,
+}: {
+  name?: string;
+  setName?: (value: string) => void;
+  birthDate: string;
+  setBirthDate: (value: string) => void;
+  agreed: boolean;
+  setAgreed: (value: boolean) => void;
+}) {
+  const today = new Date().toISOString().slice(0, 10);
+  return (
+    <>
+      {setName && (
+        <>
+          <label htmlFor="account-name">Your name</label>
+          <input
+            id="account-name"
+            autoComplete="name"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            placeholder="What friends call you"
+            maxLength={80}
+            autoFocus
+          />
+        </>
+      )}
+      <label htmlFor="account-birth-date" style={{ marginTop: 16 }}>
+        Date of birth
+      </label>
+      <input
+        id="account-birth-date"
+        type="date"
+        max={today}
+        value={birthDate}
+        onChange={(e) => setBirthDate(e.target.value)}
+      />
+      <p className="muted">Used to check you can make an account, and not kept.</p>
+      <label className="auth-agree">
+        <input type="checkbox" checked={agreed} onChange={(e) => setAgreed(e.target.checked)} />
+        <span>
+          I agree to the <a href="/terms">Terms</a> and the <a href="/privacy">Privacy Policy</a>.
+        </span>
+      </label>
+    </>
   );
 }

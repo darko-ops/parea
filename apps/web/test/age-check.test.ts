@@ -5,7 +5,7 @@
 
 import { PGlite } from '@electric-sql/pglite';
 import { schema } from '@parea/core';
-import { sql } from 'drizzle-orm';
+import { eq, sql } from 'drizzle-orm';
 import { drizzle } from 'drizzle-orm/pglite';
 import { migrate } from 'drizzle-orm/pglite/migrator';
 import { fileURLToPath } from 'node:url';
@@ -132,6 +132,45 @@ describe('making an account', () => {
       birthDate: yearsAgo(30),
     });
     expect(replayed.status).toBe(401);
+  });
+
+  it('makes the account in one step from the Create account form, with its name', async () => {
+    await storeCode(db, SECRET, 'sam@example.com', '123456');
+    const made = await signInWith({
+      email: 'sam@example.com',
+      code: '123456',
+      birthDate: yearsAgo(30),
+      displayName: '  Sam Rivera  ',
+    });
+    expect(made.status).toBe(200);
+    expect(made.body.created).toBe(true);
+    const [actor] = await db
+      .select({ displayName: schema.actors.displayName })
+      .from(schema.actors)
+      .innerJoin(schema.accounts, eq(schema.accounts.id, schema.actors.accountId));
+    expect(actor!.displayName).toBe('Sam Rivera');
+  });
+
+  it('does not rename an account that already existed', async () => {
+    const [actor] = await db
+      .insert(schema.actors)
+      .values({ kind: 'guest', displayName: 'Sam' })
+      .returning();
+    await signIn(db, 'sam@example.com', actor!.id);
+    await storeCode(db, SECRET, 'sam@example.com', '123456');
+    const again = await signInWith({
+      email: 'sam@example.com',
+      code: '123456',
+      birthDate: yearsAgo(30),
+      displayName: 'Somebody Else',
+    });
+    expect(again.status).toBe(200);
+    expect(again.body.created).toBe(false);
+    const [row] = await db
+      .select({ displayName: schema.actors.displayName })
+      .from(schema.actors)
+      .innerJoin(schema.accounts, eq(schema.accounts.id, schema.actors.accountId));
+    expect(row!.displayName).toBe('Sam');
   });
 
   it('never asks somebody who already has an account', async () => {

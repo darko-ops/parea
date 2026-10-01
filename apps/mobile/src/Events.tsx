@@ -3284,6 +3284,14 @@ export function AccountCard({
   const [mode, setMode] = useState<'signin' | 'create'>('create');
   const [returning, setReturning] = useState(false);
   const [missing, setMissing] = useState<string | null>(null);
+  /*
+   * The rest of Create account, asked on the card itself rather than after the
+   * code: they used to appear only once the code proved a new address, so
+   * plenty of people never saw the date of birth or the terms, and the account
+   * had no name until somebody found Edit profile.
+   */
+  const [name, setName] = useState('');
+  const [agreed, setAgreed] = useState(false);
   useEffect(() => {
     void hadAccount().then((before) => {
       setReturning(before);
@@ -3396,12 +3404,35 @@ export function AccountCard({
     [onSignedIn],
   );
 
+  const birthDateText = () =>
+    `${year.trim()}-${month.trim().padStart(2, '0')}-${day.trim().padStart(2, '0')}`;
+  const accountReady =
+    name.trim() !== '' && day.trim() !== '' && month.trim() !== '' && year.trim().length === 4 && agreed;
+
   const verify = useCallback(async () => {
     setBusy(true);
     setError(null);
     try {
-      await finish(await api.completeSignIn(email.trim(), code));
+      await finish(
+        await api.completeSignIn(
+          email.trim(),
+          code,
+          mode === 'create' ? { birthDate: birthDateText(), displayName: name.trim() } : undefined,
+        ),
+      );
     } catch (err) {
+      if (err instanceof ApiError && err.code === 'too_young') {
+        await rememberAgeRefused();
+        setRefused(true);
+        return;
+      }
+      // The code was good and is spent; the proof lets the date be fixed.
+      if (err instanceof ApiError && err.code === 'invalid_birth_date') {
+        setCode('');
+        setAgeProof(typeof err.body.proof === 'string' ? err.body.proof : null);
+        setError('That date does not look right. Check it and try again.');
+        return;
+      }
       /*
        * The code was right and the address is new: a first account asks for a
        * date of birth. A phone already refused goes straight to the refusal
@@ -3423,16 +3454,15 @@ export function AccountCard({
     } finally {
       setBusy(false);
     }
-  }, [api, code, email, finish, mode]);
+  }, [api, code, day, email, finish, mode, month, name, year]);
 
   /** The date of birth, for the sign-in that makes the account. */
   const confirmAge = useCallback(async () => {
     if (!ageProof) return;
     setBusy(true);
     setError(null);
-    const birthDate = `${year.trim()}-${month.trim().padStart(2, '0')}-${day.trim().padStart(2, '0')}`;
     try {
-      await finish(await api.confirmAge(email.trim(), ageProof, birthDate));
+      await finish(await api.confirmAge(email.trim(), ageProof, birthDateText(), name.trim()));
     } catch (err) {
       if (err instanceof ApiError && err.code === 'too_young') {
         await rememberAgeRefused();
@@ -3452,7 +3482,7 @@ export function AccountCard({
     } finally {
       setBusy(false);
     }
-  }, [ageProof, api, day, email, finish, month, year]);
+  }, [ageProof, api, day, email, finish, month, name, year]);
 
   const withPasskey = useCallback(async () => {
     setBusy(true);
@@ -3654,15 +3684,30 @@ export function AccountCard({
     );
   }
 
-  if (ageProof) {
-    const field = [styles.input, { color: t.fg, borderColor: t.line, backgroundColor: t.bg }];
-    return (
-      <View style={[styles.card, { backgroundColor: t.card, borderColor: t.line }]}>
-        <Text style={[styles.label, { color: t.fg }]}>One more thing</Text>
-        <Text style={[styles.small, { color: t.dim }]}>
-          This address is new to Parea, so this makes your account. What is your
-          date of birth?
-        </Text>
+  /*
+   * The date of birth and the terms — the part of Create account that is not
+   * an email and a code — drawn on the Create account card and on the card that
+   * finishes an account somebody tried to sign in to. The terms are a box to
+   * tick rather than a sentence under a button: a sentence nobody has to touch
+   * is one nobody can be said to have read.
+   */
+  const field = [styles.input, { color: t.fg, borderColor: t.line, backgroundColor: t.bg }];
+  const nameInput = (
+    <TextInput
+      value={name}
+      onChangeText={setName}
+      placeholder="Your name"
+      placeholderTextColor={t.dim}
+      textContentType="name"
+      autoComplete="name"
+      maxLength={80}
+      accessibilityLabel="Your name"
+      style={field}
+    />
+  );
+  const accountFields = (
+    <>
+      <Text style={[styles.small, { color: t.dim }]}>Date of birth</Text>
         <View style={{ flexDirection: 'row', gap: 8 }}>
           <TextInput
             value={day}
@@ -3673,7 +3718,6 @@ export function AccountCard({
             maxLength={2}
             accessibilityLabel="Day you were born"
             style={[...field, { flex: 1 }]}
-            autoFocus
           />
           <TextInput
             value={month}
@@ -3696,9 +3740,25 @@ export function AccountCard({
             style={[...field, { flex: 1.4 }]}
           />
         </View>
-        <Text style={[styles.small, { color: t.dim }]}>
-          Used to check you can make an account, and not kept. By creating an
-          account you agree to the{' '}
+      <Text style={[styles.small, { color: t.dim }]}>
+        Used to check you can make an account, and not kept.
+      </Text>
+      <Pressable
+        onPress={() => setAgreed(!agreed)}
+        accessibilityRole="checkbox"
+        accessibilityState={{ checked: agreed }}
+        style={styles.agreeRow}
+      >
+        <View
+          style={[
+            styles.agreeBox,
+            { borderColor: agreed ? t.accent : t.line, backgroundColor: agreed ? t.accent : 'transparent' },
+          ]}
+        >
+          {agreed && <Text style={[styles.agreeTick, { color: t.bg }]}>✓</Text>}
+        </View>
+        <Text style={[styles.small, { color: t.fg, flex: 1 }]}>
+          I agree to the{' '}
           <Text
             style={{ color: t.accent, textDecorationLine: 'underline' }}
             onPress={() => void Linking.openURL('https://parea.photos/terms')}
@@ -3714,10 +3774,23 @@ export function AccountCard({
           </Text>
           .
         </Text>
+      </Pressable>
+    </>
+  );
+
+  if (ageProof) {
+    return (
+      <View style={[styles.card, { backgroundColor: t.card, borderColor: t.line }]}>
+        <Text style={[styles.label, { color: t.fg }]}>Finish your account</Text>
+        <Text style={[styles.small, { color: t.dim }]}>
+          {email.trim()} is new to Parea, so this makes your account.
+        </Text>
+        {nameInput}
+        {accountFields}
         <Button
           label={busy ? 'Working…' : 'Create account'}
           onPress={() => void confirmAge()}
-          disabled={busy || !day.trim() || !month.trim() || year.trim().length !== 4}
+          disabled={busy || !accountReady}
           t={t}
           primary
         />
@@ -3849,6 +3922,8 @@ export function AccountCard({
           : 'Enter the email you signed up with and we will send you a code.'}
       </Text>
 
+      {creating && !sent && nameInput}
+
       <TextInput
         value={email}
         onChangeText={setEmail}
@@ -3861,6 +3936,8 @@ export function AccountCard({
         accessibilityLabel="Your email address"
         style={[styles.input, { color: t.fg, borderColor: t.line, backgroundColor: t.bg }]}
       />
+
+      {creating && !sent && accountFields}
 
       {sent && (
         <TextInput
@@ -3880,9 +3957,14 @@ export function AccountCard({
       {error && <Text style={[styles.small, { color: t.dim }]}>{error}</Text>}
 
       <Button
-        label={busy ? 'Working…' : sent ? (creating ? 'Continue' : 'Sign in') : 'Send me a code'}
+        label={
+          busy ? 'Working…' : sent ? (creating ? 'Create account' : 'Sign in') : 'Send me a code'
+        }
         onPress={sent ? verify : request}
-        disabled={busy || (sent ? code.length < 6 : !email.includes('@'))}
+        disabled={
+          busy ||
+          (sent ? code.length < 6 : !email.includes('@') || (creating && !accountReady))
+        }
         t={t}
         primary
       />
@@ -4190,6 +4272,16 @@ const styles = StyleSheet.create({
   authSwitch: { flexDirection: 'row', borderWidth: 1, borderRadius: 12, padding: 3, gap: 3 },
   authOption: { flex: 1, borderRadius: 9, paddingVertical: 9, alignItems: 'center' },
   authOptionText: { fontSize: 14, fontWeight: '600' },
+  agreeRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  agreeBox: {
+    width: 22,
+    height: 22,
+    borderRadius: 6,
+    borderWidth: 1.5,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  agreeTick: { fontSize: 14, fontWeight: '700', lineHeight: 16 },
   /* Wider apart than the cards on the other tabs: each group is three pieces
      stacked — a name, a strip of evenings and a line about the last one — and
      14 points between blocks made two groups read as one.

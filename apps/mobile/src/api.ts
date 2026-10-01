@@ -1784,10 +1784,12 @@ export class Api {
   async completeSignIn(
     email: string,
     code: string,
+    /** From Create account; used by the server only if the address is new. */
+    creating?: { birthDate: string; displayName: string },
   ): Promise<SignedIn> {
     const result = await this.call<SignedIn>('/api/account/session', {
       method: 'POST',
-      body: JSON.stringify({ email, code, platform: this.client }),
+      body: JSON.stringify({ email, code, ...creating, platform: this.client }),
     });
     this.token = result.actorToken;
     return result;
@@ -1798,10 +1800,15 @@ export class Api {
    * with the proof of the address the first half handed back. See `@/age` on
    * the server. The date is used to decide and not kept.
    */
-  async confirmAge(email: string, proof: string, birthDate: string): Promise<SignedIn> {
+  async confirmAge(
+    email: string,
+    proof: string,
+    birthDate: string,
+    displayName?: string,
+  ): Promise<SignedIn> {
     const result = await this.call<SignedIn>('/api/account/session', {
       method: 'POST',
-      body: JSON.stringify({ email, proof, birthDate, platform: this.client }),
+      body: JSON.stringify({ email, proof, birthDate, displayName, platform: this.client }),
     });
     this.token = result.actorToken;
     return result;
