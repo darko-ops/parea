@@ -38,6 +38,8 @@ import { Menu } from './Menu';
 import { Thread } from './Thread';
 import { ShareEvent } from './ShareEvent';
 import { PhotoTile } from './PhotoTile';
+import { UploadTile } from './UploadTile';
+import { useUploadPreviews, type UploadPreview } from './uploadPreviews';
 import type { Member, Roster } from '@/members';
 
 import { Face, Faces } from './Faces';
@@ -362,6 +364,14 @@ export function EventView({
 
   // Which uploads have become photos on the page — see `Uploads`.
   const shownIds = useMemo(() => new Set(feed.photos.map((p) => p.id)), [feed.photos]);
+  // And the ones that have not, drawn in the gallery from the file in hand.
+  const previews = useUploadPreviews({
+    items: uploads.items,
+    fileOf: uploads.fileOf,
+    shown: shownIds,
+    arriving: feed.arriving,
+    running: uploads.running,
+  });
 
   /**
    * Handing somebody the camera, or taking it back.
@@ -982,22 +992,32 @@ export function EventView({
             is not happening, so when nothing has arrived since you got here
             this is one gallery, as it always was.
           */}
-          {fresh.length > 0 && (
+          {(fresh.length > 0 || previews.length > 0) && (
             <>
               <SectionHead
                 label="Just added"
                 caption={freshCaption(fresh, feed.people)}
                 arriving={feed.arriving}
               />
+              {/*
+                Photos on their way go on top, where they will land: see
+                `outstandingUploads` for why the slot is the same one.
+              */}
               <Masonry
                 photos={fresh}
+                pending={previews}
+                onRetry={() => void uploads.retry()}
+                onPickAgain={() => inputRef.current?.click()}
                 eventId={eventId}
                 picked={picked}
                 onPick={togglePick}
                 people={feed.people}
                 lead={null}
               />
-              <SectionHead label="Earlier" caption={earlierCaption(feed.event.startsAt, earlier)} />
+              {/* Not over nothing: a new roll's first photos are all "just added". */}
+              {earlier.length > 0 && (
+                <SectionHead label="Earlier" caption={earlierCaption(feed.event.startsAt, earlier)} />
+              )}
             </>
           )}
 
@@ -1017,7 +1037,11 @@ export function EventView({
             onPick={togglePick}
             people={feed.people}
             lead={
-              feed.canAdd && session.account && !picked && visible.length === 0 ? (
+              feed.canAdd &&
+              session.account &&
+              !picked &&
+              visible.length === 0 &&
+              previews.length === 0 ? (
                 <label htmlFor="add-photos" className="tile-add">
                   <span className="tile-add-lenses" aria-hidden="true">
                     <span />
@@ -1044,7 +1068,7 @@ export function EventView({
             }
           />
 
-          {visible.length === 0 && (
+          {visible.length === 0 && previews.length === 0 && (
             <p className="muted empty">
               Nothing here yet. Add yours and everyone else will see there is
               something to add to.
@@ -1352,6 +1376,9 @@ function useColumnCount(): number {
 
 function Masonry({
   photos,
+  pending = [],
+  onRetry,
+  onPickAgain,
   eventId,
   picked,
   onPick,
@@ -1359,6 +1386,10 @@ function Masonry({
   lead,
 }: {
   photos: Photo[];
+  /** Uploads not yet in the feed, laid out ahead of the photographs. */
+  pending?: UploadPreview[];
+  onRetry?: () => void;
+  onPickAgain?: () => void;
   /** For each tile's own address — a photograph is a page now, not a dialog. */
   eventId: string;
   picked: Set<string> | null;
@@ -1370,30 +1401,33 @@ function Masonry({
 }) {
   const count = useColumnCount();
   const columns = useMemo(() => {
-    const out: { photo: Photo; ratio: number }[][] = Array.from(
-      { length: count },
-      () => [],
-    );
+    const out: ({ photo: Photo; ratio: number } | { upload: UploadPreview; ratio: number })[][] =
+      Array.from({ length: count }, () => []);
     // Heights in units of column width. The lead tile is a fixed 210px in a
     // ~290px column, so it starts its column part-filled.
     const heights = Array.from({ length: count }, (_, i) =>
       i === 0 && lead ? 0.72 : 0,
     );
-    for (const photo of photos) {
-      // 3:2 for anything the deriver has not measured yet — right often
-      // enough, and wrong by a few pixels of column height when it is not.
-      const ratio = photo.width && photo.height ? photo.height / photo.width : 2 / 3;
+    const place = (entry: (typeof out)[number][number]) => {
       let shortest = 0;
       for (let i = 1; i < heights.length; i++) {
         if (heights[i]! < heights[shortest]!) shortest = i;
       }
-      out[shortest]!.push({ photo, ratio });
-      heights[shortest]! += ratio;
+      out[shortest]!.push(entry);
+      heights[shortest]! += entry.ratio;
+    };
+    // An upload at its preview's shape, so the photograph that replaces it
+    // takes the same room in the same column.
+    for (const upload of pending) place({ upload, ratio: upload.ratio ?? 2 / 3 });
+    for (const photo of photos) {
+      // 3:2 for anything the deriver has not measured yet — right often
+      // enough, and wrong by a few pixels of column height when it is not.
+      place({ photo, ratio: photo.width && photo.height ? photo.height / photo.width : 2 / 3 });
     }
     return out;
-  }, [count, photos, lead]);
+  }, [count, photos, pending, lead]);
 
-  if (photos.length === 0 && !lead) return null;
+  if (photos.length === 0 && pending.length === 0 && !lead) return null;
 
   return (
     <div
@@ -1403,18 +1437,33 @@ function Masonry({
       {columns.map((column, i) => (
         <div className="masonry-column" key={i}>
           {i === 0 && lead}
-          {column.map(({ photo, ratio }) => (
-            <PhotoTile
-              key={photo.id}
-              photo={photo}
-              href={`/event/${eventId}/p/${photo.id}`}
-              ratio={ratio}
-              by={people.find((person) => person.key === photo.by)?.name ?? null}
-              picking={picked !== null}
-              picked={picked?.has(photo.id) ?? false}
-              onPick={() => onPick(photo.id)}
-            />
-          ))}
+          {column.map((entry) => {
+            if ('upload' in entry) {
+              return (
+                <UploadTile
+                  key={entry.upload.id}
+                  upload={entry.upload}
+                  ratio={entry.ratio}
+                  progress={fractionOf(entry.upload.status)}
+                  onRetry={onRetry}
+                  onPickAgain={onPickAgain}
+                />
+              );
+            }
+            const { photo, ratio } = entry;
+            return (
+              <PhotoTile
+                key={photo.id}
+                photo={photo}
+                href={`/event/${eventId}/p/${photo.id}`}
+                ratio={ratio}
+                by={people.find((person) => person.key === photo.by)?.name ?? null}
+                picking={picked !== null}
+                picked={picked?.has(photo.id) ?? false}
+                onPick={() => onPick(photo.id)}
+              />
+            );
+          })}
         </div>
       ))}
     </div>

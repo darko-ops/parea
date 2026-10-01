@@ -15,12 +15,23 @@
 /** The longest side of a preview, in pixels — enough for a 2× strip tile. */
 export const PREVIEW_EDGE = 320;
 
+/** A made preview: its blob URL, and its size, which is the photo's shape. */
+export type Thumbnail = { url: string; width: number; height: number };
+
 /**
  * A blob URL for a small preview of `file`, or null when this browser cannot
  * make one — no `createImageBitmap`, or a format it will not decode (HEIC in
  * Chrome). The caller decides what to show instead.
  */
 export async function thumbnailUrl(file: File, edge = PREVIEW_EDGE): Promise<string | null> {
+  return (await thumbnail(file, edge))?.url ?? null;
+}
+
+/**
+ * The same, with the drawn size — so a gallery can reserve the photo's real
+ * shape before the server has measured it. See `useUploadPreviews`.
+ */
+export async function thumbnail(file: File, edge = PREVIEW_EDGE): Promise<Thumbnail | null> {
   if (typeof createImageBitmap !== 'function' || typeof document === 'undefined') return null;
   let bitmap: ImageBitmap | null = null;
   try {
@@ -43,7 +54,7 @@ export async function thumbnailUrl(file: File, edge = PREVIEW_EDGE): Promise<str
     // Release the canvas's backing store now rather than at collection.
     canvas.width = 0;
     canvas.height = 0;
-    return blob ? URL.createObjectURL(blob) : null;
+    return blob ? { url: URL.createObjectURL(blob), width, height } : null;
   } catch {
     return null;
   } finally {

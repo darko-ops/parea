@@ -95,6 +95,7 @@ import { blockAuthor } from './src/block';
 import {
   PICKED,
   adoptIntoOutbox,
+  isLibraryAsset,
   libraryAccess,
   requestLibraryAccess,
   resolveForUpload,
@@ -128,7 +129,19 @@ import {
   type OwedCover,
   type SavedEvent,
 } from './src/platform';
-import { MAX_PER_SELECTION, Offline, UploadQueue, type QueueState } from '@parea/upload';
+import {
+  MAX_PER_SELECTION,
+  Offline,
+  UploadQueue,
+  type QueueItem,
+  type QueueState,
+} from '@parea/upload';
+import {
+  nextPreviews,
+  previewLabel,
+  previewsInFlight,
+  type Preview,
+} from './src/previews';
 
 const API_BASE = process.env.EXPO_PUBLIC_API_URL ?? 'http://localhost:3000';
 
@@ -2167,6 +2180,32 @@ const PAGE_TOP = COVER;
  */
 const KEYBOARD_BAR = 'parea-keyboard-bar';
 
+/**
+ * What a stand-in tile draws: the phone's own copy of the photograph.
+ *
+ * The library asset where there is one, on iOS — the same `ph://` the
+ * suggestion screen draws its tiles from — because the outbox copy is deleted
+ * the moment its upload lands, which is a good while before the deriver has
+ * been round. A picked photograph has no asset behind it, and Android's ids are
+ * not `ph://` ones, so those draw the outbox copy and rely on the image keeping
+ * what it has already decoded once the file goes.
+ */
+/**
+ * One square in the album's grid: a photograph the server has, or a stand-in
+ * for one it does not have yet. Marked rather than told apart by shape, so a
+ * field added to either can never make one look like the other.
+ */
+type StandIn = Preview & { standIn: true };
+type GridTile = FeedPhoto | StandIn;
+const isStandIn = (tile: GridTile): tile is StandIn => 'standIn' in tile;
+
+function previewUri(item: QueueItem): string {
+  if (RNPlatform.OS === 'ios' && isLibraryAsset(item.id)) {
+    return item.id.startsWith('ph://') ? item.id : `ph://${item.id}`;
+  }
+  return item.source;
+}
+
 function EventScreen({
   api,
   event,
@@ -2626,6 +2665,37 @@ function EventScreen({
     if (hadPending.current && pending === 0) void refresh();
     hadPending.current = pending > 0;
   }, [uploads, event.id, openQueue, refresh]);
+
+  /**
+   * The photographs on their way, drawn before the server has them.
+   *
+   * See `src/previews.ts` for why. State rather than a memo over `uploads`,
+   * because the queue forgets an item the moment its bytes are accepted and
+   * this is what remembers it until the feed carries the real one — which is
+   * the deriver's half of the wait, and the half that used to be an empty grid.
+   *
+   * Remembered for as long as the album is open and no longer. Leaving and
+   * coming back starts from the queue again, and anything finished by then is
+   * either in the feed or nearly; one refresh is the whole of what is lost.
+   */
+  const [previews, setPreviews] = useState<Preview[]>([]);
+  const feedIds = useMemo(() => new Set((feed?.photos ?? []).map((p) => p.id)), [feed]);
+  useEffect(() => {
+    setPreviews((was) =>
+      nextPreviews(was, uploads.items, event.id, feedIds, Date.now(), previewUri),
+    );
+  }, [uploads, feedIds, event.id]);
+  /*
+   * And filtered again here, at render, against the feed in hand.
+   *
+   * The effect above runs a render after the feed lands, so trusting it alone
+   * would draw one frame with the photograph twice — the real one at the top of
+   * the server's list and its stand-in still above it.
+   */
+  const pendingTiles = useMemo(
+    () => previews.filter((p) => !(p.photoId && feedIds.has(p.photoId))),
+    [previews, feedIds],
+  );
 
   /**
    * The way out of a line that used to have none.
@@ -3459,6 +3529,13 @@ function EventScreen({
    */
   const stillComing = useRef(false);
   stillComing.current = uploading > 0 || (feed?.arriving ?? 0) > 0 || coverOwed;
+  /*
+   * The stand-ins count as well. A photograph whose bytes have landed has left
+   * `uploading`, and the feed that would say it is `arriving` may be the one
+   * fetched before it was — so without them the poll could stop with a tile
+   * still saying "Processing" and nothing left to replace it.
+   */
+  if (previewsInFlight(pendingTiles)) stillComing.current = true;
 
   /*
    * One timer, made once, for as long as the album is open.
@@ -3748,7 +3825,7 @@ function EventScreen({
 
   const { width } = useWindowDimensions();
 
-  const gridList = useRef<FlatList<FeedPhoto> | null>(null);
+  const gridList = useRef<FlatList<GridTile> | null>(null);
   const keptList = useRef<FlatList<FeedPhoto> | null>(null);
 
   /**
@@ -3865,8 +3942,99 @@ function EventScreen({
    * than this slot can show. Square and cropped, which is the trade a contact
    * sheet makes — and the reason the column is a swipe away rather than gone.
    */
+  /**
+   * The album, led by what is on its way into it.
+   *
+   * Stand-ins on top, because that is where the photographs will land: a roll
+   * is a stack with its latest addition on top. When the real one arrives it
+   * takes the first place among the server's and its stand-in goes in the same
+   * render, so the grid neither grows nor shrinks — a tile changes, nothing
+   * below it moves.
+   *
+   * Only this grid. Kept is what somebody starred, and nothing can be starred
+   * before it exists; the viewer's scope is built from `onShelf`, which is the
+   * feed's photographs alone; and the count under the cover is the server's.
+   * A stand-in is a promise, and none of those are places to count one.
+   */
+  const gridTiles = useMemo<GridTile[]>(
+    () => [
+      ...pendingTiles.map((preview) => ({ ...preview, standIn: true as const })),
+      ...(feed?.photos ?? []),
+    ],
+    [pendingTiles, feed],
+  );
+
+  /**
+   * A photograph that is not in the album yet, drawn from the phone's own copy.
+   *
+   * Dimmed, so it reads as not-quite-there beside the ones that are, and with
+   * one word over it saying which part of the wait it is in. Not a door to the
+   * viewer: there is nothing to page to, comment on or save until the server
+   * has it. The one press it answers is a failed upload's, which is the same
+   * "Try again" the line under the tabs offers, at the place the problem is.
+   *
+   * `allowDownscaling` and `cachePolicy` are the memory half. The copy is the
+   * camera's full file, and decoding twenty of those at full size to fill
+   * 130-point squares is how a phone runs out — expo-image decodes to the size
+   * of the view instead. Held in memory, so a tile scrolled away and back after
+   * its upload has deleted the outbox copy can still find what it showed.
+   */
+  const renderStandIn = useCallback(
+    (item: StandIn) => {
+      const trouble = item.state === 'failed' || item.state === 'stale';
+      return (
+        <Pressable
+          style={{ width: gridTile, height: gridTile }}
+          disabled={item.state !== 'failed'}
+          onPress={() => void retryStuck()}
+          accessibilityRole={item.state === 'failed' ? 'button' : 'image'}
+          accessibilityLabel={
+            item.state === 'failed'
+              ? 'A photo that didn’t upload. Try again'
+              : `A photo you are adding. ${previewLabel(item.state)}`
+          }
+        >
+          <ExpoImage
+            source={{ uri: item.uri }}
+            style={[styles.gridShot, styles.standInShot]}
+            contentFit="cover"
+            allowDownscaling
+            cachePolicy="memory"
+            recyclingKey={item.id}
+            transition={120}
+          />
+          <View pointerEvents="none" style={styles.standInVeil}>
+            {trouble && (
+              <View style={styles.standInMark}>
+                <Text style={styles.standInMarkText}>!</Text>
+              </View>
+            )}
+            <Text style={styles.standInLabel} numberOfLines={1}>
+              {item.state === 'failed' ? 'Tap to retry' : previewLabel(item.state)}
+            </Text>
+          </View>
+          {/*
+            How far it has got, along the foot of the tile.
+
+            Stages rather than bytes — the queue reports which step an item is
+            on, not how much of it has left — so this is a line seen to move
+            rather than a measurement. White for the reason the album's own bar
+            is: it lies on somebody's photograph.
+          */}
+          {item.state === 'uploading' && item.progress !== null && (
+            <View pointerEvents="none" style={styles.standInTrack}>
+              <View style={[styles.standInFill, { width: `${item.progress * 100}%` }]} />
+            </View>
+          )}
+        </Pressable>
+      );
+    },
+    [gridTile, retryStuck],
+  );
+
   const renderTile = useCallback(
-    ({ item }: { item: FeedPhoto }) => {
+    ({ item }: { item: GridTile }) => {
+      if (isStandIn(item)) return renderStandIn(item);
       const who = item.by ? byline.get(item.by) : undefined;
       return (
         <Pressable
@@ -3963,7 +4131,7 @@ function EventScreen({
         </Pressable>
       );
     },
-    [byline, gridTile],
+    [byline, gridTile, renderStandIn],
   );
 
 
@@ -4510,8 +4678,8 @@ function EventScreen({
                   numColumns={GRID_COLUMNS}
                   columnWrapperStyle={styles.gridRow}
                   getItemLayout={gridLayout}
-                  data={feed?.photos ?? []}
-                  keyExtractor={(photo) => photo.id}
+                  data={gridTiles}
+                  keyExtractor={(tile) => (isStandIn(tile) ? `local:${tile.id}` : tile.id)}
                   contentContainerStyle={styles.gridContent}
                   refreshControl={
                     <RefreshControl
@@ -7269,6 +7437,50 @@ const styles = StyleSheet.create({
      this row must not try to distribute them. */
   gridRow: { gap: PHOTO_GAP, justifyContent: 'flex-start' },
   gridShot: { width: '100%', height: '100%', backgroundColor: '#8883' },
+  /* A stand-in for a photograph on its way: the phone's own copy, dimmed. */
+  standInShot: { opacity: 0.55 },
+  /* The word over it, and the mark above the word when something went wrong.
+     White with a shadow, for the same reason as everything else laid on a
+     photograph here: it is the one value that reads on all of them. */
+  standInVeil: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    backgroundColor: '#0002',
+  },
+  standInLabel: {
+    color: '#fff',
+    fontSize: 12,
+    fontWeight: '600',
+    textShadowColor: '#0008',
+    textShadowRadius: 3,
+    textShadowOffset: { width: 0, height: 0 },
+  },
+  standInMark: {
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    borderWidth: 1.5,
+    borderColor: '#fff',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#0006',
+  },
+  standInMarkText: { color: '#fff', fontSize: 13, fontWeight: '700', lineHeight: 15 },
+  standInTrack: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 0,
+    height: 2,
+    backgroundColor: '#fff4',
+  },
+  standInFill: { height: 2, backgroundColor: '#fff' },
   /*
    * The face in a tile's corner, with a shadow under it.
    *

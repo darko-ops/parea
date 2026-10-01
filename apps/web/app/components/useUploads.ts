@@ -30,6 +30,14 @@ export type UploadsView = {
   /** Persist a batch for another page to send. See below. */
   stage(files: File[], eventId: string): Promise<void>;
   discard(): Promise<void>;
+  /** Another set of attempts for whatever gave up — see `retryFailed`. */
+  retry(): Promise<void>;
+  /**
+   * The live handle for a queued photo, if this tab holds one — picked here,
+   * or restored after a refresh. A getter rather than a list so the gallery's
+   * previews can read it without the hook re-rendering for every handle.
+   */
+  fileOf(id: string): File | undefined;
 };
 
 const EMPTY: QueueState = { items: [] };
@@ -290,6 +298,21 @@ export function useUploads(eventId: string, onProgress?: () => void): UploadsVie
     await store.current?.clear(eventId).catch(() => {});
   }, [eventId]);
 
+  /*
+   * The queue already knows how; the web page had no way to ask. A failed
+   * photo still has its handle (only finished ones are let go), so this is
+   * the same run again rather than a re-pick.
+   */
+  const retry = useCallback(async () => {
+    const q = queue.current;
+    if (!q || running || q.retryFailed(eventId) === 0) return;
+    setSnapshot({ items: [...q.state.items] });
+    await drive(q);
+  }, [eventId, drive, running]);
+
+  // Read at call time, so it follows `files` when a restore swaps the map.
+  const fileOf = useCallback((id: string) => files.current.get(id), []);
+
   const items = snapshot.items;
   return {
     items,
@@ -304,5 +327,7 @@ export function useUploads(eventId: string, onProgress?: () => void): UploadsVie
     add,
     stage,
     discard,
+    retry,
+    fileOf,
   };
 }

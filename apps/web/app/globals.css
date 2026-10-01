@@ -2586,6 +2586,25 @@ button.secondary {
   border: 1px dashed var(--line-dashed); border-radius: 14px;
   color: var(--dim); font-size: 12px;
 }
+/* A photo on its way, drawn from the file in hand — see `UploadTile`. Dimmed
+   so it reads as not-yet, with what it is waiting on across the foot. */
+.tile-pending, .tile-pending .tile-open { cursor: default; }
+.tile-pending img { opacity: .6; }
+.tile-pending-stuck .tile-open { box-shadow: inset 0 0 0 1.5px var(--line-dashed); }
+.tile-pending-state {
+  position: absolute; left: 10px; bottom: 12px; max-width: calc(100% - 20px);
+  display: flex; align-items: center; gap: 8px;
+}
+.tile-pending-label {
+  padding: 4px 9px; border-radius: 999px; white-space: nowrap;
+  background: rgba(20, 23, 28, .62); color: #fff; font-size: 12px; font-weight: 600;
+}
+/* Solid, because a transparent secondary button over a photo is no button. */
+.tile-pending-state button { background: var(--bg); }
+.tile-pending-bar {
+  position: absolute; left: 0; right: 0; bottom: 0; height: 3px;
+  background: rgba(20, 23, 28, .18);
+}
 
 /* The overlay: on hover, on focus-within, and on a first tap — which is what
    focus-within gives on touch, where there is no hover to have. */
