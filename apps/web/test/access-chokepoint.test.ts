@@ -246,3 +246,45 @@ describe('the routes that do not authorize, and why', () => {
     expect(source).toMatch(/eventsFor\([^;]*?[aA]ctorId/);
   });
 });
+
+describe('the admin routes, and the staff gate in front of them', () => {
+  /*
+   * The hub's routes authorize differently from everything above: not "may
+   * this person see this event" but "is this the hub, acting for somebody on
+   * the staff list". Their queries live in `src/admin.ts`, so the event-data
+   * rule never reaches them, and that is exactly why this one is needed — a
+   * handler added under `api/admin` without the gate would read the whole
+   * moderation queue for anyone, and nothing above would notice.
+   */
+
+  async function adminRoutes() {
+    return (await routes()).filter((r) => r.path.includes('app/api/admin/'));
+  }
+
+  it('found them', async () => {
+    expect((await adminRoutes()).length).toBeGreaterThanOrEqual(5);
+  });
+
+  it('opens every handler with the gate, and stops on its refusal', async () => {
+    const offenders: string[] = [];
+    for (const { path, source } of await adminRoutes()) {
+      const handlers = source.match(/export async function (GET|POST|PUT|PATCH|DELETE)\b/g) ?? [];
+      const gated = source.match(
+        /const (\w+) = adminGuard\(request\);\s*if \(\1 instanceof Response\) return \1;/g,
+      ) ?? [];
+      if (handlers.length === 0 || gated.length !== handlers.length) offenders.push(path);
+    }
+    expect(offenders, 'these admin handlers do not start at adminGuard').toEqual([]);
+  });
+
+  it('never hands the hub an image, a storage key or a link to one', async () => {
+    // The runbook's first rule for a child-safety alert is not to open the
+    // image. An API that could serve one would make that a matter of
+    // discipline rather than of what is possible.
+    const admin = await readCode(join(ROOT, 'src/admin.ts'));
+    expect(admin).not.toMatch(/storageKey|coverKey|avatarKey|getStorage|imageUrl|signImage|presign/);
+    for (const { path, source } of await adminRoutes()) {
+      expect(source, path).not.toMatch(/storageKey|getStorage|imageUrl|signImage|presign/);
+    }
+  });
+});

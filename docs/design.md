@@ -1684,6 +1684,13 @@ command rather than a page because there is no admin authentication in this
 product, and inventing one so a dashboard can exist is a larger security
 surface than these numbers are worth.
 
+That is still true of Parea itself. The moderation queue is the one exception,
+and it is not a page here either: a separate admin hub, behind its own sign-in,
+calls `/api/admin` server to server with `ADMIN_API_TOKEN`, acting for a named
+member of `ADMIN_STAFF`. It reads reports and incidents — never an image — and
+can decline a report or record that an incident was filed or released, each
+written to `staff_action`. See `apps/web/src/admin.ts`.
+
 Rows expire after a year. Return rate is the slowest metric and needs enough
 history to see a second event; beyond that this is the only table in the
 product holding anything purely because it was interesting, and it should not

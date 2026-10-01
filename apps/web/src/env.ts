@@ -229,6 +229,18 @@ export function describeConfig(): ConfigItem[] {
       requiredInProduction: true,
     },
     {
+      name: 'ADMIN_API_TOKEN',
+      /*
+       * Not required: Parea runs without the hub, and with this unset every
+       * `/api/admin` route answers 404. Never borrows the session secret — a
+       * key that unlocks the moderation queue is its own key or nothing.
+       * `ADMIN_STAFF` names who may act with it; see `src/admin.ts`.
+       */
+      present: has('ADMIN_API_TOKEN') && has('ADMIN_STAFF'),
+      consequence: 'the admin hub cannot reach Parea; reports are only seen through alerts',
+      requiredInProduction: false,
+    },
+    {
       name: 'APPLE_TEAM_ID',
       present: has('APPLE_TEAM_ID'),
       // Not required, because the web client is complete without an app. But

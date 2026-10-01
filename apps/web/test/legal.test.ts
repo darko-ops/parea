@@ -235,6 +235,8 @@ describe('the closed list of what is collected', () => {
       group_join_request: /asked to join a private roll or a group/,
       report: /asked for a photo of you to be taken down/,
       content_report: /That you reported something/,
+      // Who on staff decided a report, and what — the other half of it.
+      staff_action: /what they decided and who they were/,
       group_removal: /admin took you out of it/,
       block: /blocked somebody/,
       // Kept because the law requires it, and described at length in its own

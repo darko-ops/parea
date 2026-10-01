@@ -416,6 +416,8 @@ Generate with `openssl rand -base64 32`.
 | `QSTASH_TOKEN` | ● | | without it an upload is refused rather than never derived |
 | `QSTASH_URL` | | ● | only when the QStash account is outside the default region |
 | `DERIVER_JOB_URL` | ● | | where deliveries go; signed into each one, so it must match the deriver's `DERIVER_PUBLIC_URL` |
+| `ADMIN_API_TOKEN` | ● | | the admin hub's key to `/api/admin`; at least 32 characters. Unset means every admin route is a 404 |
+| `ADMIN_STAFF` | ● | | emails allowed to act through the hub, comma-separated. A token without a name on this list is refused |
 | `APPLE_TEAM_ID` | ● | | without it iOS Universal Links never verify |
 | `ANDROID_CERT_FINGERPRINTS` | ● | | comma-separated; upload key *and* Play signing key. Also what Android passkeys are verified against |
 | `PASSKEY_RP_ID` | ● | | leave unset; derived from the request host. Only for a domain the code does not know — and a passkey is bound to its RP ID for life |

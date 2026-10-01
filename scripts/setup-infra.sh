@@ -325,6 +325,11 @@ QSTASH_TOKEN=
 QSTASH_URL=
 DERIVER_JOB_URL=https://parea-deriver.fly.dev/jobs/photo
 
+# The admin hub. Empty means /api/admin answers 404 to everyone; set both
+# when the hub is deployed. ADMIN_STAFF is a comma-separated list of emails.
+ADMIN_API_TOKEN=
+ADMIN_STAFF=
+
 # Only needed once the app exists. Until they are set, the two .well-known
 # files 404 and every tapped link opens a browser on a phone that has the app
 # installed — which looks exactly like not having it installed.

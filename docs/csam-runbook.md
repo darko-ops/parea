@@ -173,6 +173,12 @@ directly. Both are recorded the same way, step 4 below.
    returns the photo to ordinary handling. Leave a note saying who decided and
    on what basis.
 
+Steps 4 and 5 can be done from the admin hub instead of by hand: **File**
+takes the reference and sets the preservation date from it; **Release** needs
+the reason and refuses an incident already filed. Both write `staff_action`
+with the reviewer's email. The hub never shows the image — step 1 holds there
+too.
+
 ## Before launch
 
 None of these are code, and all of them gate shipping:

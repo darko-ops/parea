@@ -1403,6 +1403,41 @@ export const moderationActions = pgTable(
 );
 
 /**
+ * Everything a member of staff did through the admin API, and who they were.
+ *
+ * Staff are not actors. They reach Parea through the hub — a separate app
+ * behind its own sign-in — which holds `ADMIN_API_TOKEN` and names the person
+ * acting on every request. So "who" is the email the hub vouched for, not an
+ * actor id, and `resolved_by` on a report stays null when staff resolve it:
+ * this table is where the answer lives.
+ *
+ * Append-only and without foreign keys, for the reasons `moderation_action`
+ * gives: the record has to outlive what it is about. A visibility change is
+ * still written to `moderation_action` as well, so "why is this photo hidden"
+ * keeps one place to look.
+ */
+export const staffActions = pgTable(
+  'staff_action',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    /** The email the hub's sign-in vouched for. */
+    staff: text('staff').notNull(),
+    /** `report_declined`, `incident_filed`, `incident_released`. */
+    action: text('action').notNull(),
+    /** `report`, `content_report`, `safety_incident`. */
+    targetKind: text('target_kind').notNull(),
+    targetId: uuid('target_id').notNull(),
+    /** Why, in the person's own words. Required wherever a hold is lifted. */
+    note: text('note'),
+    createdAt: createdAt(),
+  },
+  (t) => [
+    index('staff_action_target_idx').on(t.targetKind, t.targetId, t.createdAt),
+    index('staff_action_created_idx').on(t.createdAt),
+  ],
+);
+
+/**
  * What an automated content classifier thought about a photo.
  *
  * A separate table from `safety_incident`, and the separation is the point.
