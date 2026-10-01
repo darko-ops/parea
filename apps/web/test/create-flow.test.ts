@@ -210,3 +210,11 @@ describe('a cover that could not be made is not posted anyway', () => {
     expect(CREATE).toMatch(/urls=\{previews\}/);
   });
 });
+
+describe('after choosing photos', () => {
+  it('goes straight on to naming the roll, without a second press', () => {
+    const page = readFileSync(fileURLToPath(new URL('../app/page.tsx', import.meta.url)), 'utf8');
+    const pick = page.slice(page.indexOf('const pick = useCallback'), page.indexOf('}, [picked]);'));
+    expect(pick).toMatch(/setPicked\(\[\.\.\.picked, \.\.\.kept\]\);[\s\S]*setStep\('details'\);/);
+  });
+});

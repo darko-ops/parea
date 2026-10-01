@@ -33,9 +33,12 @@ describe('the bar', () => {
     expect(VIEW).toMatch(/style=\{\{ width: `\$\{progress\}%` \}\}/);
   });
 
-  it('says it is finishing while photos are processing, and stays open', () => {
+  it('says it is finishing while photos are processing', () => {
     expect(VIEW).toMatch(/Finishing \$\{processing\}/);
-    expect(VIEW).toMatch(/uploads\.running \|\| processing > 0 \|\| needsAttention/);
+  });
+
+  it('starts folded, opening on its own only when something needs a decision', () => {
+    expect(VIEW).toMatch(/const open = choice \?\? needsAttention;/);
   });
 });
 

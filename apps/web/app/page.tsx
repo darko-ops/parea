@@ -167,7 +167,19 @@ export default function CreatePage() {
     // do not take up room.
     const { kept, dropped } = capSelection(picked.length, fresh, MAX_PER_SELECTION);
     setOverLimit(dropped > 0 ? selectionNote(kept.length, MAX_PER_SELECTION) : null);
-    if (kept.length > 0) setPicked([...picked, ...kept]);
+    if (kept.length > 0) {
+      setPicked([...picked, ...kept]);
+      /*
+       * Straight on to naming it.
+       *
+       * Choosing photos was followed by a "Done" press to reach the next step,
+       * after iOS's own picker had already made somebody wait while it got the
+       * photos ready. The photos are here; the strip on the next step fills in
+       * its thumbnails while the roll is being named, and "Back to photos" is
+       * there for adding more.
+       */
+      setStep('details');
+    }
     if (fileRef.current) fileRef.current.value = '';
   }, [picked]);
 

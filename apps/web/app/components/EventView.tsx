@@ -1796,8 +1796,13 @@ function Uploads({
     item.status === 'done' && ((item.photoId != null && shown.has(item.photoId)) || arriving === 0);
   const done = uploads.items.filter(finished).length;
   const processing = uploads.items.filter((i) => i.status === 'done' && !finished(i)).length;
-  // Open while sending or processing, or while something needs a decision.
-  const open = choice ?? (uploads.running || processing > 0 || needsAttention);
+  /*
+   * Folded by default: the summary line and its bar say how it is going, and
+   * the photos themselves are already in the grid as previews. Opens on its
+   * own only when something needs a decision — a failure or a photo to pick
+   * again. Tapping it shows every photo's progress.
+   */
+  const open = choice ?? needsAttention;
   const progress =
     total === 0
       ? 0
