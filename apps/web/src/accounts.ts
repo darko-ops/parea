@@ -541,7 +541,18 @@ export async function deleteAccount(db: Db, actorId: string): Promise<boolean> {
       .update(schema.actors)
       .set({ accountId: null, kind: 'guest' })
       .where(eq(schema.actors.accountId, actor.accountId!));
-    await tx.delete(schema.accounts).where(eq(schema.accounts.id, actor.accountId!));
+    const [closed] = await tx
+      .delete(schema.accounts)
+      .where(eq(schema.accounts.id, actor.accountId!))
+      .returning({ createdAt: schema.accounts.createdAt });
+    // That one closed, and when it had opened — nothing that says whose, and
+    // to the day only. See `account_closure` in the schema.
+    if (closed) {
+      await tx.insert(schema.accountClosures).values({
+        accountCreatedAt: sql`date_trunc('day', ${closed.createdAt.toISOString()}::timestamptz at time zone 'utc') at time zone 'utc'`,
+        closedAt: sql`date_trunc('day', now() at time zone 'utc') at time zone 'utc'`,
+      });
+    }
   });
 
   // The pictures, after the rows that pointed at them are gone. Best-effort:

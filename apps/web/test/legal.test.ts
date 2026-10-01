@@ -212,6 +212,7 @@ describe('the closed list of what is collected', () => {
       'groups', // a name and a slug; who is in it is `group_member`.
       'moderation_flag', // a classifier's opinion of a photo.
       'job_run', // when the hourly clean-up last ran, and its last error line.
+      'account_closure', // two dates and no identifier: that some account closed, and when.
     ]);
 
     const DISCLOSED: Record<string, RegExp> = {

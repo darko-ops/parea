@@ -371,3 +371,71 @@ export async function listPeople(
   }[];
   return { people: list.slice(0, PAGE), page, hasMore: list.length > PAGE };
 }
+
+/**
+ * Accounts opened and closed, by day, for the last ninety days.
+ *
+ * "Opened" counts every account created in the window, closed since or not:
+ * live accounts by their `created_at`, closed ones by the `account_created_at`
+ * their closure kept. "Closed" is `account_closure` — which only exists from
+ * the day it was added, so `recordingSince` says how far back closures are
+ * known and the hub says so rather than showing a quiet zero.
+ */
+export async function accountsTimeline(db: Db) {
+  const days: any = await db.execute(sql`
+    with opened as (
+      select "created_at" as "at" from "account"
+      union all
+      select "account_created_at" from "account_closure"
+    )
+    select to_char(d, 'YYYY-MM-DD') as "day",
+           (select count(*)::int from opened
+             where date_trunc('day', "at" at time zone 'utc') = d) as "created",
+           (select count(*)::int from "account_closure"
+             where date_trunc('day', "closed_at" at time zone 'utc') = d) as "deleted"
+      from generate_series(
+             date_trunc('day', now() at time zone 'utc') - interval '89 days',
+             date_trunc('day', now() at time zone 'utc'),
+             interval '1 day') d
+     order by d
+  `);
+
+  const totals: any = await db.execute(sql`
+    select
+      (select count(*)::int from "account") as "live",
+      (select count(*)::int from "account") + (select count(*)::int from "account_closure") as "createdAllTime",
+      (select count(*)::int from "account_closure") as "deletedAllTime",
+      (select count(*)::int from "account" where "created_at" > now() - interval '30 days')
+        + (select count(*)::int from "account_closure" where "account_created_at" > now() - interval '30 days')
+        as "created30",
+      (select count(*)::int from "account_closure" where "closed_at" > now() - interval '30 days') as "deleted30",
+      (select percentile_cont(0.5) within group (
+                order by extract(epoch from ("closed_at" - "account_created_at")) / 86400)
+         from "account_closure") as "medianDaysBeforeDeleting",
+      (select min("closed_at") from "account_closure") as "recordingSince"
+  `);
+
+  const recent = await db
+    .select({ accountCreatedAt: schema.accountClosures.accountCreatedAt, closedAt: schema.accountClosures.closedAt })
+    .from(schema.accountClosures)
+    .orderBy(desc(schema.accountClosures.closedAt))
+    .limit(20);
+
+  const t = (totals.rows ?? totals)[0];
+  return {
+    totals: {
+      ...t,
+      medianDaysBeforeDeleting: t.medianDaysBeforeDeleting === null ? null : Number(t.medianDaysBeforeDeleting),
+    } as {
+      live: number;
+      createdAllTime: number;
+      deletedAllTime: number;
+      created30: number;
+      deleted30: number;
+      medianDaysBeforeDeleting: number | null;
+      recordingSince: string | null;
+    },
+    days: (days.rows ?? days) as { day: string; created: number; deleted: number }[],
+    recentDeletions: recent,
+  };
+}

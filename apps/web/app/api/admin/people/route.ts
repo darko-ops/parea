@@ -4,12 +4,14 @@
  *   ?q=…                              search by email, handle, name or id
  *   ?sort=…&filter=…&page=…           the directory, a page at a time
  *   ?stats=1                          totals and thirty days of sign-ups
+ *   ?accounts=1                       accounts opened and closed, ninety days
  */
 
 import { NextResponse } from 'next/server';
 
 import { adminGuard } from '@/admin';
 import {
+  accountsTimeline,
   listPeople,
   PEOPLE_FILTERS,
   PEOPLE_SORTS,
@@ -28,6 +30,7 @@ export async function GET(request: Request) {
 
   const params = new URL(request.url).searchParams;
   if (params.get('stats')) return NextResponse.json(await peopleStats(getDb()));
+  if (params.get('accounts')) return NextResponse.json(await accountsTimeline(getDb()));
 
   const q = (params.get('q') ?? '').slice(0, 200);
   if (q.trim()) return NextResponse.json({ people: await searchPeople(getDb(), q) });

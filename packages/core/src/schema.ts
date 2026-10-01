@@ -1404,6 +1404,35 @@ export const moderationActions = pgTable(
 );
 
 /**
+ * That an account was closed, and when — and nothing that says whose.
+ *
+ * Closing an account deletes the `account` row, which is right, and it left
+ * nothing behind to count: how many people leave, how soon after joining,
+ * whether a change made it worse. So `deleteAccount` writes one of these as it
+ * goes. Two dates and no identifier — no email, no actor, no account id — so
+ * the row cannot be joined back to the person who left, which is the promise
+ * the privacy page makes about a closed account.
+ *
+ * Both dates are kept to the day, never the moment. An exact time is a
+ * fingerprint — with few enough people it can be matched against a session or
+ * a sign-in that happened in the same instant — and a day is all the counting
+ * needs.
+ *
+ * `account_created_at` is kept so that an account created and then closed
+ * still counts in "accounts created that week"; without it, every closure
+ * would quietly rewrite the sign-up history too.
+ */
+export const accountClosures = pgTable(
+  'account_closure',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    accountCreatedAt: timestamp('account_created_at', { withTimezone: true }).notNull(),
+    closedAt: timestamp('closed_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index('account_closure_closed_idx').on(t.closedAt)],
+);
+
+/**
  * A person barred from Parea by staff, and whether it has been lifted.
  *
  * Enforced where every request is identified: `resolveSession` will not

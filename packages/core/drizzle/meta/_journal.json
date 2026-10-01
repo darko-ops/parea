@@ -407,6 +407,13 @@
       "when": 1790881156965,
       "tag": "0057_suspension",
       "breakpoints": true
+    },
+    {
+      "idx": 58,
+      "version": "7",
+      "when": 1790886400391,
+      "tag": "0058_account_closure",
+      "breakpoints": true
     }
   ]
 }

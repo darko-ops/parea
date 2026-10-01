@@ -60,7 +60,7 @@ beforeEach(async () => {
              "safety_incident", "staff_action", "group_message", "groups",
              "moment", "moment_comment", "event_message", "derivative",
              "moderation_action", "moderation_flag", "account", "suspension",
-             "session"
+             "session", "account_closure"
     restart identity cascade
   `);
 });
@@ -799,5 +799,53 @@ describe('everybody', () => {
     expect(first.hasMore).toBe(true);
     expect(second.people).toHaveLength(1);
     expect(second.hasMore).toBe(false);
+  });
+});
+
+describe('accounts opened and closed', () => {
+  it('records a closure with two dates and nothing that says whose', async () => {
+    const { deleteAccount } = await import('../src/accounts');
+    const opened = new Date(Date.now() - 10 * 86_400_000);
+    const [account] = await db.insert(schema.accounts).values({ email: 'leaving@example.com', createdAt: opened }).returning();
+    const [actor] = await db.insert(schema.actors).values({ kind: 'user', accountId: account!.id }).returning();
+
+    expect(await deleteAccount(db, actor!.id)).toBe(true);
+    const rows = await db.select().from(schema.accountClosures);
+    expect(rows).toHaveLength(1);
+    expect(Object.keys(rows[0]!).sort()).toEqual(['accountCreatedAt', 'closedAt', 'id']);
+    // To the day, never the moment: an exact time could be matched to a
+    // session or a sign-in and point back to the person.
+    const day = (d: Date) => d.toISOString().slice(0, 10);
+    expect(day(rows[0]!.accountCreatedAt)).toBe(day(opened));
+    expect(rows[0]!.accountCreatedAt.toISOString().slice(10)).toBe('T00:00:00.000Z');
+    expect(rows[0]!.closedAt.toISOString().slice(10)).toBe('T00:00:00.000Z');
+    expect(JSON.stringify(rows)).not.toContain('leaving@example.com');
+    expect(JSON.stringify(rows)).not.toContain(actor!.id);
+  });
+
+  it('count a closed account as opened too, and show both by day', async () => {
+    const { deleteAccount } = await import('../src/accounts');
+    const [kept] = await db.insert(schema.accounts).values({ email: 'kept@example.com' }).returning();
+    await db.insert(schema.actors).values({ kind: 'user', accountId: kept!.id });
+    const [gone] = await db
+      .insert(schema.accounts)
+      .values({ email: 'gone@example.com', createdAt: new Date(Date.now() - 4 * 86_400_000) })
+      .returning();
+    const [goneActor] = await db.insert(schema.actors).values({ kind: 'user', accountId: gone!.id }).returning();
+    await deleteAccount(db, goneActor!.id);
+
+    const body = await (await peopleRoute.GET(req('people?accounts=1'))).json();
+    expect(body.totals).toMatchObject({ live: 1, createdAllTime: 2, deletedAllTime: 1, created30: 2, deleted30: 1 });
+    expect(Math.round(body.totals.medianDaysBeforeDeleting)).toBe(4);
+    expect(body.totals.recordingSince).not.toBeNull();
+    expect(body.days).toHaveLength(90);
+    expect(body.days.reduce((n: number, d: { created: number }) => n + d.created, 0)).toBe(2);
+    expect(body.days.at(-1)).toMatchObject({ created: 1, deleted: 1 });
+    expect(body.recentDeletions).toHaveLength(1);
+  });
+
+  it('say closures are not known before they were first recorded', async () => {
+    const body = await (await peopleRoute.GET(req('people?accounts=1'))).json();
+    expect(body.totals).toMatchObject({ deletedAllTime: 0, recordingSince: null, medianDaysBeforeDeleting: null });
   });
 });

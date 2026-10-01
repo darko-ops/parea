@@ -731,7 +731,10 @@ export default function PrivacyPage() {
               no name on them, where they can still be removed one at a time;
               or removed as well. The rolls and groups you made stay, because
               they belong to everyone in them, and so do safety and moderation
-              records, which may have to be kept by law.
+              records, which may have to be kept by law. We also note that an
+              account was closed, with the date it was opened and the date it
+              closed and nothing that says whose, so we can count how many
+              people leave.
             </li>
             <li>
               <strong>Ask us for a copy of what is held about you</strong>, or ask
