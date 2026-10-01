@@ -17,9 +17,16 @@
  * The behaviour was never wrong.
  */
 
+import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { __setQueueForTests, deduplicationKey, publishDerive } from '../src/queue';
+import {
+  __setQueueForTests,
+  DERIVE_PARALLELISM,
+  deduplicationKey,
+  publishDerive,
+} from '../src/queue';
 
 afterEach(() => {
   __setQueueForTests(null);
@@ -76,6 +83,28 @@ describe('what publishDerive sends', () => {
     const sent = publishJSON.mock.calls[0]![0] as { deduplicationId: string; body: unknown };
     expect(sent.deduplicationId).toMatch(SAFE);
     expect(sent.body).toEqual({ photoId: '0f870694-9e30-4f18-9201-8854445556b6' });
+  });
+
+  it('is paced one at a time by QStash, matching what the deriver takes', async () => {
+    // A 22-photo roll published 22 deliveries at once; Fly refused all but one
+    // and five photographs waited half an hour on QStash's backoff.
+    const publishJSON = vi.fn().mockResolvedValue({ messageId: 'm1' });
+    __setQueueForTests({ publishJSON } as never);
+    vi.stubEnv('QSTASH_TOKEN', 'test-token');
+    vi.stubEnv('DERIVER_JOB_URL', 'https://deriver.example/job');
+
+    await publishDerive('0f870694-9e30-4f18-9201-8854445556b6');
+    const sent = publishJSON.mock.calls[0]![0] as { flowControl?: { key: string; parallelism: number } };
+    expect(sent.flowControl).toEqual({ key: 'deriver', parallelism: 1 });
+  });
+
+  it('keeps the pace equal to the deriver\'s own limit', () => {
+    const toml = readFileSync(
+      fileURLToPath(new URL('../../../services/deriver/fly.toml', import.meta.url)),
+      'utf8',
+    );
+    const hard = Number(/hard_limit = (\d+)/.exec(toml)?.[1]);
+    expect(hard).toBe(DERIVE_PARALLELISM);
   });
 
   it('lets a refusal through rather than swallowing it', async () => {

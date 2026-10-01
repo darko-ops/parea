@@ -57,6 +57,8 @@ primary_region = "lhr"
   # one: a single core.
   [http_service.concurrency]
     type = "requests"
+    # Matched by QStash flow control (DERIVE_PARALLELISM in apps/web/src/queue.ts),
+    # which hands over the next photo only as this one finishes. Change both together.
     hard_limit = 1
     soft_limit = 1
 

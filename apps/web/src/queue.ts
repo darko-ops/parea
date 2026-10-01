@@ -38,6 +38,11 @@ import { Client } from '@upstash/qstash';
 
 export type PublishResult = 'published' | 'not-configured';
 
+/** QStash flow-control key for deriver deliveries — see `publishDerive`. */
+export const DERIVE_FLOW_KEY = 'deriver';
+/** How many deliveries the deriver takes at once: its fly.toml `hard_limit`. */
+export const DERIVE_PARALLELISM = 1;
+
 /**
  * What QStash will accept as a deduplication id.
  *
@@ -137,6 +142,19 @@ export async function publishDerive(photoId: string): Promise<PublishResult> {
      * in a template literal nobody can see is wrong.
      */
     deduplicationId: deduplicationKey(photoId),
+    /*
+     * One at a time, held by QStash rather than refused by Fly.
+     *
+     * The deriver is one machine that takes one photo at a time (`hard_limit`
+     * in fly.toml) and spends about ten seconds on each. Without this, a
+     * 22-photo upload published 22 deliveries at once; Fly's proxy refused
+     * all but one, and QStash's retries — 12s, then 2m28s, then 30 minutes —
+     * left five photographs of a real roll unprocessed for half an hour. With
+     * a flow-control key QStash queues them itself and hands over the next
+     * one as the last finishes, so nothing is refused and nothing waits on a
+     * backoff. Keep `parallelism` equal to the deriver's `hard_limit`.
+     */
+    flowControl: { key: DERIVE_FLOW_KEY, parallelism: DERIVE_PARALLELISM },
   });
 
   return 'published';
