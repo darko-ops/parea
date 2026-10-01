@@ -7211,11 +7211,11 @@ function theme(dark: boolean) {
     ? { bg: '#0d0f12', bgClear: 'rgba(13,15,18,0)', card: '#171a1f', line: '#272b33',
         fg: '#f2f4f7', dim: '#9aa3af', accent: '#e3e6ea', onAccent: '#0d0f12',
         news: NEWS, onNews: ON_NEWS,
-        warn: '#ff7b70' }
+        warn: '#ff7b70', link: '#6ea8ff' }
     : { bg: '#f7f8fa', bgClear: 'rgba(247,248,250,0)', card: '#ffffff', line: '#e3e6ea',
         fg: '#14171c', dim: '#5b6472', accent: '#3d424a', onAccent: '#ffffff',
         news: NEWS, onNews: ON_NEWS,
-        warn: '#c23127' };
+        warn: '#c23127', link: '#2563eb' };
 }
 
 /** How far the floating chrome sits from the screen's edges. */

@@ -46,6 +46,9 @@
      screen of a product whose only colour should be the photographs. 10:1 on
      white. */
   --accent: #3d424a;
+  /* Text that opens a web page — the link on a profile. A clear blue, so it
+     reads at a glance as somewhere to go; the app's theme has the same pair. */
+  --link: #2563eb;
   /* Selected pill fill, and the active nav row in the rail. */
   --accent-soft: #ececef;
   /* Arriving, and only arriving: the badge in the rail, the dot beside Chat,
@@ -166,6 +169,7 @@
   --line: #272b33;
   --fg: #f2f4f7; --dim: #9aa3af;
   --accent: #e3e6ea;
+  --link: #6ea8ff;
   --accent-soft: #24282f;
   --news-ink: #07272e;
   --accent-ink: #e3e6ea;
@@ -4643,9 +4647,15 @@ img.you-face { object-fit: cover; }
    an ellipsis belongs at the end of a domain, not in front of one. */
 .you-link {
   margin: 6px 0 0; font-size: 14.5px;
-  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  display: flex; align-items: center; justify-content: center; gap: 5px;
+  min-width: 0; white-space: nowrap;
 }
-.you-link a { color: var(--accent); text-decoration: none; }
+/* Grey, and never squeezed: the address beside it is what gives way. */
+.you-link .link-icon { flex: none; color: var(--dim); }
+.you-link a {
+  color: var(--link); text-decoration: none;
+  min-width: 0; overflow: hidden; text-overflow: ellipsis;
+}
 .you-link a:hover { text-decoration: underline; }
 
 /* The pair. Two halves of a row and the same size, because neither is more
@@ -4901,6 +4911,7 @@ button.link {
   /* The facts read left to right with everything else, rather than centring
      themselves inside a column that is no longer centred. */
   .you-counts { justify-content: flex-start; }
+  .you-link { justify-content: flex-start; }
   /* The controls stay with the name rather than dropping under the bio: they
      are about the person in the header, and the header now has a corner to
      keep them in. Both rows — `.you-actions` is your own profile's Edit and

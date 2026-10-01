@@ -113,6 +113,11 @@ export type GroupTheme = {
   onNews: string;
   /** The one red, for the two actions that take something away. */
   warn: string;
+  /**
+   * Text that opens a web page — the link on a profile. A clear blue, so it
+   * reads at a glance as somewhere to go.
+   */
+  link: string;
   /** `bg` at zero alpha, for fading to the page without passing through grey. */
   bgClear: string;
 };

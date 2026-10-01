@@ -35,6 +35,7 @@ import { Shell } from './Shell';
 import { ShareProfile } from './ShareProfile';
 import { SignIn } from './SignIn';
 import { SiteFooter } from './SiteFooter';
+import { LinkIcon } from './LinkIcon';
 
 import { sameOriginPath } from '@/redirect';
 /**
@@ -509,6 +510,7 @@ export function AccountView() {
           */}
           {account?.link && (
             <p className="you-link">
+              <LinkIcon />
               <a href={account.link} target="_blank" rel="nofollow ugc noopener noreferrer">
                 {account.link.replace(/^https?:\/\//, '').replace(/\/$/, '')}
               </a>

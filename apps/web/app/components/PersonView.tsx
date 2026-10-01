@@ -65,6 +65,7 @@ import { FrostedGlass } from './FrostedGlass';
 import { Menu } from './Menu';
 import { MomentStrip } from './MomentStrip';
 import { blockAsk, blockName, blockPerson, blockSaid, reportContent, reportSaid } from './report';
+import { LinkIcon } from './LinkIcon';
 
 export type ProfileAlbumCard = {
   id: string;
@@ -495,6 +496,7 @@ export function PersonView({
           */}
           {person.link && (
             <p className="you-link">
+              <LinkIcon />
               <a href={person.link} target="_blank" rel="nofollow ugc noopener noreferrer">
                 {person.link.replace(/^https?:\/\//, '').replace(/\/$/, '')}
               </a>

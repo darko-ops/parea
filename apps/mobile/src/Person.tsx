@@ -54,6 +54,7 @@ import {
   useWindowDimensions,
 } from 'react-native';
 
+import { LinkIcon } from './LinkIcon';
 import type { Api, EventListing, Person, ProfileAlbum, SharedEvent, Standing } from './api';
 import { blockAuthor } from './block';
 import { HangingTab, TAB_H } from './HangingTab';
@@ -489,16 +490,19 @@ export function PersonScreen({
           protocol on a screen about a person.
         */}
         {person.link && (
-          <Text
-            onPress={() => void Linking.openURL(person.link!)}
-            suppressHighlighting
-            accessibilityRole="link"
-            accessibilityLabel={`${person.link.replace(/^https?:\/\//, '')}, opens in your browser`}
-            numberOfLines={1}
-            style={[styles.link, { color: t.accent }]}
-          >
-            {person.link.replace(/^https?:\/\//, '').replace(/\/$/, '')}
-          </Text>
+          <View style={styles.linkRow}>
+            <LinkIcon color={t.dim} />
+            <Text
+              onPress={() => void Linking.openURL(person.link!)}
+              suppressHighlighting
+              accessibilityRole="link"
+              accessibilityLabel={`${person.link.replace(/^https?:\/\//, '')}, opens in your browser`}
+              numberOfLines={1}
+              style={[styles.link, { color: t.link }]}
+            >
+              {person.link.replace(/^https?:\/\//, '').replace(/\/$/, '')}
+            </Text>
+          </View>
         )}
 
         {/* In the column rather than under it, so the space above it is a
@@ -929,7 +933,16 @@ const styles = StyleSheet.create({
   /* The same size and rhythm as the counts line above it, in the accent — the
      one thing in this header that goes somewhere. Your own profile's to the
      point: one link, one line, one set of numbers for it. */
-  link: { textAlign: 'center', fontSize: 14.5, marginTop: 6 },
+  /* The address and the grey chain beside it, centred together; the text
+     shrinks and truncates so a long address never pushes the icon off. */
+  linkRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 5,
+    marginTop: 6,
+  },
+  link: { fontSize: 14.5, flexShrink: 1 },
   /*
    * Centred and inset, like the profile's, and six under the line above it.
    *

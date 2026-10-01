@@ -62,6 +62,7 @@ import {
 
 import { dateLabel } from '@parea/cards';
 
+import { LinkIcon } from './LinkIcon';
 import type { Account, Api, EventListing, InvitablePerson } from './api';
 import { ApiError } from './api';
 import { AccountCard } from './Events';
@@ -342,9 +343,9 @@ export function ProfileScreen({
             Albums and photographs are already reachable — the shelf below is
             the albums, and a photograph lives in one of them. A friend was the
             one thing this line counted that the app could not then show you, so
-            that is the half that became a control. Underlined rather than
-            coloured: an accent word in the middle of a grey line reads as a
-            link in prose, and this is a line of facts.
+            that is the half that became a control. Neither underlined nor
+            coloured: it is a line of facts, and the one link on the page — the
+            address under it — is the thing that looks like one.
           */}
           <Text style={[styles.counts, { color: t.dim }]}>
             {events.length} {events.length === 1 ? 'roll' : 'rolls'} · {photos}{' '}
@@ -358,7 +359,6 @@ export function ProfileScreen({
                   ? `${friends.length} ${friends.length === 1 ? 'friend' : 'friends'}, see them`
                   : undefined
               }
-              style={friends?.length ? styles.countsLink : undefined}
             >
               {/*
                 Singular, like the two counts beside it.
@@ -389,16 +389,19 @@ export function ProfileScreen({
             this safe to hand straight to the browser.
           */}
           {account?.link && (
-            <Text
-              onPress={() => void Linking.openURL(account.link!)}
-              suppressHighlighting
-              accessibilityRole="link"
-              accessibilityLabel={`${account.link.replace(/^https?:\/\//, '')}, opens in your browser`}
-              numberOfLines={1}
-              style={[styles.link, { color: t.accent }]}
-            >
-              {account.link.replace(/^https?:\/\//, '').replace(/\/$/, '')}
-            </Text>
+            <View style={styles.linkRow}>
+              <LinkIcon color={t.dim} />
+              <Text
+                onPress={() => void Linking.openURL(account.link!)}
+                suppressHighlighting
+                accessibilityRole="link"
+                accessibilityLabel={`${account.link.replace(/^https?:\/\//, '')}, opens in your browser`}
+                numberOfLines={1}
+                style={[styles.link, { color: t.link }]}
+              >
+                {account.link.replace(/^https?:\/\//, '').replace(/\/$/, '')}
+              </Text>
+            </View>
           )}
         </View>
 
@@ -1247,7 +1250,6 @@ const styles = StyleSheet.create({
   counts: { textAlign: 'center', fontSize: 14.5, marginTop: 8 },
   /* Underlined rather than accented: an accent word inside a grey line reads as
      a link in prose, and this is a line of facts. */
-  countsLink: { textDecorationLine: 'underline' },
   /* One friend. A rule between rows and none under the last, which is the same
      shape the event chats use. */
   friendRow: {
@@ -1306,7 +1308,16 @@ const styles = StyleSheet.create({
   },
   /* The same size and rhythm as the counts line it follows, in the accent —
      this is the one thing in the header that goes somewhere. */
-  link: { textAlign: 'center', fontSize: 14.5, marginTop: 6 },
+  /* The address and the grey chain beside it, centred together; the text
+     shrinks and truncates so a long address never pushes the icon off. */
+  linkRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 5,
+    marginTop: 6,
+  },
+  link: { fontSize: 14.5, flexShrink: 1 },
   /* Centred, and given room: this is the only thing on the lower half of the
      page, so it is placed rather than left at the top of an empty run. */
   noAlbums: { alignItems: 'center', gap: 14, paddingTop: 24 },

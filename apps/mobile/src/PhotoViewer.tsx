@@ -85,6 +85,7 @@ const GLASS: GroupTheme = {
   news: '#17c0de',
   onNews: '#07272e',
   warn: '#ff8080',
+  link: '#6ea8ff',
   bgClear: 'rgba(12,14,18,0)',
 };
 
