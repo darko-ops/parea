@@ -27,8 +27,11 @@ export type UploadsView = {
   /** True when this tab picked up work a previous one left behind. */
   resumed: boolean;
   add(files: File[]): Promise<void>;
-  /** Persist a batch for another page to send. See below. */
-  stage(files: File[], eventId: string): Promise<void>;
+  /**
+   * Persist a batch for another page to send. See below. `cover` is the one of
+   * them the roll's cover was cut from, if any — see `coverPending`.
+   */
+  stage(files: File[], eventId: string, cover?: File | null): Promise<void>;
   discard(): Promise<void>;
   /** Another set of attempts for whatever gave up — see `retryFailed`. */
   retry(): Promise<void>;
@@ -41,6 +44,19 @@ export type UploadsView = {
 };
 
 const EMPTY: QueueState = { items: [] };
+
+/*
+ * Which queued photo a roll's cover was cut from, until that photo has an id.
+ *
+ * The create form posts the cover the moment the roll exists, and the photos
+ * go up afterwards from the roll's own page — so at the moment the cover is
+ * set there is no photo id to name it by, and the roll never learned which
+ * photograph it was. That is what puts the cover first in the grid. So the
+ * form leaves the queue item's id here, and this page tells the server once
+ * the upload has named it. Local storage rather than session, so a roll page
+ * reopened in another tab, resuming the same queue, still finishes the job.
+ */
+const coverPending = (eventId: string) => `parea.cover-pending:${eventId}`;
 
 export function useUploads(eventId: string, onProgress?: () => void): UploadsView {
   const [snapshot, setSnapshot] = useState<QueueState>(EMPTY);
@@ -66,6 +82,36 @@ export function useUploads(eventId: string, onProgress?: () => void): UploadsVie
    * where nobody ships from.
    */
   const started = useRef(false);
+
+  /* Naming the cover's photograph, once its upload has an id. See `coverPending`. */
+  useEffect(() => {
+    let itemId: string | null = null;
+    try {
+      itemId = localStorage.getItem(coverPending(eventId));
+    } catch {
+      return;
+    }
+    if (!itemId) return;
+    const photoId = snapshot.items.find((item) => item.id === itemId)?.photoId;
+    if (!photoId) return;
+
+    void fetch(`/api/events/${eventId}/cover`, {
+      method: 'PATCH',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ photoId }),
+    })
+      .then((res) => {
+        // Done, or never going to be: either way there is nothing to retry.
+        if (res.ok || res.status === 400 || res.status === 403 || res.status === 404) {
+          try {
+            localStorage.removeItem(coverPending(eventId));
+          } catch {}
+        }
+        // The grid's order just changed; the page asks again.
+        if (res.ok) onProgress?.();
+      })
+      .catch(() => {});
+  }, [eventId, snapshot, onProgress]);
 
   const drive = useCallback(
     async (q: UploadQueue) => {
@@ -208,10 +254,19 @@ export function useUploads(eventId: string, onProgress?: () => void): UploadsVie
    * where the bytes genuinely are gone and the honest answer is to ask again.
    */
   const stage = useCallback(
-    async (picked: File[], forEventId: string) => {
+    async (picked: File[], forEventId: string, cover?: File | null) => {
       if (picked.length === 0) return;
 
       const described = picked.map((file) => describe(forEventId, file));
+
+      const leading = cover ? described.find((d) => d.file === cover) : undefined;
+      if (leading) {
+        try {
+          localStorage.setItem(coverPending(forEventId), leading.item.id);
+        } catch {
+          // Blocked storage: the cover still shows; it is just not first.
+        }
+      }
 
       /*
        * First, and before anything that can fail.

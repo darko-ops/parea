@@ -6,6 +6,7 @@ import { notFound, redirect } from 'next/navigation';
 import { EventView } from '@/../app/components/EventView';
 import { decide, findEventById } from '@/access';
 import { contributorKey, contributorsOf } from '@/contributors';
+import { coverFirst } from '@/cover';
 import { getDb } from '@/db';
 import { messagesFor } from '@/messages';
 import { findGroup } from '@/groups';
@@ -100,15 +101,19 @@ export default async function EventPage({
   // become a way to test whether an event id is real.
   if (!decision.allow) notFound();
 
-  const rows = await db
-    .select()
-    .from(schema.photos)
-    // One shared predicate for deleted / removed / hidden / blocked — see
-    // @parea/core's visibility module for why those are four states.
-    .where(visiblePhotos(event.id, await viewerContext(db, await currentActorId())))
-    // A stack: the latest addition first, and within it the last one picked.
-    // See `addedSeq`.
-    .orderBy(desc(schema.photos.addedSeq));
+  const rows = coverFirst(
+    await db
+      .select()
+      .from(schema.photos)
+      // One shared predicate for deleted / removed / hidden / blocked — see
+      // @parea/core's visibility module for why those are four states.
+      .where(visiblePhotos(event.id, await viewerContext(db, await currentActorId())))
+      // A stack: the latest addition first, and within it the last one picked.
+      // See `addedSeq`.
+      .orderBy(desc(schema.photos.addedSeq)),
+    // And the cover ahead of all of them — see `coverFirst`.
+    event.coverPhotoId,
+  );
 
   const viewerId = await currentActorId();
 

@@ -197,3 +197,21 @@ export function regionFor(
     height,
   };
 }
+
+/**
+ * The roll's photographs with its cover first.
+ *
+ * The rest keep their order — the newest addition first, see `addedSeq` — and
+ * the cover is lifted out of wherever it fell and put at the head, so the
+ * picture a roll is shown by everywhere else is also the first one somebody
+ * meets on opening it, top left, and the first the viewer steps from. A cover
+ * that is not one of these photographs (chosen off a camera roll, or its
+ * photograph since removed) leaves the order as it was.
+ */
+export function coverFirst<T extends { id: string }>(rows: T[], coverPhotoId: string | null): T[] {
+  if (!coverPhotoId) return rows;
+  const at = rows.findIndex((row) => row.id === coverPhotoId);
+  if (at <= 0) return rows;
+  return [rows[at]!, ...rows.slice(0, at), ...rows.slice(at + 1)];
+}
+

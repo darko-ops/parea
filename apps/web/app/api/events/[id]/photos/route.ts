@@ -20,6 +20,7 @@ import { avatarUrl } from '@/accounts';
 import { coverSrc } from '@/cards';
 import { contributorKey, contributorsOf } from '@/contributors';
 import { tagsForPhotos } from '@/photoTags';
+import { coverFirst } from '@/cover';
 import { getDb } from '@/db';
 import { hostingFor } from '@/hosts';
 import { invitedTo, mayListMembers, membersOf, rosterFrom, visibleMembers } from '@/members';
@@ -54,15 +55,19 @@ export async function GET(
     return toResponse(err);
   }
 
-  const rows = await db
-    .select()
-    .from(schema.photos)
-    // One shared predicate for deleted / removed / hidden / blocked — see
-    // @parea/core's visibility module for why those are four states.
-    .where(visiblePhotos(event.id, await viewerContext(db, await currentActorId())))
-    // A stack: the latest addition first, and within it the last one picked.
-    // See `addedSeq`.
-    .orderBy(desc(schema.photos.addedSeq));
+  const rows = coverFirst(
+    await db
+      .select()
+      .from(schema.photos)
+      // One shared predicate for deleted / removed / hidden / blocked — see
+      // @parea/core's visibility module for why those are four states.
+      .where(visiblePhotos(event.id, await viewerContext(db, await currentActorId())))
+      // A stack: the latest addition first, and within it the last one picked.
+      // See `addedSeq`.
+      .orderBy(desc(schema.photos.addedSeq)),
+    // And the cover ahead of all of them — see `coverFirst`.
+    event.coverPhotoId,
+  );
 
   const viewerId = await currentActorId();
   const photoIds = rows.map((row) => row.id);

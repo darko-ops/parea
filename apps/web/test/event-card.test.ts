@@ -364,7 +364,10 @@ describe('changing the cover afterwards', () => {
     // The same route the create screen posts to. A second way to write a
     // cover would be a second place for "who may change this event's face" to
     // be decided, and that decision is `administer`.
-    expect(MANAGE).toMatch(/fetch\(`\/api\/events\/\$\{eventId\}\/cover`, \{\s*method: 'POST'/);
+    // The framing rides on the query, as the app sends it — see `framingOf`.
+    expect(MANAGE).toMatch(
+      /fetch\(`\/api\/events\/\$\{eventId\}\/cover\?\$\{framingQuery\(framing\)\}`, \{\s*method: 'POST'/,
+    );
     expect(MANAGE).toMatch(/fetch\(`\/api\/events\/\$\{eventId\}\/cover`, \{ method: 'DELETE' \}\)/);
   });
 

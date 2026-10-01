@@ -27,7 +27,7 @@
  */
 
 import { schema } from '@parea/core';
-import { and, eq } from 'drizzle-orm';
+import { and, eq, isNotNull, isNull } from 'drizzle-orm';
 import { NextResponse } from 'next/server';
 
 import { findEventById, guard, toResponse } from '@/access';
@@ -274,3 +274,54 @@ export async function DELETE(
 
   return NextResponse.json({ ok: true });
 }
+
+/**
+ * Says which of the roll's photographs the cover already set was cut from.
+ *
+ * For the web's create form, which posts the cover the moment the roll exists
+ * — a second after it is named — while the photographs themselves are still
+ * on their way up from the roll's own page, with no ids yet. Without this the
+ * roll never learned which photograph its cover was, so it could not put that
+ * photograph first in the grid, and reframing it later had nothing to reopen.
+ * The roll page sends the id once its upload has one.
+ *
+ * Only the link, never the picture or the framing: the cover itself is
+ * already stored, and this cannot change what anybody sees on a card. And
+ * only onto a cover that has none yet, so a page arriving late cannot undo a
+ * cover somebody has since changed.
+ */
+export async function PATCH(
+  request: Request,
+  { params }: { params: Promise<{ id: string }> },
+) {
+  const { id } = await params;
+  const allowed = await mayAdminister(id);
+  if ('error' in allowed) return allowed.error;
+  const { db, event } = allowed;
+
+  const body = (await request.json().catch(() => ({}))) as { photoId?: unknown };
+  const photoId = typeof body.photoId === 'string' && UUID.test(body.photoId) ? body.photoId : null;
+  if (!photoId) return NextResponse.json({ error: 'invalid_request' }, { status: 400 });
+
+  const [photo] = await db
+    .select({ id: schema.photos.id })
+    .from(schema.photos)
+    .where(and(eq(schema.photos.id, photoId), eq(schema.photos.eventId, event.id)))
+    .limit(1);
+  if (!photo) return NextResponse.json({ error: 'not_found' }, { status: 404 });
+
+  const linked = await db
+    .update(schema.events)
+    .set({ coverPhotoId: photo.id })
+    .where(
+      and(
+        eq(schema.events.id, event.id),
+        isNotNull(schema.events.coverKey),
+        isNull(schema.events.coverPhotoId),
+      ),
+    )
+    .returning({ id: schema.events.id });
+
+  return NextResponse.json({ linked: linked.length > 0 });
+}
+

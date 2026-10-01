@@ -23,6 +23,7 @@ import sharp from 'sharp';
 import { describe, expect, it } from 'vitest';
 
 import {
+  coverFirst,
   type CoverFraming,
   COVER_TALLEST,
   COVER_WIDEST,
@@ -511,5 +512,19 @@ describe('the setting that says who may add', () => {
     expect(read('../../../packages/core/drizzle/0032_drop_uploads_open.sql')).toMatch(
       /DROP COLUMN "uploads_open"/,
     );
+  });
+});
+
+describe('the cover first in the roll', () => {
+  const rows = [{ id: 'c' }, { id: 'b' }, { id: 'a' }];
+
+  it('lifts the cover to the front and keeps the rest in order', () => {
+    expect(coverFirst(rows, 'a').map((r) => r.id)).toEqual(['a', 'c', 'b']);
+  });
+
+  it('leaves the order alone when the cover is already first, absent, or not in the roll', () => {
+    expect(coverFirst(rows, 'c')).toBe(rows);
+    expect(coverFirst(rows, null)).toBe(rows);
+    expect(coverFirst(rows, 'gone')).toBe(rows);
   });
 });

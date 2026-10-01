@@ -16,6 +16,7 @@ import { SignIn, useSession } from './components/SignIn';
 import { useImageFailure } from './components/useImageFailure';
 import { capSelection, selectionNote } from './components/capSelection';
 import { coverBytes } from './components/coverBytes';
+import { CENTRED, CoverFramer, framingQuery, type CoverFraming } from './components/CoverFramer';
 import { useUploads } from './components/useUploads';
 import { SiteFooter } from '@/../app/components/SiteFooter';
 
@@ -117,6 +118,14 @@ export default function CreatePage() {
    */
   const [cover, setCover] = useState<File | null>(null);
   /*
+   * How the cover sits in the card, from the framer — the app's question,
+   * asked here too. Null is "not framed", which the server answers by
+   * centring on what its own model finds interesting, as it always did.
+   */
+  const [coverFraming, setCoverFraming] = useState<CoverFraming | null>(null);
+  /** The file the framer is open on, or null when it is closed. */
+  const [framing, setFraming] = useState<File | null>(null);
+  /*
    * Three switches, and only one of them is the access policy.
    *
    * `policyFor` turns "private" into the column that decides who can see it;
@@ -152,11 +161,36 @@ export default function CreatePage() {
     top?.scrollIntoView({ block: 'start' });
     titleRef.current?.focus({ preventScroll: true });
   }, [step]);
+  /*
+   * A sharper copy of a picked photo for the cover framer, made once per file.
+   * The grid's previews are 320px, which is soft at the frame's size.
+   */
+  const sharpCopies = useRef(new Map<string, Promise<string | null>>());
+  const sharpen = useCallback(
+    (id: string) => {
+      const file = picked.find((f) => signature(f) === id);
+      if (!file) return Promise.resolve(null);
+      let made = sharpCopies.current.get(id);
+      if (!made) {
+        made = thumbnailUrl(file, 1600).catch(() => null);
+        sharpCopies.current.set(id, made);
+      }
+      return made;
+    },
+    [picked],
+  );
+
   /** Leaving a photo out, and the cover with it if it was the cover. */
-  const leaveOut = useCallback((file: File) => {
-    setPicked((c) => c.filter((x) => x !== file));
-    setCover((c) => (c === file ? null : c));
-  }, []);
+  const leaveOut = useCallback(
+    (file: File) => {
+      setPicked((c) => c.filter((x) => x !== file));
+      if (cover === file) {
+        setCover(null);
+        setCoverFraming(null);
+      }
+    },
+    [cover],
+  );
   const session = useSession();
 
   // Mounted before there is an event, and handed the id the moment there is
@@ -270,11 +304,14 @@ export default function CreatePage() {
            */
           const bytes = await coverBytes(cover);
           const set = bytes
-            ? await fetch(`/api/events/${created.id}/cover`, {
-                method: 'POST',
-                headers: { 'content-type': 'image/jpeg' },
-                body: bytes,
-              }).catch(() => null)
+            ? await fetch(
+                `/api/events/${created.id}/cover${coverFraming ? `?${framingQuery(coverFraming)}` : ''}`,
+                {
+                  method: 'POST',
+                  headers: { 'content-type': 'image/jpeg' },
+                  body: bytes,
+                },
+              ).catch(() => null)
             : null;
           if (!set?.ok) {
             console.warn(
@@ -316,7 +353,7 @@ export default function CreatePage() {
           }).catch(() => {});
         }
 
-        await uploads.stage(picked, created.id);
+        await uploads.stage(picked, created.id, cover);
         /*
          * A client navigation, and it is load-bearing rather than a nicety.
          *
@@ -351,6 +388,7 @@ export default function CreatePage() {
       contribute,
       picked,
       cover,
+      coverFraming,
       uploads,
       router,
     ],
@@ -511,8 +549,26 @@ export default function CreatePage() {
                     files={picked}
                     urls={previews}
                     cover={cover}
-                    onChoose={setCover}
+                    onChoose={setFraming}
+                    onClear={() => {
+                      setCover(null);
+                      setCoverFraming(null);
+                    }}
                   />
+                  {framing && (
+                    <CoverFramer
+                      photos={picked.map((file, i) => ({ id: signature(file), src: previews[i] ?? '' }))}
+                      coverId={signature(framing)}
+                      initial={framing === cover && coverFraming ? coverFraming : CENTRED}
+                      sharpen={sharpen}
+                      onCancel={() => setFraming(null)}
+                      onConfirm={(id, chosenFraming) => {
+                        setCover(picked.find((file) => signature(file) === id) ?? framing);
+                        setCoverFraming(chosenFraming);
+                        setFraming(null);
+                      }}
+                    />
+                  )}
                 </div>
 
                 <div className="field">
@@ -783,11 +839,14 @@ function CoverPicker({
   urls,
   cover,
   onChoose,
+  onClear,
 }: {
   files: File[];
   urls: string[];
   cover: File | null;
-  onChoose: (file: File | null) => void;
+  /** Opens the framer on this one — the cover, to reframe it, or another. */
+  onChoose: (file: File) => void;
+  onClear: () => void;
 }) {
   if (files.length === 0) {
     return (
@@ -809,9 +868,9 @@ function CoverPicker({
                 className={`cover-choice${chosen ? ' cover-chosen' : ''}`}
                 aria-pressed={chosen}
                 aria-label={
-                  chosen ? `${file.name} is the cover` : `Use ${file.name} as the cover`
+                  chosen ? `Reframe the cover, ${file.name}` : `Use ${file.name} as the cover`
                 }
-                onClick={() => onChoose(chosen ? null : file)}
+                onClick={() => onChoose(file)}
               >
                 <Thumb src={urls[i] ?? ''} name={file.name} />
                 {chosen && <span className="cover-badge">Cover</span>}
@@ -821,9 +880,17 @@ function CoverPicker({
         })}
       </ul>
       <p className="field-help">
-        {cover
-          ? 'This one leads, wherever the roll is shown.'
-          : 'Optional. Without one the roll leads with its newest photo.'}
+        {cover ? (
+          <>
+            This one leads, wherever the roll is shown. Tap it to reframe it, or{' '}
+            <button type="button" className="link-button" onClick={onClear}>
+              use no cover
+            </button>
+            .
+          </>
+        ) : (
+          'Optional. Tap one to frame it as the cover. Without one the roll leads with its newest photo.'
+        )}
       </p>
     </>
   );

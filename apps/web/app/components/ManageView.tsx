@@ -27,6 +27,7 @@ import {
 import { Face } from './Faces';
 import { MemberPicker, type Person } from './MemberPicker';
 import { coverBytes } from './coverBytes';
+import { CoverFramer, framingQuery, type CoverFraming } from './CoverFramer';
 import { useImageFailure } from './useImageFailure';
 
 type PendingReport = {
@@ -130,6 +131,8 @@ export function ManageView({
    */
   const [cover, setCover] = useState<string | null>(initial.coverUrl);
   const coverInput = useRef<HTMLInputElement>(null);
+  /** The file the cover framer is open on, with a URL to draw it by. */
+  const [framing, setFraming] = useState<{ file: File; url: string } | null>(null);
   const [origin, setOrigin] = useState('');
   useEffect(() => setOrigin(window.location.origin), []);
 
@@ -335,7 +338,7 @@ export function ManageView({
    * land in an event they just made; here it is so a twelve-megabyte
    * photograph is not sent across a phone connection to change a thumbnail.
    */
-  async function changeCover(file: File) {
+  async function changeCover(file: File, framing: CoverFraming) {
     setBusy('cover');
     setError(null);
     try {
@@ -345,7 +348,7 @@ export function ManageView({
       const bytes = await coverBytes(file);
       if (!bytes) throw new Error('That file could not be read as a picture.');
 
-      const res = await fetch(`/api/events/${eventId}/cover`, {
+      const res = await fetch(`/api/events/${eventId}/cover?${framingQuery(framing)}`, {
         method: 'POST',
         headers: { 'content-type': 'image/jpeg' },
         body: bytes,
@@ -701,8 +704,9 @@ export function ManageView({
                 type="file"
                 accept={ACCEPT_ATTRIBUTE}
                 onChange={(e) => {
+                  // Framed before it is sent, as on the create form and in the app.
                   const file = e.target.files?.[0];
-                  if (file) void changeCover(file);
+                  if (file) setFraming({ file, url: URL.createObjectURL(file) });
                 }}
               />
               <label className="button-like secondary small" htmlFor="cover-file">
@@ -720,6 +724,22 @@ export function ManageView({
               {busy === 'cover' && <span className="panel-note">Saving…</span>}
             </div>
           </div>
+          {framing && (
+            <CoverFramer
+              photos={[{ id: 'chosen', src: framing.url }]}
+              coverId="chosen"
+              onCancel={() => {
+                URL.revokeObjectURL(framing.url);
+                setFraming(null);
+                if (coverInput.current) coverInput.current.value = '';
+              }}
+              onConfirm={(_id, chosenFraming) => {
+                URL.revokeObjectURL(framing.url);
+                setFraming(null);
+                void changeCover(framing.file, chosenFraming);
+              }}
+            />
+          )}
         </section>
       )}
 

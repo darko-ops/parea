@@ -5193,3 +5193,61 @@ button.link {
   .find-top { position: relative; }
   .find-top-leading .find-title { position: absolute; left: 0; right: 0; text-align: center; }
 }
+
+/* ---------------------------------------------------------------------------
+   Framing the cover — see `CoverFramer`. A photograph on black whatever the
+   theme, as the app's is: the picture is the only thing on the screen, and a
+   themed surface around it would be a second picture competing with it.
+   --------------------------------------------------------------------------- */
+.framer {
+  position: fixed; inset: 0; z-index: 1000;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 14px; background: #000; color: #fff;
+  padding: calc(64px + env(safe-area-inset-top, 0px)) 0 calc(20px + env(safe-area-inset-bottom, 0px));
+}
+.framer-bar {
+  position: absolute; top: 0; left: 0; right: 0;
+  display: flex; align-items: center; justify-content: space-between;
+  padding: calc(14px + env(safe-area-inset-top, 0px)) 16px 12px;
+}
+.framer-side, .framer-do {
+  background: none; border: 0; color: #fff; font: inherit; font-size: 15.5px;
+  padding: 6px 8px; cursor: pointer;
+}
+.framer-do { font-weight: 700; }
+.framer-do:disabled { opacity: .4; cursor: default; }
+.framer-title { font-size: 16px; font-weight: 600; }
+/* The picture moves under the frame; nothing here should select or scroll. */
+.framer-stage {
+  position: relative; overflow: hidden; flex: none;
+  touch-action: none; user-select: none; cursor: grab;
+}
+.framer-stage:active { cursor: grabbing; }
+.framer-stage img { max-width: none; pointer-events: none; }
+/* One element, and its shadow is the dimming: everything outside the frame. */
+.framer-frame {
+  position: absolute; pointer-events: none;
+  border: 1px solid rgb(255 255 255 / .8);
+  box-shadow: 0 0 0 9999px rgb(0 0 0 / .69);
+}
+.framer-hint { margin: 0; padding: 0 32px; font-size: 13px; text-align: center; color: rgb(255 255 255 / .7); }
+.framer-zoom {
+  display: flex; align-items: center; gap: 10px; margin: 0;
+  font-size: 13px; font-weight: 400; color: rgb(255 255 255 / .7);
+}
+.framer-zoom input { width: min(240px, 60vw); accent-color: #fff; }
+.framer-strip { width: 100%; display: grid; gap: 10px; }
+.framer-strip-label {
+  padding: 0 20px; font-size: 12px; font-weight: 600; letter-spacing: .06em;
+  color: rgb(255 255 255 / .55);
+}
+.framer-strip-row { display: flex; gap: 10px; overflow-x: auto; padding: 0 20px 4px; }
+.framer-thumb {
+  flex: none; width: 58px; height: 58px; padding: 0; overflow: hidden;
+  border-radius: 8px; border: 2px solid transparent; background: none;
+  opacity: .65; cursor: pointer;
+}
+.framer-thumb-on { border-color: #fff; opacity: 1; }
+.framer-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.framer-thumb-dead { display: block; width: 100%; height: 100%; background: rgb(255 255 255 / .12); }
+.framer-unreadable { position: absolute; inset: 0; display: grid; place-items: center; }
