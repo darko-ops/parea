@@ -20,6 +20,7 @@
  */
 
 import { describe as describeSuggestion, narrow, type Suggestion, type Window } from '@parea/autoselect';
+import { MAX_PER_SELECTION } from '@parea/upload';
 import { Image } from 'expo-image';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
@@ -80,7 +81,10 @@ export function AutoSelect({
       const next = narrow(result.candidates, window);
       setScan(result);
       setSuggestion(next);
-      setSelected(new Set(next.preselected));
+      // Ticked up to the limit and no further — see `MAX_PER_SELECTION`. A
+      // confident guess at sixty photographs still opens with twenty on,
+      // the first twenty of the cluster, and the rest a tap away next time.
+      setSelected(new Set(next.preselected.slice(0, MAX_PER_SELECTION)));
       onShown?.(next.preselected.length, next.candidates.length);
     })();
     // `onShown` deliberately out of the deps: it is a fire-and-forget report,
@@ -93,10 +97,15 @@ export function AutoSelect({
     setSelected((prev) => {
       const next = new Set(prev);
       if (next.has(id)) next.delete(id);
+      // Full is full: a twenty-first tap does nothing, and the line in the
+      // header says why rather than leaving it to read as a dead tile.
+      else if (next.size >= MAX_PER_SELECTION) return prev;
       else next.add(id);
       return next;
     });
   }, []);
+
+  const full = selected.size >= MAX_PER_SELECTION;
 
   /**
    * By default the grid shows only what was suggested when confident, so the
@@ -159,6 +168,12 @@ export function AutoSelect({
               <Text style={[styles.body, { color: t.dim }]}>
                 {suggestion.screenshotsExcluded} screenshot
                 {suggestion.screenshotsExcluded === 1 ? '' : 's'} left out.
+              </Text>
+            )}
+
+            {full && (
+              <Text style={[styles.body, { color: t.dim }]}>
+                Up to {MAX_PER_SELECTION} at a time. Add the rest after these are in.
               </Text>
             )}
 
@@ -239,7 +254,9 @@ export function AutoSelect({
           </Pressable>
         ) : (
           <Pressable
-            onPress={() => onConfirm([...selected], suggestion.preselected)}
+            onPress={() =>
+              onConfirm([...selected].slice(0, MAX_PER_SELECTION), suggestion.preselected)
+            }
             disabled={selected.size === 0}
             style={[
               styles.footerButton,

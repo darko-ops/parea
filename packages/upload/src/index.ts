@@ -170,6 +170,16 @@ export type Deps = {
 
 /** Higher hurts throughput on cellular and multiplies memory pressure. */
 export const CONCURRENCY = 3;
+
+/**
+ * The most photos one selection adds, on the web and in the app.
+ *
+ * Processing takes one photo at a time, about ten seconds each, so a big batch
+ * takes minutes to appear however fast it uploads. Twenty is a few minutes —
+ * long enough that somebody sees their photos arriving, short enough that they
+ * do. More is fine; it is added twenty at a time.
+ */
+export const MAX_PER_SELECTION = 20;
 /** Beyond this a file is almost certainly not going to succeed on its own. */
 export const MAX_ATTEMPTS = 4;
 /** Re-presign rather than upload if the URL is this close to expiring. */

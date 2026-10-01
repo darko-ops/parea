@@ -128,7 +128,7 @@ import {
   type OwedCover,
   type SavedEvent,
 } from './src/platform';
-import { Offline, UploadQueue, type QueueState } from '@parea/upload';
+import { MAX_PER_SELECTION, Offline, UploadQueue, type QueueState } from '@parea/upload';
 
 const API_BASE = process.env.EXPO_PUBLIC_API_URL ?? 'http://localhost:3000';
 
@@ -2773,6 +2773,10 @@ function EventScreen({
         // failing silently twenty minutes later.
         mediaTypes: ['images'],
         allowsMultipleSelection: true,
+        // Twenty at a time — see `MAX_PER_SELECTION`. The picker stops at the
+        // limit itself on iOS 14+ and Android, so nobody chooses forty and
+        // finds half of them quietly dropped; the rest go in the next time.
+        selectionLimit: MAX_PER_SELECTION,
         // In the order they were tapped, which is the order a roll stacks
         // them in: the first tap lowest, the last on top. iOS numbers the
         // picks as they are made, so the order is visible while choosing.
@@ -2785,6 +2789,9 @@ function EventScreen({
       return;
     }
     if (picked.canceled || picked.assets.length === 0) return;
+    // And again here, for a picker that ignores the limit — older iOS, some
+    // Android galleries. The first twenty in the order they were tapped.
+    const assets = picked.assets.slice(0, MAX_PER_SELECTION);
 
     // The other half of §18's precision number: a contribution that never got
     // a suggestion. Without this, "precision looks fine" and "almost nobody
@@ -2818,7 +2825,7 @@ function EventScreen({
     const stamp = Date.now();
     const files: { id: string; source: string; name: string; size: number; mime: string }[] = [];
     let unreadable = 0;
-    for (const [index, asset] of picked.assets.entries()) {
+    for (const [index, asset] of assets.entries()) {
       const name = asset.fileName ?? `photo-${index}.jpg`;
       try {
         /*

@@ -1,6 +1,6 @@
 'use client';
 
-import { ACCEPT_ATTRIBUTE, refuseFile } from '@parea/upload';
+import { ACCEPT_ATTRIBUTE, MAX_PER_SELECTION, refuseFile } from '@parea/upload';
 import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useRef, useState } from 'react';
 
@@ -15,6 +15,7 @@ import { Toggle } from './components/Toggle';
 import { thumbnailUrl } from './components/thumbnails';
 import { SignIn, useSession } from './components/SignIn';
 import { useImageFailure } from './components/useImageFailure';
+import { capSelection, selectionNote } from './components/capSelection';
 import { coverBytes } from './components/coverBytes';
 import { useUploads } from './components/useUploads';
 import { SiteFooter } from '@/../app/components/SiteFooter';
@@ -84,6 +85,8 @@ export default function CreatePage() {
   const [step, setStep] = useState<'photos' | 'details'>('photos');
   const [picked, setPicked] = useState<File[]>([]);
   const [skipped, setSkipped] = useState(0);
+  /** Said when the last pick went over the limit; null when it did not. */
+  const [overLimit, setOverLimit] = useState<string | null>(null);
   // Shared by both strips below — see `usePreviewUrls`.
   const previews = usePreviewUrls(picked);
   const [name, setName] = useState('');
@@ -153,16 +156,20 @@ export default function CreatePage() {
     // still not a rejection; see `sendableMime`.
     const usable = files.filter((f) => refuseFile(f) === null);
     setSkipped(files.length - usable.length);
-    setPicked((current) => {
-      // Picking twice adds rather than replaces, and picking the same photo
-      // twice does not add it twice. The OS dialog does not remember what was
-      // chosen last time, so re-opening it to add three more would otherwise
-      // silently drop the first forty.
-      const seen = new Set(current.map(signature));
-      return [...current, ...usable.filter((f) => !seen.has(signature(f)))];
-    });
+    // Picking twice adds rather than replaces, and picking the same photo
+    // twice does not add it twice. The OS dialog does not remember what was
+    // chosen last time, so re-opening it to add three more would otherwise
+    // silently drop the first forty.
+    const seen = new Set(picked.map(signature));
+    const fresh = usable.filter((f) => !seen.has(signature(f)));
+    // The roll as a whole, not each pick, is held to the limit — the photos
+    // all go up together once it has a name. Duplicates are out first so they
+    // do not take up room.
+    const { kept, dropped } = capSelection(picked.length, fresh, MAX_PER_SELECTION);
+    setOverLimit(dropped > 0 ? selectionNote(kept.length, MAX_PER_SELECTION) : null);
+    if (kept.length > 0) setPicked([...picked, ...kept]);
     if (fileRef.current) fileRef.current.value = '';
-  }, []);
+  }, [picked]);
 
   /**
    * Make it, ask the people, hand over the photos, and go there.
@@ -390,6 +397,8 @@ export default function CreatePage() {
                     — Parea takes photos, not video or other files.
                   </p>
                 )}
+
+                {overLimit && <p className="muted">{overLimit}</p>}
 
                 <Thumbs
                   files={picked}

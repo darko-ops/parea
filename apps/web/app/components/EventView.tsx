@@ -29,7 +29,8 @@
 import { ago } from '@parea/cards';
 import { CONTRIBUTE_CREATOR, CONTRIBUTE_HOST, PRIVATE } from '@parea/core';
 import type { Message } from '@/messages';
-import { ACCEPT_ATTRIBUTE, refuseFile } from '@parea/upload';
+import { ACCEPT_ATTRIBUTE, MAX_PER_SELECTION, refuseFile } from '@parea/upload';
+import { capSelection, selectionNote } from './capSelection';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import { SignIn, useSession } from './SignIn';
@@ -272,6 +273,8 @@ export function EventView({
   const [downloadError, setDownloadError] = useState<string | null>(null);
   /** How many of the last selection were not photos. */
   const [skipped, setSkipped] = useState(0);
+  /** Said when the last selection went over the limit; null when it did not. */
+  const [overLimit, setOverLimit] = useState<string | null>(null);
   /**
    * Picking photos, and which ones.
    *
@@ -493,8 +496,12 @@ export function EventView({
        */
       const usable = picked.filter((file) => refuseFile(file) === null);
       setSkipped(picked.length - usable.length);
+      // Per pick, not per roll: what is already here or on its way does not
+      // count, so the next pick can add twenty more.
+      const { kept, dropped } = capSelection(0, usable, MAX_PER_SELECTION);
+      setOverLimit(dropped > 0 ? selectionNote(kept.length, MAX_PER_SELECTION) : null);
 
-      if (usable.length > 0) await uploads.add(usable);
+      if (kept.length > 0) await uploads.add(kept);
       if (inputRef.current) inputRef.current.value = '';
     },
     [uploads],
@@ -967,6 +974,7 @@ export function EventView({
               — Parea takes photos, not video or other files.
             </p>
           )}
+          {overLimit && <p className="muted">{overLimit}</p>}
 
           {/*
             Only when there is something in it. A section head reading "JUST

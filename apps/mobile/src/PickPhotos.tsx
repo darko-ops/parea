@@ -24,6 +24,7 @@
  * turns these into files later, behind the form.
  */
 
+import { MAX_PER_SELECTION } from '@parea/upload';
 import { Image as ExpoImage } from 'expo-image';
 import { useCallback, useEffect, useState } from 'react';
 import {
@@ -125,11 +126,13 @@ export function PickPhotos({
 
   const toggle = useCallback((photo: LibraryPhoto) => {
     setShowing(photo);
-    setChosen((was) =>
-      was.some((p) => p.id === photo.id)
-        ? was.filter((p) => p.id !== photo.id)
-        : [...was, photo],
-    );
+    setChosen((was) => {
+      if (was.some((p) => p.id === photo.id)) return was.filter((p) => p.id !== photo.id);
+      // Full is full — see `MAX_PER_SELECTION`. The tap still puts the
+      // photograph in the frame; it just does not add it.
+      if (was.length >= MAX_PER_SELECTION) return was;
+      return [...was, photo];
+    });
   }, []);
 
   if (photos === null) {
@@ -192,6 +195,12 @@ export function PickPhotos({
           </Text>
         </Pressable>
       </View>
+
+      {chosen.length >= MAX_PER_SELECTION && (
+        <Text style={[styles.whySmall, styles.full]}>
+          Up to {MAX_PER_SELECTION} at a time. Add the rest after these are in.
+        </Text>
+      )}
 
       {/*
         The one you last touched, big.
@@ -274,6 +283,7 @@ const styles = StyleSheet.create({
   whySmall: { fontSize: 14, lineHeight: 20, textAlign: 'center', color: 'rgba(255,255,255,0.7)' },
   denied: { alignSelf: 'stretch', gap: 10, marginTop: 12 },
   empty: { padding: 32 },
+  full: { paddingHorizontal: 16, paddingBottom: 10 },
   /* The same 72pt status-bar allowance every screen in this project starts at. */
   bar: {
     paddingTop: 60,
