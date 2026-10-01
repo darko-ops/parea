@@ -1648,6 +1648,13 @@ button.secondary {
 .create-form { flex: 1; min-width: 0; max-width: 520px; display: grid; gap: 26px; }
 .create-form h1 { font-size: 30px; letter-spacing: -.02em; margin: 0 0 6px; }
 .field { display: grid; gap: 8px; }
+/* A question with several answers is a fieldset, for the grouping a screen
+   reader announces — and without this it also wore the browser's own groove
+   border and inset padding, which drew the two choice questions on the
+   create form as boxes inside the page. Its legend is the same section marker
+   as every other field's label. */
+fieldset.field { border: 0; padding: 0; margin: 0; min-width: 0; }
+fieldset.field > legend { padding: 0; margin-bottom: 8px; }
 .field-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
 /* All-caps and small: a section marker, not a question. The question is the
    input under it, which is large enough to be the thing you read. */

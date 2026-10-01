@@ -11,7 +11,6 @@ import { ContributeChoice, type ContributePolicy } from './components/Contribute
 import { MemberPicker, type Person } from './components/MemberPicker';
 import { PlaceField } from './components/PlaceField';
 import { Shell } from './components/Shell';
-import { Toggle } from './components/Toggle';
 import { thumbnailUrl } from './components/thumbnails';
 import { SignIn, useSession } from './components/SignIn';
 import { useImageFailure } from './components/useImageFailure';
@@ -130,8 +129,6 @@ export default function CreatePage() {
   /* Everyone, which is what an album is usually for. The other two are
      choices somebody makes on purpose. */
   const [contribute, setContribute] = useState<ContributePolicy>(CONTRIBUTE_EVERYONE);
-  const [linkJoins, setLinkJoins] = useState(true);
-  const [passPhrase, setPassPhrase] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
@@ -238,8 +235,10 @@ export default function CreatePage() {
             place: place.trim() || undefined,
             accessPolicy: policyFor({ isPrivate }),
             contributePolicy: contribute,
-            linkJoins,
-            passPhrase,
+            // No link or pass-phrase switches here any more — the app has
+            // never asked, and the server's defaults are its answers: the link
+            // lets people in, and there is no spoken phrase. Both are on the
+            // manage screen for the roll that wants something else.
             // Ignored by the server unless this person is in that group.
             groupId: groupId ?? undefined,
           }),
@@ -346,8 +345,6 @@ export default function CreatePage() {
       caption,
       place,
       isPrivate,
-      linkJoins,
-      passPhrase,
       groupId,
       members,
       coHosts,
@@ -564,48 +561,36 @@ export default function CreatePage() {
                 <fieldset className="field">
                   <legend className="field-label">WHO CAN SEE IT</legend>
                   {/*
-                    A column of switches rather than a row of named modes. Each
-                    line is one decision somebody can predict the result of; the
-                    policy underneath is assembled by `policyFor`, which is
-                    also what the manage screen writes.
+                    Two pills and a sentence, as the app asks it — and the same
+                    shape as the question under it, so the two read as a pair.
+                    It was a column of three switches (private, share link,
+                    pass phrase); the app never asked the last two at creation,
+                    and a browser and a phone asking different questions about
+                    the same roll is two products. They live on Manage.
                   */}
-                  <div className="toggles">
-                    <Toggle
-                      label="Private"
-                      help={
-                        isPrivate
-                          ? 'Only the people you add, and anyone you let in after they ask. A forwarded link opens nothing.'
-                          : 'Anyone can see it, with no account. Adding photos always needs one.'
-                      }
-                      on={isPrivate}
-                      onChange={setIsPrivate}
-                    />
-                    <Toggle
-                      label="Share link"
-                      help={
-                        // What the link does depends on the policy above it,
-                        // and saying "lets new people in" over a private album
-                        // would promise the one thing private does not do.
-                        linkJoins
-                          ? isPrivate
-                            ? 'The link lets new people ask. You answer, under Members.'
-                            : 'The link lets new people in.'
-                          : 'The link opens nothing for anybody new — only the people you add are in.'
-                      }
-                      on={linkJoins}
-                      onChange={setLinkJoins}
-                    />
-                    <Toggle
-                      label="Pass phrase"
-                      help={
-                        passPhrase
-                          ? 'Three words to say out loud, for the person across the room whose phone you are not holding.'
-                          : 'No spoken phrase for this one.'
-                      }
-                      on={passPhrase}
-                      onChange={setPassPhrase}
-                    />
+                  <div className="pills">
+                    {(
+                      [
+                        [false, 'Public'],
+                        [true, 'Private'],
+                      ] as const
+                    ).map(([value, label]) => (
+                      <button
+                        key={label}
+                        type="button"
+                        className="pill"
+                        aria-pressed={isPrivate === value}
+                        onClick={() => setIsPrivate(value)}
+                      >
+                        {label}
+                      </button>
+                    ))}
                   </div>
+                  <p className="field-help">
+                    {isPrivate
+                      ? 'Only the people you add, and anyone you let in after they ask. A forwarded link opens nothing.'
+                      : 'Anyone can see it, no account needed. Adding photos always needs one.'}
+                  </p>
                 </fieldset>
 
                 <fieldset className="field">
