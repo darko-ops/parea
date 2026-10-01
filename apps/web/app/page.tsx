@@ -12,6 +12,7 @@ import { MemberPicker, type Person } from './components/MemberPicker';
 import { PlaceField } from './components/PlaceField';
 import { Shell } from './components/Shell';
 import { Toggle } from './components/Toggle';
+import { thumbnailUrl } from './components/thumbnails';
 import { SignIn, useSession } from './components/SignIn';
 import { useImageFailure } from './components/useImageFailure';
 import { coverBytes } from './components/coverBytes';
@@ -698,20 +699,40 @@ export default function CreatePage() {
  * event would be an image nobody in the event can find.
  */
 /**
- * One object URL per picked file, made once for the whole screen.
+ * One small preview per picked file, made once for the whole screen.
  *
- * Both strips show the same photographs — the one you remove from and the one
- * you choose a cover in — and each used to mint its own URL for every file. A
- * blob URL is an identity rather than a cache key, so two of them for one file
- * is two decodes of that file, and at the size an iPhone writes an HEIC that is
- * the difference between a picker that appears and a picker that arrives.
+ * Both strips show the same photographs, so they share these. Previews are
+ * thumbnails made one at a time (`thumbnailUrl`), not the originals: a strip of
+ * full-size iPhone originals is what ran Safari out of memory mid-upload. Each
+ * fills in as it is ready; one this browser cannot shrink falls back to the
+ * original, which is what was shown before.
  */
 function usePreviewUrls(files: File[]): string[] {
   const [urls, setUrls] = useState<string[]>([]);
   useEffect(() => {
-    const made = files.map((file) => URL.createObjectURL(file));
-    setUrls(made);
-    return () => made.forEach((url) => URL.revokeObjectURL(url));
+    let cancelled = false;
+    const made: string[] = [];
+    setUrls(files.map(() => ''));
+    void (async () => {
+      for (let i = 0; i < files.length; i++) {
+        if (cancelled) return;
+        const url = (await thumbnailUrl(files[i]!)) ?? URL.createObjectURL(files[i]!);
+        if (cancelled) {
+          URL.revokeObjectURL(url);
+          return;
+        }
+        made.push(url);
+        setUrls((was) => {
+          const next = [...was];
+          next[i] = url;
+          return next;
+        });
+      }
+    })();
+    return () => {
+      cancelled = true;
+      made.forEach((url) => URL.revokeObjectURL(url));
+    };
   }, [files]);
   return urls;
 }
@@ -810,7 +831,11 @@ function Thumbs({
 function Thumb({ src, name }: { src: string; name: string }) {
   const { ref, failed, onError } = useImageFailure(src);
 
-  if (!src || failed) {
+  // Still being made: an empty tile, so the strip does not flash a list of
+  // names and then swap pictures in.
+  if (!src) return <span className="picked-dead" title={name} aria-label={name} />;
+
+  if (failed) {
     return (
       <span className="picked-dead" title={name}>
         {name}
@@ -818,9 +843,8 @@ function Thumb({ src, name }: { src: string; name: string }) {
     );
   }
 
-  // `decoding="async"` because these are originals: a strip of them is a strip
-  // of full-resolution decodes, and doing that synchronously is what makes the
-  // form stop responding while it fills.
+  // `decoding="async"` for the fallback, which can be an original when this
+  // browser could not make a thumbnail — see `usePreviewUrls`.
   // eslint-disable-next-line @next/next/no-img-element
   return <img ref={ref} onError={onError} src={src} alt="" decoding="async" />;
 }
