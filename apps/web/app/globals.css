@@ -4955,6 +4955,17 @@ button.link {
 .device-row:first-of-type { border-top: 0; }
 .device-name { margin: 0; font-weight: 600; }
 .device-detail { margin: 2px 0 0; font-size: 13px; color: var(--dim); }
+/* Asking for a fresh sign-in, in place, above the row it is about. */
+.device-confirm {
+  display: grid;
+  gap: 10px;
+  margin: 12px 0;
+  padding: 14px;
+  border-radius: 12px;
+  background: var(--accent-soft);
+}
+.device-confirm .row { margin: 0; }
+.device-confirm input { flex: 1; min-width: 0; }
 /* The device being read from. Marked rather than hidden — the list is a list
    of everywhere, and leaving this one off would make it a list of elsewhere. */
 .device-here {

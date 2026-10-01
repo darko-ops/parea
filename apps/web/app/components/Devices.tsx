@@ -20,7 +20,7 @@
 import { ago } from '@parea/cards';
 import { useCallback, useEffect, useState } from 'react';
 
-import { addPasskey, CANCELLED, passkeysAvailable, STALE_SIGN_IN } from './passkey';
+import { addPasskey, CANCELLED, passkeysAvailable } from './passkey';
 
 type Device = {
   id: string;
@@ -33,6 +33,9 @@ type Device = {
   /** Sessions under this one label — one laptop collects several. */
   count: number;
 };
+
+/** A sign-out waiting on a fresh sign-in. */
+type Pending = { kind: 'one'; device: Device } | { kind: 'others' };
 
 type Passkey = {
   id: string;
@@ -62,6 +65,8 @@ export function Devices({ onDone }: { onDone: () => void }) {
   const [manageable, setManageable] = useState(true);
   const [busy, setBusy] = useState(false);
   const [note, setNote] = useState<string | null>(null);
+  /** Where a code goes when a sign-out needs a fresh sign-in. */
+  const [email, setEmail] = useState<string | null>(null);
 
   /*
    * One clock for every "2 hours ago" on the page.
@@ -87,10 +92,12 @@ export function Devices({ onDone }: { onDone: () => void }) {
   }, []);
 
   const load = useCallback(async () => {
-    const [sessions, keys] = await Promise.all([
+    const [sessions, keys, me] = await Promise.all([
       fetch('/api/account/devices').then((r) => r.json()).catch(() => ({ devices: [] })),
       fetch('/api/account/passkeys').then((r) => r.json()).catch(() => ({ passkeys: [] })),
+      fetch('/api/account/session').then((r) => r.json()).catch(() => ({ account: null })),
     ]);
+    setEmail(me.account?.email ?? null);
     setDevices(sessions.devices ?? []);
     setManageable(sessions.manageable !== false);
     setPasskeys(keys.passkeys ?? []);
@@ -100,22 +107,57 @@ export function Devices({ onDone }: { onDone: () => void }) {
     void load();
   }, [load]);
 
-  const endOne = useCallback(
-    async (device: Device) => {
-      const message = device.current
-        ? 'Sign out of this device? You will need to sign in again here.'
-        : device.count > 1
-          ? `Sign out of ${device.label}? All ${device.count} sign-ins on it end.`
-          : `Sign out of ${device.label}? It will need to sign in again.`;
-      if (!confirm(message)) return;
+  /*
+   * A sign-out the server sent back for a fresh sign-in, kept so it can run
+   * again once the person has proved it is them.
+   *
+   * Ending another device needs a sign-in within the hour (see the routes).
+   * This used to answer with a sentence telling the person to sign out and
+   * back in — leave the page, lose the list, and come back to find the row
+   * still there. Now the proof is asked for here, by a code to the address on
+   * the account, and the sign-out they pressed finishes on its own.
+   *
+   * A code and not a passkey: a passkey picker offers every account's keys,
+   * and choosing somebody else's would sign this browser in as them.
+   */
+  const [pending, setPending] = useState<Pending | null>(null);
+  const [codeSent, setCodeSent] = useState(false);
+  const [code, setCode] = useState('');
 
+  const run = useCallback(
+    async (action: Pending) => {
       setBusy(true);
+      setNote(null);
       try {
-        const res = await fetch(`/api/account/devices/${device.id}`, { method: 'DELETE' });
+        const res = await fetch(
+          action.kind === 'one' ? `/api/account/devices/${action.device.id}` : '/api/account/devices',
+          { method: 'DELETE' },
+        );
         if (res.status === 403) {
-          setNote(STALE_SIGN_IN);
+          setPending(action);
           return;
         }
+        setPending(null);
+
+        if (action.kind === 'others') {
+          if (!res.ok) {
+            setNote('Could not sign the others out. Try again in a moment.');
+            return;
+          }
+          const { ended } = (await res.json().catch(() => ({ ended: 0 }))) as { ended: number };
+          // Gone from the list at once, not after a round trip: the list
+          // changing is how somebody sees the button worked.
+          setDevices((rows) => rows?.filter((row) => row.current).map((row) => ({ ...row, count: 1 })) ?? rows);
+          setNote(
+            ended === 0
+              ? 'Nothing else was signed in.'
+              : `${ended} ${ended === 1 ? 'device was' : 'devices were'} signed out.`,
+          );
+          await load();
+          return;
+        }
+
+        const { device } = action;
         /*
          * Signing out the device you are holding is a full page load, for the
          * reason the Sign out button gives: everything on this site is rendered
@@ -127,8 +169,15 @@ export function Devices({ onDone }: { onDone: () => void }) {
           window.location.href = '/';
           return;
         }
-        await load();
+        // A 404 is a row something else already ended, which is the outcome
+        // asked for; anything else failing leaves the row where it was.
+        if (!res.ok && res.status !== 404) {
+          setNote(`Could not sign out ${device.label}. Try again in a moment.`);
+          return;
+        }
+        setDevices((rows) => rows?.filter((row) => row.id !== device.id) ?? rows);
         setNote(`${device.label} was signed out.`);
+        await load();
       } finally {
         setBusy(false);
       }
@@ -136,26 +185,81 @@ export function Devices({ onDone }: { onDone: () => void }) {
     [load],
   );
 
-  const endOthers = useCallback(async () => {
+  const endOne = useCallback(
+    (device: Device) => {
+      const message = device.current
+        ? 'Sign out of this device? You will need to sign in again here.'
+        : device.count > 1
+          ? `Sign out of ${device.label}? All ${device.count} sign-ins on it end.`
+          : `Sign out of ${device.label}? It will need to sign in again.`;
+      if (!confirm(message)) return;
+      void run({ kind: 'one', device });
+    },
+    [run],
+  );
+
+  const endOthers = useCallback(() => {
     if (!confirm('Sign out everywhere except this device?')) return;
+    void run({ kind: 'others' });
+  }, [run]);
+
+  const sendCode = useCallback(async () => {
+    if (!email) return;
     setBusy(true);
+    setNote(null);
     try {
-      const res = await fetch('/api/account/devices', { method: 'DELETE' });
-      if (res.status === 403) {
-        setNote(STALE_SIGN_IN);
+      const res = await fetch('/api/account/code', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ email }),
+      });
+      if (!res.ok) {
+        setNote(
+          res.status === 429
+            ? 'Too many codes asked for from here. Try again in an hour.'
+            : 'Could not send a code. Try again in a moment.',
+        );
         return;
       }
-      const { ended } = (await res.json().catch(() => ({ ended: 0 }))) as { ended: number };
-      await load();
-      setNote(
-        ended === 0
-          ? 'Nothing else was signed in.'
-          : `${ended} ${ended === 1 ? 'device was' : 'devices were'} signed out.`,
-      );
+      setCodeSent(true);
     } finally {
       setBusy(false);
     }
-  }, [load]);
+  }, [email]);
+
+  const confirmCode = useCallback(async () => {
+    if (!email || !pending) return;
+    setBusy(true);
+    setNote(null);
+    try {
+      // The same sign-in the sign-in screen does. On a browser already signed
+      // in it keeps this session and restarts its clock — see `adoptSession`.
+      const res = await fetch('/api/account/session', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ email, code: code.trim() }),
+      });
+      if (!res.ok) {
+        setNote(
+          res.status === 429
+            ? 'Too many tries from here. Wait an hour, then use the code you have.'
+            : 'That code did not work. Codes expire after ten minutes.',
+        );
+        return;
+      }
+    } finally {
+      setBusy(false);
+    }
+    setCodeSent(false);
+    setCode('');
+    await run(pending);
+  }, [code, email, pending, run]);
+
+  const cancelPending = useCallback(() => {
+    setPending(null);
+    setCodeSent(false);
+    setCode('');
+  }, []);
 
   const add = useCallback(async () => {
     setBusy(true);
@@ -203,6 +307,54 @@ export function Devices({ onDone }: { onDone: () => void }) {
           Every browser and app holding your account. Sign one out if you do not
           recognise it, or if you have lent it to somebody.
         </p>
+
+        {pending && (
+          <div className="device-confirm">
+            <p className="device-name">Confirm it is you</p>
+            <p className="device-detail">
+              {pending.kind === 'one'
+                ? `Signing out ${pending.device.label}`
+                : 'Signing out everywhere else'}{' '}
+              needs a sign-in from the last hour.{' '}
+              {codeSent
+                ? `Enter the code sent to ${email}.`
+                : email
+                  ? `We will email a code to ${email}.`
+                  : 'Sign out, then back in with a code.'}
+            </p>
+            {codeSent ? (
+              <div className="row">
+                <input
+                  value={code}
+                  onChange={(e) => setCode(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' && code.trim()) void confirmCode();
+                  }}
+                  inputMode="numeric"
+                  autoComplete="one-time-code"
+                  placeholder="Code"
+                  autoFocus
+                />
+                <button onClick={confirmCode} disabled={busy || !code.trim()}>
+                  {busy ? 'Working…' : 'Confirm and sign out'}
+                </button>
+              </div>
+            ) : (
+              email && (
+                <div className="row">
+                  <button onClick={sendCode} disabled={busy}>
+                    {busy ? 'Sending…' : 'Email me a code'}
+                  </button>
+                </div>
+              )
+            )}
+            <div className="row">
+              <button className="secondary" onClick={cancelPending} disabled={busy}>
+                Cancel
+              </button>
+            </div>
+          </div>
+        )}
 
         {/* Null is "not yet" and draws nothing. An empty list is a real answer
             and cannot happen — the device reading this page is on it. */}

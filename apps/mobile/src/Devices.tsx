@@ -14,12 +14,16 @@
 
 import { ago } from '@parea/cards';
 import { useCallback, useEffect, useState } from 'react';
-import { Alert, Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Alert, Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 
-import { isStaleSignIn, STALE_SIGN_IN_NOTE, type Api, type DeviceListing, type PasskeyListing } from './api';
+import { ApiError, isStaleSignIn, type Api, type DeviceListing, type PasskeyListing } from './api';
 import type { TabTheme } from './Events';
 import { passkeysSupported } from './passkeys';
+import { saveActorToken } from './platform';
 import { addPasskey } from './signin';
+
+/** A sign-out waiting on a fresh sign-in. */
+type Pending = { kind: 'one'; device: DeviceListing } | { kind: 'others' };
 
 type ButtonComponent = (props: {
   label: string;
@@ -101,6 +105,73 @@ export function DevicesCard({
     void load();
   }, [load]);
 
+  /*
+   * A sign-out the server sent back for a fresh sign-in, kept so it can run
+   * again once the person has proved it is them.
+   *
+   * This used to end in a note telling them to sign out and back in — leave
+   * the sheet, lose the list, and come back to find the row still there. Now a
+   * code to the address on the account is asked for here, and the sign-out
+   * they pressed finishes on its own. A code rather than a passkey: the
+   * picker offers every account's keys, and choosing somebody else's would
+   * sign this phone in as them.
+   */
+  const [pending, setPending] = useState<Pending | null>(null);
+  const [email, setEmail] = useState<string | null>(null);
+  const [codeSent, setCodeSent] = useState(false);
+  const [code, setCode] = useState('');
+
+  useEffect(() => {
+    api
+      .account()
+      .then((account) => setEmail(account?.email ?? null))
+      .catch(() => {});
+  }, [api]);
+
+  const run = useCallback(
+    async (action: Pending) => {
+      setBusy(true);
+      setNote(null);
+      try {
+        let ended = 0;
+        try {
+          if (action.kind === 'one') await api.endDevice(action.device.id);
+          else ended = (await api.endOtherDevices()).ended;
+        } catch (err) {
+          if (isStaleSignIn(err)) {
+            setPending(action);
+            return;
+          }
+          // A row something else already ended is the outcome asked for.
+          if (!(action.kind === 'one' && err instanceof ApiError && err.status === 404)) {
+            setNote('That did not go through. Try again in a moment.');
+            return;
+          }
+        }
+        setPending(null);
+        // Gone from the list at once, not after a round trip: the list changing
+        // is how somebody sees the button worked.
+        if (action.kind === 'one') {
+          setDevices((rows) => rows?.filter((row) => row.id !== action.device.id) ?? rows);
+          setNote(`${action.device.label} was signed out.`);
+        } else {
+          setDevices(
+            (rows) => rows?.filter((row) => row.current).map((row) => ({ ...row, count: 1 })) ?? rows,
+          );
+          setNote(
+            ended === 0
+              ? 'Nothing else was signed in.'
+              : `${ended} ${ended === 1 ? 'device' : 'devices'} signed out.`,
+          );
+        }
+        await load();
+      } finally {
+        setBusy(false);
+      }
+    },
+    [api, load],
+  );
+
   const endOne = useCallback(
     (device: DeviceListing) => {
       /*
@@ -128,28 +199,12 @@ export function DevicesCard({
           {
             text: 'Sign out',
             style: 'destructive',
-            onPress: async () => {
-              setBusy(true);
-              try {
-                try {
-                  await api.endDevice(device.id);
-                } catch (err) {
-                  if (isStaleSignIn(err)) {
-                    setNote(STALE_SIGN_IN_NOTE);
-                    return;
-                  }
-                }
-                await load();
-                setNote(`${device.label} was signed out.`);
-              } finally {
-                setBusy(false);
-              }
-            },
+            onPress: () => void run({ kind: 'one', device }),
           },
         ],
       );
     },
-    [api, load],
+    [run],
   );
 
   const endOthers = useCallback(() => {
@@ -161,32 +216,60 @@ export function DevicesCard({
         {
           text: 'Sign out others',
           style: 'destructive',
-          onPress: async () => {
-            setBusy(true);
-            try {
-              let result = { ended: 0 };
-              try {
-                result = await api.endOtherDevices();
-              } catch (err) {
-                if (isStaleSignIn(err)) {
-                  setNote(STALE_SIGN_IN_NOTE);
-                  return;
-                }
-              }
-              await load();
-              setNote(
-                result.ended === 0
-                  ? 'Nothing else was signed in.'
-                  : `${result.ended} ${result.ended === 1 ? 'device' : 'devices'} signed out.`,
-              );
-            } finally {
-              setBusy(false);
-            }
-          },
+          onPress: () => void run({ kind: 'others' }),
         },
       ],
     );
-  }, [api, load]);
+  }, [run]);
+
+  const sendCode = useCallback(async () => {
+    if (!email) return;
+    setBusy(true);
+    setNote(null);
+    try {
+      await api.requestSignIn(email);
+      setCodeSent(true);
+    } catch (err) {
+      setNote(
+        err instanceof ApiError && err.status === 429
+          ? 'Too many codes asked for from here. Try again in an hour.'
+          : 'Could not send a code. Try again in a moment.',
+      );
+    } finally {
+      setBusy(false);
+    }
+  }, [api, email]);
+
+  const confirmCode = useCallback(async () => {
+    if (!email || !pending) return;
+    setBusy(true);
+    setNote(null);
+    try {
+      // The same sign-in the sign-in card does. On a phone already signed in it
+      // keeps this session and restarts its clock; the token is kept anyway,
+      // exactly as that card keeps it.
+      const result = await api.completeSignIn(email, code.trim());
+      await saveActorToken(result.actorToken);
+    } catch (err) {
+      setNote(
+        err instanceof ApiError && err.status === 429
+          ? 'Too many tries from here. Wait an hour, then use the code you have.'
+          : 'That code did not work. Codes expire after ten minutes.',
+      );
+      return;
+    } finally {
+      setBusy(false);
+    }
+    setCodeSent(false);
+    setCode('');
+    await run(pending);
+  }, [api, code, email, pending, run]);
+
+  const cancelPending = useCallback(() => {
+    setPending(null);
+    setCodeSent(false);
+    setCode('');
+  }, []);
 
   const add = useCallback(async () => {
     setBusy(true);
@@ -271,6 +354,56 @@ export function DevicesCard({
           Every browser and phone holding your account. Sign one out if you do
           not recognise it, or if you have lent it to somebody.
         </Text>
+
+        {pending && (
+          <View style={[styles.confirm, { backgroundColor: t.bg, borderColor: t.line }]}>
+            <Text style={[styles.rowName, { color: t.fg }]}>Confirm it is you</Text>
+            <Text style={[styles.small, { color: t.dim }]}>
+              {pending.kind === 'one'
+                ? `Signing out ${pending.device.label}`
+                : 'Signing out everywhere else'}{' '}
+              needs a sign-in from the last hour.{' '}
+              {codeSent
+                ? `Enter the code sent to ${email}.`
+                : email
+                  ? `We will email a code to ${email}.`
+                  : 'Sign out, then back in with a code.'}
+            </Text>
+            {codeSent ? (
+              <>
+                <TextInput
+                  value={code}
+                  onChangeText={setCode}
+                  placeholder="6-digit code"
+                  placeholderTextColor={t.dim}
+                  keyboardType="number-pad"
+                  textContentType="oneTimeCode"
+                  autoFocus
+                  accessibilityLabel="The code from your email"
+                  style={[styles.input, { color: t.fg, borderColor: t.line, backgroundColor: t.card }]}
+                />
+                <Button
+                  label={busy ? 'Working…' : 'Confirm and sign out'}
+                  onPress={confirmCode}
+                  t={t}
+                  primary
+                  disabled={busy || !code.trim()}
+                />
+              </>
+            ) : (
+              email && (
+                <Button
+                  label={busy ? 'Sending…' : 'Email me a code'}
+                  onPress={sendCode}
+                  t={t}
+                  primary
+                  disabled={busy}
+                />
+              )
+            )}
+            <Button label="Cancel" onPress={cancelPending} t={t} disabled={busy} />
+          </View>
+        )}
 
         {devices?.map((device) => (
           <View key={device.id} style={[styles.row, { borderTopColor: t.line }]}>
@@ -404,6 +537,9 @@ const styles = StyleSheet.create({
      edge — "A browser on Windows" plus a date is wider than a phone. */
   rowText: { flex: 1, gap: 2 },
   rowName: { fontSize: 15, fontWeight: '600' },
+  /* Asking for a fresh sign-in, in place, above the rows it is about. */
+  confirm: { borderRadius: 12, borderWidth: 1, padding: 12, gap: 10 },
+  input: { borderWidth: 1, borderRadius: 10, padding: 12, fontSize: 16 },
   label: { fontSize: 16, fontWeight: '600' },
   small: { fontSize: 13, lineHeight: 18 },
 });
