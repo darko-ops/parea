@@ -108,6 +108,7 @@ import { Platform as RNPlatform } from 'react-native';
 
 import {
   BACKGROUND_UPLOAD_SUPPORTED,
+  currentPushToken,
   libraryAlreadyAsked,
   loadActorToken,
   markLibraryAsked,
@@ -1125,6 +1126,23 @@ export default function App() {
       return;
     }
     setSignedIn(state.account !== null);
+    /*
+     * And tell the server which sign-in this phone's notifications belong to.
+     *
+     * Registration used to happen once, the first time permission was asked,
+     * so the row kept naming whoever this phone was back then — a different
+     * account after a sign-in, and no session at all for rows older than that
+     * column. Silent: `currentPushToken` never asks, it only reads a permission
+     * already given.
+     */
+    if (await loadActorToken()) {
+      const pushToken = await currentPushToken();
+      if (pushToken) {
+        void api
+          .registerDevice(pushToken, RNPlatform.OS === 'android' ? 'android' : 'ios')
+          .catch(() => {});
+      }
+    }
   }, [api]);
 
   /*

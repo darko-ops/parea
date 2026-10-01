@@ -305,7 +305,21 @@ export async function revokeDevice(
     .set({ revokedAt: new Date() })
     .where(and(inArray(schema.sessions.id, ids), isNull(schema.sessions.revokedAt)))
     .returning({ id: schema.sessions.id });
+  await dropPushFor(db, revoked.map((row) => row.id));
   return revoked.length;
+}
+
+/**
+ * Stops notifications to the phones whose sign-in just ended.
+ *
+ * Revoking marks a session row rather than deleting it, so the cascade on
+ * `device.session_id` does not fire; this is the delete it would have done.
+ * Without it a phone signed out from the Devices screen went on receiving
+ * this person's notifications, because its push token named the account.
+ */
+async function dropPushFor(db: Db, sessionIds: string[]): Promise<void> {
+  if (sessionIds.length === 0) return;
+  await db.delete(schema.devices).where(inArray(schema.devices.sessionId, sessionIds));
 }
 
 /**
@@ -333,6 +347,7 @@ export async function revokeSession(
       ),
     )
     .returning({ id: schema.sessions.id });
+  await dropPushFor(db, revoked.map((row) => row.id));
   return revoked.length > 0;
 }
 
@@ -360,6 +375,7 @@ export async function revokeOtherSessions(
       ),
     )
     .returning({ id: schema.sessions.id });
+  await dropPushFor(db, revoked.map((row) => row.id));
   return revoked.length;
 }
 

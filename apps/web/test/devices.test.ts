@@ -285,6 +285,45 @@ describe('one row per device', () => {
   });
 });
 
+describe('notifications follow the sign-in', () => {
+  const phone = async (actorId: string, token: string, kind: 'ios' | 'android' = 'ios') => {
+    const session = await startSession(db, { actorId, kind, method: 'code' });
+    await db
+      .insert(schema.devices)
+      .values({ actorId, platform: kind, pushToken: token, sessionId: session.id });
+    return session;
+  };
+  const tokens = async () =>
+    (await db.select({ token: schema.devices.pushToken }).from(schema.devices))
+      .map((row) => row.token)
+      .sort();
+
+  it('stops pushing to a phone signed out from the Devices screen', async () => {
+    const me = await actor();
+    const signedOut = await phone(me, 'ExponentPushToken[gone]');
+    // Another label, so another row: two "Parea for iOS" would be one.
+    await phone(me, 'ExponentPushToken[kept]', 'android');
+    await revokeDevice(db, me, signedOut.id, null);
+    expect(await tokens()).toEqual(['ExponentPushToken[kept]']);
+  });
+
+  it('stops pushing to every phone signed out everywhere else, and keeps this one', async () => {
+    const me = await actor();
+    const here = await phone(me, 'ExponentPushToken[here]');
+    await phone(me, 'ExponentPushToken[a]');
+    await phone(me, 'ExponentPushToken[b]');
+    await revokeOtherSessions(db, me, here.id);
+    expect(await tokens()).toEqual(['ExponentPushToken[here]']);
+  });
+
+  it('stops pushing to the phone that signs itself out', async () => {
+    const me = await actor();
+    const session = await phone(me, 'ExponentPushToken[mine]');
+    await revokeSession(db, me, session.id);
+    expect(await tokens()).toEqual([]);
+  });
+});
+
 describe('ending a session', () => {
   it('refuses one belonging to somebody else', async () => {
     const me = await actor();

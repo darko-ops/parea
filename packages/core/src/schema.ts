@@ -349,6 +349,19 @@ export const devices = pgTable('device', {
     .references(() => actors.id, { onDelete: 'cascade' }),
   platform: text('platform', { enum: ['ios', 'android'] }).notNull(),
   pushToken: text('push_token'),
+  /**
+   * The sign-in that registered this push token.
+   *
+   * A token was the actor's and nothing else's, so ending a phone's session
+   * from the Devices screen left its notifications arriving: the row that
+   * sends them named the account, and nothing tied it to the sign-in that had
+   * just been ended. Ending a session deletes the rows that name it. Null for
+   * rows from before this column, until the app registers again — it does on
+   * every launch.
+   */
+  sessionId: uuid('session_id').references((): AnyPgColumn => sessions.id, {
+    onDelete: 'cascade',
+  }),
   lastSeenAt: timestamp('last_seen_at', { withTimezone: true }),
   createdAt: createdAt(),
 });

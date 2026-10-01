@@ -11,11 +11,11 @@
 
 import { schema } from '@parea/core';
 import { isExpoPushToken } from '@parea/push';
-import { and, eq } from 'drizzle-orm';
+import { and, eq, ne } from 'drizzle-orm';
 import { NextResponse } from 'next/server';
 
 import { getDb } from '@/db';
-import { currentActorId } from '@/session';
+import { currentActorId, currentSessionId } from '@/session';
 
 export const runtime = 'nodejs';
 
@@ -35,6 +35,20 @@ export async function POST(request: Request) {
   const platform = body.platform === 'android' ? 'android' : 'ios';
 
   const db = getDb();
+  const sessionId = await currentSessionId();
+
+  /*
+   * One phone, one person to notify.
+   *
+   * A push token is a phone, and it used to stay registered under every actor
+   * that had ever registered it — so a phone signed in to a second account kept
+   * getting the first one's notifications. Whoever registers it now is who it
+   * belongs to.
+   */
+  await db
+    .delete(schema.devices)
+    .where(and(eq(schema.devices.pushToken, pushToken), ne(schema.devices.actorId, actorId)));
+
   const [existing] = await db
     .select({ id: schema.devices.id })
     .from(schema.devices)
@@ -49,14 +63,16 @@ export async function POST(request: Request) {
   if (existing) {
     await db
       .update(schema.devices)
-      .set({ lastSeenAt: new Date() })
+      // The session too: a row from before the column learns its sign-in
+      // here, and one whose phone signed in again follows the new session.
+      .set({ lastSeenAt: new Date(), sessionId })
       .where(eq(schema.devices.id, existing.id));
     return NextResponse.json({ registered: true });
   }
 
   await db
     .insert(schema.devices)
-    .values({ actorId, platform, pushToken, lastSeenAt: new Date() });
+    .values({ actorId, platform, pushToken, sessionId, lastSeenAt: new Date() });
 
   return NextResponse.json({ registered: true }, { status: 201 });
 }
