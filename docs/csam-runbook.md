@@ -101,6 +101,13 @@ automatic, and needs no human to be timely. What the 24 hours buys is the
 decision — whether to file, and whether to release a false positive — and that
 decision has a clock attached that the operator does not control.
 
+Flags are reviewed in the admin hub. A reviewer can clear one, remove the
+photo, or — if it looks like a child — escalate it, which quarantines the photo
+and opens an incident (`provider` `staff_review`) on the same 72-hour clock as a
+person's report. Seeing the photo is a separate, recorded request, and is
+refused for anything already under a child-safety hold. If what you see may be
+a child, stop looking and escalate: step 1 above applies from that moment.
+
 The last row is deliberately long. A classifier flag hides nothing and is a
 probabilistic opinion about ordinary adult content; treating it as urgent would
 mean treating swimwear as urgent, and a queue that cries wolf is a queue nobody

@@ -27,10 +27,12 @@
 
 import { createHash, randomUUID } from 'node:crypto';
 
-import { alertResponder, scannerFromEnv, ScanUnavailable, schema } from '@parea/core';
+import { alertResponder, recordModeration, scannerFromEnv, ScanUnavailable, schema } from '@parea/core';
+import { eq } from 'drizzle-orm';
 import { NextResponse } from 'next/server';
 
-import { getDb } from '@/db';
+import { type Db, getDb } from '@/db';
+import { revokePhotoLinks } from '@/revoke';
 import { getStorage } from '@/storage';
 
 /** Where an image was going. Stored on the incident as `subject`. */
@@ -110,4 +112,70 @@ export async function screenUpload(
   });
 
   return NextResponse.json({ error: 'not_accepted' }, { status: 422 });
+}
+
+/**
+ * Hide it now, record why, wake someone.
+ *
+ * `quarantined` is the same terminal state the ingest scanner uses, and every
+ * surface gates on `ready`, so this removes the photo from listings, downloads,
+ * thumbnails and any signed URL in one move. The object itself is left exactly
+ * where it is: the runbook's preservation rules need the original, and the
+ * purge job already skips anything under an open hold.
+ *
+ * Two callers: a person reporting a photo as child sexual abuse material
+ * (`user_report`), and staff reviewing a classifier flag who saw what looked
+ * like a child (`staff_review`). Both are people, not a hash match, and the
+ * incident says which so a reviewer months later knows what they are reading.
+ */
+export async function quarantinePhoto(
+  db: Db,
+  photo: typeof schema.photos.$inferSelect,
+  eventId: string,
+  how: {
+    /** Who caused the change — the reporter. Null for staff, who are not actors. */
+    actorId: string | null;
+    provider: 'user_report' | 'staff_review';
+    classification: string;
+    reason: string;
+  },
+): Promise<string> {
+  await db
+    .update(schema.photos)
+    .set({ status: 'quarantined', hiddenAt: new Date() })
+    .where(eq(schema.photos.id, photo.id));
+  // Out of every listing above; and out of every URL already handed out here.
+  await revokePhotoLinks(photo);
+
+  const [incident] = await db
+    .insert(schema.safetyIncidents)
+    .values({
+      photoId: photo.id,
+      eventId,
+      uploaderActorId: photo.uploaderId,
+      provider: how.provider,
+      classification: how.classification,
+      providerReference: null,
+      storageKey: photo.storageKey,
+      contentHash: photo.contentHash,
+      // Open-ended until someone files: the purge job skips a null hold.
+      preservationEndsAt: null,
+    })
+    .returning();
+
+  await recordModeration(db, {
+    photoId: photo.id,
+    eventId,
+    action: 'quarantined',
+    actorId: how.actorId,
+    reason: how.reason,
+  });
+
+  await alertResponder({
+    incidentId: incident!.id,
+    eventId,
+    provider: how.provider,
+    classification: how.classification,
+  });
+  return incident!.id;
 }

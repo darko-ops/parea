@@ -1276,8 +1276,9 @@ export const contentReports = pgTable(
  * statutory duties in the US (18 U.S.C. §2258A: report to NCMEC, then preserve
  * for 90 days) and must never appear in any host- or user-facing surface.
  *
- * `provider` says which of the two produced it — a scanner's name, or
- * `user_report`. Nothing else may write here. A nudity or explicit-content
+ * `provider` says which produced it — a scanner's name, `user_report`, or
+ * `staff_review` when a person reviewing a classifier flag escalated it.
+ * Nothing else may write here. A nudity or explicit-content
  * classifier is a different check with different consequences, and putting its
  * hits in this table would dilute the one record a reviewer needs to be able
  * to trust months later.

@@ -18,14 +18,13 @@
  * No SLA is promised in the response, because none can currently be kept.
  */
 
-import { alertReport, alertResponder, recordModeration, REASON, schema } from '@parea/core';
-import { eq } from 'drizzle-orm';
+import { alertReport, REASON, schema } from '@parea/core';
 import { NextResponse } from 'next/server';
 
 import { guard, toResponse } from '@/access';
 import { getDb } from '@/db';
-import { revokePhotoLinks } from '@/revoke';
 import { findPhotoWithEvent } from '@/moderation';
+import { quarantinePhoto } from '@/safety';
 import {
   QUARANTINE_ON_REPORT_LIMIT,
   REPORT_LIMIT,
@@ -100,7 +99,15 @@ export async function POST(
       ? await withinLimitFor(db, QUARANTINE_ON_REPORT_LIMIT, secret, reporter)
       : await withinLimit(db, QUARANTINE_ON_REPORT_LIMIT, secret);
     if (withinQuarantineBudget) {
-      await quarantineOnReport(db, found.photo, found.event.id, reporter);
+      await quarantinePhoto(db, found.photo, found.event.id, {
+        actorId: reporter,
+        // Named so an incident says how it was found. A person reporting is not
+        // a hash match, and a reviewer reading this months later needs to know
+        // which of the two they are looking at before deciding anything.
+        provider: 'user_report',
+        classification: 'reported_child_safety',
+        reason: REASON.reportedChildSafety,
+      });
       alerted = true;
     }
   }
@@ -118,60 +125,3 @@ export async function POST(
   return NextResponse.json({ reported: true });
 }
 
-/**
- * Hide it now, record why, wake someone.
- *
- * `quarantined` is the same terminal state the ingest scanner uses, and every
- * surface gates on `ready`, so this removes the photo from listings, downloads,
- * thumbnails and any signed URL in one move. The object itself is left exactly
- * where it is: the runbook's preservation rules need the original, and the
- * purge job already skips anything under an open hold.
- */
-async function quarantineOnReport(
-  db: ReturnType<typeof getDb>,
-  photo: typeof schema.photos.$inferSelect,
-  eventId: string,
-  reporterActorId: string | null,
-): Promise<void> {
-  await db
-    .update(schema.photos)
-    .set({ status: 'quarantined', hiddenAt: new Date() })
-    .where(eq(schema.photos.id, photo.id));
-  // Out of every listing above; and out of every URL already handed out here.
-  await revokePhotoLinks(photo);
-
-  const [incident] = await db
-    .insert(schema.safetyIncidents)
-    .values({
-      photoId: photo.id,
-      eventId,
-      uploaderActorId: photo.uploaderId,
-      // Named so an incident says how it was found. A person reporting is not
-      // a hash match, and a reviewer reading this months later needs to know
-      // which of the two they are looking at before deciding anything.
-      provider: 'user_report',
-      classification: 'reported_child_safety',
-      providerReference: null,
-      storageKey: photo.storageKey,
-      contentHash: photo.contentHash,
-      // Open-ended until someone files: the purge job skips a null hold.
-      preservationEndsAt: null,
-    })
-    .returning();
-
-  await recordModeration(db, {
-    photoId: photo.id,
-    eventId,
-    action: 'quarantined',
-    // The reporter, not the uploader: this row answers who caused the change.
-    actorId: reporterActorId,
-    reason: REASON.reportedChildSafety,
-  });
-
-  await alertResponder({
-    incidentId: incident!.id,
-    eventId,
-    provider: 'user_report',
-    classification: 'reported_child_safety',
-  });
-}

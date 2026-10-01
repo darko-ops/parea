@@ -26,6 +26,11 @@
  * incident comes back as identifiers, a hash and a classification — what a
  * report to NCMEC needs — and nothing else.
  *
+ * One exception, and it is narrow: reviewing a classifier flag can need a
+ * look, so `src/adminReveal.ts` hands out a short-lived link to one flagged
+ * photo at a time — recorded first, and never for a photo under a
+ * child-safety hold.
+ *
  * Every action is written to `staff_action` in the same transaction as the
  * change, so there is no change without a record of who made it.
  */
@@ -37,6 +42,7 @@ import { timingSafeEqual } from 'node:crypto';
 
 import type { Db } from './db';
 import { takeDown, type TakeDownKind } from './removal';
+import { quarantinePhoto } from './safety';
 import { hoursLeft, stageFor } from './reportDeadline';
 
 export const STAFF_HEADER = 'x-parea-staff';
@@ -302,6 +308,46 @@ export async function listReports(db: Db) {
   };
 }
 
+/**
+ * Open classifier flags, most confident first.
+ *
+ * What the classifier said and where the photo is — never the photo. Seeing
+ * it is a separate, recorded request (`src/adminReveal.ts`), because most
+ * flags are swimwear and most reviews should not need to look.
+ */
+export async function listFlags(db: Db) {
+  const rows = await db
+    .select({
+      id: schema.moderationFlags.id,
+      provider: schema.moderationFlags.provider,
+      labels: schema.moderationFlags.labels,
+      score: schema.moderationFlags.score,
+      createdAt: schema.moderationFlags.createdAt,
+      photoId: schema.photos.id,
+      photoStatus: schema.photos.status,
+      photoDeleted: schema.photos.deletedAt,
+      eventId: schema.events.id,
+      eventName: schema.events.name,
+      uploaderActorId: schema.photos.uploaderId,
+    })
+    .from(schema.moderationFlags)
+    .innerJoin(schema.photos, eq(schema.moderationFlags.photoId, schema.photos.id))
+    .innerJoin(schema.events, eq(schema.moderationFlags.eventId, schema.events.id))
+    .where(eq(schema.moderationFlags.status, 'open'))
+    .orderBy(desc(sql`coalesce(${schema.moderationFlags.score}, 0)`), schema.moderationFlags.createdAt)
+    .limit(200);
+
+  const names = await namesOf(db, rows.map((r) => r.uploaderActorId));
+  return rows.map(({ photoDeleted, ...r }) => ({
+    ...r,
+    labels: r.labels.split(',').map((l) => l.trim()).filter(Boolean),
+    uploaderName: names.get(r.uploaderActorId) ?? null,
+    // Only a photo still shown can be looked at or acted on; anything else is
+    // already out of sight and its flag can simply be cleared.
+    shown: r.photoStatus === 'ready' && !photoDeleted,
+  }));
+}
+
 /** What staff have done, newest first. */
 export async function listStaffActions(db: Db, limit = 100) {
   return db
@@ -483,6 +529,97 @@ export async function removeContent(
 
     if (taken.result === 'removed') after = taken.after;
     return { alreadyGone };
+  });
+
+  if (after) await (after as () => Promise<void>)();
+  return outcome;
+}
+
+async function openFlag(tx: Tx, id: string) {
+  const [flag] = await tx
+    .select({ photoId: schema.moderationFlags.photoId, status: schema.moderationFlags.status })
+    .from(schema.moderationFlags)
+    .where(eq(schema.moderationFlags.id, id));
+  if (!flag || flag.status !== 'open') throw new AdminConflict('not_found');
+  return flag;
+}
+
+/** Every open flag on this photo, closed together: they are one question. */
+async function closeFlags(tx: Tx, photoId: string, status: 'cleared' | 'actioned') {
+  await tx
+    .update(schema.moderationFlags)
+    .set({ status, resolvedAt: new Date() })
+    .where(and(eq(schema.moderationFlags.photoId, photoId), eq(schema.moderationFlags.status, 'open')));
+}
+
+/**
+ * Answer a classifier flag.
+ *
+ * - `clear` — a person looked and it is fine. Nothing changes but the flag.
+ * - `remove` — explicit content that does not belong: taken down exactly as a
+ *   reported photo is (`takeDown`), with any open abuse reports on it closed.
+ * - `escalate` — it looked like a child. Down the same path a person's
+ *   child-safety report takes: quarantined, an incident opened with provider
+ *   `staff_review`, the responder woken. From then on the incident decides,
+ *   on the 72-hour clock.
+ *
+ * A flag on a photo already out of sight can only be cleared.
+ */
+export async function answerFlag(
+  db: Db,
+  staff: string,
+  input: { id: string; action: 'clear' | 'remove' | 'escalate'; note: string | null },
+): Promise<{ incidentId?: string }> {
+  let after: (() => Promise<void>) | null = null;
+
+  const outcome = await db.transaction(async (tx) => {
+    const flag = await openFlag(tx, input.id);
+    const note = [`flag ${input.id}`, input.note].filter(Boolean).join(' — ');
+
+    if (input.action === 'clear') {
+      await closeFlags(tx, flag.photoId, 'cleared');
+      await record(tx, { staff, action: 'flag_cleared', targetKind: 'photo', targetId: flag.photoId, note });
+      return {};
+    }
+
+    const [photo] = await tx.select().from(schema.photos).where(eq(schema.photos.id, flag.photoId));
+    if (!photo || photo.status !== 'ready' || photo.deletedAt) throw new AdminConflict('not_shown');
+
+    if (input.action === 'remove') {
+      const taken = await takeDown(tx as unknown as Db, 'photo', photo.id);
+      if (taken.result !== 'removed') throw new AdminConflict('not_shown');
+      await tx
+        .update(schema.reports)
+        .set({ status: 'actioned', resolvedAt: new Date() })
+        .where(
+          and(
+            eq(schema.reports.photoId, photo.id),
+            eq(schema.reports.status, 'open'),
+            inArray(schema.reports.kind, ['abuse', 'other']),
+          ),
+        );
+      await recordModeration(tx, {
+        photoId: photo.id,
+        eventId: photo.eventId,
+        action: 'removed',
+        actorId: null,
+        reason: REASON.staffRemoved,
+      });
+      await closeFlags(tx, photo.id, 'actioned');
+      await record(tx, { staff, action: 'content_removed', targetKind: 'photo', targetId: photo.id, note });
+      after = taken.after;
+      return {};
+    }
+
+    const incidentId = await quarantinePhoto(tx as unknown as Db, photo, photo.eventId, {
+      actorId: null,
+      provider: 'staff_review',
+      classification: 'escalated_from_classifier',
+      reason: REASON.staffEscalated,
+    });
+    await closeFlags(tx, photo.id, 'actioned');
+    await record(tx, { staff, action: 'flag_escalated', targetKind: 'photo', targetId: photo.id, note });
+    return { incidentId };
   });
 
   if (after) await (after as () => Promise<void>)();

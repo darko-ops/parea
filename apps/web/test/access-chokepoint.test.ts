@@ -277,6 +277,25 @@ describe('the admin routes, and the staff gate in front of them', () => {
     expect(offenders, 'these admin handlers do not start at adminGuard').toEqual([]);
   });
 
+  it('shows a picture only through the reveal, which records and refuses first', async () => {
+    // Reviewing a classifier flag needs a look; nothing else does. So there is
+    // exactly one way to get a link, it is asked for one photo at a time, it
+    // is written down before the link exists, and it will not open a photo
+    // held for child safety or hand out the original.
+    const reveal = await readCode(join(ROOT, 'src/adminReveal.ts'));
+    expect(reveal).toMatch(/status === 'quarantined'\) throw/);
+    const recorded = reveal.indexOf('insert(schema.staffActions)');
+    const linked = reveal.indexOf('imageSrc(photo');
+    expect(recorded).toBeGreaterThan(-1);
+    expect(linked).toBeGreaterThan(recorded);
+    expect(reveal).not.toMatch(/'orig'|'full'/);
+
+    const users = (await adminRoutes()).filter((r) => /revealFlaggedPhoto\(/.test(r.source));
+    expect(users.map((r) => r.path)).toEqual(['app/api/admin/flags/[id]/reveal/route.ts']);
+    expect(users[0]!.source).toMatch(/export async function POST/);
+    expect(users[0]!.source).not.toMatch(/export async function GET/);
+  });
+
   it('never hands the hub an image, a storage key or a link to one', async () => {
     // The runbook's first rule for a child-safety alert is not to open the
     // image. An API that could serve one would make that a matter of

@@ -12,7 +12,13 @@ import { eq, sql } from 'drizzle-orm';
 import { drizzle } from 'drizzle-orm/pglite';
 import { migrate } from 'drizzle-orm/pglite/migrator';
 import { fileURLToPath } from 'node:url';
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
+
+const responderAlerts: unknown[] = [];
+vi.mock('@parea/core', async (original) => ({
+  ...(await original<typeof import('@parea/core')>()),
+  alertResponder: async (alert: unknown) => void responderAlerts.push(alert),
+}));
 
 import type { Db } from '@/db';
 
@@ -23,6 +29,9 @@ const incidentRoute = await import('../app/api/admin/incidents/[id]/route');
 const reportsRoute = await import('../app/api/admin/reports/route');
 const reportRoute = await import('../app/api/admin/reports/[id]/route');
 const activityRoute = await import('../app/api/admin/activity/route');
+const flagsRoute = await import('../app/api/admin/flags/route');
+const flagRoute = await import('../app/api/admin/flags/[id]/route');
+const revealRoute = await import('../app/api/admin/flags/[id]/reveal/route');
 
 const MIGRATIONS = fileURLToPath(new URL('../../../packages/core/drizzle', import.meta.url));
 const TOKEN = 'a'.repeat(48);
@@ -48,7 +57,7 @@ beforeEach(async () => {
     truncate "actor", "event", "photo", "report", "content_report",
              "safety_incident", "staff_action", "group_message", "groups",
              "moment", "moment_comment", "event_message", "derivative",
-             "moderation_action"
+             "moderation_action", "moderation_flag"
     restart identity cascade
   `);
 });
@@ -506,5 +515,128 @@ describe('removing what a report is about', () => {
     expect((await remove(id, 'content')).status).toBe(200);
     expect((await remove(id, 'content')).status).toBe(404);
     expect(await staffActions()).toHaveLength(1);
+  });
+});
+
+describe('classifier flags', () => {
+  const deleted: string[] = [];
+  beforeEach(async () => {
+    deleted.length = 0;
+    responderAlerts.length = 0;
+    process.env.IMAGE_BASE_URL = 'https://img.parea.test';
+    process.env.IMAGE_SECRET = 'image-secret';
+    const { __setStorageForTests } = await import('../src/storage/factory');
+    __setStorageForTests({
+      async presignPut() { throw new Error('not used'); },
+      async presignGet() { return 'presigned'; },
+      async putSmall() {},
+      async head() { return null; },
+      async delete(key: string) { deleted.push(key); },
+    } as never);
+  });
+
+  async function flagged(score = 80, labels = 'sexual_activity, nudity') {
+    const uploader = await person('Uploader');
+    const { photoId, eventId } = await photoIn(uploader);
+    await db.update(schema.photos).set({ contentHash: Buffer.alloc(32, 1) }).where(eq(schema.photos.id, photoId));
+    const [flag] = await db
+      .insert(schema.moderationFlags)
+      .values({ photoId, eventId, provider: 'sightengine', labels, score })
+      .returning();
+    return { flagId: flag!.id, photoId, eventId };
+  }
+
+  const answer = (id: string, action: string, note?: string) =>
+    flagRoute.POST(req(`flags/${id}`, { method: 'POST', body: { action, note } }), params(id));
+  const reveal = (id: string) => revealRoute.POST(req(`flags/${id}/reveal`, { method: 'POST' }), params(id));
+  const photoOf = async (id: string) => (await db.select().from(schema.photos).where(eq(schema.photos.id, id)))[0]!;
+
+  it('are listed most confident first, with labels and no picture', async () => {
+    await flagged(40);
+    await flagged(95);
+    const body = await (await flagsRoute.GET(req('flags'))).json();
+    expect(body.flags.map((f: { score: number }) => f.score)).toEqual([95, 40]);
+    expect(body.flags[0]).toMatchObject({ labels: ['sexual_activity', 'nudity'], eventName: 'Party', shown: true });
+    expect(JSON.stringify(body)).not.toMatch(/img\.parea|presigned|k-0/);
+  });
+
+  it('are cleared with nothing else changed', async () => {
+    const { flagId, photoId } = await flagged();
+    expect((await answer(flagId, 'clear', 'swimwear')).status).toBe(200);
+    expect((await photoOf(photoId)).status).toBe('ready');
+    const [flag] = await db.select().from(schema.moderationFlags);
+    expect(flag!.status).toBe('cleared');
+    expect((await staffActions())[0]).toMatchObject({ action: 'flag_cleared', targetId: photoId });
+  });
+
+  it('remove the photo as a report would, and close the reports on it', async () => {
+    const { flagId, photoId } = await flagged();
+    await db.insert(schema.reports).values({ photoId, kind: 'abuse' });
+    expect((await answer(flagId, 'remove')).status).toBe(200);
+    expect((await photoOf(photoId)).status).toBe('removed');
+    expect((await db.select().from(schema.reports))[0]!.status).toBe('actioned');
+    expect((await db.select().from(schema.moderationFlags))[0]!.status).toBe('actioned');
+    expect((await db.select().from(schema.moderationActions))[0]).toMatchObject({ reason: 'staff_removed', actorId: null });
+  });
+
+  it('escalate to child safety: quarantined, an incident opened, the responder woken', async () => {
+    const { flagId, photoId } = await flagged();
+    const res = await answer(flagId, 'escalate', 'looked under 18');
+    expect(res.status).toBe(200);
+    const { incidentId } = await res.json();
+
+    expect((await photoOf(photoId)).status).toBe('quarantined');
+    const [incident] = await db.select().from(schema.safetyIncidents);
+    expect(incident).toMatchObject({ id: incidentId, photoId, provider: 'staff_review', reportedAt: null });
+    expect(responderAlerts).toHaveLength(1);
+    expect((await db.select().from(schema.moderationActions))[0]).toMatchObject({
+      action: 'quarantined',
+      reason: 'staff_escalated',
+      actorId: null,
+    });
+    // And it shows up where the 72-hour clock is watched.
+    const incidents = await (await incidentsRoute.GET(req('incidents'))).json();
+    expect(incidents.incidents[0]).toMatchObject({ state: 'open', provider: 'staff_review' });
+  });
+
+  it('on a photo already out of sight can only be cleared', async () => {
+    const { flagId, photoId } = await flagged();
+    await db.update(schema.photos).set({ status: 'removed' }).where(eq(schema.photos.id, photoId));
+    expect((await (await answer(flagId, 'remove')).json()).error).toBe('not_shown');
+    expect((await (await answer(flagId, 'escalate')).json()).error).toBe('not_shown');
+    expect((await answer(flagId, 'clear')).status).toBe(200);
+  });
+
+  describe('looking at the photo', () => {
+    it('gives a signed card-sized link, and records who looked first', async () => {
+      const { flagId, photoId } = await flagged();
+      const res = await reveal(flagId);
+      expect(res.status).toBe(200);
+      const { url } = await res.json();
+      expect(url).toMatch(/^https:\/\/img\.parea\.test\//);
+      expect(url).toContain('card');
+      expect((await staffActions())[0]).toMatchObject({ staff: STAFF, action: 'flag_photo_viewed', targetId: photoId });
+    });
+
+    it('refuses a photo held for child safety, and records nothing', async () => {
+      const { flagId, photoId } = await flagged();
+      await db.update(schema.photos).set({ status: 'quarantined' }).where(eq(schema.photos.id, photoId));
+      const res = await reveal(flagId);
+      expect(res.status).toBe(409);
+      expect((await res.json()).error).toBe('under_review');
+      expect(await staffActions()).toEqual([]);
+    });
+
+    it('refuses once the flag is answered', async () => {
+      const { flagId } = await flagged();
+      await answer(flagId, 'clear');
+      expect((await reveal(flagId)).status).toBe(404);
+    });
+
+    it('refuses a photo that is gone', async () => {
+      const { flagId, photoId } = await flagged();
+      await db.update(schema.photos).set({ deletedAt: new Date() }).where(eq(schema.photos.id, photoId));
+      expect((await (await reveal(flagId)).json()).error).toBe('not_shown');
+    });
   });
 });

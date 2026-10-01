@@ -46,7 +46,8 @@ describe('taking back a photo’s links', () => {
   it('is done at every place a shown photo stops being shown', () => {
     expect(read('../app/api/photos/[id]/route.ts')).toMatch(/await revokePhotoLinks\(updated\)/);
     expect(read('../src/accounts.ts')).toMatch(/await revokePhotoLinks\(removed\)/);
-    expect(read('../app/api/photos/[id]/report/route.ts')).toMatch(/await revokePhotoLinks\(photo\)/);
+    expect(read('../src/safety.ts')).toMatch(/await revokePhotoLinks\(photo\)/);
+    expect(read('../src/removal.ts')).toMatch(/await revokePhotoLinks\(photo\)/);
     const resolve = read('../app/api/reports/[id]/resolve/route.ts');
     expect(resolve).toMatch(/await revokePhotoLinks\(found\.photo\)/);
     expect(resolve).toMatch(/await restorePhotoLinks\(found\.photo\)/);

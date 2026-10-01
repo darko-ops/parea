@@ -59,6 +59,11 @@ export const REASON = {
    * staff are not actors; `staff_action` names who, with the same photo id.
    */
   staffRemoved: 'staff_removed',
+  /**
+   * Staff reviewing a classifier flag saw what looked like a child, and sent
+   * it down the child-safety path. Null actor for the same reason as above.
+   */
+  staffEscalated: 'staff_escalated',
 } as const;
 
 export async function recordModeration(

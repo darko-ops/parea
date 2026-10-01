@@ -1687,9 +1687,13 @@ surface than these numbers are worth.
 That is still true of Parea itself. The moderation queue is the one exception,
 and it is not a page here either: a separate admin hub, behind its own sign-in,
 calls `/api/admin` server to server with `ADMIN_API_TOKEN`, acting for a named
-member of `ADMIN_STAFF`. It reads reports and incidents — never an image — and
-can decline a report or record that an incident was filed or released, each
-written to `staff_action`. See `apps/web/src/admin.ts`.
+member of `ADMIN_STAFF`. It reads reports, incidents and classifier flags; it
+can decline a report or take down what it is about, clear a flag, remove the
+photo or escalate it to child safety, and record that an incident was filed or
+released — each written to `staff_action`. It returns no image, with one
+recorded exception: a reviewer may ask to see one flagged photo, never one
+under a child-safety hold (`apps/web/src/adminReveal.ts`). See
+`apps/web/src/admin.ts`.
 
 Rows expire after a year. Return rate is the slowest metric and needs enough
 history to see a second event; beyond that this is the only table in the
