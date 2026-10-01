@@ -135,6 +135,31 @@ export default function CreatePage() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
+  /*
+   * The top of the details step: the photos, then the title under them.
+   *
+   * Arriving at the details used to leave the page wherever the photo step
+   * had scrolled it — often halfway down a long grid — so the first field was
+   * somewhere above, and the ones after it were easy to scroll straight past.
+   * So the step opens with this at the top of the screen and the cursor in the
+   * title, and every field after it is the next thing down.
+   */
+  const detailsTop = useRef<HTMLDivElement>(null);
+  const titleRef = useRef<HTMLInputElement>(null);
+  useEffect(() => {
+    if (step !== 'details') return;
+    // No photos picked leaves the strip empty and hidden; the title leads.
+    const top = detailsTop.current?.childElementCount
+      ? detailsTop.current
+      : titleRef.current?.closest('.field');
+    top?.scrollIntoView({ block: 'start' });
+    titleRef.current?.focus({ preventScroll: true });
+  }, [step]);
+  /** Leaving a photo out, and the cover with it if it was the cover. */
+  const leaveOut = useCallback((file: File) => {
+    setPicked((c) => c.filter((x) => x !== file));
+    setCover((c) => (c === file ? null : c));
+  }, []);
   const session = useSession();
 
   // Mounted before there is an event, and handed the id the moment there is
@@ -412,11 +437,7 @@ export default function CreatePage() {
 
                 {overLimit && <p className="muted">{overLimit}</p>}
 
-                <Thumbs
-                  files={picked}
-                  urls={previews}
-                  onRemove={(f) => setPicked((c) => c.filter((x) => x !== f))}
-                />
+                <Thumbs files={picked} urls={previews} onRemove={leaveOut} />
 
                 <div className="row">
                   <button type="button" onClick={() => setStep('details')}>
@@ -434,11 +455,21 @@ export default function CreatePage() {
             {/* ---- step two: what it was --------------------------------- */}
             {step === 'details' && (
               <>
+                {/*
+                  What is going in, above what it is called — each with its ×,
+                  so a photo that should not be there can go without a trip back
+                  to the photo step. See `detailsTop` for why the step opens here.
+                */}
+                <div ref={detailsTop} className="details-top">
+                  <Thumbs files={picked} urls={previews} onRemove={leaveOut} />
+                </div>
+
                 <div className="field">
                   <label className="field-label" htmlFor="name">
-                    EVENT TITLE
+                    ROLL TITLE
                   </label>
                   <input
+                    ref={titleRef}
                     id="name"
                     className="big"
                     type="text"

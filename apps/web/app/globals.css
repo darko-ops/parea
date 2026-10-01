@@ -2339,6 +2339,10 @@ button.secondary {
   background: rgb(0 0 0 / 0.55); color: #fff; border: 0; cursor: pointer;
 }
 .picked li button:hover { background: rgb(0 0 0 / 0.75); }
+/* The details step opens with this at the top of the screen — a little air
+   above it, so the strip does not sit hard against the window's edge. */
+.details-top { scroll-margin-top: 16px; }
+.details-top:empty { display: none; }
 /* Changing the cover, on the manage screen.
 
    A preview beside its two controls, the same row shape the profile picture
