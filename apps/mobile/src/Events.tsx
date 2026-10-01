@@ -3293,6 +3293,8 @@ export function AccountCard({
    */
   const [name, setName] = useState('');
   const [agreed, setAgreed] = useState(false);
+  /** Create account, with an address that already has one. */
+  const [exists, setExists] = useState(false);
   useEffect(() => {
     void hadAccount().then((before) => {
       setReturning(before);
@@ -3422,6 +3424,11 @@ export function AccountCard({
         ),
       );
     } catch (err) {
+      if (err instanceof ApiError && err.code === 'account_exists') {
+        setCode('');
+        setExists(true);
+        return;
+      }
       if (err instanceof ApiError && err.code === 'too_young') {
         await rememberAgeRefused();
         setRefused(true);
@@ -3655,6 +3662,37 @@ export function AccountCard({
    * check passed goes on the account. Three fields rather than a picker,
    * because a picker is a native module and this ships without a new build.
    */
+  if (exists) {
+    return (
+      <View style={[styles.card, { backgroundColor: t.card, borderColor: t.line }]}>
+        <Text style={[styles.label, { color: t.fg }]}>You already have an account</Text>
+        <Text style={[styles.small, { color: t.dim }]}>
+          {email.trim()} is already signed up to Parea. Sign in to it instead —
+          we will send a new code.
+        </Text>
+        <Button
+          label={busy ? 'Sending…' : 'Sign in instead'}
+          onPress={() => {
+            setMode('signin');
+            setExists(false);
+            void request();
+          }}
+          disabled={busy}
+          t={t}
+          primary
+        />
+        <Button
+          label="Use a different address"
+          onPress={() => {
+            setExists(false);
+            setSent(false);
+          }}
+          t={t}
+        />
+      </View>
+    );
+  }
+
   if (missing) {
     return (
       <View style={[styles.card, { backgroundColor: t.card, borderColor: t.line }]}>

@@ -50,7 +50,7 @@ import {
  * where it is set. Everything before it is the two-field form this screen has
  * always been.
  */
-type Stage = 'email' | 'code' | 'missing' | 'age' | 'refused' | 'offer';
+type Stage = 'email' | 'code' | 'missing' | 'exists' | 'age' | 'refused' | 'offer';
 
 /** Which question the person answered on the first screen. */
 type Mode = 'signin' | 'create';
@@ -264,10 +264,16 @@ export function SignIn({
         // and the name only if this address turns out to be new.
         body: JSON.stringify(
           mode === 'create'
-            ? { email, code, birthDate, displayName: name.trim() }
+            ? { email, code, birthDate, displayName: name.trim(), intent: 'create' }
             : { email, code },
         ),
       });
+      if (res.status === 409) {
+        // Create account, and the address already has one. See the route.
+        setCode('');
+        setStage('exists');
+        return;
+      }
       if (res.status === 403) {
         rememberRefusal();
         setStage('refused');
@@ -414,6 +420,37 @@ export function SignIn({
    * screen that names the cutoff answers its own question — and it is not
    * kept: only the fact that the check passed goes on the account.
    */
+  if (stage === 'exists') {
+    return (
+      <section className="panel">
+        <h2>You already have an account</h2>
+        <p className="muted">
+          {email} is already signed up to Parea. Sign in to it instead — we will
+          send a new code.
+        </p>
+        <div className="row" style={{ marginTop: 16 }}>
+          <button
+            onClick={() => {
+              setMode('signin');
+              void request();
+            }}
+            disabled={busy}
+          >
+            {busy ? 'Sending…' : 'Sign in instead'}
+          </button>
+          <button
+            className="secondary"
+            onClick={() => setStage('email')}
+            disabled={busy}
+          >
+            Use a different address
+          </button>
+        </div>
+        {error && <p className="muted">{error}</p>}
+      </section>
+    );
+  }
+
   if (stage === 'missing') {
     return (
       <section className="panel">

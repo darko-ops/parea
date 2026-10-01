@@ -92,6 +92,8 @@ export async function POST(request: Request) {
     proof?: unknown;
     /** The name typed on Create account. Used only if this makes the account. */
     displayName?: unknown;
+    /** `create` from the Create account form, which must not sign anybody in. */
+    intent?: unknown;
   };
 
   const db = getDb();
@@ -132,6 +134,21 @@ export async function POST(request: Request) {
    */
   if (body.proof && !body.passkey && exists) {
     return NextResponse.json({ error: 'invalid_code' }, { status: 401 });
+  }
+
+  /*
+   * Create account with an address that already has one stops here.
+   *
+   * It used to sign them in, which is the convenient answer and the confusing
+   * one: somebody who pressed Create account and landed in an account full of
+   * somebody's rolls — their own, from months ago — had no way to tell what had
+   * happened. So they are told, and Sign in is one tap from there.
+   *
+   * Only after the code. Before it, "that address has an account" would answer
+   * whether a stranger uses Parea for anybody who typed their address in.
+   */
+  if (body.intent === 'create' && !body.passkey && !body.proof && exists) {
+    return NextResponse.json({ error: 'account_exists' }, { status: 409 });
   }
 
   let ageConfirmedAt: Date | undefined;

@@ -173,6 +173,37 @@ describe('making an account', () => {
     expect(row!.displayName).toBe('Sam');
   });
 
+  it('tells Create account the address already has one, and signs nobody in', async () => {
+    const [actor] = await db.insert(schema.actors).values({ kind: 'guest' }).returning();
+    await signIn(db, 'sam@example.com', actor!.id);
+    await storeCode(db, SECRET, 'sam@example.com', '123456');
+    const sessionsBefore = (await db.select().from(schema.sessions)).length;
+    const refused = await signInWith({
+      email: 'sam@example.com',
+      code: '123456',
+      birthDate: yearsAgo(30),
+      displayName: 'Sam',
+      intent: 'create',
+    });
+    expect(refused.status).toBe(409);
+    expect(refused.body.error).toBe('account_exists');
+    expect(refused.body.actorToken).toBeUndefined();
+    expect(await db.select().from(schema.sessions)).toHaveLength(sessionsBefore);
+  });
+
+  it('still makes the account when Create account is used with a new address', async () => {
+    await storeCode(db, SECRET, 'new@example.com', '123456');
+    const made = await signInWith({
+      email: 'new@example.com',
+      code: '123456',
+      birthDate: yearsAgo(30),
+      displayName: 'New',
+      intent: 'create',
+    });
+    expect(made.status).toBe(200);
+    expect(made.body.created).toBe(true);
+  });
+
   it('never asks somebody who already has an account', async () => {
     const [actor] = await db.insert(schema.actors).values({ kind: 'guest' }).returning();
     await signIn(db, 'sam@example.com', actor!.id);

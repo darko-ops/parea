@@ -1789,7 +1789,14 @@ export class Api {
   ): Promise<SignedIn> {
     const result = await this.call<SignedIn>('/api/account/session', {
       method: 'POST',
-      body: JSON.stringify({ email, code, ...creating, platform: this.client }),
+      // `intent` tells the server this is Create account, which refuses an
+      // address that already has one rather than signing into it.
+      body: JSON.stringify({
+        email,
+        code,
+        ...(creating ? { ...creating, intent: 'create' } : {}),
+        platform: this.client,
+      }),
     });
     this.token = result.actorToken;
     return result;
