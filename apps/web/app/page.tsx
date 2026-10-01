@@ -535,29 +535,6 @@ export default function CreatePage() {
                   </p>
                 </div>
 
-                <div className="field">
-                  <div className="field-head">
-                    <label className="field-label">ADD MEMBERS</label>
-                    <span className="field-note">Optional</span>
-                  </div>
-                  {/*
-                    Chosen here, asked once the event exists. Nobody is put into
-                    an event by somebody else: this writes invitations, and they
-                    answer in Activity.
-                  */}
-                  <MemberPicker
-                    picked={members}
-                    onChange={setMembers}
-                    /*
-                      Not the people already named as co-hosts. Naming a co-host
-                      asks them in, so offering them here again is one
-                      invitation dressed as two decisions — and "Add" beside a
-                      name that is already going to be asked does nothing.
-                    */
-                    exclude={new Set(coHosts.map((p) => p.actorId))}
-                  />
-                </div>
-
                 <fieldset className="field">
                   <legend className="field-label">WHO CAN SEE IT</legend>
                   {/*
@@ -677,6 +654,33 @@ export default function CreatePage() {
                     </div>
                   )}
                 </fieldset>
+
+                <div className="field">
+                  <div className="field-head">
+                    <label className="field-label">WHO IS IN IT</label>
+                    <span className="field-note">Optional</span>
+                  </div>
+                  {/*
+                    Last, after the settings, as the app has it: those are
+                    answered once, and this is a list that can keep growing
+                    without pushing them off the screen.
+
+                    Chosen here, asked once the event exists. Nobody is put into
+                    an event by somebody else: this writes invitations, and they
+                    answer in Activity.
+                  */}
+                  <MemberPicker
+                    picked={members}
+                    onChange={setMembers}
+                    /*
+                      Not the people already named as co-hosts. Naming a co-host
+                      asks them in, so offering them here again is one
+                      invitation dressed as two decisions — and "Add" beside a
+                      name that is already going to be asked does nothing.
+                    */
+                    exclude={new Set(coHosts.map((p) => p.actorId))}
+                  />
+                </div>
 
                 <div className="row">
                   <button

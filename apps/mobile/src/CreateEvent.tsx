@@ -717,27 +717,6 @@ export function CreateEvent({
 
       <View style={styles.field}>
           <Text style={[styles.fieldLabel, { color: t.dim, marginTop: 20 }]}>
-            WHO IS IN IT
-          </Text>
-          {/*
-            Above "who can see it" and not below it, because it is the answer
-            for most private albums: the link is the other way in, and this is
-            the one that does not depend on somebody forwarding anything.
-          */}
-          <InvitePicker
-            api={api}
-            t={t}
-            picked={invitees}
-            onChange={setInvitees}
-            /*
-              Not the people already named as co-hosts. Naming a co-host asks
-              them in, so offering them here again is one invitation dressed as
-              two decisions.
-            */
-            exclude={new Set(coHosts.map((person) => person.actorId))}
-          />
-
-          <Text style={[styles.fieldLabel, { color: t.dim, marginTop: 20 }]}>
             WHO CAN SEE IT
           </Text>
           <View style={styles.pills}>
@@ -862,6 +841,29 @@ export function CreateEvent({
               />
             </>
           )}
+
+          <Text style={[styles.fieldLabel, { color: t.dim, marginTop: 20 }]}>
+            WHO IS IN IT
+          </Text>
+          {/*
+            Last, after the settings rather than among them: the questions
+            above are about the roll and are answered once, and this is a list
+            somebody may want to keep adding to — at the foot of the form it is
+            the last thing done before Post, and it does not push the settings
+            off the screen as it grows.
+          */}
+          <InvitePicker
+            api={api}
+            t={t}
+            picked={invitees}
+            onChange={setInvitees}
+            /*
+              Not the people already named as co-hosts. Naming a co-host asks
+              them in, so offering them here again is one invitation dressed as
+              two decisions.
+            */
+            exclude={new Set(coHosts.map((person) => person.actorId))}
+          />
       </View>
 
       {error && <Text style={[styles.body, { color: t.dim }]}>{error}</Text>}
