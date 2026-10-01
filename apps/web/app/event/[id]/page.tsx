@@ -242,6 +242,8 @@ export default async function EventPage({
    * decisions you cannot make is a notification about somebody else's job.
    */
   const canAdminister = (await decide(db, event, 'administer', requester)).allow;
+  // Read once: the faces in the head and where this reader stands in the roll.
+  const everyone = await membersOf(db, event.id);
   /*
    * Both queues, because both are answered in the same place now.
    *
@@ -291,6 +293,15 @@ export default async function EventPage({
             // after it draws.
             contributePolicy: event.contributePolicy,
             canAdminister,
+            // Both frames, for Leave roll in the menu — see the photos route.
+            membership:
+              viewerId === null
+                ? 'none'
+                : event.createdBy === viewerId
+                  ? 'creator'
+                  : everyone.some((member) => member.actorId === viewerId)
+                    ? 'member'
+                    : 'none',
             waiting: (waitingRow[0]?.n ?? 0) + (hostRow[0]?.n ?? 0),
             groupId: event.groupId,
             groupName: event.groupId
@@ -317,7 +328,7 @@ export default async function EventPage({
           // in one and not the other is a head that changes a second after it
           // draws.
           // Only for signed-in participants — see `mayListMembers`.
-          members: visibleMembers(await membersOf(db, event.id), showMembers),
+          members: visibleMembers(everyone, showMembers),
           // The People tab's fuller answer: everybody in it with what they
           // have put in, plus whoever was asked and has not arrived.
           roster: showMembers ? await rosterFor(db, event.id, photoCounts(rows)) : [],

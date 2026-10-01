@@ -486,6 +486,20 @@ export async function GET(
       name: event.name,
       contributePolicy: event.contributePolicy,
       canAdminister,
+      /*
+       * Where this reader stands in the roll, for the one control that depends
+       * on it: Leave. The creator cannot leave — they delete — and somebody
+       * only looking through a public link has nothing to leave, so a menu
+       * that offered it to either would be a button that could only fail.
+       */
+      membership:
+        viewerId === null
+          ? 'none'
+          : event.createdBy === viewerId
+            ? 'creator'
+            : members.some((member) => member.actorId === viewerId)
+              ? 'member'
+              : 'none',
       waiting,
       groupId: event.groupId,
       groupName: group?.name ?? null,

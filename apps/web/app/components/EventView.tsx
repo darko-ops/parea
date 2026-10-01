@@ -102,6 +102,8 @@ type Feed = {
      */
     contributePolicy: string;
     canAdminister: boolean;
+    /** Where this reader stands: only a `member` is offered Leave roll. */
+    membership?: 'creator' | 'member' | 'none';
     groupId: string | null;
     groupName: string | null;
     /** The host's line under the name, if they wrote one. */
@@ -292,6 +294,38 @@ export function EventView({
 
   const inputRef = useRef<HTMLInputElement>(null);
   const session = useSession();
+
+  /*
+   * Leaving the roll: it comes off your list, and nothing else moves — the
+   * photographs you added stay, because they belong to the evening, and a
+   * public link still opens it. The same words the app's confirmation uses.
+   */
+  const leaveRoll = async () => {
+    const name = feed?.event.name ?? 'this roll';
+    if (
+      !confirm(
+        `Leave ${name}? It comes off your list. Photos you added stay — they belong to the evening.`,
+      )
+    ) {
+      return;
+    }
+    const res = await fetch(`/api/events/${eventId}/participation`, { method: 'DELETE' });
+    if (!res.ok) {
+      alert('Could not leave the roll. Try again in a moment.');
+      return;
+    }
+    const { throughGroup } = (await res.json().catch(() => ({}))) as {
+      throughGroup?: string | null;
+    };
+    // Inside a group it still reaches the home list through the membership,
+    // which reads as Leave having failed unless it is said.
+    if (throughGroup) {
+      alert(
+        `${name} belongs to a group you are in, so it stays in your list. Leaving the group is what takes it off.`,
+      );
+    }
+    window.location.href = '/';
+  };
 
   /*
    * What was already here when this page opened.
@@ -801,6 +835,23 @@ export function EventView({
                     <a href="/safety" onClick={close}>
                       Safety and reporting
                     </a>
+                  )}
+                  {/*
+                    Leaving, for anybody in it who did not make it — the app's
+                    sheet has had this beside Download since it existed. The
+                    creator is not offered it: they end the roll for everybody
+                    from Manage, and the server refuses them here anyway.
+                  */}
+                  {session.account && feed.event.membership === 'member' && (
+                    <button
+                      className="menu-danger"
+                      onClick={() => {
+                        close();
+                        void leaveRoll();
+                      }}
+                    >
+                      Leave roll
+                    </button>
                   )}
                 </>
               )}
