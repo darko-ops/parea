@@ -115,6 +115,9 @@ const OWNED: {
   // back into the group they were taken out of.
   { table: 'group_removal', column: 'actor_id', uniqueWith: ['group_id'] },
   { table: 'group_removal', column: 'removed_by' },
+  // A suspension follows the person too: signing into an account, or into a
+  // new phone, must not be a way out of one.
+  { table: 'suspension', column: 'actor_id' },
   { table: 'moderation_flag', column: 'resolved_by' },
   { table: 'block', column: 'blocker_actor_id', uniqueWith: ['blocked_actor_id'] },
   { table: 'block', column: 'blocked_actor_id', uniqueWith: ['blocker_actor_id'] },

@@ -32,6 +32,8 @@ const activityRoute = await import('../app/api/admin/activity/route');
 const flagsRoute = await import('../app/api/admin/flags/route');
 const flagRoute = await import('../app/api/admin/flags/[id]/route');
 const revealRoute = await import('../app/api/admin/flags/[id]/reveal/route');
+const peopleRoute = await import('../app/api/admin/people/route');
+const personRoute = await import('../app/api/admin/people/[id]/route');
 
 const MIGRATIONS = fileURLToPath(new URL('../../../packages/core/drizzle', import.meta.url));
 const TOKEN = 'a'.repeat(48);
@@ -57,7 +59,7 @@ beforeEach(async () => {
     truncate "actor", "event", "photo", "report", "content_report",
              "safety_incident", "staff_action", "group_message", "groups",
              "moment", "moment_comment", "event_message", "derivative",
-             "moderation_action", "moderation_flag"
+             "moderation_action", "moderation_flag", "account", "suspension"
     restart identity cascade
   `);
 });
@@ -638,5 +640,88 @@ describe('classifier flags', () => {
       await db.update(schema.photos).set({ deletedAt: new Date() }).where(eq(schema.photos.id, photoId));
       expect((await (await reveal(flagId)).json()).error).toBe('not_shown');
     });
+  });
+});
+
+describe('people', () => {
+  async function withAccount(displayName: string, handle: string, email: string) {
+    const [account] = await db.insert(schema.accounts).values({ email }).returning();
+    const [actor] = await db
+      .insert(schema.actors)
+      .values({ kind: 'user', displayName, handle, accountId: account!.id })
+      .returning();
+    return actor!.id;
+  }
+  const search = async (q: string) =>
+    (await (await peopleRoute.GET(req(`people?q=${encodeURIComponent(q)}`))).json()).people as {
+      id: string;
+      email: string | null;
+      suspended: boolean;
+    }[];
+
+  it('are found by email, handle, name or id — and a merged id finds who they became', async () => {
+    const sam = await withAccount('Sam Rivera', 'samr', 'sam@example.com');
+    await withAccount('Alex Kim', 'alexk', 'alex@example.com');
+    expect((await search('sam@example.com')).map((p) => p.id)).toEqual([sam]);
+    expect((await search('@sam')).map((p) => p.id)).toEqual([sam]);
+    expect((await search('rivera')).map((p) => p.id)).toEqual([sam]);
+
+    const [old] = await db.insert(schema.actors).values({ kind: 'guest', mergedIntoId: sam }).returning();
+    expect((await search(old!.id)).map((p) => p.id)).toEqual([sam]);
+    // A tombstone is not a person in a name search.
+    await db.update(schema.actors).set({ displayName: 'Sam Rivera' }).where(eq(schema.actors.id, old!.id));
+    expect((await search('rivera')).map((p) => p.id)).toEqual([sam]);
+  });
+
+  it('treats % and _ as the characters they are', async () => {
+    await withAccount('100% real', 'pct', 'p@example.com');
+    await withAccount('nothing', 'x_y', 'x@example.com');
+    expect(await search('0%')).toHaveLength(1);
+    expect(await search('@x_')).toHaveLength(1);
+  });
+
+  it('show what was reported about them, and no picture', async () => {
+    const sam = await withAccount('Sam', 'sam', 'sam@example.com');
+    await db.update(schema.actors).set({ avatarKey: 'avatars/sam.jpg' }).where(eq(schema.actors.id, sam));
+    const { photoId } = await photoIn(sam);
+    await db.insert(schema.reports).values({ photoId, kind: 'abuse', note: 'mean' });
+    await db.insert(schema.contentReports).values({ targetKind: 'profile', targetId: sam, subjectActorId: sam, kind: 'other' });
+
+    const res = await personRoute.GET(req(`people/${sam}`), params(sam));
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.person).toMatchObject({ email: 'sam@example.com', handle: 'sam' });
+    expect(body.counts.photos).toEqual({ ready: 1 });
+    expect(body.counts.rolls).toBe(1);
+    expect(body.reportsAbout.map((r: { source: string }) => r.source).sort()).toEqual(['content', 'photo']);
+    expect(JSON.stringify(body)).not.toContain('avatars/sam.jpg');
+  });
+
+  it('are suspended with a reason, recorded, and lifted with one', async () => {
+    const sam = await withAccount('Sam', 'sam', 'sam@example.com');
+    const post = (body: unknown) => personRoute.POST(req(`people/${sam}`, { method: 'POST', body }), params(sam));
+
+    expect((await post({ action: 'suspend' })).status).toBe(400);
+    expect((await post({ action: 'suspend', reason: 'threats in a group' })).status).toBe(200);
+    expect((await search('sam@example.com'))[0]!.suspended).toBe(true);
+    expect((await (await post({ action: 'suspend', reason: 'again' })).json()).error).toBe('already_suspended');
+
+    expect((await post({ action: 'lift' })).status).toBe(400);
+    expect((await post({ action: 'lift', note: 'appeal accepted' })).status).toBe(200);
+
+    const detail = await (await personRoute.GET(req(`people/${sam}`), params(sam))).json();
+    expect(detail.suspended).toBe(false);
+    expect(detail.suspensions).toHaveLength(1);
+    expect(detail.staffActions.map((a: { action: string }) => a.action)).toEqual(['suspension_lifted', 'suspended']);
+  });
+
+  it('refuses to suspend a merged-away actor, which signs nobody in', async () => {
+    const sam = await withAccount('Sam', 'sam', 'sam@example.com');
+    const [old] = await db.insert(schema.actors).values({ kind: 'guest', mergedIntoId: sam }).returning();
+    const res = await personRoute.POST(
+      req(`people/${old!.id}`, { method: 'POST', body: { action: 'suspend', reason: 'x' } }),
+      params(old!.id),
+    );
+    expect((await res.json()).error).toBe('merged');
   });
 });

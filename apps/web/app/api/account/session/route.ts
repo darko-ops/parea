@@ -25,6 +25,7 @@ import { NextResponse } from 'next/server';
 import { accountExists, accountFor, consumeCode, signIn } from '@/accounts';
 import { MINIMUM_AGE, ageOn, ageProof, checkAgeProof } from '@/age';
 import { getDb } from '@/db';
+import { isSuspended } from '@/suspension';
 import { hasPasskey, passkeyOwnerHasAccount, verifyAuthentication } from '@/passkeys';
 import {
   SIGN_IN_VERIFY_ADDRESS_LIMIT,
@@ -199,6 +200,18 @@ export async function POST(request: Request) {
       .update(schema.actors)
       .set({ displayName })
       .where(eq(schema.actors.id, result.actorId));
+  }
+
+  /*
+   * Refused, and said so, rather than signed in to nothing.
+   *
+   * `resolveSession` would refuse every credential handed out below anyway, so
+   * this changes no outcome — it changes what the person sees. Without it the
+   * sign-in "works" and the next request finds them signed out, which reads as
+   * a bug rather than a decision.
+   */
+  if (await isSuspended(db, result.actorId)) {
+    return NextResponse.json({ error: 'suspended' }, { status: 403 });
   }
 
   /*

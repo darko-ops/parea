@@ -164,6 +164,13 @@ export async function resolveSession(
       select "id", "actor_id"
         from "session"
        where "id" = ${sessionId} and "revoked_at" is null
+         -- A suspended person is signed out everywhere, here, for every
+         -- route at once. See \`suspension\` in the schema.
+         and not exists (
+           select 1 from "suspension"
+            where "suspension"."actor_id" = "session"."actor_id"
+              and "suspension"."lifted_at" is null
+         )
     ), touched as (
       update "session"
          set "last_seen_at" = now()

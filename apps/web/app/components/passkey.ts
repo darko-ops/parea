@@ -174,6 +174,13 @@ export async function signInWithPasskey(): Promise<Result<{ merged: boolean }>> 
       body: JSON.stringify({ passkey: assertion }),
     });
 
+    if (session.status === 403) {
+      // Suspended: said, because it is a decision about them and not a fault
+      // in the key. Nothing here says whether the key is registered.
+      const body = (await session.json().catch(() => ({}))) as { error?: string };
+      if (body.error === 'suspended') return { ok: false, message: SUSPENDED_NOTE };
+    }
+
     if (!session.ok) {
       // One sentence, because the server gives one answer: saying whether the
       // key was unknown or the signature was wrong would say whether that
@@ -190,3 +197,7 @@ export async function signInWithPasskey(): Promise<Result<{ merged: boolean }>> 
     return { ok: false, message: readFailure(err) };
   }
 }
+
+/** What a suspended person is told when they try to sign in. */
+export const SUSPENDED_NOTE =
+  'This account is suspended. If you think that is a mistake, get in touch through the Safety page.';

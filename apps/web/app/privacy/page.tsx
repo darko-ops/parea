@@ -297,7 +297,9 @@ export default function PrivacyPage() {
             moment, a comment, a message, a profile or a group &mdash; with
             whatever you wrote and whose it was; and that you were reported,
             which is how a report reaches the person who reviews it, along with
-            what they decided and who they were. That a
+            what they decided and who they were. That your account was suspended,
+            why, by whom, and when it was lifted &mdash; kept so a suspension
+            holds when you sign in somewhere new, and so it can be reviewed. That a
             group&rsquo;s admin took you out of it, and who did &mdash; kept so
             that being removed is not undone by rejoining. That somebody invited you into a roll, or
             into a group, who it was, and whether you accepted &mdash; kept so

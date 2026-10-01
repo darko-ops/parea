@@ -13,6 +13,7 @@ import { cookies, headers } from 'next/headers';
 import type { Requester } from './access';
 import { getDb, type Db } from './db';
 import { resolveActor } from './merge';
+import { isSuspended } from './suspension';
 import {
   adoptSession,
   resolveSession,
@@ -117,6 +118,10 @@ export async function currentCredential(): Promise<CurrentCredential | null> {
    * one is adopted — which is exactly the signal being waited for.
    */
   console.info(`legacy-credential: resolved actor ${actorId} with no session row`);
+
+  // The session path asks this inside `resolveSession`; this path has no
+  // session to ask it of.
+  if (await isSuspended(db, actorId).catch(() => true)) return null;
 
   return { actorId, sessionId: null };
 }

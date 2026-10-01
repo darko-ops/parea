@@ -88,7 +88,7 @@ import {
 import { BlockedCard } from './Blocked';
 import { DevicesCard } from './Devices';
 import { passkeysSupported } from './passkeys';
-import { addPasskey, signInWithPasskey } from './signin';
+import { addPasskey, signInWithPasskey, SUSPENDED_NOTE } from './signin';
 import { Waiting } from './Waiting';
 
 export type TabTheme = GroupTheme;
@@ -3455,7 +3455,9 @@ export function AccountCard({
         return;
       }
       setError(
-        err instanceof ApiError && err.code === 'too_many_requests'
+        err instanceof ApiError && err.code === 'suspended'
+          ? SUSPENDED_NOTE
+          : err instanceof ApiError && err.code === 'too_many_requests'
           ? 'Too many tries from here. Wait an hour, then use the code you have.'
           : 'That code did not work. Codes expire after ten minutes.',
       );

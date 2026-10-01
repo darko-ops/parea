@@ -1404,6 +1404,41 @@ export const moderationActions = pgTable(
 );
 
 /**
+ * A person barred from Parea by staff, and whether it has been lifted.
+ *
+ * Enforced where every request is identified: `resolveSession` will not
+ * resolve a session whose actor has a suspension in force, so a suspended
+ * person is signed out on every device at once and the phone clears itself as
+ * it does after a remote sign-out. Signing in again is refused with
+ * `suspended`.
+ *
+ * Follows the person. `mergeActor` moves these rows to the survivor, so a
+ * suspended guest who signs into an account takes the suspension with them,
+ * and an account cannot be escaped by signing in on a new phone. A guest with
+ * no account can still clear their cookies and start again as somebody new —
+ * a suspension has teeth where there is an account to hold it to.
+ *
+ * Rows are kept when lifted, so the history says how often and why.
+ */
+export const suspensions = pgTable(
+  'suspension',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    actorId: uuid('actor_id')
+      .notNull()
+      .references(() => actors.id, { onDelete: 'cascade' }),
+    reason: text('reason').notNull(),
+    /** The staff email that suspended them. Staff are not actors. */
+    suspendedBy: text('suspended_by').notNull(),
+    createdAt: createdAt(),
+    liftedAt: timestamp('lifted_at', { withTimezone: true }),
+    liftedBy: text('lifted_by'),
+    liftNote: text('lift_note'),
+  },
+  (t) => [index('suspension_active_idx').on(t.actorId, t.liftedAt)],
+);
+
+/**
  * Everything a member of staff did through the admin API, and who they were.
  *
  * Staff are not actors. They reach Parea through the hub — a separate app

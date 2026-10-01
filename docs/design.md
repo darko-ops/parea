@@ -1689,8 +1689,11 @@ and it is not a page here either: a separate admin hub, behind its own sign-in,
 calls `/api/admin` server to server with `ADMIN_API_TOKEN`, acting for a named
 member of `ADMIN_STAFF`. It reads reports, incidents and classifier flags; it
 can decline a report or take down what it is about, clear a flag, remove the
-photo or escalate it to child safety, and record that an incident was filed or
-released — each written to `staff_action`. It returns no image, with one
+photo or escalate it to child safety, record that an incident was filed or
+released, and look people up and suspend them — each written to
+`staff_action`. A suspension is enforced in `resolveSession`, so it signs the
+person out of every device at once, and sign-in refuses them until it is
+lifted; it follows them through a merge (`src/adminPeople.ts`). It returns no image, with one
 recorded exception: a reviewer may ask to see one flagged photo, never one
 under a child-safety hold (`apps/web/src/adminReveal.ts`). See
 `apps/web/src/admin.ts`.

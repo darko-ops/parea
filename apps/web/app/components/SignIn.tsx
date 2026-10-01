@@ -43,6 +43,7 @@ import {
   passkeysAvailable,
   platformAuthenticator,
   signInWithPasskey,
+  SUSPENDED_NOTE,
 } from './passkey';
 
 /**
@@ -275,6 +276,11 @@ export function SignIn({
         return;
       }
       if (res.status === 403) {
+        // Two refusals share the status, and only one is about age. Treating a
+        // suspension as "too young" would also remember it, and turn this
+        // browser away from making any account at all.
+        const body = (await res.json().catch(() => ({}))) as { error?: string };
+        if (body.error === 'suspended') throw new Error(SUSPENDED_NOTE);
         rememberRefusal();
         setStage('refused');
         return;
@@ -335,6 +341,8 @@ export function SignIn({
         body: JSON.stringify({ email, proof, birthDate, displayName: name.trim() }),
       });
       if (res.status === 403) {
+        const body = (await res.json().catch(() => ({}))) as { error?: string };
+        if (body.error === 'suspended') throw new Error(SUSPENDED_NOTE);
         rememberRefusal();
         setStage('refused');
         return;

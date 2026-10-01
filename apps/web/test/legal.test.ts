@@ -237,6 +237,7 @@ describe('the closed list of what is collected', () => {
       content_report: /That you reported something/,
       // Who on staff decided a report, and what — the other half of it.
       staff_action: /what they decided and who they were/,
+      suspension: /That your account was suspended/,
       group_removal: /admin took you out of it/,
       block: /blocked somebody/,
       // Kept because the law requires it, and described at length in its own

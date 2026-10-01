@@ -11,7 +11,7 @@
  * the thing they just declined.
  */
 
-import { isStaleSignIn, STALE_SIGN_IN_NOTE, type Api, type SignedIn } from './api';
+import { ApiError, isStaleSignIn, STALE_SIGN_IN_NOTE, type Api, type SignedIn } from './api';
 import { assertPasskey, CANCELLED, createPasskey } from './passkeys';
 
 export type Flow<T> = { ok: true; value: T } | { ok: false; note: string | null };
@@ -76,7 +76,9 @@ export async function signInWithPasskey(api: Api): Promise<Flow<SignedIn>> {
 
   try {
     return { ok: true, value: await api.signInWithPasskey(asserted.value) };
-  } catch {
+  } catch (err) {
+    // A decision about them, not a fault in the key — so it is said.
+    if (err instanceof ApiError && err.code === 'suspended') return { ok: false, note: SUSPENDED_NOTE };
     /*
      * One sentence, because the server gives one answer.
      *
@@ -91,3 +93,7 @@ export async function signInWithPasskey(api: Api): Promise<Flow<SignedIn>> {
     };
   }
 }
+
+/** What a suspended person is told when they try to sign in. */
+export const SUSPENDED_NOTE =
+  'This account is suspended. If you think that is a mistake, get in touch through the Safety page.';
