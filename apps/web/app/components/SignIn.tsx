@@ -13,15 +13,26 @@
  * rather than keeping a second copy. That page owns everything *around* signing
  * in — what you are in, deleting the account — and none of it belongs here.
  *
- * ## Two ways in, and the order they are offered in
+ * ## Sign in, or create an account — and a passkey only after there is one
  *
- * A passkey is first on the screen and second in the code, and both are
- * deliberate. It is first because for anybody who has one it is the whole
- * interaction — a tap and a face, no inbox — and a form above it would be a
- * form they have to look past every time. It is second in the file because the
- * code path is the one that always works: it is what creates an account, what
- * gets somebody in on a device they have never held, and what is left when a
- * passkey is on a phone that is at home. Nothing here ever hides it.
+ * This used to open on two equal ways in, a passkey above an email form, and
+ * somebody who had never made an account had no way to tell which was theirs —
+ * a passkey cannot exist before an account does, so the first button on the
+ * screen was one a newcomer could only fail at.
+ *
+ * So the card asks the question a person can answer: are you signing in, or
+ * making an account? Both are an email and a code underneath — the server makes
+ * the account at the first code to a new address — but saying which is which
+ * lets each say only what it needs to.
+ *
+ * A passkey is offered only under Sign in, and only in a browser that has been
+ * signed in to an account before (`HAD_ACCOUNT_KEY`). Anywhere else it is a
+ * button that can only fail. Somebody whose passkey syncs to a browser this
+ * one has never seen signs in with a code once, and it appears after that.
+ *
+ * Signing in with an address that has no account does not quietly make one:
+ * it says so, and offers to. Making an account with an address that already has
+ * one simply signs in — there is nothing to refuse.
  */
 
 import { useCallback, useEffect, useState } from 'react';
@@ -39,7 +50,32 @@ import {
  * where it is set. Everything before it is the two-field form this screen has
  * always been.
  */
-type Stage = 'email' | 'code' | 'age' | 'refused' | 'offer';
+type Stage = 'email' | 'code' | 'missing' | 'age' | 'refused' | 'offer';
+
+/** Which question the person answered on the first screen. */
+type Mode = 'signin' | 'create';
+
+/**
+ * This browser has been signed in to an account at least once — the condition
+ * for offering a passkey, and for opening on Sign in rather than Create
+ * account. Kept through sign-out, which is exactly when it matters. A hint and
+ * not a lock: clearing it only means seeing Create account first.
+ */
+const HAD_ACCOUNT_KEY = 'parea.had-account';
+const hadAccount = () => {
+  try {
+    return globalThis.localStorage?.getItem(HAD_ACCOUNT_KEY) === '1';
+  } catch {
+    return false;
+  }
+};
+const rememberAccount = () => {
+  try {
+    globalThis.localStorage?.setItem(HAD_ACCOUNT_KEY, '1');
+  } catch {
+    // Blocked storage: this browser just keeps opening on Create account.
+  }
+};
 
 /**
  * This browser was told it cannot make an account. Remembered so that changing
@@ -84,6 +120,9 @@ export function useSession(): {
       .then((r) => r.json())
       .catch(() => ({ account: null }));
     setAccount(session.account ?? null);
+    // A browser seen signed in counts as having had an account — which is how
+    // everybody signed in before `HAD_ACCOUNT_KEY` existed gets it too.
+    if (session.account) rememberAccount();
     setKnown(true);
   }, []);
 
@@ -110,6 +149,9 @@ export function SignIn({
   onSignedIn: () => void | Promise<void>;
 }) {
   const [stage, setStage] = useState<Stage>('email');
+  const [mode, setMode] = useState<Mode>('create');
+  /** See `HAD_ACCOUNT_KEY`. Read after mount, for the reason `canPasskey` is. */
+  const [returning, setReturning] = useState(false);
   const [email, setEmail] = useState('');
   const [code, setCode] = useState('');
   const [busy, setBusy] = useState(false);
@@ -133,6 +175,9 @@ export function SignIn({
   const [onThisDevice, setOnThisDevice] = useState(false);
 
   useEffect(() => {
+    const before = hadAccount();
+    setReturning(before);
+    if (before) setMode('signin');
     setCanPasskey(passkeysAvailable());
     void platformAuthenticator().then(setOnThisDevice);
   }, []);
@@ -175,6 +220,7 @@ export function SignIn({
       };
       setMerged(result.merged);
       setCode('');
+      rememberAccount();
 
       /*
        * The one moment worth interrupting for.
@@ -226,7 +272,9 @@ export function SignIn({
           return;
         }
         setProof(body.proof ?? null);
-        setStage('age');
+        // Signing in to an address with no account says so rather than
+        // making one behind their back; Create account carries straight on.
+        setStage(mode === 'create' ? 'age' : 'missing');
         return;
       }
       if (!res.ok) {
@@ -238,7 +286,7 @@ export function SignIn({
     } finally {
       setBusy(false);
     }
-  }, [code, email, finish]);
+  }, [code, email, finish, mode]);
 
   /** The date of birth, for the sign-in that makes the account. */
   const confirmAge = useCallback(async () => {
@@ -291,6 +339,7 @@ export function SignIn({
         return;
       }
       setMerged(result.value.merged);
+      rememberAccount();
       await onSignedIn();
     } finally {
       setBusy(false);
@@ -335,6 +384,37 @@ export function SignIn({
    * screen that names the cutoff answers its own question — and it is not
    * kept: only the fact that the check passed goes on the account.
    */
+  if (stage === 'missing') {
+    return (
+      <section className="panel">
+        <h2>No account for that address</h2>
+        <p className="muted">
+          {email} is not signed up to Parea yet. Make an account with it, or
+          sign in with the address you used before.
+        </p>
+        <div className="row" style={{ marginTop: 16 }}>
+          <button
+            onClick={() => {
+              setMode('create');
+              setStage('age');
+            }}
+          >
+            Create an account
+          </button>
+          <button
+            className="secondary"
+            onClick={() => {
+              setProof(null);
+              setStage('email');
+            }}
+          >
+            Use a different address
+          </button>
+        </div>
+      </section>
+    );
+  }
+
   if (stage === 'age') {
     const today = new Date().toISOString().slice(0, 10);
     return (
@@ -428,35 +508,45 @@ export function SignIn({
     );
   }
 
+  const creating = mode === 'create';
+  const choose = (next: Mode) => {
+    setMode(next);
+    setStage('email');
+    setCode('');
+    setError(null);
+  };
+
   return (
     <section className="panel">
       {title && <h1 className="auth-title">{title}</h1>}
       <p>{why}</p>
 
-      {/*
-        The passkey first, for anybody who has one — it is the whole
-        interaction, and a form above it is a form to look past every time.
-        Drawn only once the browser has been asked whether it can: see
-        `canPasskey`.
-      */}
-      {canPasskey && stage === 'email' && (
-        <>
-          <div className="row">
-            <button onClick={withPasskey} disabled={busy}>
-              {busy ? 'Working…' : 'Sign in with a passkey'}
-            </button>
-          </div>
-          <p className="muted">
-            Face ID, Touch ID, or whatever unlocks your device.
-          </p>
-          {/* A separator that says the two are alternatives, not steps. */}
-          <p className="signin-or">or</p>
-        </>
-      )}
+      {/* The one question a newcomer can answer, before anything else. */}
+      <div className="auth-switch" role="tablist" aria-label="Sign in or create an account">
+        <button
+          role="tab"
+          aria-selected={!creating}
+          className={!creating ? 'on' : ''}
+          onClick={() => choose('signin')}
+          disabled={busy}
+        >
+          Sign in
+        </button>
+        <button
+          role="tab"
+          aria-selected={creating}
+          className={creating ? 'on' : ''}
+          onClick={() => choose('create')}
+          disabled={busy}
+        >
+          Create account
+        </button>
+      </div>
 
       <p className="muted">
-        No password — a code goes to your inbox. Your rolls follow you to
-        another browser or a new phone.
+        {creating
+          ? 'No password. Enter your email and we will send a code to make your account.'
+          : 'Enter the email you signed up with and we will send you a code.'}
       </p>
 
       <label htmlFor="signin-email">Email</label>
@@ -497,7 +587,13 @@ export function SignIn({
           onClick={stage === 'code' ? verify : request}
           disabled={busy || (stage === 'code' ? code.length < 6 : !email.includes('@'))}
         >
-          {busy ? 'Working…' : stage === 'code' ? 'Sign in' : 'Send me a code'}
+          {busy
+            ? 'Working…'
+            : stage === 'code'
+              ? creating
+                ? 'Continue'
+                : 'Sign in'
+              : 'Send me a code'}
         </button>
         {stage === 'code' && (
           <button className="secondary" onClick={() => setStage('email')} disabled={busy}>
@@ -505,6 +601,21 @@ export function SignIn({
           </button>
         )}
       </div>
+
+      {/*
+        Second, smaller, and only where it can work: under Sign in, in a browser
+        that has held an account before. See `HAD_ACCOUNT_KEY`.
+      */}
+      {!creating && returning && canPasskey && stage === 'email' && (
+        <>
+          <p className="signin-or">or</p>
+          <div className="row">
+            <button className="secondary" onClick={withPasskey} disabled={busy}>
+              Sign in with a passkey
+            </button>
+          </div>
+        </>
+      )}
 
       {merged && (
         // Said rather than done quietly: everything added in this browser has

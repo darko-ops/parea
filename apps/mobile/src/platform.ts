@@ -777,6 +777,22 @@ export async function markLibraryAsked(): Promise<void> {
  */
 const AGE_REFUSED_KEY = 'parea.age-refused';
 
+/**
+ * This phone has been signed in to an account at least once — the condition
+ * for offering Face ID sign-in, and for opening on Sign in rather than Create
+ * account. Not cleared by `signOutDevice`, because signed out is exactly when
+ * it is read.
+ */
+const HAD_ACCOUNT_KEY = 'parea.had-account';
+
+export async function hadAccount(): Promise<boolean> {
+  return (await SecureStore.getItemAsync(HAD_ACCOUNT_KEY).catch(() => null)) === '1';
+}
+
+export async function rememberAccount(): Promise<void> {
+  await SecureStore.setItemAsync(HAD_ACCOUNT_KEY, '1').catch(() => {});
+}
+
 export async function ageRefused(): Promise<boolean> {
   return (await SecureStore.getItemAsync(AGE_REFUSED_KEY).catch(() => null)) === '1';
 }

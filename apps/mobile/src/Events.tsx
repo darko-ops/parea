@@ -77,7 +77,9 @@ import {
   rememberSearch,
   saveActorToken,
   ageRefused,
+  hadAccount,
   currentPushToken,
+  rememberAccount,
   rememberAgeRefused,
   signOutDevice,
   type RecentSearch,
@@ -3272,6 +3274,22 @@ export function AccountCard({
    */
   const [ageProof, setAgeProof] = useState<string | null>(null);
   const [refused, setRefused] = useState(false);
+  /*
+   * Sign in, or create an account — the first question the card asks, so a
+   * newcomer is never looking at a Face ID button for an account that does not
+   * exist yet. Face ID is offered only under Sign in, on a phone that has held
+   * an account before (`hadAccount`). Signing in with an address that has no
+   * account says so (`missing`, holding the proof) rather than making one.
+   */
+  const [mode, setMode] = useState<'signin' | 'create'>('create');
+  const [returning, setReturning] = useState(false);
+  const [missing, setMissing] = useState<string | null>(null);
+  useEffect(() => {
+    void hadAccount().then((before) => {
+      setReturning(before);
+      if (before) setMode('signin');
+    });
+  }, []);
   const [day, setDay] = useState('');
   const [month, setMonth] = useState('');
   const [year, setYear] = useState('');
@@ -3314,6 +3332,8 @@ export function AccountCard({
       .account()
       .then((found) => {
         setAccount(found);
+        // Everybody signed in before `hadAccount` existed is remembered here.
+        if (found) void rememberAccount();
         // See the note above: a gate that finds an account must say so, or
         // the caller keeps the gate up over a card that draws nothing.
         if (found && gate) announce.current();
@@ -3351,6 +3371,7 @@ export function AccountCard({
   const finish = useCallback(
     async (result: SignedIn) => {
       await saveActorToken(result.actorToken);
+      void rememberAccount();
       setAccount({ email: result.email });
       setSent(false);
       setCode('');
@@ -3388,8 +3409,10 @@ export function AccountCard({
        */
       if (err instanceof ApiError && err.code === 'birth_date_required') {
         setCode('');
+        const proof = typeof err.body.proof === 'string' ? err.body.proof : null;
         if (await ageRefused()) setRefused(true);
-        else setAgeProof(typeof err.body.proof === 'string' ? err.body.proof : null);
+        else if (mode === 'signin') setMissing(proof);
+        else setAgeProof(proof);
         return;
       }
       setError(
@@ -3400,7 +3423,7 @@ export function AccountCard({
     } finally {
       setBusy(false);
     }
-  }, [api, code, email, finish]);
+  }, [api, code, email, finish, mode]);
 
   /** The date of birth, for the sign-in that makes the account. */
   const confirmAge = useCallback(async () => {
@@ -3444,6 +3467,7 @@ export function AccountCard({
       }
 
       await saveActorToken(outcome.value.actorToken);
+      void rememberAccount();
       setAccount({ email: outcome.value.email });
       if (outcome.value.merged) {
         Alert.alert(
@@ -3600,6 +3624,36 @@ export function AccountCard({
    * check passed goes on the account. Three fields rather than a picker,
    * because a picker is a native module and this ships without a new build.
    */
+  if (missing) {
+    return (
+      <View style={[styles.card, { backgroundColor: t.card, borderColor: t.line }]}>
+        <Text style={[styles.label, { color: t.fg }]}>No account for that address</Text>
+        <Text style={[styles.small, { color: t.dim }]}>
+          {email.trim()} is not signed up to Parea yet. Make an account with it,
+          or sign in with the address you used before.
+        </Text>
+        <Button
+          label="Create an account"
+          onPress={() => {
+            setMode('create');
+            setAgeProof(missing);
+            setMissing(null);
+          }}
+          t={t}
+          primary
+        />
+        <Button
+          label="Use a different address"
+          onPress={() => {
+            setMissing(null);
+            setSent(false);
+          }}
+          t={t}
+        />
+      </View>
+    );
+  }
+
   if (ageProof) {
     const field = [styles.input, { color: t.fg, borderColor: t.line, backgroundColor: t.bg }];
     return (
@@ -3748,36 +3802,52 @@ export function AccountCard({
     );
   }
 
+  const creating = mode === 'create';
+  const choose = (next: 'signin' | 'create') => {
+    setMode(next);
+    setSent(false);
+    setCode('');
+    setError(null);
+  };
+
   return (
     <View style={[styles.card, { backgroundColor: t.card, borderColor: t.line }]}>
       <Text style={[styles.label, { color: t.fg }]}>
         {why ?? 'Keep these on a new phone'}
       </Text>
-      <Text style={[styles.small, { color: t.dim }]}>
-        {why
-          ? 'No password — a code goes to your inbox, and your rolls follow you to another device.'
-          : 'Optional. Add an email and your rolls and groups follow you to another device. No password — a code goes to your inbox.'}
-      </Text>
-
-      {/*
-        The passkey first, for anybody who has one — it is the whole
-        interaction, and a form above it is a form to look past every time.
-        Drawn only where this phone could actually use one.
-      */}
-      {canPasskey && !sent && (
-        <>
-          <Button
-            label={busy ? 'Working…' : 'Sign in with Face ID'}
-            onPress={withPasskey}
-            disabled={busy}
-            t={t}
-            primary
-          />
-          <Text style={[styles.small, { color: t.dim, textAlign: 'center' }]}>
-            or use a code
-          </Text>
-        </>
+      {!why && (
+        <Text style={[styles.small, { color: t.dim }]}>
+          Optional. With an account, your rolls and groups follow you to another
+          device.
+        </Text>
       )}
+
+      {/* The one question a newcomer can answer, before anything else. */}
+      <View style={[styles.authSwitch, { backgroundColor: t.bg, borderColor: t.line }]}>
+        {(['signin', 'create'] as const).map((option) => {
+          const on = mode === option;
+          return (
+            <Pressable
+              key={option}
+              onPress={() => choose(option)}
+              disabled={busy}
+              accessibilityRole="tab"
+              accessibilityState={{ selected: on }}
+              style={[styles.authOption, on && { backgroundColor: t.card }]}
+            >
+              <Text style={[styles.authOptionText, { color: on ? t.fg : t.dim }]}>
+                {option === 'signin' ? 'Sign in' : 'Create account'}
+              </Text>
+            </Pressable>
+          );
+        })}
+      </View>
+
+      <Text style={[styles.small, { color: t.dim }]}>
+        {creating
+          ? 'No password. Enter your email and we will send a code to make your account.'
+          : 'Enter the email you signed up with and we will send you a code.'}
+      </Text>
 
       <TextInput
         value={email}
@@ -3810,7 +3880,7 @@ export function AccountCard({
       {error && <Text style={[styles.small, { color: t.dim }]}>{error}</Text>}
 
       <Button
-        label={busy ? 'Working…' : sent ? 'Sign in' : 'Send me a code'}
+        label={busy ? 'Working…' : sent ? (creating ? 'Continue' : 'Sign in') : 'Send me a code'}
         onPress={sent ? verify : request}
         disabled={busy || (sent ? code.length < 6 : !email.includes('@'))}
         t={t}
@@ -3822,6 +3892,22 @@ export function AccountCard({
           in ten minutes — check spam if it is not there. Asking over and over
           stops the mail for an hour, so use the last one that arrived.
         </Text>
+      )}
+
+      {/*
+        Second, and only where it can work: under Sign in, on a phone that has
+        held an account before, with a build that can do passkeys.
+      */}
+      {!creating && returning && canPasskey && !sent && (
+        <>
+          <Text style={[styles.small, { color: t.dim, textAlign: 'center' }]}>or</Text>
+          <Button
+            label={busy ? 'Working…' : 'Sign in with Face ID'}
+            onPress={withPasskey}
+            disabled={busy}
+            t={t}
+          />
+        </>
       )}
     </View>
   );
@@ -4100,6 +4186,10 @@ const styles = StyleSheet.create({
   body: { fontSize: 16, lineHeight: 22 },
   small: { fontSize: 13, lineHeight: 18 },
   input: { borderWidth: 1, borderRadius: 10, padding: 12, fontSize: 16 },
+  /* Sign in | Create account: two halves of one control. */
+  authSwitch: { flexDirection: 'row', borderWidth: 1, borderRadius: 12, padding: 3, gap: 3 },
+  authOption: { flex: 1, borderRadius: 9, paddingVertical: 9, alignItems: 'center' },
+  authOptionText: { fontSize: 14, fontWeight: '600' },
   /* Wider apart than the cards on the other tabs: each group is three pieces
      stacked — a name, a strip of evenings and a line about the last one — and
      14 points between blocks made two groups read as one.

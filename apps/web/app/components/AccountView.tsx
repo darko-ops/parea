@@ -227,7 +227,7 @@ export function AccountView() {
     return (
       <LoginScreen>
         <SignIn
-          title="Sign in"
+          title="Welcome to Parea"
           why="Create a roll, or add your photos to one."
           onSignedIn={afterSignIn}
         />
