@@ -47,8 +47,37 @@ const FILE_STORE = 'files';
  */
 export const RESUME_WINDOW_MS = 24 * 60 * 60 * 1000;
 
-/** How many bytes of one batch `secure` copies into storage. */
+/**
+ * The least `secure` will copy for one batch, whatever the browser reports —
+ * a normal evening's photos.
+ */
 export const SECURE_BUDGET_BYTES = 250 * 1024 * 1024;
+
+/** The most, however much room there is. */
+export const SECURE_BUDGET_MAX_BYTES = 2 * 1024 * 1024 * 1024;
+
+/**
+ * How much of a batch to copy: half the room this origin has left, between
+ * `SECURE_BUDGET_BYTES` and `SECURE_BUDGET_MAX_BYTES`.
+ *
+ * Refreshing mid-upload should not lose anything, so the budget is as large as
+ * the browser will comfortably hold rather than a fixed guess. Also asks for
+ * persistent storage, best effort: granted, the browser will not clear these
+ * copies under storage pressure while the upload is still running.
+ */
+export async function secureBudget(
+  storage: Pick<StorageManager, 'estimate' | 'persist'> | undefined =
+    typeof navigator === 'undefined' ? undefined : navigator.storage,
+): Promise<number> {
+  void storage?.persist?.().catch(() => false);
+  try {
+    const { quota = 0, usage = 0 } = (await storage?.estimate?.()) ?? {};
+    const half = Math.max(0, quota - usage) / 2;
+    return Math.min(SECURE_BUDGET_MAX_BYTES, Math.max(SECURE_BUDGET_BYTES, half));
+  } catch {
+    return SECURE_BUDGET_BYTES;
+  }
+}
 
 type QueueRecord = {
   eventId: string;

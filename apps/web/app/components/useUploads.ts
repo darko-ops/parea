@@ -13,7 +13,7 @@ import type { QueueItem, QueueState, UploadQueue } from '@parea/upload';
 
 import { browserDeps, describe, restore } from '@/upload/browser';
 import { lend, peek, release } from '@/upload/handoff';
-import { UploadStore } from '@/upload/store';
+import { secureBudget, UploadStore } from '@/upload/store';
 
 export type UploadsView = {
   items: QueueItem[];
@@ -37,6 +37,9 @@ const EMPTY: QueueState = { items: [] };
 export function useUploads(eventId: string, onProgress?: () => void): UploadsView {
   const [snapshot, setSnapshot] = useState<QueueState>(EMPTY);
   const [running, setRunning] = useState(false);
+  // Copies of picked photos still being written — see `secure` in the store.
+  // A reload before they land loses those photos, so it is warned against.
+  const [securing, setSecuring] = useState(0);
   const [resumed, setResumed] = useState(false);
 
   const store = useRef<UploadStore | null>(null);
@@ -129,11 +132,28 @@ export function useUploads(eventId: string, onProgress?: () => void): UploadsVie
    * loses whatever had not been sent.
    */
   useEffect(() => {
-    if (!running) return;
+    if (!running && securing === 0) return;
     const warn = (event: BeforeUnloadEvent) => event.preventDefault();
     window.addEventListener('beforeunload', warn);
     return () => window.removeEventListener('beforeunload', warn);
-  }, [running]);
+  }, [running, securing]);
+
+  /**
+   * Copies the bytes of just-queued photos into storage, in the background,
+   * so a refresh resumes the upload instead of losing them. Counted while it
+   * runs, for the warning above.
+   */
+  const secureAll = useCallback(
+    (opened: UploadStore | null, stored: { id: string; file: File }[]) => {
+      if (!opened || stored.length === 0) return;
+      setSecuring((n) => n + 1);
+      void secureBudget()
+        .then((budget) => opened.secure(stored, budget))
+        .catch(() => 0)
+        .finally(() => setSecuring((n) => n - 1));
+    },
+    [],
+  );
 
   /**
    * Hand the photos to the event and leave.
@@ -198,9 +218,9 @@ export function useUploads(eventId: string, onProgress?: () => void): UploadsVie
       // Then the bytes themselves, in the background, so a reload on the event
       // page — Safari killing the tab, a refresh — resumes instead of asking
       // for every photo again. See `secure` in the store.
-      void opened.secure(stored).catch(() => 0);
+      secureAll(opened, stored);
     },
-    [],
+    [secureAll],
   );
 
   const add = useCallback(
@@ -232,12 +252,12 @@ export function useUploads(eventId: string, onProgress?: () => void): UploadsVie
       const stored = described.map((d) => ({ id: d.item.id, file: d.file }));
       await store.current?.putFiles(eventId, stored).catch(() => {});
       // As in `stage`: copies of the bytes, so a reload does not lose them.
-      void store.current?.secure(stored).catch(() => 0);
+      secureAll(store.current, stored);
 
       setSnapshot({ items: [...q.state.items] });
       await drive(q);
     },
-    [eventId, drive, snapshot],
+    [eventId, drive, snapshot, secureAll],
   );
 
   const discard = useCallback(async () => {

@@ -18,7 +18,14 @@ import type { QueueState } from '@parea/upload';
 import { IDBFactory } from 'fake-indexeddb';
 import { beforeEach, describe, expect, it } from 'vitest';
 
-import { RESUME_WINDOW_MS, SECURE_BUDGET_BYTES, UploadStore, readable } from '../src/upload/store';
+import {
+  RESUME_WINDOW_MS,
+  SECURE_BUDGET_BYTES,
+  SECURE_BUDGET_MAX_BYTES,
+  UploadStore,
+  readable,
+  secureBudget,
+} from '../src/upload/store';
 
 let store: UploadStore;
 
@@ -214,5 +221,38 @@ describe('secure', () => {
     // Twenty 10 MB photos — a generous evening — fit; two hundred do not.
     expect(SECURE_BUDGET_BYTES).toBeGreaterThanOrEqual(20 * 10 * 1024 * 1024);
     expect(SECURE_BUDGET_BYTES).toBeLessThan(200 * 10 * 1024 * 1024);
+  });
+});
+
+describe('secureBudget', () => {
+  const MB = 1024 * 1024;
+  const storage = (quota: number, usage: number) => ({
+    estimate: async () => ({ quota, usage }),
+    persist: async () => true,
+  });
+
+  it('is half the room left, so a refresh loses nothing in an ordinary batch', async () => {
+    expect(await secureBudget(storage(2000 * MB, 200 * MB))).toBe(900 * MB);
+  });
+
+  it('never drops below the floor, even on a nearly full phone', async () => {
+    expect(await secureBudget(storage(300 * MB, 290 * MB))).toBe(SECURE_BUDGET_BYTES);
+  });
+
+  it('never goes above the ceiling, however much room there is', async () => {
+    expect(await secureBudget(storage(100_000 * MB, 0))).toBe(SECURE_BUDGET_MAX_BYTES);
+  });
+
+  it('falls back to the floor when the browser will not say', async () => {
+    expect(await secureBudget(undefined)).toBe(SECURE_BUDGET_BYTES);
+    expect(
+      await secureBudget({ estimate: () => Promise.reject(new Error('no')), persist: async () => false }),
+    ).toBe(SECURE_BUDGET_BYTES);
+  });
+
+  it('asks for the storage to be kept', async () => {
+    let asked = false;
+    await secureBudget({ estimate: async () => ({}), persist: async () => (asked = true) });
+    expect(asked).toBe(true);
   });
 });
