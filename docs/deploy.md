@@ -314,7 +314,7 @@ flyctl deploy . --config services/deriver/fly.toml \
 
 # try it on a throwaway machine first — it gets the app's real secrets
 flyctl machine run registry.fly.io/parea-deriver:SOME_LABEL -a parea-deriver \
-  --region lhr --memory 2048 --restart no --env NODE_ENV=production \
+  --region iad --memory 2048 --restart no --env NODE_ENV=production \
   --entrypoint /bin/sh -- -c 'cd /app && node_modules/.bin/tsx services/deriver/src/index.ts probe'
 flyctl logs -a parea-deriver --machine MACHINE_ID --no-tail
 flyctl machine destroy MACHINE_ID -a parea-deriver --force

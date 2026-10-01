@@ -37,9 +37,9 @@ import {
   type DerivativeKind,
 } from './derivatives';
 import {
-  extractMetadata,
   hasPrivateMetadata,
   imageDataHash,
+  stripAndVerify,
   stripPrivateMetadata,
 } from './metadata';
 import type { ObjectStore } from './objects';
@@ -112,17 +112,16 @@ export async function processPhoto(
     const working = join(dir, 'original');
     await writeFile(working, original);
 
-    // Prove the strip is metadata-only. Null means exiftool cannot hash this
-    // format, in which case there is nothing to compare and we proceed.
-    const pixelsBefore = await imageDataHash(working);
+    // Hash, strip, check and read in one exiftool run — see `stripAndVerify`.
+    // The pixel hashes prove the strip is metadata-only; null means exiftool
+    // cannot hash this format, in which case there is nothing to compare.
+    const outcome = await stripAndVerify(working);
+    const { pixelsBefore, pixelsAfter, metadata } = outcome;
 
-    try {
-      await stripPrivateMetadata(working);
-    } catch (err) {
-      return fail(db, photoId, `strip_failed:${short(err)}`);
+    if (outcome.stripError) {
+      return fail(db, photoId, `strip_failed:${outcome.stripError.slice(0, 120)}`);
     }
 
-    const pixelsAfter = await imageDataHash(working);
     if (pixelsBefore && pixelsAfter && pixelsBefore !== pixelsAfter) {
       // "Pixel data is never re-encoded" is a promise to users about their
       // originals. If it ever stops being true, refuse the photo rather than
@@ -130,7 +129,7 @@ export async function processPhoto(
       return fail(db, photoId, 'pixel_data_changed');
     }
 
-    if (await hasPrivateMetadata(working)) {
+    if (outcome.privateLeft) {
       // The strip reported success but a location or a person's name survived
       // — a format exiftool handles partially, or a check that could not read
       // the file. Serving it would break the guarantee on the privacy page.
@@ -204,8 +203,24 @@ export async function processPhoto(
       throw err;
     }
 
-    const metadata = await extractMetadata(working);
     const dimensions = await readDimensions(stripped);
+
+    /*
+     * The original goes up while the sizes are made, not after.
+     *
+     * Deriving is CPU and the upload is network, so they overlap for free:
+     * this used to be the whole upload's time added to every photo. Started
+     * only here, after the child-safety check above has passed — the stripped
+     * original must never land at its final key before that, or a matched
+     * image would sit in storage outside the quarantine. A decode failure
+     * below still waits for it and removes it, so a refused photo leaves no
+     * object behind.
+     */
+    const finalKey = `ev/${photo.eventId}/${hex}`;
+    const mime = metadata.mime ?? photo.mime;
+    const originalUp = objects.put(finalKey, stripped, mime);
+    // Never left unhandled: awaited below on success, or on failure.
+    originalUp.catch(() => {});
 
     let derivatives;
     try {
@@ -213,12 +228,10 @@ export async function processPhoto(
     } catch (err) {
       // The common cause is a build of sharp without an HEVC decoder, which is
       // an operational fault rather than a bad photo — hence the boot probe.
+      await originalUp.catch(() => {});
+      await objects.delete(finalKey).catch(() => {});
       return fail(db, photoId, `decode_failed:${short(err)}`);
     }
-
-    const finalKey = `ev/${photo.eventId}/${hex}`;
-    const mime = metadata.mime ?? photo.mime;
-    await objects.put(finalKey, stripped, mime);
 
     // Sibling keys, not `${finalKey}/${kind}` — that would make the original's
     // key a directory prefix as well as an object, which S3's flat namespace
@@ -241,11 +254,12 @@ export async function processPhoto(
      * the next poll has another go. The objects that did land are written over
      * by that attempt, because their keys come from the content hash.
      */
-    await Promise.all(
-      derivatives.map((derivative) =>
+    await Promise.all([
+      originalUp,
+      ...derivatives.map((derivative) =>
         objects.put(keyOf(derivative), derivative.bytes, derivative.mime),
       ),
-    );
+    ]);
 
     /*
      * `ready` and the rows that make it true, committed together.

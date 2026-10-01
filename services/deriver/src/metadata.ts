@@ -209,3 +209,125 @@ function asString(value: unknown): string | null {
 function asNumber(value: unknown): number | null {
   return typeof value === 'number' && Number.isFinite(value) ? value : null;
 }
+
+/** Splits one exiftool run's output between its commands — see `stripAndVerify`. */
+const SPLIT = '@@parea-split@@';
+
+/** The fields `stripAndVerify`'s last read asks for that are not private. */
+const NOT_PRIVATE = new Set([
+  'SourceFile',
+  'ImageDataHash',
+  'DateTimeOriginal',
+  'CreateDate',
+  'OffsetTimeOriginal',
+  'OffsetTime',
+  'ImageWidth',
+  'ImageHeight',
+  'MIMEType',
+]);
+
+export type StripOutcome = {
+  /** Pixel-data hash before and after; null where exiftool cannot hash. */
+  pixelsBefore: string | null;
+  pixelsAfter: string | null;
+  /** Why the strip itself failed, or null. */
+  stripError: string | null;
+  /** A location or a person's name survived — or the check could not look. */
+  privateLeft: boolean;
+  /** Read from the stripped file, as `extractMetadata` would. */
+  metadata: ExtractedMetadata;
+};
+
+/**
+ * Hash, strip, then check and read — in one exiftool run instead of five.
+ *
+ * Each exiftool start costs about a fifth of a second before it reads a byte,
+ * and processing used to start it five times per photo: hash, strip, hash
+ * again, check, read. That was over a second of every photo spent starting
+ * Perl. The three steps here are separate commands (`-execute`) in one
+ * process, so the order and the before/after comparison are unchanged.
+ *
+ * Still one process per photo, not one for the deriver's lifetime: a file
+ * built to exploit the parser gets this photo's run and nothing after it —
+ * the isolation `subprocess.ts` exists for.
+ *
+ * Fails closed. If the run dies part-way, the checks it did not reach count
+ * as failed: `privateLeft` is true and the photo is refused, as before.
+ */
+export async function stripAndVerify(path: string): Promise<StripOutcome> {
+  const args = [
+    // 1. The pixels before.
+    '-api', 'ImageHashType=SHA256', '-s3', '-ImageDataHash', path,
+    '-echo3', SPLIT, '-echo4', SPLIT,
+    '-execute',
+    // 2. The strip.
+    '-overwrite_original', '-q', ...STRIP_ARGS, path,
+    '-echo3', SPLIT, '-echo4', SPLIT,
+    '-execute',
+    // 3. The pixels after, anything private left, and what the photo says
+    //    about itself — all from the stripped file.
+    '-j', '-api', 'ImageHashType=SHA256',
+    '-ImageDataHash',
+    '-DateTimeOriginal', '-CreateDate', '-OffsetTimeOriginal', '-OffsetTime',
+    '-ImageWidth', '-ImageHeight', '-MIMEType',
+    '-Location:all',
+    '-XMP-mwg-rs:RegionName',
+    '-XMP-MP:RegionPersonDisplayName',
+    '-XMP-iptcExt:PersonInImage',
+    path,
+  ];
+
+  let stdout = '';
+  let stderr = '';
+  try {
+    ({ stdout, stderr } = await runParser('exiftool', args, { maxBuffer: 32 * 1024 * 1024 }));
+  } catch (err) {
+    // exiftool exits non-zero when any command errored; what it printed is
+    // still the record of which.
+    const failed = err as { stdout?: string; stderr?: string; message?: string };
+    stdout = failed.stdout ?? '';
+    stderr = failed.stderr ?? failed.message ?? 'exiftool failed';
+  }
+
+  const out = stdout.split(SPLIT);
+  const errs = stderr.split(SPLIT);
+  const pixelsBefore = out[0]?.trim() || null;
+  const stripErrors = (errs[1] ?? '').split('\n').filter((line) => /error/i.test(line));
+  let stripError = stripErrors.length > 0 ? stripErrors.join(' ').trim() : null;
+  if (out.length < 3) stripError ??= stderr.trim() || 'exiftool did not finish';
+
+  let record: Record<string, unknown> | undefined;
+  try {
+    [record] = JSON.parse(out[2] ?? '') as Record<string, unknown>[];
+  } catch {
+    record = undefined;
+  }
+  if (!record) {
+    return {
+      pixelsBefore,
+      pixelsAfter: null,
+      stripError: stripError ?? 'could not read the stripped file',
+      privateLeft: true,
+      metadata: blank(),
+    };
+  }
+
+  const privateLeft = Object.entries(record).some(
+    ([key, value]) => !NOT_PRIVATE.has(key) && value !== '' && value != null,
+  );
+  const stamp = asString(record.DateTimeOriginal) ?? asString(record.CreateDate);
+  const offset = asString(record.OffsetTimeOriginal) ?? asString(record.OffsetTime);
+  return {
+    pixelsBefore,
+    pixelsAfter: asString(record.ImageDataHash) ?? null,
+    stripError,
+    privateLeft,
+    metadata: {
+      capturedAt: parseExifDate(stamp, offset),
+      capturedOffsetMinutes: parseOffsetMinutes(offset),
+      width: asNumber(record.ImageWidth),
+      height: asNumber(record.ImageHeight),
+      mime: asString(record.MIMEType),
+    },
+  };
+}

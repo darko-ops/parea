@@ -21,12 +21,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import { buildDerivatives, DERIVATIVES, readDimensions } from './derivatives';
-import {
-  extractMetadata,
-  hasPrivateMetadata,
-  imageDataHash,
-  stripPrivateMetadata,
-} from './metadata';
+import { stripAndVerify } from './metadata';
 import type { ObjectStore } from './objects';
 
 export type Timings = Record<string, number>;
@@ -60,34 +55,37 @@ export async function profilePhoto(
   try {
     const working = join(dir, 'original');
     await timed(t, 'write_temp', () => writeFile(working, original));
-    await timed(t, 'pixel_hash_x2', () => imageDataHash(working));
-    await timed(t, 'strip', () => stripPrivateMetadata(working));
-    await timed(t, 'pixel_hash_x2', () => imageDataHash(working));
-    await timed(t, 'private_check', () => hasPrivateMetadata(working));
+    await timed(t, 'strip_and_verify', () => stripAndVerify(working));
     const stripped = await timed(t, 'read_back', () => readFile(working));
     await timed(t, 'sha256', async () => createHash('sha256').update(stripped).digest());
     await timed(t, 'db_dedupe_query', () =>
       db.execute(sql`select id from "photo" where content_hash = ${Buffer.alloc(32)} limit 1`),
     );
-    await timed(t, 'extract_metadata', () => extractMetadata(working));
     const dims = await timed(t, 'read_dimensions', () => readDimensions(stripped));
 
-    const all = await timed(t, 'derive_all', () => buildDerivatives(stripped));
+    // As processing now does it: the original uploading while the sizes are
+    // made. `derive_all` alone is timed separately below for comparison.
+    const base = `tmp/profile/${randomUUID()}`;
+    const [, all] = await timed(t, 'derive+upload_original', () =>
+      Promise.all([
+        (async () => {
+          scratch.push(`${base}/original`);
+          await objects.put(`${base}/original`, stripped, photo.mime ?? 'image/jpeg');
+        })(),
+        buildDerivatives(stripped),
+      ]),
+    );
 
     // Each size on its own, to see which ones the total is made of. These
     // re-decode per size, so they add up to more than `derive_all`, which
     // shares one decode between them.
+    await timed(t, 'derive_all_alone', () => buildDerivatives(stripped));
     for (const spec of DERIVATIVES) {
       await timed(t, `size_${spec.kind}(${formatsFor(spec.kind as ImageKind).join('+')})`, () =>
         buildDerivatives(stripped, [spec.kind]),
       );
     }
 
-    const base = `tmp/profile/${randomUUID()}`;
-    await timed(t, 'upload_original', async () => {
-      scratch.push(`${base}/original`);
-      await objects.put(`${base}/original`, stripped, photo.mime ?? 'image/jpeg');
-    });
     await timed(t, 'upload_sizes_parallel', () =>
       Promise.all(
         all.map((d, i) => {
@@ -99,7 +97,13 @@ export async function profilePhoto(
     );
     await timed(t, 'db_roundtrip', () => db.execute(sql`select 1`));
 
-    t.total = performance.now() - total;
+    // Without the comparison-only steps, so `total` is what processing costs.
+    t.total =
+      performance.now() -
+      total -
+      Object.entries(t)
+        .filter(([k]) => k.startsWith('size_') || k === 'derive_all_alone')
+        .reduce((sum, [, ms]) => sum + ms, 0);
     const pixels = dims.width && dims.height ? dims.width * dims.height : null;
     return { timings: t, bytes: original.length, pixels };
   } finally {
@@ -135,7 +139,7 @@ export function summarise(runs: Timings[]): string {
     .map(([step, list]) => [step, list.reduce((a, b) => a + b, 0) / list.length] as const)
     .sort((a, b) => b[1] - a[1])
     .map(([step, ms]) => {
-      const share = step === 'total' || step.startsWith('size_') ? '' : `${Math.round((ms / avgTotal) * 100)}%`;
+      const share = step === 'total' || step.startsWith('size_') || step === 'derive_all_alone' ? '' : `${Math.round((ms / avgTotal) * 100)}%`;
       return `${step.padEnd(34)} ${Math.round(ms).toString().padStart(6)} ms  ${share}`;
     })
     .join('\n');

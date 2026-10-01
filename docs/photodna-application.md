@@ -43,7 +43,7 @@ strangers.
 1. The client uploads the original directly to our object storage (Cloudflare
    R2) through a short-lived presigned URL. At this point it is stored
    privately and served to nobody.
-2. Our processing service (Node.js on Fly.io, London region) is notified
+2. Our processing service (Node.js on Fly.io, US East — Virginia — next to the database and storage) is notified
    through a queue. It removes location and personal metadata, computes a
    SHA-256 of the result, and **calls the child-safety scanner with the image
    before anything else happens to it**.

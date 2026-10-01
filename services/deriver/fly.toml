@@ -17,7 +17,7 @@
 # DEFAULT_CONCURRENCY, which carries the measurements.
 
 app = "parea-deriver"
-primary_region = "lhr"
+primary_region = "iad"
 
 [build]
   dockerfile = "Dockerfile"

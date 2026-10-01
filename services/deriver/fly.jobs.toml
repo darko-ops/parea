@@ -17,7 +17,7 @@
 # answers hides the photo after 48 hours, and that only happens if this runs.
 
 app = "parea-jobs"
-primary_region = "lhr"
+primary_region = "iad"
 
 [build]
   dockerfile = "Dockerfile"
