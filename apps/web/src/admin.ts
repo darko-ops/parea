@@ -30,12 +30,13 @@
  * change, so there is no change without a record of who made it.
  */
 
-import { preservationHold, schema } from '@parea/core';
+import { preservationHold, recordModeration, REASON, schema } from '@parea/core';
 import { and, desc, eq, inArray, isNull, ne, sql } from 'drizzle-orm';
 import { NextResponse } from 'next/server';
 import { timingSafeEqual } from 'node:crypto';
 
 import type { Db } from './db';
+import { takeDown, type TakeDownKind } from './removal';
 import { hoursLeft, stageFor } from './reportDeadline';
 
 export const STAFF_HEADER = 'x-parea-staff';
@@ -378,6 +379,114 @@ export async function declineReport(
       note: input.note,
     });
   });
+}
+
+/**
+ * Take down what a report is about, and close every open report on it.
+ *
+ * The removal itself is `takeDown`, which goes through the same code the
+ * author's own delete does. What this adds is the staff half: the report and
+ * any others on the same thing are marked actioned, the visibility change of
+ * a photo is written to `moderation_action` with a null actor and the
+ * `staff_removed` reason, and `staff_action` names who — against the thing
+ * removed, so "who took this down" is one lookup.
+ *
+ * Something already gone (its author deleted it while the report waited)
+ * still closes the reports as actioned: the outcome the reporter wanted
+ * happened, and declining would say otherwise.
+ *
+ * Storage goes after the transaction commits, so a removal that rolls back
+ * has not already deleted anything.
+ */
+export async function removeContent(
+  db: Db,
+  staff: string,
+  input: { source: 'photo' | 'content'; id: string; note: string | null },
+): Promise<{ alreadyGone: boolean }> {
+  let after: (() => Promise<void>) | null = null;
+
+  const outcome = await db.transaction(async (tx) => {
+    const now = new Date();
+    let kind: TakeDownKind;
+    let targetId: string;
+
+    if (input.source === 'photo') {
+      const [report] = await tx
+        .select({ kind: schema.reports.kind, status: schema.reports.status, photoId: schema.reports.photoId })
+        .from(schema.reports)
+        .where(eq(schema.reports.id, input.id));
+      if (!report || report.kind === 'removal_request' || report.status !== 'open') {
+        throw new AdminConflict('not_found');
+      }
+      if (report.kind === 'child_safety') throw new AdminConflict('use_incident');
+      kind = 'photo';
+      targetId = report.photoId;
+    } else {
+      const [report] = await tx
+        .select({
+          status: schema.contentReports.status,
+          targetKind: schema.contentReports.targetKind,
+          targetId: schema.contentReports.targetId,
+        })
+        .from(schema.contentReports)
+        .where(eq(schema.contentReports.id, input.id));
+      if (!report || report.status !== 'open') throw new AdminConflict('not_found');
+      kind = report.targetKind;
+      targetId = report.targetId;
+    }
+
+    const taken = await takeDown(tx as unknown as Db, kind, targetId);
+    if (taken.result === 'under_review') throw new AdminConflict('under_review');
+
+    if (kind === 'photo') {
+      await tx
+        .update(schema.reports)
+        .set({ status: 'actioned', resolvedAt: now })
+        .where(
+          and(
+            eq(schema.reports.photoId, targetId),
+            eq(schema.reports.status, 'open'),
+            inArray(schema.reports.kind, ['abuse', 'other']),
+          ),
+        );
+    } else {
+      await tx
+        .update(schema.contentReports)
+        .set({ status: 'actioned', resolvedAt: now })
+        .where(
+          and(
+            eq(schema.contentReports.targetKind, kind),
+            eq(schema.contentReports.targetId, targetId),
+            eq(schema.contentReports.status, 'open'),
+          ),
+        );
+    }
+
+    if (taken.result === 'removed' && taken.photo) {
+      await recordModeration(tx, {
+        photoId: taken.photo.id,
+        eventId: taken.photo.eventId,
+        action: 'removed',
+        actorId: null,
+        reason: REASON.staffRemoved,
+      });
+    }
+
+    const alreadyGone = taken.result === 'already_gone';
+    await record(tx, {
+      staff,
+      action: alreadyGone ? 'content_already_gone' : 'content_removed',
+      targetKind: kind,
+      targetId,
+      note: [`report ${input.id}`, input.note].filter(Boolean).join(' — '),
+    });
+
+    if (taken.result === 'removed') after = taken.after;
+    return { alreadyGone };
+  });
+
+  if (after) await (after as () => Promise<void>)();
+  return outcome;
 }
 
 /**

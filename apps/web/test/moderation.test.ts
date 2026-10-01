@@ -458,7 +458,7 @@ describe('removing a reported photo', () => {
     const { __setStorageForTests } = await import('../src/storage/factory');
     __setStorageForTests(store as never);
     try {
-      const { dropDerivatives } = await import('../app/api/reports/[id]/resolve/route');
+      const { dropDerivatives } = await import('../src/removal');
       await dropDerivatives(db, photo.id);
     } finally {
       __setStorageForTests(null);
@@ -483,7 +483,7 @@ describe('removing a reported photo', () => {
     const { __setStorageForTests } = await import('../src/storage/factory');
     __setStorageForTests(store as never);
     try {
-      const { dropDerivatives } = await import('../app/api/reports/[id]/resolve/route');
+      const { dropDerivatives } = await import('../src/removal');
       await dropDerivatives(db, guestPhoto.id);
     } finally {
       __setStorageForTests(null);
@@ -543,7 +543,7 @@ describe('removing a reported photo', () => {
       async delete() { throw new Error('r2 is having a moment'); },
     } as never);
     try {
-      const { dropDerivatives } = await import('../app/api/reports/[id]/resolve/route');
+      const { dropDerivatives } = await import('../src/removal');
       await expect(dropDerivatives(db, photo.id)).resolves.toBeUndefined();
     } finally {
       __setStorageForTests(null);

@@ -46,7 +46,9 @@ beforeEach(async () => {
   process.env.ADMIN_STAFF = `${STAFF}, Other@Daed.io`;
   await db.execute(sql`
     truncate "actor", "event", "photo", "report", "content_report",
-             "safety_incident", "staff_action", "group_message", "groups"
+             "safety_incident", "staff_action", "group_message", "groups",
+             "moment", "moment_comment", "event_message", "derivative",
+             "moderation_action"
     restart identity cascade
   `);
 });
@@ -311,5 +313,198 @@ describe('activity', () => {
     );
     const body = await (await activityRoute.GET(req('activity'))).json();
     expect(body.actions.map((x: { action: string }) => x.action)).toEqual(['incident_released', 'incident_filed']);
+  });
+});
+
+describe('removing what a report is about', () => {
+  const deleted: string[] = [];
+  beforeEach(async () => {
+    deleted.length = 0;
+    const { __setStorageForTests } = await import('../src/storage/factory');
+    __setStorageForTests({
+      async presignPut() { throw new Error('not used'); },
+      async presignGet() { return 'x'; },
+      async putSmall() {},
+      async head() { return null; },
+      async delete(key: string) { deleted.push(key); },
+    } as never);
+  });
+  afterAll(async () => {
+    const { __setStorageForTests } = await import('../src/storage/factory');
+    __setStorageForTests(null);
+  });
+
+  const remove = (id: string, source: 'photo' | 'content', note?: string) =>
+    reportRoute.POST(req(`reports/${id}`, { method: 'POST', body: { source, action: 'remove', note } }), params(id));
+
+  async function contentReport(targetKind: string, targetId: string, subject: string | null) {
+    const [row] = await db
+      .insert(schema.contentReports)
+      .values({ targetKind: targetKind as never, targetId, subjectActorId: subject, kind: 'abuse' })
+      .returning();
+    return row!.id;
+  }
+
+  it('takes a photo down as a host would, closes every abuse report on it, and says who', async () => {
+    const uploader = await person('Uploader');
+    const { photoId, eventId } = await photoIn(uploader);
+    await db.insert(schema.derivatives).values(
+      (['thumb', 'full'] as const).map((kind) => ({
+        photoId, kind, format: 'jpeg' as const, storageKey: `ev/${kind}.jpg`, width: 1, height: 1, mime: 'image/jpeg',
+      })),
+    );
+    const [first] = await db.insert(schema.reports).values({ photoId, kind: 'abuse' }).returning();
+    const [second] = await db.insert(schema.reports).values({ photoId, kind: 'other' }).returning();
+    const [removal] = await db.insert(schema.reports).values({ photoId, kind: 'removal_request' }).returning();
+
+    const res = await remove(first!.id, 'photo', 'harassment');
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ status: 'actioned', alreadyGone: false });
+
+    const [photo] = await db.select().from(schema.photos).where(eq(schema.photos.id, photoId));
+    expect(photo!.status).toBe('removed');
+    expect(photo!.deletedAt).not.toBeNull();
+    expect(deleted).toEqual(expect.arrayContaining(['ev/thumb.jpg', 'ev/full.jpg']));
+    // The original is evidence and the purge job's to remove.
+    expect(deleted).not.toContain(photo!.storageKey);
+
+    const statuses = Object.fromEntries(
+      (await db.select().from(schema.reports)).map((r) => [r.id, r.status]),
+    );
+    expect(statuses[first!.id]).toBe('actioned');
+    expect(statuses[second!.id]).toBe('actioned');
+    expect(statuses[removal!.id]).toBe('open');
+
+    const [audit] = await db.select().from(schema.moderationActions);
+    expect(audit).toMatchObject({ photoId, eventId, action: 'removed', actorId: null, reason: 'staff_removed' });
+    const [action] = await staffActions();
+    expect(action).toMatchObject({ staff: STAFF, action: 'content_removed', targetKind: 'photo', targetId: photoId });
+    expect(action!.note).toBe(`report ${first!.id} — harassment`);
+  });
+
+  it('leaves a quarantined photo to its incident', async () => {
+    const uploader = await person('Uploader');
+    const { photoId } = await photoIn(uploader);
+    await db.update(schema.photos).set({ status: 'quarantined' }).where(eq(schema.photos.id, photoId));
+    const [report] = await db.insert(schema.reports).values({ photoId, kind: 'abuse' }).returning();
+    const res = await remove(report!.id, 'photo');
+    expect(res.status).toBe(409);
+    expect((await res.json()).error).toBe('under_review');
+    const [photo] = await db.select().from(schema.photos).where(eq(schema.photos.id, photoId));
+    expect(photo!.status).toBe('quarantined');
+    expect(await staffActions()).toEqual([]);
+  });
+
+  it('empties a group message the way its author deleting it would', async () => {
+    const author = await person('Author');
+    const [group] = await db.insert(schema.groups).values({ name: 'Fam', slug: 'fam2' }).returning();
+    const [message] = await db
+      .insert(schema.groupMessages)
+      .values({ groupId: group!.id, authorActorId: author, body: 'threat' })
+      .returning();
+    const a = await contentReport('group_message', message!.id, author);
+    const b = await contentReport('group_message', message!.id, author);
+
+    expect((await remove(a, 'content')).status).toBe(200);
+    const [row] = await db.select().from(schema.groupMessages).where(eq(schema.groupMessages.id, message!.id));
+    expect(row!.body).toBe('');
+    expect(row!.deletedAt).not.toBeNull();
+    const reports = await db.select().from(schema.contentReports);
+    expect(reports.map((r) => r.status)).toEqual(['actioned', 'actioned']);
+    expect(b).toBeTruthy();
+  });
+
+  it('empties a message in a roll', async () => {
+    const author = await person('Author');
+    const { eventId } = await photoIn(author);
+    const [message] = await db
+      .insert(schema.eventMessages)
+      .values({ eventId, authorActorId: author, body: 'nasty' })
+      .returning();
+    expect((await remove(await contentReport('event_message', message!.id, author), 'content')).status).toBe(200);
+    const [row] = await db.select().from(schema.eventMessages).where(eq(schema.eventMessages.id, message!.id));
+    expect(row!.body).toBe('');
+  });
+
+  it('takes a moment down and its pictures out of storage', async () => {
+    const author = await person('Author');
+    const [moment] = await db
+      .insert(schema.moments)
+      .values({ actorId: author, key: 'm/full.jpg', thumbKey: 'm/thumb.jpg', width: 1, height: 1 })
+      .returning();
+    expect((await remove(await contentReport('moment', moment!.id, author), 'content')).status).toBe(200);
+    const [row] = await db.select().from(schema.moments).where(eq(schema.moments.id, moment!.id));
+    expect(row!.deletedAt).not.toBeNull();
+    expect(deleted.sort()).toEqual(['m/full.jpg', 'm/thumb.jpg']);
+  });
+
+  it('deletes a comment on a moment', async () => {
+    const author = await person('Author');
+    const [moment] = await db
+      .insert(schema.moments)
+      .values({ actorId: author, key: 'm/k.jpg', width: 1, height: 1 })
+      .returning();
+    const [comment] = await db
+      .insert(schema.momentComments)
+      .values({ momentId: moment!.id, actorId: author, body: 'cruel' })
+      .returning();
+    expect((await remove(await contentReport('moment_comment', comment!.id, author), 'content')).status).toBe(200);
+    expect(await db.select().from(schema.momentComments)).toEqual([]);
+  });
+
+  it('clears a profile’s name and picture, and keeps its handle', async () => {
+    const [actor] = await db
+      .insert(schema.actors)
+      .values({ kind: 'guest', displayName: 'Slur', avatarKey: 'avatars/a.jpg', handle: 'someone' })
+      .returning();
+    expect((await remove(await contentReport('profile', actor!.id, actor!.id), 'content')).status).toBe(200);
+    const [row] = await db.select().from(schema.actors).where(eq(schema.actors.id, actor!.id));
+    expect(row).toMatchObject({ displayName: null, avatarKey: null, handle: 'someone' });
+    expect(deleted).toEqual(['avatars/a.jpg']);
+  });
+
+  it('clears a group’s name and picture, and takes it out of search', async () => {
+    const [group] = await db
+      .insert(schema.groups)
+      .values({ name: 'Bad name', slug: 'bad-name', findable: true, photoKey: 'groups/g.jpg' })
+      .returning();
+    expect((await remove(await contentReport('group', group!.id, null), 'content')).status).toBe(200);
+    const [row] = await db.select().from(schema.groups).where(eq(schema.groups.id, group!.id));
+    expect(row).toMatchObject({ name: null, slug: null, findable: false, photoKey: null });
+    expect(deleted).toEqual(['groups/g.jpg']);
+  });
+
+  it('closes the report as actioned when the author already deleted it', async () => {
+    const author = await person('Author');
+    const [group] = await db.insert(schema.groups).values({ name: 'Fam', slug: 'fam3' }).returning();
+    const [message] = await db
+      .insert(schema.groupMessages)
+      .values({ groupId: group!.id, authorActorId: author, body: '', deletedAt: new Date() })
+      .returning();
+    const id = await contentReport('group_message', message!.id, author);
+    const res = await remove(id, 'content');
+    expect(await res.json()).toEqual({ status: 'actioned', alreadyGone: true });
+    expect((await staffActions())[0]!.action).toBe('content_already_gone');
+  });
+
+  it('refuses a child-safety report on a photo, which its incident decides', async () => {
+    const uploader = await person('Uploader');
+    const { photoId } = await photoIn(uploader);
+    const [report] = await db.insert(schema.reports).values({ photoId, kind: 'child_safety' }).returning();
+    const res = await remove(report!.id, 'photo');
+    expect((await res.json()).error).toBe('use_incident');
+  });
+
+  it('acts once: a second press finds the report already closed', async () => {
+    const author = await person('Author');
+    const [group] = await db.insert(schema.groups).values({ name: 'Fam', slug: 'fam4' }).returning();
+    const [message] = await db
+      .insert(schema.groupMessages)
+      .values({ groupId: group!.id, authorActorId: author, body: 'x' })
+      .returning();
+    const id = await contentReport('group_message', message!.id, author);
+    expect((await remove(id, 'content')).status).toBe(200);
+    expect((await remove(id, 'content')).status).toBe(404);
+    expect(await staffActions()).toHaveLength(1);
   });
 });

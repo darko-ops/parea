@@ -54,6 +54,11 @@ export const REASON = {
   purgeGrace: 'purge_grace',
   /** Every photo of an actor who deleted their account and asked for them gone. */
   accountDeleted: 'account_deleted',
+  /**
+   * Staff took it down through the admin hub. The actor column is null because
+   * staff are not actors; `staff_action` names who, with the same photo id.
+   */
+  staffRemoved: 'staff_removed',
 } as const;
 
 export async function recordModeration(
