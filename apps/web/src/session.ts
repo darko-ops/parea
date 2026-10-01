@@ -121,6 +121,30 @@ export async function currentCredential(): Promise<CurrentCredential | null> {
   return { actorId, sessionId: null };
 }
 
+/**
+ * Whether this request carries a credential that was signed out from
+ * somewhere else — a session id that is revoked or gone.
+ *
+ * Distinct from having no credential, and from a guest who simply has no
+ * account. `currentCredential` answers null for all three, which is right for
+ * authorization and useless to a phone that needs to know whether to tear
+ * down a screen full of somebody's albums: it has to clear itself when, and
+ * only when, the session it is holding was ended.
+ *
+ * A database failure answers false. Being told you were signed out because the
+ * database blinked would empty the phone for nothing.
+ */
+export async function presentedSignedOut(): Promise<boolean> {
+  const jar = await cookies();
+  const presented = decodeCredential(jar.get(ACTOR_COOKIE)?.value) ?? (await bearerCredential());
+  if (!presented?.sessionId) return false;
+  try {
+    return (await resolveSession(getDb(), presented.sessionId)) === null;
+  } catch {
+    return false;
+  }
+}
+
 export async function currentActorId(): Promise<string | null> {
   return (await currentCredential())?.actorId ?? null;
 }

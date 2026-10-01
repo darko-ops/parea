@@ -39,6 +39,7 @@ import {
   establishSession,
   fromBrowser,
   issueActorCookie,
+  presentedSignedOut,
   requestHost,
   signOutBrowser,
 } from '@/session';
@@ -47,7 +48,13 @@ export const runtime = 'nodejs';
 
 export async function GET() {
   const actorId = await currentActorId();
-  if (!actorId) return NextResponse.json({ account: null });
+  /*
+   * `signedOut` says the credential on this request was ended elsewhere — the
+   * Devices screen on another device. The app holds its lists in memory and
+   * would otherwise keep drawing somebody's albums under a session the server
+   * stopped honouring; this is how it learns to clear them.
+   */
+  if (!actorId) return NextResponse.json({ account: null, signedOut: await presentedSignedOut() });
   return NextResponse.json({ account: await accountFor(getDb(), actorId) });
 }
 

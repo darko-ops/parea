@@ -125,6 +125,7 @@ import {
   saveOwedCovers,
   saveQueue,
   saveToCameraRoll,
+  signOutDevice,
   setAppBadge,
   uploadCover,
   uploadItem,
@@ -1092,11 +1093,38 @@ export default function App() {
    * two writes to the recent-events list, so each URL is answered once.
    */
   const [signedIn, setSignedIn] = useState<boolean | null>(null);
+  /*
+   * Set once `signOut` exists further down; read here so a remote sign-out can
+   * run the same teardown the Sign out button does.
+   */
+  const signedOutElsewhere = useRef<() => void>(() => {});
   const refreshAccount = useCallback(async () => {
     // `null` until the answer arrives. Gates render nothing meanwhile: a
     // sign-in prompt that flashes for someone already signed in is worse than
     // one that appears a moment late.
-    setSignedIn(await api.account().then((a) => a !== null).catch(() => false));
+    const state = await api.accountState().catch(() => null);
+    /*
+     * No answer is not "signed out". Offline keeps whatever this phone already
+     * believed, and only a launch with nothing to go on falls to the gate.
+     */
+    if (!state) {
+      setSignedIn((was) => was ?? false);
+      return;
+    }
+    /*
+     * Signed out from another device — the Devices screen in a browser. The
+     * server stopped honouring this phone's session, but the albums, groups
+     * and counts are held here in memory and in the keychain, and they kept
+     * drawing as if nothing had happened. So it is torn down exactly as the
+     * Sign out button tears it down.
+     */
+    if (state.signedOut) {
+      await signOutDevice();
+      api.setToken(null);
+      signedOutElsewhere.current();
+      return;
+    }
+    setSignedIn(state.account !== null);
   }, [api]);
 
   /*
@@ -1172,6 +1200,7 @@ export default function App() {
     setVisited(new Set(['home']));
     setIdentity((n) => n + 1);
   }, []);
+  signedOutElsewhere.current = signOut;
 
   /*
    * Leaving a pushed screen, named once each.
@@ -1428,7 +1457,11 @@ export default function App() {
      * only moment the tray can learn about them. Cheap: one small number.
      */
     const awake = AppState.addEventListener('change', (next) => {
-      if (next === 'active') void refreshWaiting();
+      if (next !== 'active') return;
+      void refreshWaiting();
+      // Coming back is when a sign-out from another device gets noticed —
+      // typically the browser this person just switched away from.
+      void refreshAccount();
     });
     return () => {
       subscription.remove();
@@ -1436,7 +1469,7 @@ export default function App() {
       unheard();
       awake.remove();
     };
-  }, [api, arrive, follow, refreshEvents, refreshGroups, refreshWaiting]);
+  }, [api, arrive, follow, refreshAccount, refreshEvents, refreshGroups, refreshWaiting]);
 
   if (!ready) {
     return (

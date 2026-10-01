@@ -1814,6 +1814,22 @@ export class Api {
     return result;
   }
 
+  /**
+   * Who this phone is, and whether its session was ended from elsewhere.
+   *
+   * `signedOut` is the server saying the token this phone holds names a
+   * session somebody signed out from another device — not merely that there is
+   * no account, which is also true of a guest. Rejects when offline, which
+   * callers must not read as either answer.
+   */
+  async accountState(): Promise<{ account: Account | null; signedOut: boolean }> {
+    const { account, signedOut } = await this.call<{
+      account: Account | null;
+      signedOut?: boolean;
+    }>('/api/account/session');
+    return { account, signedOut: signedOut === true };
+  }
+
   async account(): Promise<Account | null> {
     const { account } = await this.call<{ account: Account | null }>(
       '/api/account/session',
