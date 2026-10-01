@@ -35,6 +35,7 @@ import {
   adoptSession,
   listSessions,
   resolveSession,
+  revokeDevice,
   revokeOtherSessions,
   revokeSession,
   RECENT_SIGN_IN_SECONDS,
@@ -229,6 +230,58 @@ describe('the list of where you are signed in', () => {
     });
     const [listed] = await listSessions(db, me, null);
     expect(listed?.method).toBe('guest');
+  });
+});
+
+describe('one row per device', () => {
+  const chrome = (actorId: string, method: 'guest' | 'code') =>
+    startSession(db, { actorId, kind: 'browser', userAgent: CHROME_MAC, method });
+  const safari = (actorId: string, method: 'guest' | 'code') =>
+    startSession(db, { actorId, kind: 'browser', userAgent: SAFARI_IPHONE, method });
+
+  it('folds sessions with the same label into one row, led by this device', async () => {
+    const me = await actor();
+    const old = await chrome(me, 'guest');
+    const here = await chrome(me, 'code');
+    await safari(me, 'code');
+    // The other one was used last, so it would lead the group if not for `current`.
+    await db
+      .update(schema.sessions)
+      .set({ lastSeenAt: new Date(Date.now() + 60_000) })
+      .where(eq(schema.sessions.id, old.id));
+
+    const listed = await listSessions(db, me, here.id);
+    expect(listed).toHaveLength(2);
+    expect(listed.find((row) => row.label === 'Chrome on macOS')).toMatchObject({
+      id: here.id,
+      current: true,
+      method: 'code',
+      count: 2,
+    });
+    expect(listed.find((row) => row.label === 'Safari on iPhone')?.count).toBe(1);
+  });
+
+  it('ends the whole group, but never the one asking', async () => {
+    const me = await actor();
+    const here = await chrome(me, 'code');
+    const a = await safari(me, 'code');
+    const b = await safari(me, 'guest');
+    const sibling = await chrome(me, 'guest');
+
+    expect(await revokeDevice(db, me, a.id, here.id)).toBe(2);
+    expect(await resolveSession(db, b.id)).toBeNull();
+    // Naming this device's group from elsewhere ends the sibling and keeps this one.
+    expect(await revokeDevice(db, me, sibling.id, here.id)).toBe(1);
+    expect(await resolveSession(db, here.id)).toEqual({ actorId: me });
+  });
+
+  it("ends nothing for an id that is not this actor's", async () => {
+    const me = await actor();
+    const them = await actor();
+    const theirs = await chrome(them, 'code');
+    await chrome(me, 'code');
+    expect(await revokeDevice(db, me, theirs.id, null)).toBe(0);
+    expect(await resolveSession(db, theirs.id)).toEqual({ actorId: them });
   });
 });
 

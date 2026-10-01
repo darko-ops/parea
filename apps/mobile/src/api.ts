@@ -73,6 +73,8 @@ export type DeviceListing = {
   createdAt: string;
   /** This phone. Its button is a sign-out rather than a revoke. */
   current: boolean;
+  /** Sessions under this one label. Absent from a server older than grouping. */
+  count?: number;
 };
 
 /**

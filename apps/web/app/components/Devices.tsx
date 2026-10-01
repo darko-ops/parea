@@ -30,6 +30,8 @@ type Device = {
   lastSeenAt: string;
   createdAt: string;
   current: boolean;
+  /** Sessions under this one label — one laptop collects several. */
+  count: number;
 };
 
 type Passkey = {
@@ -102,7 +104,9 @@ export function Devices({ onDone }: { onDone: () => void }) {
     async (device: Device) => {
       const message = device.current
         ? 'Sign out of this device? You will need to sign in again here.'
-        : `Sign out of ${device.label}? It will need to sign in again.`;
+        : device.count > 1
+          ? `Sign out of ${device.label}? All ${device.count} sign-ins on it end.`
+          : `Sign out of ${device.label}? It will need to sign in again.`;
       if (!confirm(message)) return;
 
       setBusy(true);
@@ -184,7 +188,12 @@ export function Devices({ onDone }: { onDone: () => void }) {
     [load],
   );
 
-  const others = (devices ?? []).filter((device) => !device.current).length;
+  // Counted in sessions, not rows: the current row can stand for siblings that
+  // only "everywhere else" reaches.
+  const others = (devices ?? []).reduce(
+    (sum, device) => sum + device.count - (device.current ? 1 : 0),
+    0,
+  );
 
   return (
     <>
@@ -203,6 +212,7 @@ export function Devices({ onDone }: { onDone: () => void }) {
               <p className="device-name">{device.label}</p>
               <p className="device-detail">
                 {howIn(device.method)}
+                {device.count > 1 && ` · ${device.count} sign-ins`}
                 {now && ` · last used ${ago(new Date(device.lastSeenAt), now)}`}
               </p>
             </div>

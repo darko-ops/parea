@@ -39,7 +39,7 @@ import { NextResponse } from 'next/server';
 
 import { getDb } from '@/db';
 import { currentAccountActorId, currentSessionId } from '@/session';
-import { revokeSession, signedInRecently, STALE_SIGN_IN } from '@/sessions';
+import { revokeDevice, revokeSession, signedInRecently, STALE_SIGN_IN } from '@/sessions';
 
 export const runtime = 'nodejs';
 
@@ -66,7 +66,15 @@ export async function DELETE(_request: Request, { params }: { params: Promise<{ 
     return NextResponse.json(STALE_SIGN_IN, { status: 403 });
   }
 
-  const ended = await revokeSession(db, actorId, id);
+  /*
+   * This device signs out alone: anything else under its label could be
+   * another machine, and the person is leaving, not tidying up. Any other row
+   * stands for a group of sessions, and ends as one.
+   */
+  const ended =
+    id === current
+      ? await revokeSession(db, actorId, id)
+      : (await revokeDevice(db, actorId, id, current)) > 0;
   if (!ended) return NextResponse.json({ error: 'not_found' }, { status: 404 });
 
   return new NextResponse(null, { status: 204 });

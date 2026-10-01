@@ -120,7 +120,9 @@ export function DevicesCard({
 
       Alert.alert(
         'Sign out this device?',
-        `${device.label} will need to sign in again. Nothing is deleted.`,
+        `${device.label} will need to sign in again${
+          (device.count ?? 1) > 1 ? ` — all ${device.count} sign-ins on it` : ''
+        }. Nothing is deleted.`,
         [
           { text: 'Cancel', style: 'cancel' },
           {
@@ -232,7 +234,12 @@ export function DevicesCard({
     [api, load],
   );
 
-  const others = (devices ?? []).filter((device) => !device.current).length;
+  // Counted in sessions, not rows: this phone's row can stand for siblings
+  // that only "everywhere else" reaches.
+  const others = (devices ?? []).reduce(
+    (sum, device) => sum + (device.count ?? 1) - (device.current ? 1 : 0),
+    0,
+  );
 
   /*
    * Its own sheet, rather than more content inside the Settings one.
@@ -273,7 +280,9 @@ export function DevicesCard({
                 {device.current ? ' · this phone' : ''}
               </Text>
               <Text style={[styles.small, { color: t.dim }]}>
-                {howIn(device.method)} · last used {ago(new Date(device.lastSeenAt), now)}
+                {howIn(device.method)}
+                {(device.count ?? 1) > 1 ? ` · ${device.count} sign-ins` : ''} · last used{' '}
+                {ago(new Date(device.lastSeenAt), now)}
               </Text>
             </View>
             {!device.current && (

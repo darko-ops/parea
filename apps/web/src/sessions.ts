@@ -27,7 +27,7 @@
  */
 
 import { clientLabel, describeClient, schema, type ClientKind } from '@parea/core';
-import { and, desc, eq, isNull, sql } from 'drizzle-orm';
+import { and, desc, eq, inArray, isNull, sql } from 'drizzle-orm';
 
 import type { Db } from './db';
 
@@ -179,25 +179,41 @@ export async function resolveSession(
 }
 
 export type DeviceListing = {
+  /** The session the row acts on: this one if it is in the group, else the newest. */
   id: string;
   /** "Safari on iPhone". Everything the row says about what it is. */
   label: string;
   kind: ClientKind;
   method: SignInMethod;
-  /** ISO. */
+  /** ISO. The newest in the group. */
   lastSeenAt: string;
+  /** ISO. The oldest in the group. */
   createdAt: string;
-  /** The one reading this page. Never offered a sign-out button of its own. */
+  /** The one reading this page is in this group. */
   current: boolean;
+  /** How many sessions the row stands for. Usually one. */
+  count: number;
 };
 
 /**
- * Everywhere this actor is signed in, most recently used first.
+ * Everywhere this actor is signed in, most recently used first, one row per
+ * thing a person would recognise.
  *
  * Guest sessions are included, and that is not an oversight. A browser that
  * was a guest and got folded in at sign-in is a browser that can act as this
  * person — it can delete their photographs — so leaving it off a list headed
  * "where you are signed in" would be the one omission that matters.
+ *
+ * ## Why rows are grouped by label
+ *
+ * One laptop collects sessions: a cleared cookie, a private window, a second
+ * profile, a sign-in from before `adoptSession` existed. Each is a real row and
+ * each printed as its own "Chrome on macOS", so the list read as six laptops
+ * when there was one — and a list nobody can check against reality is the
+ * failure this screen exists to avoid. Nothing in a request says two of them
+ * are the same machine, so they are grouped by the only thing the person can
+ * see, the label, and the row says how many it stands for. Signing the row out
+ * ends all of them; see `revokeDevice`.
  */
 export async function listSessions(
   db: Db,
@@ -218,15 +234,78 @@ export async function listSessions(
     .where(and(eq(schema.sessions.actorId, actorId), isNull(schema.sessions.revokedAt)))
     .orderBy(desc(schema.sessions.lastSeenAt));
 
-  return rows.map((row) => ({
-    id: row.id,
-    label: clientLabel({ kind: row.kind, client: row.client, platform: row.platform }),
-    kind: row.kind,
-    method: row.method,
-    lastSeenAt: row.lastSeenAt.toISOString(),
-    createdAt: row.createdAt.toISOString(),
-    current: row.id === currentSessionId,
-  }));
+  // Rows arrive newest first, so the first of each label sets the group's
+  // place in the list and its "last used".
+  const groups = new Map<string, DeviceListing>();
+  for (const row of rows) {
+    const label = clientLabel({ kind: row.kind, client: row.client, platform: row.platform });
+    const current = row.id === currentSessionId;
+    const createdAt = row.createdAt.toISOString();
+    const group = groups.get(label);
+    if (!group) {
+      groups.set(label, {
+        id: row.id,
+        label,
+        kind: row.kind,
+        method: row.method,
+        lastSeenAt: row.lastSeenAt.toISOString(),
+        createdAt,
+        current,
+        count: 1,
+      });
+      continue;
+    }
+    group.count += 1;
+    if (createdAt < group.createdAt) group.createdAt = createdAt;
+    // The device in your hand speaks for its group, so "This device" and its
+    // Sign out mean this device.
+    if (current) {
+      group.id = row.id;
+      group.method = row.method;
+      group.current = true;
+    }
+  }
+  return [...groups.values()];
+}
+
+/**
+ * Ends a row of the Devices list: the session named and every other live one
+ * printed under the same label, never the one asking.
+ *
+ * Asked for by id rather than by label so the client sends back exactly what
+ * it was given, and so ownership is decided the way `revokeSession` decides it
+ * — an id that is not this actor's matches nothing. Returns how many ended.
+ */
+export async function revokeDevice(
+  db: Db,
+  actorId: string,
+  sessionId: string,
+  keepSessionId: string | null,
+): Promise<number> {
+  const live = await db
+    .select({
+      id: schema.sessions.id,
+      kind: schema.sessions.kind,
+      client: schema.sessions.client,
+      platform: schema.sessions.platform,
+    })
+    .from(schema.sessions)
+    .where(and(eq(schema.sessions.actorId, actorId), isNull(schema.sessions.revokedAt)));
+
+  const named = live.find((row) => row.id === sessionId);
+  if (!named) return 0;
+  const label = clientLabel(named);
+  const ids = live
+    .filter((row) => row.id !== keepSessionId && clientLabel(row) === label)
+    .map((row) => row.id);
+  if (ids.length === 0) return 0;
+
+  const revoked = await db
+    .update(schema.sessions)
+    .set({ revokedAt: new Date() })
+    .where(and(inArray(schema.sessions.id, ids), isNull(schema.sessions.revokedAt)))
+    .returning({ id: schema.sessions.id });
+  return revoked.length;
 }
 
 /**
