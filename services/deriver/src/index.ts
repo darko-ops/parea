@@ -33,6 +33,7 @@ import { promisify } from 'node:util';
 import postgres from 'postgres';
 
 import { createJobServer, JOB_PATH, receiverFromEnv } from './http';
+import { profilePhoto, recentReadyPhotos, summarise } from './profile';
 import { dropPrivileges, environSealed } from './subprocess';
 import { createHandler, DEFAULT_CONCURRENCY } from './serve';
 import {
@@ -324,7 +325,8 @@ async function main(): Promise<void> {
     command !== 'watch' &&
     command !== 'serve' &&
     command !== 'backfill' &&
-    command !== 'restrip'
+    command !== 'restrip' &&
+    command !== 'profile'
   ) {
     console.error(`unknown command: ${command}`);
     console.error('usage: deriver <probe|once|watch|backfill <kind>|restrip>');
@@ -457,6 +459,26 @@ async function main(): Promise<void> {
     }
     console.log(`backfill of ${kind} finished: ${done} encoded, ${failed} failed`);
     process.exit(failed > 0 ? 1 : 0);
+  }
+
+  /*
+   * Where processing time goes — see `profile.ts`. Read-only: re-runs every
+   * step on the most recent processed photos and prints the averages.
+   */
+  if (command === 'profile') {
+    const deps = ingest();
+    const n = Math.max(1, Math.min(20, Number(process.argv[3] ?? 5)));
+    const ids = await recentReadyPhotos(deps.db, n);
+    const runs = [];
+    for (const id of ids) {
+      const { timings, bytes, pixels } = await profilePhoto(deps, id);
+      runs.push(timings);
+      console.log(
+        `photo ${id.slice(0, 8)}  ${(bytes / 1e6).toFixed(1)} MB  ${pixels ? (pixels / 1e6).toFixed(1) + ' MP' : '?'}  ${Math.round(timings.total!)} ms`,
+      );
+    }
+    console.log(`\naverages over ${runs.length} photos\n${summarise(runs)}`);
+    process.exit(0);
   }
 
   /*
