@@ -193,12 +193,12 @@ export function useUploads(eventId: string, onProgress?: () => void): UploadsVie
       );
 
       await opened.saveState(forEventId, q.state).catch(() => {});
-      await opened
-        .putFiles(
-          forEventId,
-          described.map((d) => ({ id: d.item.id, file: d.file })),
-        )
-        .catch(() => {});
+      const stored = described.map((d) => ({ id: d.item.id, file: d.file }));
+      await opened.putFiles(forEventId, stored).catch(() => {});
+      // Then the bytes themselves, in the background, so a reload on the event
+      // page — Safari killing the tab, a refresh — resumes instead of asking
+      // for every photo again. See `secure` in the store.
+      void opened.secure(stored).catch(() => 0);
     },
     [],
   );
@@ -229,12 +229,10 @@ export function useUploads(eventId: string, onProgress?: () => void): UploadsVie
         described.map((d) => d.item),
       );
 
-      await store.current
-        ?.putFiles(
-          eventId,
-          described.map((d) => ({ id: d.item.id, file: d.file })),
-        )
-        .catch(() => {});
+      const stored = described.map((d) => ({ id: d.item.id, file: d.file }));
+      await store.current?.putFiles(eventId, stored).catch(() => {});
+      // As in `stage`: copies of the bytes, so a reload does not lose them.
+      void store.current?.secure(stored).catch(() => 0);
 
       setSnapshot({ items: [...q.state.items] });
       await drive(q);

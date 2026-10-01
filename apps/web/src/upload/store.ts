@@ -10,17 +10,24 @@
  *            handed over. Written once at enqueue, deleted when the item
  *            finishes.
  *
- * **The bytes are never copied.** A `File` from `<input type=file>` is a
- * reference to something already on disk; structured-cloning it into IndexedDB
- * stores that reference, not a second copy. The obvious "safer" alternative —
- * read each file and store the bytes — would put 200 photos, most of a
- * gigabyte, into origin storage to protect against a reload. Safari evicts an
- * origin's storage all at once, so that trade buys resilience against the
- * cheap failure by risking the expensive one: losing the queue *and* the
- * copies together.
+ * **A file is stored as a reference first, and copied when it is cheap to.**
+ * A `File` from `<input type=file>` is a reference to something on disk, and
+ * structured-cloning it into IndexedDB stores that reference. On iOS the
+ * reference does not survive the tab: a photo picked from the library is a
+ * temporary copy the OS keeps for the page that asked, and a reload — a
+ * refresh, or Safari killing the tab for memory, which is common mid-upload —
+ * ends it. Every photo then comes back unreadable and has to be picked again.
+ * That happened to a real person creating their first roll on an iPhone.
  *
- * The cost of not copying is that a stored handle can die, and it is not rare
- * — see `readable()`.
+ * So `secure` follows the reference with a copy of the bytes, one file at a
+ * time, up to `SECURE_BUDGET_BYTES` per batch. That covers the usual handful of
+ * photos completely and survives any reload. Beyond the budget the rest stay
+ * references, because copying 200 photos would put most of a gigabyte into
+ * origin storage, and Safari evicts an origin's storage all at once. Copies
+ * are deleted as each photo finishes, like the references were, so the store
+ * only ever holds outstanding work.
+ *
+ * A reference can still die beyond the budget — see `readable()`.
  */
 
 import type { QueueState } from '@parea/upload';
@@ -39,6 +46,9 @@ const FILE_STORE = 'files';
  * deliberate rather than incidental.
  */
 export const RESUME_WINDOW_MS = 24 * 60 * 60 * 1000;
+
+/** How many bytes of one batch `secure` copies into storage. */
+export const SECURE_BUDGET_BYTES = 250 * 1024 * 1024;
 
 type QueueRecord = {
   eventId: string;
@@ -124,6 +134,48 @@ export class UploadStore {
       store.put(record);
     }
     await done(tx);
+  }
+
+  /**
+   * Replaces stored references with copies of their bytes, in order, until
+   * the next file would pass `budget`. Returns how many were copied.
+   *
+   * One file at a time, so at most one photo's bytes are in memory beyond the
+   * page's own. A record already dropped — the photo finished uploading while
+   * this was working — is left dropped. A failed read skips that file; a
+   * failed write (the quota) stops, keeping what was copied.
+   */
+  async secure(
+    files: { id: string; file: File }[],
+    budget = SECURE_BUDGET_BYTES,
+  ): Promise<number> {
+    let spent = 0;
+    let copied = 0;
+    for (const { id, file } of files) {
+      if (spent + file.size > budget) break;
+      let copy: File;
+      try {
+        copy = new File([await file.arrayBuffer()], file.name, {
+          type: file.type,
+          lastModified: file.lastModified,
+        });
+      } catch {
+        continue;
+      }
+      try {
+        const tx = this.db.transaction(FILE_STORE, 'readwrite');
+        const store = tx.objectStore(FILE_STORE);
+        const record = await promisify<FileRecord | undefined>(store.get(id));
+        if (record) store.put({ ...record, file: copy });
+        await done(tx);
+        if (!record) continue;
+      } catch {
+        break;
+      }
+      spent += file.size;
+      copied += 1;
+    }
+    return copied;
   }
 
   async getFile(id: string): Promise<File | null> {

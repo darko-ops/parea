@@ -18,7 +18,7 @@ import type { QueueState } from '@parea/upload';
 import { IDBFactory } from 'fake-indexeddb';
 import { beforeEach, describe, expect, it } from 'vitest';
 
-import { RESUME_WINDOW_MS, UploadStore, readable } from '../src/upload/store';
+import { RESUME_WINDOW_MS, SECURE_BUDGET_BYTES, UploadStore, readable } from '../src/upload/store';
 
 let store: UploadStore;
 
@@ -157,5 +157,62 @@ describe('readable', () => {
 
     await readable(probe);
     expect(read, 'readable() must actually read').toBe(true);
+  });
+});
+
+describe('secure', () => {
+  // Bytes we can count, with the size the budget reads.
+  const sized = (name: string, bytes: number) =>
+    new File([new Uint8Array(bytes)], name, { type: 'image/jpeg', lastModified: 1 });
+
+  it('copies outstanding photos, so a reload on iOS can still send them', async () => {
+    const files = [
+      { id: 'ev:a', file: sized('a.jpg', 10) },
+      { id: 'ev:b', file: sized('b.jpg', 10) },
+    ];
+    await store.putFiles('ev', files);
+    expect(await store.secure(files)).toBe(2);
+    expect(await store.getFile('ev:a')).not.toBeNull();
+  });
+
+  it('stops at the budget, leaving the rest as references', async () => {
+    const files = [
+      { id: 'ev:a', file: sized('a.jpg', 40) },
+      { id: 'ev:b', file: sized('b.jpg', 40) },
+      { id: 'ev:c', file: sized('c.jpg', 40) },
+    ];
+    await store.putFiles('ev', files);
+    expect(await store.secure(files, 100)).toBe(2);
+    expect(await store.getFile('ev:c')).not.toBeNull();
+  });
+
+  it('does not bring back a photo that finished while it worked', async () => {
+    const files = [{ id: 'ev:a', file: sized('a.jpg', 10) }];
+    await store.putFiles('ev', files);
+    await store.dropFiles(['ev:a']);
+    expect(await store.secure(files)).toBe(0);
+    expect(await store.getFile('ev:a')).toBeNull();
+  });
+
+  it('skips a file it cannot read, and carries on', async () => {
+    const dead = { name: 'gone.jpg', size: 10, type: 'image/jpeg', lastModified: 1,
+      arrayBuffer: () => Promise.reject(new Error('NotReadableError')) } as unknown as File;
+    await store.putFiles('ev', [
+      { id: 'ev:a', file: sized('a.jpg', 10) },
+      { id: 'ev:b', file: sized('b.jpg', 10) },
+    ]);
+    // The stored handle for `a` has died by the time `secure` reaches it.
+    expect(
+      await store.secure([
+        { id: 'ev:a', file: dead },
+        { id: 'ev:b', file: sized('b.jpg', 10) },
+      ]),
+    ).toBe(1);
+  });
+
+  it('has a budget that covers a normal handful of phone photos', () => {
+    // Twenty 10 MB photos — a generous evening — fit; two hundred do not.
+    expect(SECURE_BUDGET_BYTES).toBeGreaterThanOrEqual(20 * 10 * 1024 * 1024);
+    expect(SECURE_BUDGET_BYTES).toBeLessThan(200 * 10 * 1024 * 1024);
   });
 });
