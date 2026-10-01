@@ -58,30 +58,31 @@ describe('one switch, two policies', () => {
 });
 
 describe('the other two switches are their own facts', () => {
-  it('the link switch is the join switch, and defaults open', () => {
+  it('the link switch is the join switch, defaults open, and the form leaves it there', () => {
     // `joinsOpen` is the only thing `authorize` can actually enforce a "not by
     // link" with — it is read before the policy and after participation, so it
-    // stops new people without evicting anybody.
-    expect(CREATE).toMatch(/const \[linkJoins, setLinkJoins\] = useState\(true\)/);
-    expect(CREATE).toContain('linkJoins,');
+    // stops new people without evicting anybody. The web form asks what the
+    // app asks, which is not this: a new roll's link lets people in, and
+    // Manage is where it is closed.
+    expect(CREATE).not.toMatch(/linkJoins/);
     expect(ROUTE).toMatch(/joinsOpen: body\.linkJoins === false \? false : true/);
   });
 
-  it('the phrase is claimed only when it is asked for', () => {
+  it('the phrase is claimed only when it is asked for, and the form does not ask', () => {
     /*
      * The pool is finite and shared. Every event used to take a phrase whether
      * or not anybody would ever say it out loud, which is a phrase no other
-     * event can have — and the panel that displayed it is gone, so nobody
-     * would even have seen it.
+     * event can have — so the server claims one only on a `true`, and the
+     * create form, like the app, sends nothing.
      */
-    expect(CREATE).toMatch(/const \[passPhrase, setPassPhrase\] = useState\(false\)/);
+    expect(CREATE).not.toMatch(/passPhrase/);
     expect(ROUTE).toMatch(/body\.passPhrase === true \? await claimCode\(/);
   });
 });
 
 describe('the questions it asks, and the one it stopped asking', () => {
   it('labels the two text fields as the event says them', () => {
-    expect(CREATE).toContain('EVENT TITLE');
+    expect(CREATE).toContain('ROLL TITLE');
     expect(CREATE).toContain('CAPTION');
     expect(CREATE).not.toContain('WHAT WAS IT?');
   });

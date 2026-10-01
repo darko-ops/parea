@@ -307,8 +307,11 @@ describe('the profile at two widths', () => {
     // screen cannot have a link the other does not.
     expect(read('../app/api/people/[handle]/route.ts')).toMatch(/link: person\.link,/);
     expect(CSS).toMatch(/\.you-link \{[^}]*margin: 6px 0 0; font-size: 14\.5px/);
-    expect(CSS).toMatch(/\.you-link \{[^}]*text-overflow: ellipsis/);
-    expect(CSS).toMatch(/\.you-link a \{ color: var\(--accent\)/);
+    // The address truncates, not the line: the grey link icon beside it
+    // never gives way. And in the link blue, `--link`, not the accent grey.
+    expect(CSS).toMatch(/\.you-link a \{[^}]*text-overflow: ellipsis/);
+    expect(CSS).toMatch(/\.you-link a \{\s*color: var\(--link\)/);
+    expect(CSS).toMatch(/\.you-link \.link-icon \{[^}]*color: var\(--dim\)/);
   });
 
   it('lays their rolls out in the grid every other shelf uses', () => {
