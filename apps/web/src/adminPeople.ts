@@ -262,3 +262,112 @@ export async function liftSuspension(db: Db, staff: string, input: { actorId: st
     });
   });
 }
+
+/**
+ * How many people, how fast they arrive, and how many come back.
+ *
+ * Counted over live actors only — a merged-away actor is the same person as
+ * the one it was folded into, and counting both would count sign-ins as
+ * sign-ups. "Active" is a device that was seen, which is what `last_seen_at`
+ * records; it is touched at most every few minutes, which is plenty for a
+ * seven-day window.
+ */
+export async function peopleStats(db: Db) {
+  const rows: any = await db.execute(sql`
+    with live as (
+      select a."id", a."kind", a."created_at"
+        from "actor" a
+       where a."merged_into_id" is null
+    )
+    select
+      (select count(*)::int from live) as "total",
+      (select count(*)::int from live where "kind" = 'user') as "accounts",
+      (select count(*)::int from live where "kind" = 'guest') as "guests",
+      (select count(*)::int from live where "created_at" > now() - interval '7 days') as "new7",
+      (select count(*)::int from live where "created_at" > now() - interval '30 days') as "new30",
+      (select count(distinct s."actor_id")::int
+         from "session" s join live on live."id" = s."actor_id"
+        where s."revoked_at" is null and s."last_seen_at" > now() - interval '7 days') as "active7",
+      (select count(distinct "actor_id")::int from "suspension" where "lifted_at" is null) as "suspended"
+  `);
+  const totals = (rows.rows ?? rows)[0];
+
+  const daily: any = await db.execute(sql`
+    select to_char(d, 'YYYY-MM-DD') as "day",
+           count(a."id") filter (where a."kind" = 'user')::int as "accounts",
+           count(a."id") filter (where a."kind" = 'guest')::int as "guests"
+      from generate_series(
+             date_trunc('day', now() at time zone 'utc') - interval '29 days',
+             date_trunc('day', now() at time zone 'utc'),
+             interval '1 day') d
+      left join "actor" a
+        on a."merged_into_id" is null
+       and date_trunc('day', a."created_at" at time zone 'utc') = d
+     group by d
+     order by d
+  `);
+
+  return { totals, signups: (daily.rows ?? daily) as { day: string; accounts: number; guests: number }[] };
+}
+
+export const PEOPLE_SORTS = ['newest', 'last_seen', 'uploads'] as const;
+export const PEOPLE_FILTERS = ['all', 'accounts', 'guests', 'suspended'] as const;
+export type PeopleSort = (typeof PEOPLE_SORTS)[number];
+export type PeopleFilter = (typeof PEOPLE_FILTERS)[number];
+const PAGE = 50;
+
+/**
+ * Everybody, a page at a time.
+ *
+ * Offset paging, which is fine at this size and honest about it: a person who
+ * signs up while somebody pages through moves everybody down one. If the list
+ * ever runs to tens of thousands, this wants a keyset on the sort column.
+ */
+export async function listPeople(
+  db: Db,
+  options: { sort: PeopleSort; filter: PeopleFilter; page: number },
+) {
+  const page = Math.max(1, Math.min(options.page, 10_000));
+  const where = {
+    all: sql`true`,
+    accounts: sql`a."kind" = 'user'`,
+    guests: sql`a."kind" = 'guest'`,
+    suspended: sql`exists (select 1 from "suspension" x where x."actor_id" = a."id" and x."lifted_at" is null)`,
+  }[options.filter];
+  const order = {
+    newest: sql`a."created_at" desc`,
+    last_seen: sql`"lastSeenAt" desc nulls last, a."created_at" desc`,
+    uploads: sql`"uploads" desc, a."created_at" desc`,
+  }[options.sort];
+
+  const rows: any = await db.execute(sql`
+    select a."id", a."kind", a."display_name" as "displayName", a."handle",
+           acc."email", a."created_at" as "createdAt",
+           (select max(s."last_seen_at") from "session" s
+             where s."actor_id" = a."id" and s."revoked_at" is null) as "lastSeenAt",
+           (select count(*)::int from "photo" p where p."uploader_id" = a."id") as "uploads",
+           (select count(*)::int from "content_report" r where r."subject_actor_id" = a."id" and r."status" = 'open')
+             + (select count(*)::int from "report" r join "photo" p on p."id" = r."photo_id"
+                 where p."uploader_id" = a."id" and r."status" = 'open' and r."kind" <> 'removal_request')
+             as "openReports",
+           exists (select 1 from "suspension" x where x."actor_id" = a."id" and x."lifted_at" is null) as "suspended"
+      from "actor" a
+      left join "account" acc on acc."id" = a."account_id"
+     where a."merged_into_id" is null and ${where}
+     order by ${order}
+     limit ${PAGE + 1} offset ${(page - 1) * PAGE}
+  `);
+  const list = (rows.rows ?? rows) as {
+    id: string;
+    kind: 'guest' | 'user';
+    displayName: string | null;
+    handle: string | null;
+    email: string | null;
+    createdAt: string;
+    lastSeenAt: string | null;
+    uploads: number;
+    openReports: number;
+    suspended: boolean;
+  }[];
+  return { people: list.slice(0, PAGE), page, hasMore: list.length > PAGE };
+}

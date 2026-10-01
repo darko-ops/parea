@@ -59,7 +59,8 @@ beforeEach(async () => {
     truncate "actor", "event", "photo", "report", "content_report",
              "safety_incident", "staff_action", "group_message", "groups",
              "moment", "moment_comment", "event_message", "derivative",
-             "moderation_action", "moderation_flag", "account", "suspension"
+             "moderation_action", "moderation_flag", "account", "suspension",
+             "session"
     restart identity cascade
   `);
 });
@@ -723,5 +724,80 @@ describe('people', () => {
       params(old!.id),
     );
     expect((await res.json()).error).toBe('merged');
+  });
+});
+
+describe('everybody', () => {
+  const get = async (query: string) => (await peopleRoute.GET(req(`people?${query}`))).json();
+
+  async function seed() {
+    const [acc] = await db.insert(schema.accounts).values({ email: 'old@example.com' }).returning();
+    const [old] = await db
+      .insert(schema.actors)
+      .values({ kind: 'user', displayName: 'Old', accountId: acc!.id, createdAt: new Date(Date.now() - 40 * 86_400_000) })
+      .returning();
+    const [recent] = await db.insert(schema.actors).values({ kind: 'guest', displayName: 'Recent' }).returning();
+    const [busy] = await db
+      .insert(schema.actors)
+      .values({ kind: 'guest', displayName: 'Busy', createdAt: new Date(Date.now() - 3 * 86_400_000) })
+      .returning();
+    // Merged away: the same person as Old, and never counted twice.
+    await db.insert(schema.actors).values({ kind: 'guest', displayName: 'Old (phone)', mergedIntoId: old!.id });
+
+    const { eventId } = await photoIn(busy!.id);
+    await db.insert(schema.photos).values({ eventId, uploaderId: busy!.id, storageKey: 'k2', byteSize: 1, mime: 'image/jpeg', status: 'ready' });
+    await db.insert(schema.sessions).values({ actorId: old!.id, kind: 'ios', method: 'code', lastSeenAt: new Date() });
+    await db.insert(schema.suspensions).values({ actorId: recent!.id, reason: 'spam', suspendedBy: STAFF });
+    return { old: old!.id, recent: recent!.id, busy: busy!.id };
+  }
+
+  it('count live people, newcomers, the recently active and the suspended', async () => {
+    await seed();
+    const { totals, signups } = await get('stats=1');
+    expect(totals).toEqual({ total: 3, accounts: 1, guests: 2, new7: 2, new30: 2, active7: 1, suspended: 1 });
+    expect(signups).toHaveLength(30);
+    expect(signups.reduce((n: number, d: { guests: number }) => n + d.guests, 0)).toBe(2);
+    expect(signups.at(-1).guests).toBe(1);
+  });
+
+  it('list newest first by default, and leave merged-away identities out', async () => {
+    const { old, recent, busy } = await seed();
+    const body = await get('');
+    expect(body.people.map((p: { id: string }) => p.id)).toEqual([recent, busy, old]);
+    expect(body.hasMore).toBe(false);
+  });
+
+  it('sort by uploads and by last seen', async () => {
+    const { old, busy } = await seed();
+    expect((await get('sort=uploads')).people[0]).toMatchObject({ id: busy, uploads: 2 });
+    expect((await get('sort=last_seen')).people[0].id).toBe(old);
+  });
+
+  it('filter to accounts, guests or the suspended', async () => {
+    const { old, recent } = await seed();
+    expect((await get('filter=accounts')).people.map((p: { id: string }) => p.id)).toEqual([old]);
+    expect((await get('filter=guests')).people).toHaveLength(2);
+    expect((await get('filter=suspended')).people).toMatchObject([{ id: recent, suspended: true }]);
+  });
+
+  it('count open reports against each person', async () => {
+    const { busy } = await seed();
+    const [photo] = await db.select().from(schema.photos).where(eq(schema.photos.uploaderId, busy)).limit(1);
+    await db.insert(schema.reports).values([
+      { photoId: photo!.id, kind: 'abuse' },
+      { photoId: photo!.id, kind: 'removal_request' },
+    ]);
+    await db.insert(schema.contentReports).values({ targetKind: 'profile', targetId: busy, subjectActorId: busy, kind: 'other' });
+    expect((await get('sort=uploads')).people[0].openReports).toBe(2);
+  });
+
+  it('page fifty at a time', async () => {
+    await db.insert(schema.actors).values(Array.from({ length: 51 }, (_, i) => ({ kind: 'guest' as const, displayName: `g${i}` })));
+    const first = await get('page=1');
+    const second = await get('page=2');
+    expect(first.people).toHaveLength(50);
+    expect(first.hasMore).toBe(true);
+    expect(second.people).toHaveLength(1);
+    expect(second.hasMore).toBe(false);
   });
 });
