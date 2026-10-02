@@ -153,6 +153,13 @@ export const STALE_SIGN_IN = { error: 'recent_sign_in_required' } as const;
  * Returns null for a session that is revoked or gone, and null is the whole
  * point of this file: it means signed out, decided by the server, on a
  * credential that still verifies perfectly well.
+ *
+ * The same statement counts the person as active — design §18. Once a day
+ * into `activity_day`, and once a week into `activity_week` under the week
+ * they arrived, which is retention by signup week. Totals only: the one
+ * thing kept about the person is `actor.counted_on`, a single date. It costs
+ * nothing on the common path, where `counted_on` is already today and the
+ * update matches no row.
  */
 export async function resolveSession(
   db: Db,
@@ -176,6 +183,30 @@ export async function resolveSession(
          set "last_seen_at" = now()
        where "id" in (select "id" from live)
          and "last_seen_at" < now() - ${stale}
+      returning 1
+    ), counted as (
+      -- Once per person per UTC day, whatever the device. \`prev\` is the
+      -- row as the statement found it, so the week below can tell a first
+      -- day this week from a second; a racing request fails the \`where\`
+      -- once this one has written today, and counts nothing.
+      update "actor" a
+         set "counted_on" = (now() at time zone 'utc')::date
+        from live, "actor" prev
+       where a."id" = live."actor_id" and prev."id" = live."actor_id"
+         and (a."counted_on" is null or a."counted_on" < (now() at time zone 'utc')::date)
+      returning a."kind", a."created_at", prev."counted_on" as "prev"
+    ), by_day as (
+      insert into "activity_day" ("day", "kind", "active")
+      select (now() at time zone 'utc')::date, "kind", 1 from counted
+      on conflict ("day", "kind") do update set "active" = "activity_day"."active" + 1
+      returning 1
+    ), by_week as (
+      insert into "activity_week" ("week", "cohort", "active")
+      select date_trunc('week', now() at time zone 'utc')::date,
+             date_trunc('week', "created_at" at time zone 'utc')::date, 1
+        from counted
+       where "prev" is null or "prev" < date_trunc('week', now() at time zone 'utc')::date
+      on conflict ("week", "cohort") do update set "active" = "activity_week"."active" + 1
       returning 1
     )
     select "actor_id" from live

@@ -331,6 +331,15 @@ export const actors = pgTable(
   }),
   /** Set when a guest actor is merged into an account's canonical actor. */
   mergedIntoId: uuid('merged_into_id'),
+  /**
+   * The last UTC day this person was counted as active — `activity_day`.
+   *
+   * Not a history: one date, overwritten, saying no more than the newest
+   * session's `last_seen_at` already does. It exists so the count is made
+   * once per person per day however many devices and requests they bring,
+   * and so the same update can tell whether this is their first day this week.
+   */
+  countedOn: date('counted_on'),
   createdAt: createdAt(),
   },
   (t) => [
@@ -2157,6 +2166,13 @@ export const observations = pgTable(
         'autoselect_confirmed',
         /** No window or no permission, so the system picker. The other half of precision. */
         'picker_used',
+        /**
+         * A real link or code reached the door, from somebody not yet in the
+         * album. With `joined` and `join_refused`, where joining loses people.
+         */
+        'link_opened',
+        /** The door said no to a real link; `reason` says which no. */
+        'join_refused',
       ],
     }).notNull(),
     eventId: uuid('event_id').references(() => events.id, { onDelete: 'cascade' }),
@@ -2170,9 +2186,46 @@ export const observations = pgTable(
     /** Meaning depends on `kind`; read as "count out of outOf". */
     count: integer('count'),
     outOf: integer('out_of'),
+    /** `join_refused` only: the policy's reason — `sign_in_required`, `joins_closed`… */
+    reason: text('reason'),
     createdAt: createdAt(),
   },
   (t) => [index('observation_kind_idx').on(t.kind, t.createdAt)],
+);
+
+/**
+ * How many people were active on each UTC day — design §18.
+ *
+ * A total and nothing else. `last_seen_at` is overwritten, so without this
+ * the product could say who was here lately and never how many were here on
+ * a given day, or whether that number is growing. Written by
+ * `resolveSession`, once per person per day (`actor.counted_on`).
+ */
+export const activityDays = pgTable(
+  'activity_day',
+  {
+    day: date('day').notNull(),
+    kind: text('kind', { enum: ['guest', 'user'] }).notNull(),
+    active: integer('active').notNull().default(0),
+  },
+  (t) => [primaryKey({ columns: [t.day, t.kind] })],
+);
+
+/**
+ * How many people who arrived in one week were active in a later one.
+ *
+ * Retention by signup week, kept as the grid it is drawn as: one count per
+ * (week active, week they arrived). Written once per person per week by the
+ * same statement as `activity_day`. No row says who.
+ */
+export const activityWeeks = pgTable(
+  'activity_week',
+  {
+    week: date('week').notNull(),
+    cohort: date('cohort').notNull(),
+    active: integer('active').notNull().default(0),
+  },
+  (t) => [primaryKey({ columns: [t.week, t.cohort] })],
 );
 
 /**
