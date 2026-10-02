@@ -168,9 +168,14 @@ describe('where it replaced the ring', () => {
      * reports the same wait as a word in its bar ("Creating…") because it has a
      * bar to put one in and a card did not.
      */
-    for (const name of ['src/CreateEvent.tsx', 'src/InvitePeople.tsx']) {
-      expect(read(name), `${name} should keep its inline ring`).toMatch(/<ActivityIndicator/);
-    }
+    /*
+     * `CreateEvent.tsx` was the other. Its wait is a word on its button now
+     * ("Posting…"), the button being pinned to the foot where it is always seen.
+     */
+    expect(read('src/InvitePeople.tsx'), 'InvitePeople should keep its inline ring').toMatch(
+      /<ActivityIndicator/,
+    );
+    expect(read('src/CreateEvent.tsx')).toMatch(/busy \? 'Posting…'/);
   });
 
   it('leaves no ring behind on a screen that has one of these', () => {

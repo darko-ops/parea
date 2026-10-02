@@ -435,7 +435,7 @@ describe('the setting that says who may add', () => {
     // the two compose, and "Everyone" on a private album is its members.
     expect(CHOICE).toMatch(/export function contributeOptions\(accessPolicy: string\)/);
     expect(CHOICE).toMatch(/label: 'Members'/);
-    expect(CHOICE).toMatch(/Anybody who opens the link can add to it/);
+    expect(CHOICE).toMatch(/Anyone with the link can add their photos/);
     for (const screen of ['../app/page.tsx', '../app/components/ManageView.tsx']) {
       expect(read(screen), screen).toMatch(/accessPolicy=\{/);
     }
@@ -443,7 +443,7 @@ describe('the setting that says who may add', () => {
 
   it('offers hosts, and no longer offers nobody', () => {
     /*
-     * "Only me" said something untrue on an album inside a group: `host` has
+     * "Only me" (now "Just me") said something untrue on an album inside a group: `host` has
      * always meant the creator *and* the group's admins. `creator` is the
      * setting that means what the label says, and `host` keeps the label that
      * describes it — a set somebody can be added to, and now asked into.
@@ -456,7 +456,7 @@ describe('the setting that says who may add', () => {
      */
     const CHOICE = read('../app/components/ContributeChoice.tsx');
     expect(CHOICE).toMatch(/label: 'Hosts'/);
-    expect(CHOICE).toMatch(/value: CONTRIBUTE_CREATOR,\s*\n\s*label: 'Only me'/);
+    expect(CHOICE).toMatch(/value: CONTRIBUTE_CREATOR,\s*\n\s*label: 'Just me'/);
     expect(CHOICE).not.toMatch(/label: 'Nobody'/);
   });
 

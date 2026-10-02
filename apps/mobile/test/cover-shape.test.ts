@@ -177,8 +177,11 @@ describe('the preview and the frame agree', () => {
   it('is what the form draws, rather than a contentPosition of its own', () => {
     // `contentFit` and `contentPosition` were enough while position was the only
     // thing chosen, and cannot express a zoom: the window's size moves now.
+    // The create form draws no cover preview any more — the framer it opens
+    // on arrival is the one place it is seen — and still sets no position of
+    // its own.
     const FORM = read('src/CreateEvent.tsx');
-    expect(FORM).toMatch(/<CoverShot/);
+    expect(FORM).toMatch(/<CoverFramer/);
     expect(FORM).not.toMatch(/contentPosition/);
   });
 });

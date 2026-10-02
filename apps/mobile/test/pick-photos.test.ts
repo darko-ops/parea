@@ -93,15 +93,15 @@ describe('the picker', () => {
 describe('the form, once the photographs have been chosen', () => {
   const form = code(CREATE);
 
-  it('asks four things and posts', () => {
-    // `CAPTION`, not `WHAT WAS IT?`: the framed cover sits above this field
-    // now, and a caption is what words under a picture are called.
-    expect(form).toMatch(/CAPTION/);
-    expect(form).not.toMatch(/WHAT WAS IT\?/);
-    expect(form).toMatch(/WHERE/);
-    expect(form).toMatch(/WHO IS IN IT/);
+  it('asks a name and three settings, and creates', () => {
+    // The name is the roll's heading, not a labelled box; the place and the
+    // co-host picker are gone, and inviting is one card.
+    expect(form).toMatch(/placeholder="Name this roll"/);
+    expect(form).not.toMatch(/CAPTION|WHERE|WHAT WAS IT\?|CO-HOSTS/);
     expect(form).toMatch(/WHO CAN SEE IT/);
-    expect(form).toMatch(/'Post'/);
+    expect(form).toMatch(/WHO CAN ADD PHOTOS/);
+    expect(form).toMatch(/<InviteFaces/);
+    expect(form).toMatch(/'Create roll'/);
   });
 
   it('no longer asks when it was', () => {
@@ -187,7 +187,7 @@ describe('the form, once the photographs have been chosen', () => {
      * or choose private on the path most people took.
      */
     expect(form).not.toMatch(/\{!picked &&/);
-    expect(form).toMatch(/<InvitePicker/);
+    expect(form).toMatch(/<InviteFaces/);
   });
 
   it('dates the roll in local parts, not a UTC slice', () => {

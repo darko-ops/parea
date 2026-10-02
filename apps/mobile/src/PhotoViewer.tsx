@@ -76,6 +76,7 @@ const GLASS: GroupTheme = {
   dim: 'rgba(255,255,255,0.55)',
   card: 'rgba(255,255,255,0.08)',
   line: 'rgba(255,255,255,0.18)',
+  lineStrong: 'rgba(255,255,255,0.28)',
   accent: '#e3e6ea',
   onAccent: '#0b1220',
   /* The unread aqua, as everywhere else — see `theme` in `App.tsx`. Nothing on

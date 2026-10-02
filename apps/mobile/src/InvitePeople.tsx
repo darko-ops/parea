@@ -45,8 +45,11 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
+  Animated,
   Image,
+  LayoutAnimation,
   Pressable,
+  ScrollView,
   StyleSheet,
   Text,
   TextInput,
@@ -54,7 +57,9 @@ import {
 } from 'react-native';
 
 import type { Api, InvitablePerson } from './api';
+import { Glyph } from './Glyph';
 import type { GroupTheme } from './Groups';
+import { lensFor } from './lens';
 
 /** What the server takes in one request. Said here so the copy can say it. */
 const MAX_PER_REQUEST = 50;
@@ -367,6 +372,330 @@ export function InviteCard({
   );
 }
 
+/** The first word of somebody's name, for a line that lists several. */
+function firstNameOf(person: InvitablePerson): string {
+  return nameOf(person).split(/\s+/)[0] ?? nameOf(person);
+}
+
+/** "Nobody yet", "Maya & Priya", "Maya, Jonah +2" — then "will be asked". */
+function askedLine(picked: InvitablePerson[]): string {
+  if (picked.length === 0) return 'Nobody yet — tap to pick friends';
+  const names = picked.map(firstNameOf);
+  if (names.length <= 2) return `${names.join(' & ')} will be asked`;
+  return `${names[0]}, ${names[1]} +${names.length - 2} will be asked`;
+}
+
+/**
+ * A face: their picture, or their letter on their lens colour.
+ *
+ * The lens is keyed on the actor rather than the name so somebody is the same
+ * colour here as over an album's cover, whatever they have called themselves.
+ */
+function Face({
+  person,
+  size,
+  letterSize,
+  style,
+}: {
+  person: InvitablePerson;
+  size: number;
+  letterSize: number;
+  style?: object;
+}) {
+  const lens = lensFor(person.actorId);
+  const round = { width: size, height: size, borderRadius: size / 2 };
+  if (person.avatar) {
+    return (
+      <Image
+        source={{ uri: person.avatar }}
+        style={[round, { backgroundColor: lens.fill }, style]}
+        accessibilityIgnoresInvertColors
+      />
+    );
+  }
+  return (
+    <View style={[round, styles.faceLetterBox, { backgroundColor: lens.fill }, style]}>
+      <Text style={{ fontSize: letterSize, fontWeight: '700', color: lens.ink }}>
+        {initialOf(nameOf(person))}
+      </Text>
+    </View>
+  );
+}
+
+/** One face on the rail: shrunk and dim until picked, then ringed and checked. */
+function RailFace({
+  person,
+  t,
+  chosen,
+  onPress,
+}: {
+  person: InvitablePerson;
+  t: GroupTheme;
+  chosen: boolean;
+  onPress: () => void;
+}) {
+  const on = useRef(new Animated.Value(chosen ? 1 : 0)).current;
+  useEffect(() => {
+    Animated.timing(on, { toValue: chosen ? 1 : 0, duration: 200, useNativeDriver: true }).start();
+  }, [chosen, on]);
+  const name = nameOf(person);
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityState={{ selected: chosen }}
+      accessibilityLabel={chosen ? `${name}, take out` : `Ask ${name}`}
+      onPress={onPress}
+      style={styles.railItem}
+    >
+      <Animated.View
+        style={{ transform: [{ scale: on.interpolate({ inputRange: [0, 1], outputRange: [0.92, 1] }) }] }}
+      >
+        <Face person={person} size={54} letterSize={19} />
+        {/* The double ring: 2.5 of the card showing through, then the accent. */}
+        <View
+          pointerEvents="none"
+          style={[styles.railRing, { borderColor: chosen ? t.accent : 'transparent' }]}
+        />
+        <Animated.View
+          style={[
+            styles.check,
+            { backgroundColor: t.accent, borderColor: t.card, opacity: on },
+          ]}
+        >
+          <Text style={[styles.checkMark, { color: t.onAccent }]}>✓</Text>
+        </Animated.View>
+      </Animated.View>
+      <Text
+        numberOfLines={1}
+        style={[styles.railName, { color: chosen ? t.fg : t.dim }]}
+      >
+        {firstNameOf(person)}
+      </Text>
+    </Pressable>
+  );
+}
+
+/**
+ * Asking people in from the create screen: a card that says who, and opens
+ * onto a rail of faces.
+ *
+ * Closed, it is one line — the faces already picked, stacked, and how many.
+ * Open, it is the same two sources `InvitePicker` reads, friends and a search
+ * by handle, drawn as faces to tap rather than chips to read. Picking still
+ * asks rather than adds, and nothing is sent until the roll exists: `picked`
+ * lives with the caller for the reason it does there.
+ */
+export function InviteFaces({
+  api,
+  t,
+  picked,
+  onChange,
+  /** The search field took focus — the caller moves it above the keyboard. */
+  onSearchFocus,
+}: {
+  api: Api;
+  t: GroupTheme;
+  picked: InvitablePerson[];
+  onChange: (next: InvitablePerson[]) => void;
+  onSearchFocus?: () => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [friends, setFriends] = useState<InvitablePerson[]>([]);
+  const [term, setTerm] = useState('');
+  const [found, setFound] = useState<InvitablePerson[]>([]);
+  const [searching, setSearching] = useState(false);
+  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const lit = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    let live = true;
+    void api
+      .friends()
+      .then((list) => {
+        if (live) setFriends(list);
+      })
+      // The search is the other half; an error here must not close both.
+      .catch(() => {});
+    return () => {
+      live = false;
+    };
+  }, [api]);
+
+  // The same debounce and the same two-letter floor as `InvitePicker`.
+  useEffect(() => {
+    const q = term.trim();
+    if (timer.current) clearTimeout(timer.current);
+    if (q.length < 2) {
+      setFound([]);
+      setSearching(false);
+      return;
+    }
+    setSearching(true);
+    timer.current = setTimeout(() => {
+      void api
+        .findPeople(q)
+        .then(setFound)
+        .catch(() => setFound([]))
+        .finally(() => setSearching(false));
+    }, SEARCH_DELAY_MS);
+    return () => {
+      if (timer.current) clearTimeout(timer.current);
+    };
+  }, [api, term]);
+
+  // The panel's height by layout animation; the button's fill by its own,
+  // since a colour is not something a layout animation moves.
+  const toggleOpen = useCallback(() => {
+    LayoutAnimation.configureNext(LayoutAnimation.create(300, 'easeInEaseOut', 'opacity'));
+    setOpen((was) => !was);
+  }, []);
+
+  useEffect(() => {
+    Animated.timing(lit, { toValue: open ? 1 : 0, duration: 250, useNativeDriver: false }).start();
+  }, [lit, open]);
+
+  const isPicked = (person: InvitablePerson) =>
+    picked.some((p) => p.actorId === person.actorId);
+
+  const toggle = (person: InvitablePerson) => {
+    if (isPicked(person)) {
+      onChange(picked.filter((p) => p.actorId !== person.actorId));
+      return;
+    }
+    // Refused rather than truncated on send — see `InvitePicker`.
+    if (picked.length >= MAX_PER_REQUEST) return;
+    onChange([...picked, person]);
+  };
+
+  /*
+   * What the rail shows.
+   *
+   * With a search, its results — less anybody already picked, who is in the
+   * stack above. Without one, anybody picked from an earlier search first, so
+   * they can be tapped back out, then friends.
+   */
+  const searched = term.trim().length >= 2;
+  const friendIds = new Set(friends.map((f) => f.actorId));
+  const rail = searched
+    ? found.filter((p) => !isPicked(p))
+    : [...picked.filter((p) => !friendIds.has(p.actorId)), ...friends];
+
+  // Nobody picked: the first three friends, faint, as a hint of what goes here.
+  const stack = picked.length > 0 ? picked.slice(0, 3) : friends.slice(0, 3);
+  const hint = picked.length === 0;
+
+  return (
+    <View
+      style={[
+        styles.inviteCard,
+        { backgroundColor: t.card, borderColor: open ? t.lineStrong : t.line },
+      ]}
+    >
+      <Pressable
+        onPress={toggleOpen}
+        accessibilityRole="button"
+        accessibilityState={{ expanded: open }}
+        accessibilityLabel={picked.length === 0 ? 'Invite friends' : `${picked.length} invited`}
+        style={styles.inviteHead}
+      >
+        {stack.length > 0 && (
+          <View style={[styles.stack, hint && { opacity: 0.35 }]}>
+            {stack.map((person, index) => (
+              <Face
+                key={person.actorId}
+                person={person}
+                size={34}
+                letterSize={13}
+                style={[
+                  styles.stackFace,
+                  { borderColor: t.card },
+                  index > 0 && { marginLeft: -10 },
+                ]}
+              />
+            ))}
+          </View>
+        )}
+        <View style={styles.inviteText}>
+          <Text style={[styles.inviteTitle, { color: t.fg }]}>
+            {picked.length === 0 ? 'Invite friends' : `${picked.length} invited`}
+          </Text>
+          <Text numberOfLines={1} style={[styles.inviteSub, { color: t.dim }]}>
+            {askedLine(picked)}
+          </Text>
+        </View>
+        <Animated.View
+          style={[
+            styles.searchButton,
+            {
+              backgroundColor: lit.interpolate({
+                inputRange: [0, 1],
+                outputRange: [t.bg, t.accent],
+              }),
+            },
+          ]}
+        >
+          <Glyph name="search" size={18} color={open ? t.onAccent : t.fg} />
+        </Animated.View>
+      </Pressable>
+
+      {open && (
+        <View>
+          <View style={[styles.searchField, { backgroundColor: t.bg }]}>
+            <Glyph name="search" size={17} color={t.dim} />
+            <TextInput
+              value={term}
+              onChangeText={setTerm}
+              onFocus={onSearchFocus}
+              placeholder="Search friends or @handle"
+              placeholderTextColor={t.dim}
+              autoCapitalize="none"
+              autoCorrect={false}
+              style={[styles.searchInput, { color: t.fg }]}
+              accessibilityLabel="Search friends or @handle"
+            />
+            {searching && <ActivityIndicator color={t.dim} />}
+          </View>
+
+          {rail.length > 0 ? (
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              keyboardShouldPersistTaps="handled"
+              contentContainerStyle={styles.rail}
+            >
+              {rail.map((person) => (
+                <RailFace
+                  key={person.actorId}
+                  person={person}
+                  t={t}
+                  chosen={isPicked(person)}
+                  onPress={() => toggle(person)}
+                />
+              ))}
+            </ScrollView>
+          ) : (
+            // Not "no such person": the search hides anybody either side of a
+            // block, so a handle that exists can legitimately answer nothing.
+            <Text style={[styles.railEmpty, { color: t.dim }]}>
+              {searched
+                ? searching
+                  ? ' '
+                  : 'Nobody to show for that.'
+                : 'Search for somebody by their @handle.'}
+            </Text>
+          )}
+
+          {picked.length >= MAX_PER_REQUEST && (
+            <Text style={[styles.railEmpty, { color: t.dim, paddingTop: 0 }]}>
+              {`That is ${MAX_PER_REQUEST}, which is as many as one go takes.`}
+            </Text>
+          )}
+        </View>
+      )}
+    </View>
+  );
+}
+
 const styles = StyleSheet.create({
   card: { borderRadius: 14, borderWidth: 1, padding: 16, gap: 12 },
   label: { fontSize: 16, fontWeight: '600' },
@@ -404,4 +733,63 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   letterText: { fontSize: 12, fontWeight: '700' },
+  inviteCard: { borderRadius: 18, borderWidth: 1, overflow: 'hidden' },
+  inviteHead: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    paddingTop: 12,
+    paddingRight: 12,
+    paddingBottom: 12,
+    paddingLeft: 14,
+  },
+  stack: { flexDirection: 'row' },
+  /* The card's colour as a ring, so overlapping faces read as separate. */
+  stackFace: { borderWidth: 2.5 },
+  faceLetterBox: { alignItems: 'center', justifyContent: 'center' },
+  inviteText: { flex: 1, gap: 2 },
+  inviteTitle: { fontSize: 15, fontWeight: '600' },
+  inviteSub: { fontSize: 13 },
+  searchButton: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  searchField: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginHorizontal: 14,
+    paddingHorizontal: 14,
+    borderRadius: 12,
+  },
+  searchInput: { flex: 1, fontSize: 15, paddingVertical: 11 },
+  rail: { paddingVertical: 16, paddingHorizontal: 14, gap: 14 },
+  railItem: { width: 58, alignItems: 'center', gap: 6 },
+  /* Outside the face, so picking somebody does not shrink their picture. */
+  railRing: {
+    position: 'absolute',
+    top: -4.5,
+    left: -4.5,
+    right: -4.5,
+    bottom: -4.5,
+    borderWidth: 2,
+    borderRadius: 999,
+  },
+  railName: { fontSize: 12, fontWeight: '600' },
+  railEmpty: { fontSize: 13, lineHeight: 18, paddingHorizontal: 16, paddingVertical: 16 },
+  check: {
+    position: 'absolute',
+    right: -2,
+    bottom: -2,
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    borderWidth: 2.5,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  checkMark: { fontSize: 12, fontWeight: '800', lineHeight: 14 },
 });

@@ -1628,12 +1628,6 @@ export default function App() {
       {route.screen === 'create' && signedIn === true && (
         <CreateEvent
           api={api}
-          // Distinct places from this person's own events, newest first. Three
-          // is enough to be a shortcut; more is a list to read, which is worse
-          // than typing the word.
-          recentPlaces={[
-            ...new Set(events.map((e) => e.place).filter((p): p is string => Boolean(p))),
-          ].slice(0, 3)}
           groupId={route.groupId}
           groupName={route.groupName}
           chosen={route.chosen}
@@ -7259,11 +7253,11 @@ function theme(dark: boolean) {
    * colour it is going to be, and only its opacity changes.
    */
   return dark
-    ? { bg: '#0d0f12', bgClear: 'rgba(13,15,18,0)', card: '#171a1f', line: '#272b33',
+    ? { bg: '#0d0f12', bgClear: 'rgba(13,15,18,0)', card: '#171a1f', line: '#272b33', lineStrong: '#3a3f48',
         fg: '#f2f4f7', dim: '#9aa3af', accent: '#e3e6ea', onAccent: '#0d0f12',
         news: NEWS, onNews: ON_NEWS,
         warn: '#ff7b70', link: '#6ea8ff' }
-    : { bg: '#f7f8fa', bgClear: 'rgba(247,248,250,0)', card: '#ffffff', line: '#e3e6ea',
+    : { bg: '#f7f8fa', bgClear: 'rgba(247,248,250,0)', card: '#ffffff', line: '#e3e6ea', lineStrong: '#c9ced6',
         fg: '#14171c', dim: '#5b6472', accent: '#3d424a', onAccent: '#ffffff',
         news: NEWS, onNews: ON_NEWS,
         warn: '#c23127', link: '#2563eb' };

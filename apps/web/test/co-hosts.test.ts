@@ -291,15 +291,15 @@ describe('what both clients say', () => {
      * People tab — which is a strange thing for an album to do on the evening it
      * is made, since the person handing over the camera is standing next to
      * whoever they are handing it to.
+     *
+     * The web's form still asks. The app's create screen no longer does — it
+     * was cut down to a name and three settings, and its hosts are named in
+     * the roll's own settings afterwards, which is checked below.
      */
-    for (const [file, guard] of [
-      ['app/page.tsx', 'contribute === CONTRIBUTE_HOST'],
-      ['../mobile/src/CreateEvent.tsx', "contribute === 'host'"],
-    ] as const) {
-      const source = stripComments(read(file));
-      expect(source).toContain(guard);
-      expect(source.toLowerCase()).toContain('co-host');
-    }
+    const source = stripComments(read('app/page.tsx'));
+    expect(source).toContain('contribute === CONTRIBUTE_HOST');
+    expect(source.toLowerCase()).toContain('co-host');
+    expect(stripComments(read('../mobile/src/CreateEvent.tsx'))).not.toMatch(/coHosts/);
   });
 
   it('sends the co-hosts only where the setting means anything', () => {
@@ -309,11 +309,9 @@ describe('what both clients say', () => {
      * album nobody but its owner can add to would honour a sentence they backed
      * out of — so the names are kept and they go in as members instead.
      */
-    for (const file of ['app/page.tsx', '../mobile/src/CreateEvent.tsx']) {
-      const source = stripComments(read(file));
-      expect(source).toMatch(/hosting \? coHosts : \[\]/);
-      expect(source).toMatch(/hosting \? \[\] : coHosts/);
-    }
+    const source = stripComments(read('app/page.tsx'));
+    expect(source).toMatch(/hosting \? coHosts : \[\]/);
+    expect(source).toMatch(/hosting \? \[\] : coHosts/);
   });
 
   it('manages them in the same place the setting lives', () => {
@@ -346,7 +344,7 @@ describe('what both clients say', () => {
   it('asks who can see it before who can add, on both', () => {
     /*
      * The order is load-bearing rather than a layout choice: the contribute
-     * options are *named* by the access policy — the middle one is "Everyone" on
+     * options are *named* by the access policy — the first one is "Anyone" on
      * a public album and "Members" on a private one — so asking who can add
      * first means somebody chooses a label and then ticks a switch underneath
      * that renames what they chose.
@@ -371,7 +369,7 @@ describe('what both clients say', () => {
      * and the other React Native, so the copy is the thing that has to be
      * checked rather than shared.
      */
-    const labels = ['Everyone', 'Only me', 'Hosts', 'Members'];
+    const labels = ['Anyone', 'Just me', 'Hosts', 'Members'];
     for (const file of [
       'app/components/ContributeChoice.tsx',
       '../mobile/src/ContributeChoice.tsx',

@@ -284,7 +284,7 @@ describe('what the two clients draw', () => {
     const CHOICE = read('app/components/ContributeChoice.tsx');
     expect(CHOICE).toMatch(new RegExp(`accessPolicy === ${PRIVATE.toUpperCase()}`));
     expect(CHOICE).toMatch(/label: 'Members'/);
-    expect(CHOICE).toMatch(/label: 'Everyone'/);
+    expect(CHOICE).toMatch(/label: 'Anyone'/);
   });
 
   it('still lets the everyone case add', () => {

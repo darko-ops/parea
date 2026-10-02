@@ -47,57 +47,50 @@ export type ContributeOption = {
 /**
  * The three, in the order they are offered, per answer to "who can see it".
  *
- * Two lists rather than one with a relabelling pass, because the *order*
- * differs as well as the words and the order is the argument. On a public
- * album the ordinary answer is that everyone who turns up can add, so that
- * leads; on a private one the album is usually somebody's and the people in it
- * are the exception, so "Only me" leads. A single list would put the same
- * option first in both places and make one of them read as the default when it
- * is not.
+ * The same order under both answers, widest first: whoever the album is open
+ * to, then its hosts, then just the person making it. It used to differ —
+ * "Only me" led a private album — and that made the two lists read as two
+ * questions when it is one question whose first answer changes its name.
  *
  * `everyone` is the same stored value under both labels. It has always
  * deferred to the other setting rather than restating it — "whoever the album
- * is open to" — and what changes is which word is true here: on a private
- * album the people who can see it are its members, and calling them "everyone"
- * was the one place this copy made somebody work out the composition for
- * themselves.
+ * is open to" — and what changes is which word is true here: on a public album
+ * that is anyone with the link, and on a private one it is its members.
  *
  * `nobody` is on neither list. See `CONTRIBUTE_NOBODY`.
+ *
+ * The same words the app's `ContributeChoice` uses.
  */
+const HOSTS: ContributeOption = {
+  value: CONTRIBUTE_HOST,
+  label: 'Hosts',
+  help: 'You and the people you make hosts.',
+};
+
+const JUST_ME: ContributeOption = {
+  value: CONTRIBUTE_CREATOR,
+  label: 'Just me',
+  help: 'Everyone else can look.',
+};
+
 const PUBLIC_OPTIONS: ContributeOption[] = [
   {
     value: CONTRIBUTE_EVERYONE,
-    label: 'Everyone',
-    help: 'Anybody who opens the link can add to it. Adding always needs an account, so every photograph says who put it there.',
+    label: 'Anyone',
+    help: 'Anyone with the link can add their photos.',
   },
-  {
-    value: CONTRIBUTE_CREATOR,
-    label: 'Only me',
-    help: 'You add the photographs and everybody else comes to look. They can still say something and react — it is the pictures that are yours to put in.',
-  },
-  {
-    value: CONTRIBUTE_HOST,
-    label: 'Hosts',
-    help: 'You and the people you make hosts. Anybody else in the roll can ask to be one, and you decide — so the camera can be handed over without the roll being.',
-  },
+  HOSTS,
+  JUST_ME,
 ];
 
 const PRIVATE_OPTIONS: ContributeOption[] = [
   {
-    value: CONTRIBUTE_CREATOR,
-    label: 'Only me',
-    help: 'You add the photographs and everybody else comes to look. They can still say something and react — it is the pictures that are yours to put in.',
-  },
-  {
     value: CONTRIBUTE_EVERYONE,
     label: 'Members',
-    help: 'Everybody in the roll can add to it — the people you added and the people you let in, and nobody else. Adding names who added, so every photograph says who put it there.',
+    help: 'Everyone in the roll can add their photos.',
   },
-  {
-    value: CONTRIBUTE_HOST,
-    label: 'Hosts',
-    help: 'You and the people you make hosts. Anybody else in the roll can ask to be one, and you decide — so the camera can be handed over without the roll being.',
-  },
+  HOSTS,
+  JUST_ME,
 ];
 
 export function contributeOptions(accessPolicy: string): ContributeOption[] {
@@ -113,7 +106,7 @@ export function contributeOptions(accessPolicy: string): ContributeOption[] {
  */
 export const CONTRIBUTE_OPTIONS: ContributeOption[] = [
   ...PUBLIC_OPTIONS,
-  PRIVATE_OPTIONS[1]!,
+  PRIVATE_OPTIONS[0]!,
 ];
 
 export function ContributeChoice({

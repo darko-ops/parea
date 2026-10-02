@@ -36,20 +36,19 @@ export type ContributeOption = {
 /**
  * The three, in the order they are offered, per answer to "who can see it".
  *
- * Two lists rather than one with a relabelling pass, because the *order*
- * differs as well as the words and the order is the argument. On a public
- * album the ordinary answer is that everyone who turns up can add, so that
- * leads; on a private one the album is usually somebody's and the people in it
- * are the exception, so "Only me" leads. A single list would put the same
- * option first in both places and make one of them read as the default when it
- * is not.
+ * The same order under both answers now, widest first: whoever the album is
+ * open to, then its hosts, then just the person making it. It used to differ —
+ * "Only me" led a private album — and that made the two lists read as two
+ * questions when it is one question whose first answer changes its name.
  *
  * `everyone` is the same stored value under both labels. It has always
  * deferred to the other setting rather than restating it — "whoever the album
- * is open to" — and what changes is which word is true here: on a private
- * album the people who can see it are its members, and calling them "everyone"
- * was the one place this copy made somebody work out the composition for
- * themselves.
+ * is open to" — and what changes is which word is true here: on a public album
+ * that is anyone with the link, and on a private one it is its members.
+ * Switching visibility keeps the value and relabels it.
+ *
+ * Each line is short enough to sit under its title in the create screen's
+ * list, and says what happens rather than what the setting is called.
  *
  * `nobody` is on neither list any more. It was a way of ending an album that
  * people reached for by accident and could not find their way back out of,
@@ -59,40 +58,36 @@ export type ContributeOption = {
  * words: a phone and a browser describing one setting differently is two
  * products.
  */
+const HOSTS: ContributeOption = {
+  value: 'host',
+  label: 'Hosts',
+  help: 'You and the people you make hosts.',
+};
+
+const JUST_ME: ContributeOption = {
+  value: 'creator',
+  label: 'Just me',
+  help: 'Everyone else can look.',
+};
+
 const PUBLIC_OPTIONS: ContributeOption[] = [
   {
     value: 'everyone',
-    label: 'Everyone',
-    help: 'Anybody who opens the link can add to it. Adding always needs an account, so every photograph says who put it there.',
+    label: 'Anyone',
+    help: 'Anyone with the link can add their photos.',
   },
-  {
-    value: 'creator',
-    label: 'Only me',
-    help: 'You add the photographs and everybody else comes to look. They can still say something and react — it is the pictures that are yours to put in.',
-  },
-  {
-    value: 'host',
-    label: 'Hosts',
-    help: 'You and the people you make hosts. Anybody else in the roll can ask to be one, and you decide — so the camera can be handed over without the roll being.',
-  },
+  HOSTS,
+  JUST_ME,
 ];
 
 const PRIVATE_OPTIONS: ContributeOption[] = [
   {
-    value: 'creator',
-    label: 'Only me',
-    help: 'You add the photographs and everybody else comes to look. They can still say something and react — it is the pictures that are yours to put in.',
-  },
-  {
     value: 'everyone',
     label: 'Members',
-    help: 'Everybody in the roll can add to it — the people you added and the people you let in, and nobody else. Adding names who added, so every photograph says who put it there.',
+    help: 'Everyone in the roll can add their photos.',
   },
-  {
-    value: 'host',
-    label: 'Hosts',
-    help: 'You and the people you make hosts. Anybody else in the roll can ask to be one, and you decide — so the camera can be handed over without the roll being.',
-  },
+  HOSTS,
+  JUST_ME,
 ];
 
 export function contributeOptions(accessPolicy: string): ContributeOption[] {
@@ -160,6 +155,58 @@ export function ContributeChoice({
   );
 }
 
+/**
+ * The same three, as a list with a radio on each row — the create screen's
+ * shape.
+ *
+ * A list rather than pills there because each answer carries its own line:
+ * the pills say one help sentence for whichever is chosen, and a person
+ * naming a roll should be able to read all three without tapping through
+ * them. The manage screen keeps the pills, where the choice has been made
+ * once already and is being changed.
+ */
+export function ContributeList({
+  value,
+  onChange,
+  t,
+  accessPolicy,
+}: {
+  value: ContributePolicy;
+  onChange: (next: ContributePolicy) => void;
+  t: GroupTheme;
+  accessPolicy: string;
+}) {
+  return (
+    <View style={[styles.list, { borderColor: t.line, backgroundColor: t.card }]}>
+      {contributeOptions(accessPolicy).map((option, index) => {
+        const on = value === option.value;
+        return (
+          <Pressable
+            key={option.value}
+            accessibilityRole="radio"
+            accessibilityState={{ checked: on }}
+            accessibilityLabel={`${option.label}. ${option.help}`}
+            onPress={() => !on && onChange(option.value)}
+            style={({ pressed }) => [
+              styles.row,
+              index > 0 && { borderTopWidth: 1, borderTopColor: t.line },
+              pressed && { opacity: 0.7 },
+            ]}
+          >
+            <View style={styles.rowText}>
+              <Text style={[styles.rowTitle, { color: t.fg }]}>{option.label}</Text>
+              <Text style={[styles.help, { color: t.dim }]}>{option.help}</Text>
+            </View>
+            <View style={[styles.radio, { borderColor: on ? t.accent : t.line }]}>
+              {on && <View style={[styles.radioDot, { backgroundColor: t.accent }]} />}
+            </View>
+          </Pressable>
+        );
+      })}
+    </View>
+  );
+}
+
 const styles = StyleSheet.create({
   /* The same shape the visibility pills are, and wrapping for the same reason:
      three labels do not always fit a phone's width in one line. */
@@ -169,4 +216,23 @@ const styles = StyleSheet.create({
   pillTextOn: { fontWeight: '600' },
   spent: { opacity: 0.5 },
   help: { fontSize: 13, lineHeight: 18 },
+  list: { borderWidth: 1, borderRadius: 14, overflow: 'hidden' },
+  row: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 14,
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+  },
+  rowText: { flex: 1, gap: 3 },
+  rowTitle: { fontSize: 16, fontWeight: '600' },
+  radio: {
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    borderWidth: 1.5,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  radioDot: { width: 10, height: 10, borderRadius: 5 },
 });

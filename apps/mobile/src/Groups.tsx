@@ -100,6 +100,11 @@ export type GroupTheme = {
   dim: string;
   card: string;
   line: string;
+  /**
+   * A step brighter than `line`, for the edge of something that has opened —
+   * the invite card on the create screen, expanded.
+   */
+  lineStrong: string;
   accent: string;
   onAccent: string;
   /**

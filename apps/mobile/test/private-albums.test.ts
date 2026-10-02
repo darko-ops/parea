@@ -264,7 +264,7 @@ describe('adding people to a roll', () => {
      * that sent as it went would leave a trail of invitations to an event that
      * was never made.
      */
-    expect(CREATE).toMatch(/<InvitePicker[\s\S]{0,120}picked=\{invitees\}/);
+    expect(CREATE).toMatch(/<InviteFaces[\s\S]{0,120}picked=\{invitees\}/);
     expect(CREATE).toMatch(/api\s*\n?\s*\.invite\(/);
     expect(PICKER).toMatch(/export function InviteCard/);
     expect(APP).toMatch(/<InviteCard api=\{api\} t=\{t\} eventId=\{event\.id\}/);
@@ -295,7 +295,9 @@ describe('who can add photos', () => {
      * and the only lever was a switch on the web's manage screen that turned
      * uploading off for everyone including the host.
      */
-    expect(CREATE).toMatch(/<ContributeChoice/);
+    // As a list with a line under each answer on the create screen; as
+    // pills in the settings, where it is being changed rather than chosen.
+    expect(CREATE).toMatch(/<ContributeList/);
     expect(CREATE).toMatch(/contributePolicy: contribute,/);
     expect(APP).toMatch(/<ContributeChoice/);
     expect(APP).toMatch(/api\.setContributePolicy\(event\.id, value\)/);
@@ -306,7 +308,7 @@ describe('who can add photos', () => {
       fileURLToPath(new URL('../../web/app/components/ContributeChoice.tsx', import.meta.url).href),
       'utf8',
     );
-    for (const label of ['Everyone', 'Members', 'Only me', 'Hosts']) {
+    for (const label of ['Anyone', 'Members', 'Just me', 'Hosts']) {
       expect(CHOICE, label).toContain(`label: '${label}'`);
       expect(WEB, label).toContain(`label: '${label}'`);
     }
@@ -316,8 +318,12 @@ describe('who can add photos', () => {
       expect(source).not.toContain("label: 'Nobody'");
     }
     // And each says what happens rather than what the setting is called.
-    expect(CHOICE).toMatch(/You add the photographs and everybody else comes to look/);
-    expect(CHOICE).toMatch(/Anybody else in the roll can ask to be one/);
+    for (const source of [CHOICE, WEB]) {
+      expect(source).toMatch(/Anyone with the link can add their photos\./);
+      expect(source).toMatch(/Everyone in the roll can add their photos\./);
+      expect(source).toMatch(/You and the people you make hosts\./);
+      expect(source).toMatch(/Everyone else can look\./);
+    }
   });
 
   it('asks the question in the words the other setting makes true', () => {
@@ -328,14 +334,13 @@ describe('who can add photos', () => {
      * named instead: on a private album the people who can see it are its
      * members, so the pill says Members.
      *
-     * And the order turns on it too. A public album's ordinary answer is that
-     * whoever turns up can add; a private one's is that the album is somebody's
-     * and the members are the exception. Whichever leads reads as the default,
-     * so it must be the right one for the album in front of you.
+     * The order is the same under both, widest first, so switching
+     * visibility renames the first answer in place rather than reshuffling
+     * the list under somebody's thumb.
      */
     expect(CHOICE).toMatch(/export function contributeOptions\(accessPolicy: string\)/);
-    expect(CHOICE).toMatch(/const PUBLIC_OPTIONS[\s\S]*?label: 'Everyone'/);
-    expect(CHOICE).toMatch(/const PRIVATE_OPTIONS[\s\S]*?label: 'Only me'/);
+    expect(CHOICE).toMatch(/const PUBLIC_OPTIONS[\s\S]*?label: 'Anyone',[\s\S]*?HOSTS,\s*JUST_ME,/);
+    expect(CHOICE).toMatch(/const PRIVATE_OPTIONS[\s\S]*?label: 'Members',[\s\S]*?HOSTS,\s*JUST_ME,/);
     // Both screens hand over the live choice rather than a saved one.
     expect(CREATE).toMatch(/accessPolicy=\{isPrivate \? 'private' : 'public'\}/);
     expect(APP).toMatch(/accessPolicy=\{visible\}/);
