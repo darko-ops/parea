@@ -3444,6 +3444,8 @@ button.small { padding: 7px 11px; font-size: 13px; border-radius: 8px; }
   display: inline-flex; align-items: center; justify-content: center;
 }
 .photo-icon:hover { border-color: var(--accent); color: var(--accent-ink); }
+/* The send-to-chat icon is a button, not a link: the same disc, without a button's fill. */
+button.photo-icon { background: transparent; padding: 0; cursor: pointer; font: inherit; }
 .photo-icon svg {
   width: 19px; height: 19px; fill: none; stroke: currentColor;
   stroke-width: 2; stroke-linecap: round; stroke-linejoin: round;
@@ -5265,3 +5267,27 @@ button.link {
 .framer-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
 .framer-thumb-dead { display: block; width: 100%; height: 100%; background: rgb(255 255 255 / .12); }
 .framer-unreadable { position: absolute; inset: 0; display: grid; place-items: center; }
+
+/* Sending a photo or a moment into a chat: your chats in a list, one press each. */
+.send-chat-note { width: 100%; margin-bottom: 4px; }
+.send-chat-said { color: var(--dim); }
+.send-chat-said.bad { color: var(--danger, #e8481c); }
+.send-chat-list { list-style: none; margin: 12px 0 0; padding: 0; max-height: 50vh; overflow-y: auto; }
+.send-chat-list li + li { border-top: 1px solid var(--line); }
+.send-chat-list button {
+  display: flex; align-items: center; gap: 12px; width: 100%;
+  padding: 10px 2px; background: transparent; border: 0; color: var(--fg);
+  font: inherit; text-align: left; cursor: pointer;
+}
+.send-chat-list button:hover .send-chat-go { text-decoration: underline; }
+.send-chat-list button:disabled { cursor: default; opacity: .7; }
+.send-chat-face {
+  flex: none; width: 36px; height: 36px; border-radius: 50%; overflow: hidden;
+  display: inline-flex; align-items: center; justify-content: center;
+  background: var(--track); font-weight: 700; font-size: 14px;
+}
+.send-chat-face img { width: 100%; height: 100%; object-fit: cover; }
+.send-chat-who { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.send-chat-title { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.send-chat-who .muted { font-size: 12px; }
+.send-chat-go { flex: none; color: var(--accent-ink); font-weight: 600; font-size: 14px; }

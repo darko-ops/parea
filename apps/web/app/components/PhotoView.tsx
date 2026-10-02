@@ -32,6 +32,7 @@ import type { PhotoReaction } from '@/photoReactions';
 
 import { Face } from './Faces';
 import { PhotoReactions } from './PhotoReactions';
+import { SendToChat } from './SendToChat';
 import { Star } from './Star';
 import { Menu } from './Menu';
 import { Thread } from './Thread';
@@ -263,6 +264,9 @@ export function PhotoView({
                 favourite={photo.favourite}
                 canKeep={photo.canKeep}
               />
+
+              {/* Send it into a chat: the app's paper plane, before Download. */}
+              {canPost && <SendToChat sending={{ photoId: photo.id }} />}
 
               <a
                 className="photo-icon"

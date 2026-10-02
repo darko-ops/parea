@@ -25,6 +25,7 @@ import { MomentComments } from './MomentComments';
 import { MomentStrip } from './MomentStrip';
 import { PhotoReactions } from './PhotoReactions';
 import { Step } from './PhotoView';
+import { SendToChat } from './SendToChat';
 import { Menu } from './Menu';
 import { reportContent, reportSaid } from './report';
 import { useImageFailure } from './useImageFailure';
@@ -259,6 +260,9 @@ export function MomentView({
             label="React to this moment"
           />
           <span className="photo-verbs-do">
+            {/* Send it into a chat: the app's paper plane, before Download. */}
+            <SendToChat sending={{ momentId: moment.id }} />
+
             <a
               className="photo-icon"
               href={moment.src}
