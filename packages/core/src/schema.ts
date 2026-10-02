@@ -2174,6 +2174,14 @@ export const observations = pgTable(
         'link_opened',
         /** The door said no to a real link; `reason` says which no. */
         'join_refused',
+        /**
+         * Photographs saved to a phone's camera roll, `count` of them, with
+         * `scope` saying which set. The app saves straight from the image
+         * URLs, so no archive is minted and the server never sees it: this is
+         * the one delivery a client reports, kept apart from `download` so
+         * that one stays a thing the server witnessed.
+         */
+        'device_save',
       ],
     }).notNull(),
     eventId: uuid('event_id').references(() => events.id, { onDelete: 'cascade' }),
@@ -2189,6 +2197,13 @@ export const observations = pgTable(
     outOf: integer('out_of'),
     /** `join_refused` only: the policy's reason — `sign_in_required`, `joins_closed`… */
     reason: text('reason'),
+    /**
+     * `download` and `device_save`: which set left. `all` the whole roll,
+     * `favourites` the person's own favourites in it, `selection` some other
+     * choice of photos, `one` a single photograph. Null on rows from before it
+     * was recorded.
+     */
+    scope: text('scope', { enum: ['all', 'favourites', 'selection', 'one'] }),
     createdAt: createdAt(),
   },
   (t) => [index('observation_kind_idx').on(t.kind, t.createdAt)],

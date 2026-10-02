@@ -2738,9 +2738,10 @@ export class Api {
   // --- instrumentation ---------------------------------------------------
 
   /**
-   * The three §18 observations only a device witnesses — whether a suggestion
-   * was shown, how much of it survived, and whether it fell through to the
-   * picker. Everything else in §18 is a query over data the server already
+   * The §18 observations only a device witnesses — whether a suggestion was
+   * shown, how much of it survived, whether it fell through to the picker, and
+   * photographs saved to the camera roll, which go straight from their image
+   * URLs and so pass no server. Everything else in §18 is a query over data the server already
    * has, and is not reported from here.
    *
    * Fire and forget in the strongest sense: never awaited for its result,
@@ -2748,10 +2749,12 @@ export class Api {
    * retrying metrics is a bug that shows up as traffic.
    */
   observe(input: {
-    kind: 'autoselect_shown' | 'autoselect_confirmed' | 'picker_used';
+    kind: 'autoselect_shown' | 'autoselect_confirmed' | 'picker_used' | 'device_save';
     eventId: string;
     count?: number;
     outOf?: number;
+    /** `device_save` only: which set was saved. */
+    scope?: 'all' | 'favourites' | 'one';
   }): void {
     void this.call('/api/observations', {
       method: 'POST',

@@ -252,15 +252,18 @@ export default function PrivacyPage() {
             why it is sent rather than left to be found.
           </p>
 
-          <h3>Seven facts about how the product is used</h3>
+          <h3>Eight facts about how the product is used</h3>
           <p className="muted">
             A closed list, recorded in our own database, never sent anywhere:
             that someone opened a roll&rsquo;s link, that they joined it or
             were turned away and for which reason, that an archive was
-            downloaded, that a photo suggestion was shown, how much of a
-            suggestion was kept, and that the plain picker was used instead.
-            They answer one question &mdash; does anyone other than the person
-            who made the roll actually add photos &mdash; and nothing else is
+            downloaded, that photos were saved from the app to a phone, that a
+            photo suggestion was shown, how much of a suggestion was kept, and
+            that the plain picker was used instead. A download or a save notes
+            which set it was &mdash; the whole roll, your favorites, one photo
+            or another choice &mdash; and how many photos, never which ones.
+            They answer whether anyone other than the person who made the roll
+            adds photos, and whether people leave with them; nothing else is
             collected &ldquo;in case it is useful later&rdquo;.
           </p>
 

@@ -1,15 +1,15 @@
 /**
  * The client-side half of §18.
  *
- * Three of the five observations happen on a device and nowhere else: whether
- * a suggestion was shown, how much of it survived, and whether the app fell
- * through to the system picker. The server cannot infer any of them, so the
- * client posts them.
+ * Four observations happen on a device and nowhere else: whether a suggestion
+ * was shown, how much of it survived, whether the app fell through to the
+ * system picker, and photographs saved to the camera roll. The server cannot
+ * infer any of them, so the client posts them.
  *
  * The rest of the list is recorded server-side where the thing actually
  * happens, and is not accepted here — an endpoint that let a client assert
  * "someone downloaded this" would make the one metric about delivery
- * unfalsifiable.
+ * unfalsifiable. A camera-roll save is its own kind for that reason.
  */
 
 import { NextResponse } from 'next/server';
@@ -21,8 +21,14 @@ import { currentActorId } from '@/session';
 
 export const runtime = 'nodejs';
 
-/** Only the ones a device is the sole witness to. */
-const CLIENT_REPORTABLE = ['autoselect_shown', 'autoselect_confirmed', 'picker_used'] as const;
+/**
+ * Only the ones a device is the sole witness to. `device_save` is the app
+ * saving photographs to the camera roll straight from their image URLs, which
+ * no server sees — reported here, and kept a different kind from the
+ * server-witnessed `download` so that one stays unfalsifiable.
+ */
+const CLIENT_REPORTABLE = ['autoselect_shown', 'autoselect_confirmed', 'picker_used', 'device_save'] as const;
+const SCOPES = ['all', 'favourites', 'selection', 'one'] as const;
 
 /** Nothing here is worth more than a rough magnitude, and a cap bounds nonsense. */
 const MAX_COUNT = 100_000;
@@ -42,6 +48,7 @@ export async function POST(request: Request) {
     eventId?: unknown;
     count?: unknown;
     outOf?: unknown;
+    scope?: unknown;
   };
 
   const kind = CLIENT_REPORTABLE.find((k) => k === body.kind);
@@ -54,6 +61,7 @@ export async function POST(request: Request) {
     client: clientOf(request),
     count: bounded(body.count),
     outOf: bounded(body.outOf),
+    scope: kind === 'device_save' ? (SCOPES.find((s) => s === body.scope) ?? null) : null,
   });
 
   // 204: the client has nothing to do with the answer, and should never wait

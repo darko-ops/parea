@@ -84,13 +84,13 @@ describe('the retention periods are the real ones', () => {
 
 describe('the closed list of what is collected', () => {
   it('matches the observation kinds the schema allows', () => {
-    // The page calls this "seven facts" and "a closed list". Adding an eighth
+    // The page calls this "eight facts" and "a closed list". Adding a ninth
     // kind without touching the page turns that sentence into a false
     // statement about surveillance, which is the sentence people read most
     // carefully.
     const kinds = schema.observations.kind.enumValues;
-    expect(kinds).toHaveLength(7);
-    expect(PRIVACY).toMatch(/[Ss]even facts/);
+    expect(kinds).toHaveLength(8);
+    expect(PRIVACY).toMatch(/[Ee]ight facts/);
   });
 
   it('describes the notifications this product actually sends', () => {
@@ -231,7 +231,7 @@ describe('the closed list of what is collected', () => {
       moment_view: /Which moments you have opened is recorded/,
       moment_comment: /Comments and reactions left on a moment are kept with it/,
       moment_reaction: /Comments and reactions left on a moment are kept with it/,
-      observation: /[Ss]even facts/,
+      observation: /[Ee]ight facts/,
       event: /That you made a roll/,
       event_participant: /records that you are in that roll/,
       event_access_request: /asked to join a private roll/,

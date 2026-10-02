@@ -3144,6 +3144,7 @@ function EventScreen({
             })),
             (done, total) => setSaving(`Saving ${done} of ${total}`),
           );
+          if (saved > 0) api.observe({ kind: 'device_save', eventId: event.id, count: saved, scope });
           Alert.alert(
             'Saved',
             failed > 0
@@ -3170,7 +3171,7 @@ function EventScreen({
     };
 
     ask(chosen);
-  }, [feed]);
+  }, [api, event.id, feed]);
 
   /**
    * The event's cover, for whoever runs it.
@@ -3273,6 +3274,7 @@ function EventScreen({
           () => {},
         );
         if (saved === 0) throw new Error('not saved');
+        api.observe({ eventId: event.id, kind: 'device_save', count: 1, scope: 'one' });
         setSavedNote(true);
         if (savedTimer.current) clearTimeout(savedTimer.current);
         savedTimer.current = setTimeout(() => setSavedNote(false), 2200);
@@ -3289,7 +3291,7 @@ function EventScreen({
         setSavingOne(null);
       }
     },
-    [],
+    [api, event.id],
   );
 
   /**

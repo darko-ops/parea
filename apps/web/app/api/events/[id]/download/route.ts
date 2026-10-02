@@ -22,7 +22,7 @@ import { resolveArchive, type ArchiveFormat } from '@/archive';
 import { getDb } from '@/db';
 import { DOWNLOAD_LIMIT, withinLimit, withinLimitFor } from '@/ratelimit';
 import { viewerContext } from '@/moderation';
-import { clientOf, observe } from '@/observe';
+import { clientOf, downloadScope, observe } from '@/observe';
 import { currentActorId, requesterFor } from '@/session';
 import { getStorage } from '@/storage';
 
@@ -144,6 +144,7 @@ export async function POST(
     actorId,
     client: clientOf(request),
     count: archive.entries.length,
+    scope: await downloadScope(db, event.id, actorId, selection === 'all' ? null : selection),
   });
 
   return NextResponse.json({
