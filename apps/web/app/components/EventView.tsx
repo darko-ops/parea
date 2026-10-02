@@ -279,16 +279,6 @@ export function EventView({
   const [skipped, setSkipped] = useState(0);
   /** Said when the last selection went over the limit; null when it did not. */
   const [overLimit, setOverLimit] = useState<string | null>(null);
-  /**
-   * Picking photos, and which ones.
-   *
-   * Null is not picking at all, which is a different state from picking none —
-   * the grid only grows checkboxes in the first case, and the bar at the foot
-   * only appears in the second. The endpoint has taken a `photoIds` selection
-   * since it was written ("a selection can be hundreds of ids"); this is the
-   * screen that finally sends one.
-   */
-  const [picked, setPicked] = useState<Set<string> | null>(null);
   /** The share panel, which is what somebody who cannot manage gets instead. */
   const [sharing, setSharing] = useState(false);
 
@@ -626,15 +616,6 @@ export function EventView({
    */
   const favourites = visible.filter((photo) => photo.favourite);
 
-  const togglePick = useCallback((id: string) => {
-    setPicked((current) => {
-      if (!current) return current;
-      const next = new Set(current);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      return next;
-    });
-  }, []);
 
 
   return (
@@ -767,14 +748,6 @@ export function EventView({
                         Download favorites
                       </button>
                     )}
-                    <button
-                      onClick={() => {
-                        close();
-                        setPicked(new Set());
-                      }}
-                    >
-                      Select images
-                    </button>
                   </>
                 )}
               </Menu>
@@ -843,15 +816,6 @@ export function EventView({
                           Download favorites
                         </button>
                       )}
-                      <button
-                        className="narrow-only"
-                        onClick={() => {
-                          close();
-                          setPicked(new Set());
-                        }}
-                      >
-                        Select images
-                      </button>
                     </>
                   )}
                   {feed.event.canAdminister ? (
@@ -1095,8 +1059,6 @@ export function EventView({
                 onRetry={() => void uploads.retry()}
                 onPickAgain={() => inputRef.current?.click()}
                 eventId={eventId}
-                picked={picked}
-                onPick={togglePick}
                 people={feed.people}
                 lead={null}
               />
@@ -1119,13 +1081,10 @@ export function EventView({
           <Masonry
             photos={fresh.length > 0 ? earlier : visible}
             eventId={eventId}
-            picked={picked}
-            onPick={togglePick}
             people={feed.people}
             lead={
               feed.canAdd &&
               session.account &&
-              !picked &&
               visible.length === 0 &&
               previews.length === 0 ? (
                 <label htmlFor="add-photos" className="tile-add">
@@ -1159,39 +1118,6 @@ export function EventView({
               Nothing here yet. Add yours and everyone else will see there is
               something to add to.
             </p>
-          )}
-
-          {/*
-            The bar for a selection, at the foot of the body rather than
-            floating over the gallery: it appears when the mode starts and it
-            says how to leave, because while it is up a tile picks instead of
-            going to the photograph's own page — which is where the reporting
-            actions are.
-          */}
-          {picked && (
-            <div className="picking">
-              <span className="picking-count">
-                {picked.size === 0
-                  ? 'Pick the ones you want'
-                  : `${picked.size} selected`}
-              </span>
-              <button
-                disabled={picked.size === 0 || downloading}
-                onClick={() => download('original', [...picked])}
-              >
-                {downloading ? 'Preparing…' : 'Download these'}
-              </button>
-              <button
-                className="secondary"
-                disabled={picked.size === 0 || downloading}
-                onClick={() => download('jpeg', [...picked])}
-              >
-                As JPEG
-              </button>
-              <button className="secondary" onClick={() => setPicked(null)}>
-                Done
-              </button>
-            </div>
           )}
 
           {downloadError && <p className="muted">{downloadError}</p>}
@@ -1261,8 +1187,6 @@ export function EventView({
             <Masonry
               photos={favourites}
               eventId={eventId}
-              picked={picked}
-              onPick={togglePick}
               people={feed.people}
               lead={null}
             />
@@ -1471,8 +1395,6 @@ function Masonry({
   onRetry,
   onPickAgain,
   eventId,
-  picked,
-  onPick,
   people,
   lead,
 }: {
@@ -1483,8 +1405,6 @@ function Masonry({
   onPickAgain?: () => void;
   /** For each tile's own address — a photograph is a page now, not a dialog. */
   eventId: string;
-  picked: Set<string> | null;
-  onPick: (id: string) => void;
   /** For the name on a tile's overlay. Keyed by the contributor digest. */
   people: Person[];
   /** The contribute tile, which is first in the first column. */
@@ -1549,9 +1469,6 @@ function Masonry({
                 href={`/event/${eventId}/p/${photo.id}`}
                 ratio={ratio}
                 by={people.find((person) => person.key === photo.by)?.name ?? null}
-                picking={picked !== null}
-                picked={picked?.has(photo.id) ?? false}
-                onPick={() => onPick(photo.id)}
               />
             );
           })}

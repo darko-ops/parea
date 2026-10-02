@@ -2645,19 +2645,13 @@ fieldset.field > legend { padding: 0; margin-bottom: 8px; }
 
 /* The overlay: on hover, on focus-within, and on a first tap — which is what
    focus-within gives on touch, where there is no hover to have. */
-.tile-scrim, .tile-pick, .tile-chips, .tile-by {
+.tile-scrim, .tile-chips, .tile-by {
   opacity: 0; transition: opacity 120ms ease; pointer-events: none;
 }
 .tile:hover .tile-scrim, .tile:focus-within .tile-scrim,
-.tile:hover .tile-pick, .tile:focus-within .tile-pick,
 .tile:hover .tile-chips, .tile:focus-within .tile-chips,
 .tile:hover .tile-by, .tile:focus-within .tile-by { opacity: 1; }
-.tile:hover .tile-pick, .tile:focus-within .tile-pick,
 .tile:hover .tile-chips, .tile:focus-within .tile-chips { pointer-events: auto; }
-/* A picked one keeps its chrome up: the checkbox is the state, and a state you
-   can only see while pointing at it is not one. */
-.tile-picked .tile-scrim, .tile-picked .tile-pick { opacity: 1; pointer-events: auto; }
-.tile-picked { outline: 3px solid var(--accent); outline-offset: -3px; }
 
 .tile-scrim {
   position: absolute; inset: 0; border-radius: 14px;
@@ -2668,14 +2662,6 @@ fieldset.field > legend { padding: 0; margin-bottom: 8px; }
     rgba(20, 23, 28, .55)
   );
 }
-.tile-pick {
-  position: absolute; left: 12px; top: 12px;
-  width: 22px; height: 22px; padding: 0; border-radius: 6px;
-  border: 1.5px solid rgba(255, 255, 255, .9); background: rgba(255, 255, 255, .18);
-  color: #fff; font-size: 13px; line-height: 1; cursor: pointer;
-  display: flex; align-items: center; justify-content: center;
-}
-.tile-pick-on { background: var(--accent); border-color: var(--accent); }
 .tile-chips { position: absolute; right: 10px; top: 10px; display: flex; gap: 6px; }
 .tile-chip {
   width: 30px; height: 30px; border-radius: 8px; border: 0;
@@ -2732,17 +2718,6 @@ fieldset.field > legend { padding: 0; margin-bottom: 8px; }
 .tile-add-lenses > :nth-child(2),
 .tile-add-lenses > :nth-child(3) { margin-left: -8px; }
 
-/* The bar for a selection. In the flow at the foot of the body rather than
-   floating over the gallery — a floating bar covers the bottom row of exactly
-   the thing being chosen from. */
-.picking {
-  display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
-  border: 1px solid var(--accent); background: var(--accent-soft);
-  border-radius: 14px; padding: 12px 14px;
-}
-.picking-count { flex: 1; font-size: 14px; font-weight: 600; color: var(--accent-ink); }
-.picking button { padding: 9px 14px; font-size: 14px; border-radius: 10px; }
-.picking .secondary { background: var(--card); }
 
 /* People: a page of rows, no cards. */
 .people-tab { display: flex; flex-direction: column; gap: 4px; }
@@ -2850,25 +2825,6 @@ fieldset.field > legend { padding: 0; margin-bottom: 8px; }
 /* A photo that arrived while you were looking. A ring rather than a badge:
    whatever marks it has to not cover any of it. */
 .tile-new { box-shadow: 0 0 0 2px var(--accent); }
-/* A picked one, while selecting. The same ring, plus a wash — a ring alone is
-   what "just arrived" already means, and on a grid where both can be true at
-   once they have to be distinguishable. */
-.tile-picked { box-shadow: 0 0 0 3px var(--accent); }
-.tile-picked picture { opacity: .72; }
-/* Unpicked tiles stay fully legible: dimming everything except the selection
-   would make choosing harder, which is the one thing this mode is for. */
-
-/* The bar for a selection. In the flow at the foot of the body rather than
-   floating over the grid — a floating bar covers the bottom row of exactly the
-   thing being chosen from. */
-.picking {
-  display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
-  border: 1px solid var(--accent); background: var(--accent-soft);
-  border-radius: 14px; padding: 12px 14px;
-}
-.picking-count { flex: 1; font-size: 14px; font-weight: 600; color: var(--accent); }
-.picking button { padding: 9px 14px; font-size: 14px; border-radius: 10px; }
-.picking .secondary { background: var(--card); }
 
 /* A dialog, over everything.
 

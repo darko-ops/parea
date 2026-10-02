@@ -60,9 +60,6 @@ export function PhotoTile({
   href,
   ratio,
   by,
-  picking,
-  picked,
-  onPick,
 }: {
   photo: {
     id: string;
@@ -83,40 +80,20 @@ export function PhotoTile({
   ratio: number;
   /** Whose photograph it is. Null for somebody who arrived by link unnamed. */
   by: string | null;
-  /** The gallery is in selection mode: a tile picks rather than opens. */
-  picking: boolean;
-  picked: boolean;
-  onPick: () => void;
 }) {
   const { ref, failed, onError } = useImageFailure(photo.src);
 
   return (
-    <div className={`tile${picked ? ' tile-picked' : ''}`}>
+    <div className="tile">
       <a
         className="tile-open"
         href={href}
-        // The whole tile is one control while picking, so a tap anywhere on it
-        // does the thing the mode is for rather than leaving the gallery you
-        // were choosing from. `aria-pressed` stays off the link — the tick is
-        // the checkbox below, which is a real button and says so.
-        onClick={
-          picking
-            ? (e) => {
-                e.preventDefault();
-                onPick();
-              }
-            : undefined
-        }
         aria-label={
-          picking
-            ? picked
-              ? 'Selected — press to unselect'
-              : 'Select this photo'
-            : failed
-              ? 'Photo could not be loaded — open for options'
-              : photo.favourite
-                ? 'Open photo — in your favorites'
-                : 'Open photo'
+          failed
+            ? 'Photo could not be loaded — open for options'
+            : photo.favourite
+              ? 'Open photo — in your favorites'
+              : 'Open photo'
         }
         style={{ aspectRatio: `1 / ${failed ? 0.667 : ratio}` }}
       >
@@ -187,21 +164,6 @@ export function PhotoTile({
           <RailIcon glyph="star" weight={2} filled />
         </span>
       )}
-
-      {/*
-        The checkbox is always there rather than only in selection mode: it is
-        how the mode *starts*, which was previously only reachable from a menu
-        two presses away.
-      */}
-      <button
-        type="button"
-        className={`tile-pick${picked ? ' tile-pick-on' : ''}`}
-        aria-pressed={picked}
-        aria-label={picked ? 'Unselect this photo' : 'Select this photo'}
-        onClick={onPick}
-      >
-        {picked ? '✓' : ''}
-      </button>
 
       <span className="tile-chips">
         <a

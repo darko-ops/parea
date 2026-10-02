@@ -58,12 +58,10 @@ describe('the photo is a page', () => {
     expect(EVENT).not.toMatch(/PhotoLightbox|openPhoto/);
   });
 
-  it('keeps selection mode from navigating away', () => {
-    // While picking, a tap ticks the photograph. Without the prevented
-    // default the first tile somebody tries to select takes them off the
-    // gallery they were selecting from.
-    expect(TILE).toMatch(/preventDefault\(\)/);
-    expect(TILE).toMatch(/picking/);
+  it('has no selection mode: a tile always opens its photograph', () => {
+    // Picking photographs to download was a checkbox on every tile and a bar
+    // at the foot; favorites do that job, and "Download favorites" takes them.
+    expect(TILE).not.toMatch(/tile-pick|picking|preventDefault\(\)/);
   });
 
   it('does not put the photograph in a preview card', () => {
