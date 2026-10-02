@@ -84,13 +84,13 @@ describe('the retention periods are the real ones', () => {
 
 describe('the closed list of what is collected', () => {
   it('matches the observation kinds the schema allows', () => {
-    // The page calls this "five facts" and "a closed list". Adding a sixth
+    // The page calls this "seven facts" and "a closed list". Adding an eighth
     // kind without touching the page turns that sentence into a false
     // statement about surveillance, which is the sentence people read most
     // carefully.
     const kinds = schema.observations.kind.enumValues;
-    expect(kinds).toHaveLength(5);
-    expect(PRIVACY).toMatch(/[Ff]ive facts/);
+    expect(kinds).toHaveLength(7);
+    expect(PRIVACY).toMatch(/[Ss]even facts/);
   });
 
   it('describes the notifications this product actually sends', () => {
@@ -142,7 +142,7 @@ describe('the closed list of what is collected', () => {
      * exists to list what is stored. Nobody noticed because the assertions
      * above check the strings that were there, not the columns that were not.
      *
-     * So this is checked the way the "five facts" claim is: against the schema.
+     * So this is checked the way the "seven facts" claim is: against the schema.
      * Every column on `actor` is either bookkeeping, and named here as such, or
      * it is something about a person and the page has to say so. Adding a
      * column fails this test until somebody decides which it is.
@@ -176,6 +176,9 @@ describe('the closed list of what is collected', () => {
       // A setting, and the page has to say both halves: what turning it off
       // stops, and what it does not.
       discoverable: /let people who have my phone\s+number or email find me on Parea/i,
+      // One date, overwritten — but a date about you, so said rather than
+      // waved through as bookkeeping.
+      counted_on: /the last day you were\s+counted/,
     };
 
     // `getTableColumns` rather than `Object.values`, which also hands back
@@ -225,7 +228,7 @@ describe('the closed list of what is collected', () => {
       moment_view: /Which moments you have opened is recorded/,
       moment_comment: /Comments and reactions left on a moment are kept with it/,
       moment_reaction: /Comments and reactions left on a moment are kept with it/,
-      observation: /[Ff]ive facts/,
+      observation: /[Ss]even facts/,
       event: /That you made a roll/,
       event_participant: /records that you are in that roll/,
       event_access_request: /asked to join a private roll/,
@@ -284,6 +287,11 @@ describe('the closed list of what is collected', () => {
       // unusual part is what it holds while it waits — the makings of a claim
       // on a number nobody has proved yet — so the page says that too.
       phone_code: /a scrambled\s+form of the code/,
+      // Totals with nobody in them. Disclosed anyway: "we count how many
+      // people use it" is something a person reading this page would want to
+      // know, and the test of a total is that the page can say so plainly.
+      activity_day: /how many people used Parea/,
+      activity_week: /how\s+many of the people who arrived in a given week came back/,
     };
 
     // `isTable` rather than duck-typing on a property: the first attempt

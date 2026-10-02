@@ -13,6 +13,7 @@
  */
 
 import { schema } from '@parea/core';
+import { and, eq, sql } from 'drizzle-orm';
 
 import type { Db } from './db';
 
@@ -44,6 +45,8 @@ export async function observe(
     client: Client;
     count?: number | null;
     outOf?: number | null;
+    /** `join_refused` only. */
+    reason?: string | null;
   },
 ): Promise<void> {
   try {
@@ -54,11 +57,35 @@ export async function observe(
       client: observation.client,
       count: observation.count ?? null,
       outOf: observation.outOf ?? null,
+      reason: observation.reason ?? null,
     });
   } catch (err) {
     // Logged rather than swallowed silently: a metric that stops being
     // recorded looks exactly like a metric that went to zero, and the two
     // want very different reactions.
     console.warn(`observation ${observation.kind} not recorded:`, err);
+  }
+}
+
+/**
+ * Whether somebody presenting a link is arriving rather than coming back.
+ *
+ * `link_opened` counts arrivals: a member opening the album's link again for
+ * the hundredth time is using the product, not finding their way into it, and
+ * counting them would bury the door's numbers under the album's regulars.
+ * Unknown people are arriving by definition.
+ */
+export async function isArriving(db: Db, eventId: string, actorId: string | null): Promise<boolean> {
+  if (!actorId) return true;
+  try {
+    const [row] = await db
+      .select({ one: sql<number>`1` })
+      .from(schema.eventParticipants)
+      .where(and(eq(schema.eventParticipants.eventId, eventId), eq(schema.eventParticipants.actorId, actorId)))
+      .limit(1);
+    return !row;
+  } catch {
+    // Never let a metric fail the door.
+    return false;
   }
 }

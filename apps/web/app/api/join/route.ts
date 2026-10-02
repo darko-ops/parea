@@ -15,7 +15,7 @@ import { NextResponse } from 'next/server';
 
 import { decide, findEventById, findEventByLinkToken, isSignedIn, recordParticipant } from '@/access';
 import { getDb } from '@/db';
-import { clientOf, observe } from '@/observe';
+import { clientOf, isArriving, observe } from '@/observe';
 import { JOIN_CODE_LIMIT, withinLimit, withinLimitFor } from '@/ratelimit';
 import { currentActorId } from '@/session';
 
@@ -111,6 +111,22 @@ export async function POST(request: Request) {
     code: presentedCode,
   });
 
+  // §18: where joining loses people. By id is somebody browsing a profile,
+  // not somebody sent a link, so it is not a door and is not counted.
+  const arriving = !byId && (await isArriving(db, event.id, actorId));
+  if (arriving) {
+    await observe(db, { kind: 'link_opened', eventId: event.id, actorId, client: clientOf(request) });
+    if (!decision.allow) {
+      await observe(db, {
+        kind: 'join_refused',
+        eventId: event.id,
+        actorId,
+        client: clientOf(request),
+        reason: decision.reason,
+      });
+    }
+  }
+
   /*
    * A private album whose creator has not let them in yet, and the app's own
    * version of the redirect `/e/<token>` sends a browser.
@@ -177,9 +193,10 @@ export async function POST(request: Request) {
 
   // §18's install-conversion question: which client people actually arrive on,
   // and therefore whether the install wall is costing contribution. Recorded
-  // after the decision, so a refused join is not counted as one.
-  // Nor counted as a join, for the same reason.
-  if (!byId)
+  // after the decision, so a refused join is not counted as one. Arrivals
+  // only, as on the web: somebody already in, opening the album again, is not
+  // joining it, and counting them would let regulars outnumber newcomers.
+  if (arriving)
     await observe(db, {
       kind: 'joined',
       eventId: event.id,

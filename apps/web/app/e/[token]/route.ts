@@ -23,8 +23,9 @@ import {
   toResponse,
 } from '@/access';
 import { getDb } from '@/db';
+import { isArriving, observe } from '@/observe';
 import { isLinkUnfurler, previewHtml } from '@/preview';
-import { ensureActor, grantCapability, requesterFor } from '@/session';
+import { currentActorId, ensureActor, grantCapability, requesterFor } from '@/session';
 
 export const runtime = 'nodejs';
 
@@ -73,6 +74,17 @@ export async function GET(
 
   const requester = await requesterFor(event.id, { linkToken: token });
   const decision = await decide(db, event, 'view', requester);
+
+  // §18: where joining loses people. Recorded before any redirect, because a
+  // redirect ends the handler. Only arrivals — see `isArriving`.
+  const before = await currentActorId();
+  const arriving = await isArriving(db, event.id, before);
+  if (arriving) {
+    await observe(db, { kind: 'link_opened', eventId: event.id, actorId: before, client: 'web' });
+    if (!decision.allow) {
+      await observe(db, { kind: 'join_refused', eventId: event.id, actorId: before, client: 'web', reason: decision.reason });
+    }
+  }
 
   // A private event, opened by someone signed out. They hold a real link, so
   // this is a step rather than a wall — send them to sign in and bring them
@@ -131,6 +143,9 @@ export async function GET(
    */
   const actorId = await ensureActor(db);
   await recordParticipant(db, event.id, actorId);
+  // The web's join, which used to go unrecorded: only the app's door wrote
+  // `joined`, so every install-conversion number read low on the web.
+  if (arriving) await observe(db, { kind: 'joined', eventId: event.id, actorId, client: 'web' });
   await grantCapability(event.id, event.capEpoch);
   redirect(`/event/${event.id}`);
 }

@@ -41,7 +41,8 @@ beforeEach(async () => {
   process.env.ADMIN_API_TOKEN = TOKEN;
   process.env.ADMIN_STAFF = STAFF;
   await db.execute(sql`
-    truncate "actor", "event", "photo", "observation", "groups", "job_run", "event_access_request"
+    truncate "actor", "event", "photo", "observation", "groups", "job_run", "event_access_request",
+             "activity_day", "activity_week"
     restart identity cascade
   `);
 });
@@ -223,5 +224,69 @@ describe('the experience numbers', () => {
       expect.objectContaining({ name: 'hourly', lastError: 'boom' }),
     ]);
     expect(body.reliability.waiting).toContainEqual(expect.objectContaining({ kind: 'album_access', open: 1, overAWeek: 1 }));
+  });
+
+  it('chart activity by day, and say when counting began', async () => {
+    await db.execute(sql`
+      insert into "activity_day" ("day", "kind", "active") values
+        ((now() at time zone 'utc')::date, 'user', 5),
+        ((now() at time zone 'utc')::date, 'guest', 2),
+        ((now() at time zone 'utc')::date - 3, 'user', 4)
+    `);
+    const body = await (await get('?days=7')).json();
+    expect(body.activity.days).toHaveLength(28);
+    expect(body.activity.days.at(-1)).toMatchObject({ accounts: 5, guests: 2 });
+    expect(body.activity.days.at(-4)).toMatchObject({ accounts: 4, guests: 0 });
+    expect(body.activity.recordingSince).toBe(body.activity.days.at(-4).day);
+  });
+
+  it('draw retention by signup week, blank where a week is ahead or before counting', async () => {
+    // Three people who arrived two weeks ago; counting began then.
+    const twoWeeksAgo = sql`(date_trunc('week', now() at time zone 'utc')::date - 14)`;
+    for (let i = 0; i < 3; i++) {
+      await db.execute(sql`insert into "actor" ("kind", "created_at") values ('user', ${twoWeeksAgo}::timestamp + interval '1 day')`);
+    }
+    await db.execute(sql`insert into "activity_day" ("day", "kind", "active") values (${twoWeeksAgo}, 'user', 3)`);
+    await db.execute(sql`
+      insert into "activity_week" ("week", "cohort", "active") values
+        (${twoWeeksAgo}, ${twoWeeksAgo}, 3),
+        (${twoWeeksAgo} + 7, ${twoWeeksAgo}, 2)
+    `);
+    const body = await (await get()).json();
+    const grid = body.activity.retention;
+    expect(grid).toHaveLength(8);
+    const row = grid.at(-3);
+    expect(row.size).toBe(3);
+    // W0 and W1 counted, W2 is this week with nobody back yet, W3 on is ahead.
+    expect(row.weeks).toEqual([3, 2, 0, null, null, null, null, null]);
+    // Weekly active is every cohort's count for the week, once.
+    expect(body.activity.weeks).toHaveLength(12);
+    expect(body.activity.weeks.at(-3).active).toBe(3);
+    expect(body.activity.weeks.at(-2).active).toBe(2);
+    // Earlier cohorts' weeks before counting began are unknown, not zero.
+    expect(grid[0].weeks.slice(0, 5)).toEqual([null, null, null, null, null]);
+  });
+
+  it('count arrivals, joins and refusals at the door, by client and by reason', async () => {
+    const host = await person('H');
+    const e = await album(host);
+    await db.insert(schema.observations).values([
+      { kind: 'link_opened', eventId: e, client: 'web' },
+      { kind: 'link_opened', eventId: e, client: 'web' },
+      { kind: 'link_opened', eventId: e, client: 'ios' },
+      { kind: 'joined', eventId: e, client: 'web' },
+      { kind: 'join_refused', eventId: e, client: 'web', reason: 'sign_in_required' },
+      { kind: 'join_refused', eventId: e, client: 'ios', reason: 'joins_closed' },
+    ]);
+    const body = await (await get()).json();
+    expect(body.doors.byClient).toEqual({
+      web: { opened: 2, joined: 1, refused: 1 },
+      ios: { opened: 1, joined: 0, refused: 1 },
+      android: { opened: 0, joined: 0, refused: 0 },
+    });
+    expect(body.doors.refusals).toEqual(
+      expect.arrayContaining([{ reason: 'sign_in_required', n: 1 }, { reason: 'joins_closed', n: 1 }]),
+    );
+    expect(body.doors.recordingSince).not.toBeNull();
   });
 });

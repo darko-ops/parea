@@ -250,15 +250,25 @@ export default function PrivacyPage() {
             why it is sent rather than left to be found.
           </p>
 
-          <h3>Five facts about how the product is used</h3>
+          <h3>Seven facts about how the product is used</h3>
           <p className="muted">
             A closed list, recorded in our own database, never sent anywhere:
-            that someone joined a roll, that an archive was downloaded, that a
-            photo suggestion was shown, how much of a suggestion was kept, and
-            that the plain picker was used instead. They answer one question
-            &mdash; does anyone other than the person who made the roll actually
-            add photos &mdash; and nothing else is collected &ldquo;in case it is
-            useful later&rdquo;.
+            that someone opened a roll&rsquo;s link, that they joined it or
+            were turned away and for which reason, that an archive was
+            downloaded, that a photo suggestion was shown, how much of a
+            suggestion was kept, and that the plain picker was used instead.
+            They answer one question &mdash; does anyone other than the person
+            who made the roll actually add photos &mdash; and nothing else is
+            collected &ldquo;in case it is useful later&rdquo;.
+          </p>
+
+          <h3>How many people use it</h3>
+          <p className="muted">
+            Each day we count how many people used Parea, and each week how
+            many of the people who arrived in a given week came back. Those are
+            totals with nobody in them. To count you once however many devices
+            you use, the only thing kept against you is the last day you were
+            counted &mdash; one date, replaced the next day you are here.
           </p>
 
           <h3>Who you are friends with</h3>
@@ -555,9 +565,11 @@ export default function PrivacyPage() {
             </li>
             <li>
               <strong>Sentry</strong> &mdash; receives reports of errors on our
-              servers so we can fix them. They are scrubbed before they leave: no
-              roll links, no email addresses, no phone numbers. Nothing from your
-              browser or phone is sent to it.
+              servers, and crash reports from the phone app, so we can fix them.
+              They are scrubbed before they leave &mdash; on the phone, for the
+              app&rsquo;s: no roll links, no email addresses, no phone numbers,
+              and nothing that says who you are. Nothing from your browser is
+              sent to it.
             </li>
             <li>
               <strong>Upstash</strong> &mdash; queues photographs for processing.

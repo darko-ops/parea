@@ -1660,11 +1660,12 @@ fraction of events carrying a creator-set window are all facts the schema
 already holds. Collecting them a second time through a pipeline would move
 user data somewhere new and answer nothing extra.
 
-Five things are not derivable, and they are a closed list in one first-party
+Seven things are not derivable, and they are a closed list in one first-party
 table — `observation`, in the same spirit as the three notifications. Nothing
-is sent anywhere and there is no third-party SDK, which is also what keeps the
-app's privacy manifest honest: it declares no tracking and no tracking
-domains, and that has to stay true.
+is sent anywhere, which is also what keeps the app's privacy manifest honest:
+it declares no tracking and no tracking domains, and that has to stay true.
+(The app's one third-party SDK is Sentry's, for crash reports — not linked to
+anybody, scrubbed on the phone, and off in a build without a DSN.)
 
 | Observation | Recorded by | Because |
 |---|---|---|
@@ -1673,6 +1674,15 @@ domains, and that has to stay true.
 | `autoselect_shown` | the app | a suggestion happens on a device |
 | `autoselect_confirmed` | the app | precision is the gap between offered and kept |
 | `picker_used` | the app | without it, "precision is fine" and "almost nobody saw a suggestion" read alike |
+| `link_opened` | `/e/<token>` and the join route | arrivals at the door — with `joined` and `join_refused`, where joining loses people |
+| `join_refused` | the same | which no: `reason` holds the policy's `sign_in_required`, `joins_closed`… |
+
+Activity over time is not an observation. `last_seen_at` is overwritten, so
+"how many people were here on Tuesday" was unanswerable after Tuesday;
+`resolveSession` now adds each person once a day to `activity_day` and once a
+week to `activity_week`, under the week they arrived — totals only, with one
+date on the actor (`counted_on`) so the count is made once however many
+devices they bring.
 
 Only the three the device is the sole witness to are accepted from a client.
 An endpoint that let a client assert *someone downloaded this* would make the

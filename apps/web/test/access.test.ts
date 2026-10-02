@@ -807,7 +807,9 @@ describe('the native join route', () => {
   });
 
   it('looks rather than joins, like `/event/<id>` on the web', () => {
-    expect(route).toMatch(/if \(!byId\)\s*\n?\s*await observe\(db, \{\s*\n\s*kind: 'joined'/);
+    // Recorded as a join only for an arrival, and an arrival is never by id.
+    expect(route).toMatch(/const arriving = !byId &&/);
+    expect(route).toMatch(/if \(arriving\)\s*\n?\s*await observe\(db, \{\s*\n\s*kind: 'joined'/);
   });
 
   /**
