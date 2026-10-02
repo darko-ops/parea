@@ -452,17 +452,17 @@ export async function experience(db: Db, days: ExperiencePeriod) {
 export type Experience = Awaited<ReturnType<typeof experience>>;
 
 /**
- * Retention by signup week: the last eight weeks people arrived in, and for
+ * Retention by signup week: the last `weeks` weeks people arrived in, and for
  * each, how many were active k weeks later. `null` where a week is still
  * ahead or came before counting began — unknown, which is not the same as
  * nobody. Shared by the Experience page and the overview.
  */
-export async function retentionGrid(db: Db, recordingSince: string | null) {
+export async function retentionGrid(db: Db, recordingSince: string | null, weeks: number = RETENTION_WEEKS) {
   const cohorts = rowsOf(
     await db.execute(sql`
       with c as (
         select generate_series(
-                 date_trunc('week', now() at time zone 'utc') - interval '${sql.raw(String(RETENTION_WEEKS - 1))} weeks',
+                 date_trunc('week', now() at time zone 'utc') - interval '${sql.raw(String(weeks - 1))} weeks',
                  date_trunc('week', now() at time zone 'utc'),
                  interval '1 week')::date as "cohort"
       )
@@ -486,7 +486,7 @@ export async function retentionGrid(db: Db, recordingSince: string | null) {
       cohort: c.cohort as string,
       size: Number(c.size),
       // null where the week has not happened yet, or happened before counting began.
-      weeks: Array.from({ length: RETENTION_WEEKS }, (_, k) => {
+      weeks: Array.from({ length: weeks }, (_, k) => {
         const week = addDays(c.cohort, 7 * k);
         if (!thisWeek || week > thisWeek) return null;
         if (!recordedFromWeek || week < recordedFromWeek) return null;
