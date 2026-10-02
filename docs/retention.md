@@ -19,7 +19,7 @@ number here, change the policy in the same commit.
 | Signed-out sessions | a week on the device list | `staleSessions` in `apps/web/src/sessions.ts`, swept by `jobs.ts` |
 | Spoken album codes | released after 90 days unused | `jobs.ts` (`CODE_DORMANCY_DAYS`) |
 | Usage facts (`observation`) | one year | `jobs.ts` |
-| Daily and weekly activity counts (`activity_day`, `activity_week`) | kept — totals only, nobody in them | `resolveSession` in `apps/web/src/sessions.ts` |
+| Daily, weekly and monthly activity counts (`activity_day`, `activity_week`, `activity_month`) | kept — totals only, nobody in them | `resolveSession` in `apps/web/src/sessions.ts` |
 | The last day someone was counted active (`actor.counted_on`) | with the actor; one date, overwritten | `resolveSession` |
 | App crash reports | Sentry's own retention; no user in them | `apps/mobile/src/crashReports.ts` |
 | Accounts, profiles, messages, reactions | until deleted by the person, or account deletion | `deleteAccount` in `apps/web/src/accounts.ts` |

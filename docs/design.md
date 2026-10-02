@@ -1679,8 +1679,9 @@ anybody, scrubbed on the phone, and off in a build without a DSN.)
 
 Activity over time is not an observation. `last_seen_at` is overwritten, so
 "how many people were here on Tuesday" was unanswerable after Tuesday;
-`resolveSession` now adds each person once a day to `activity_day` and once a
-week to `activity_week`, under the week they arrived — totals only, with one
+`resolveSession` now adds each person once a day to `activity_day`, once a
+week to `activity_week` under the week they arrived, and once a month to
+`activity_month`, which is what DAU/MAU divides by — totals only, with one
 date on the actor (`counted_on`) so the count is made once however many
 devices they bring.
 

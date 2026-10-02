@@ -421,6 +421,13 @@
       "when": 1790905595745,
       "tag": "0059_activity_and_doors",
       "breakpoints": true
+    },
+    {
+      "idx": 60,
+      "version": "7",
+      "when": 1790911215617,
+      "tag": "0060_activity_month",
+      "breakpoints": true
     }
   ]
 }

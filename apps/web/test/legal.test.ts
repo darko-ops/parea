@@ -290,8 +290,9 @@ describe('the closed list of what is collected', () => {
       // Totals with nobody in them. Disclosed anyway: "we count how many
       // people use it" is something a person reading this page would want to
       // know, and the test of a total is that the page can say so plainly.
-      activity_day: /how many people used Parea/,
-      activity_week: /how\s+many of the people who arrived in a given week came back/,
+      activity_day: /Each day and each month we count how many people used Parea/,
+      activity_month: /Each day and each month we count how many people used Parea/,
+      activity_week: /each week how many of the people who arrived in a given week came\s+back/,
     };
 
     // `isTable` rather than duck-typing on a property: the first attempt

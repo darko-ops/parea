@@ -264,9 +264,9 @@ export default function PrivacyPage() {
 
           <h3>How many people use it</h3>
           <p className="muted">
-            Each day we count how many people used Parea, and each week how
-            many of the people who arrived in a given week came back. Those are
-            totals with nobody in them. To count you once however many devices
+            Each day and each month we count how many people used Parea, and
+            each week how many of the people who arrived in a given week came
+            back. Those are totals with nobody in them. To count you once however many devices
             you use, the only thing kept against you is the last day you were
             counted &mdash; one date, replaced the next day you are here.
           </p>

@@ -277,24 +277,6 @@ export async function experience(db: Db, days: ExperiencePeriod) {
     await db.execute(sql`select to_char(min("day"), 'YYYY-MM-DD') as "day" from "activity_day"`),
   );
 
-  const cohorts = rowsOf(
-    await db.execute(sql`
-      with c as (
-        select generate_series(
-                 date_trunc('week', now() at time zone 'utc') - interval '${sql.raw(String(RETENTION_WEEKS - 1))} weeks',
-                 date_trunc('week', now() at time zone 'utc'),
-                 interval '1 week')::date as "cohort"
-      )
-      select to_char(c."cohort", 'YYYY-MM-DD') as "cohort",
-             (select count(*)::int from "actor" a
-               where a."merged_into_id" is null
-                 and date_trunc('week', a."created_at" at time zone 'utc')::date = c."cohort") as "size",
-             coalesce((select json_agg(json_build_object('k', (w."week" - c."cohort") / 7, 'n', w."active"))
-                         from "activity_week" w where w."cohort" = c."cohort"), '[]'::json) as "cells"
-        from c
-       order by c."cohort"
-    `),
-  );
   // Weekly active: every cohort's count for a week is everybody active that week, once.
   const weekly = rowsOf(
     await db.execute(sql`
@@ -308,24 +290,7 @@ export async function experience(db: Db, days: ExperiencePeriod) {
        order by w
     `),
   );
-  const thisWeek = cohorts.length ? cohorts[cohorts.length - 1].cohort : null;
-  const recordedFromWeek = firstDay?.day ? mondayOf(firstDay.day) : null;
-  const retention = cohorts.map((c) => {
-    const found = new Map<number, number>(
-      (typeof c.cells === 'string' ? JSON.parse(c.cells) : c.cells).map((x: { k: number; n: number }) => [Number(x.k), Number(x.n)]),
-    );
-    return {
-      cohort: c.cohort as string,
-      size: Number(c.size),
-      // null where the week has not happened yet, or happened before counting began.
-      weeks: Array.from({ length: RETENTION_WEEKS }, (_, k) => {
-        const week = addDays(c.cohort, 7 * k);
-        if (!thisWeek || week > thisWeek) return null;
-        if (!recordedFromWeek || week < recordedFromWeek) return null;
-        return found.get(k) ?? 0;
-      }),
-    };
-  });
+  const retention = await retentionGrid(db, firstDay?.day ?? null);
 
   // ---------------------------------------------------------------------------
   // The door: arrivals, who got in, and who was turned away and why.
@@ -485,3 +450,49 @@ export async function experience(db: Db, days: ExperiencePeriod) {
 }
 
 export type Experience = Awaited<ReturnType<typeof experience>>;
+
+/**
+ * Retention by signup week: the last eight weeks people arrived in, and for
+ * each, how many were active k weeks later. `null` where a week is still
+ * ahead or came before counting began — unknown, which is not the same as
+ * nobody. Shared by the Experience page and the overview.
+ */
+export async function retentionGrid(db: Db, recordingSince: string | null) {
+  const cohorts = rowsOf(
+    await db.execute(sql`
+      with c as (
+        select generate_series(
+                 date_trunc('week', now() at time zone 'utc') - interval '${sql.raw(String(RETENTION_WEEKS - 1))} weeks',
+                 date_trunc('week', now() at time zone 'utc'),
+                 interval '1 week')::date as "cohort"
+      )
+      select to_char(c."cohort", 'YYYY-MM-DD') as "cohort",
+             (select count(*)::int from "actor" a
+               where a."merged_into_id" is null
+                 and date_trunc('week', a."created_at" at time zone 'utc')::date = c."cohort") as "size",
+             coalesce((select json_agg(json_build_object('k', (w."week" - c."cohort") / 7, 'n', w."active"))
+                         from "activity_week" w where w."cohort" = c."cohort"), '[]'::json) as "cells"
+        from c
+       order by c."cohort"
+    `),
+  );
+  const thisWeek = cohorts.length ? cohorts[cohorts.length - 1].cohort : null;
+  const recordedFromWeek = recordingSince ? mondayOf(recordingSince) : null;
+  return cohorts.map((c) => {
+    const found = new Map<number, number>(
+      (typeof c.cells === 'string' ? JSON.parse(c.cells) : c.cells).map((x: { k: number; n: number }) => [Number(x.k), Number(x.n)]),
+    );
+    return {
+      cohort: c.cohort as string,
+      size: Number(c.size),
+      // null where the week has not happened yet, or happened before counting began.
+      weeks: Array.from({ length: RETENTION_WEEKS }, (_, k) => {
+        const week = addDays(c.cohort, 7 * k);
+        if (!thisWeek || week > thisWeek) return null;
+        if (!recordedFromWeek || week < recordedFromWeek) return null;
+        return found.get(k) ?? 0;
+      }),
+    };
+  });
+
+}

@@ -332,7 +332,8 @@ export const actors = pgTable(
   /** Set when a guest actor is merged into an account's canonical actor. */
   mergedIntoId: uuid('merged_into_id'),
   /**
-   * The last UTC day this person was counted as active — `activity_day`.
+   * The last UTC day this person was counted as active — `activity_day`,
+   * `activity_week` and `activity_month`.
    *
    * Not a history: one date, overwritten, saying no more than the newest
    * session's `last_seen_at` already does. It exists so the count is made
@@ -2227,6 +2228,18 @@ export const activityWeeks = pgTable(
   },
   (t) => [primaryKey({ columns: [t.week, t.cohort] })],
 );
+
+/**
+ * How many people were active in each UTC month — the "M" in DAU/MAU.
+ *
+ * A distinct count cannot be summed from days or weeks (somebody here on two
+ * days is one person, not two), so it is counted where the others are:
+ * once per person per month, by `resolveSession`. A total, nobody in it.
+ */
+export const activityMonths = pgTable('activity_month', {
+  month: date('month').primaryKey(),
+  active: integer('active').notNull().default(0),
+});
 
 /**
  * Fixed-window request counters — design §7.8.

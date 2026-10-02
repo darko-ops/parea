@@ -155,8 +155,9 @@ export const STALE_SIGN_IN = { error: 'recent_sign_in_required' } as const;
  * credential that still verifies perfectly well.
  *
  * The same statement counts the person as active — design §18. Once a day
- * into `activity_day`, and once a week into `activity_week` under the week
- * they arrived, which is retention by signup week. Totals only: the one
+ * into `activity_day`, once a week into `activity_week` under the week they
+ * arrived, which is retention by signup week, and once a month into
+ * `activity_month`, which is what DAU/MAU divides by. Totals only: the one
  * thing kept about the person is `actor.counted_on`, a single date. It costs
  * nothing on the common path, where `counted_on` is already today and the
  * update matches no row.
@@ -207,6 +208,13 @@ export async function resolveSession(
         from counted
        where "prev" is null or "prev" < date_trunc('week', now() at time zone 'utc')::date
       on conflict ("week", "cohort") do update set "active" = "activity_week"."active" + 1
+      returning 1
+    ), by_month as (
+      insert into "activity_month" ("month", "active")
+      select date_trunc('month', now() at time zone 'utc')::date, 1
+        from counted
+       where "prev" is null or "prev" < date_trunc('month', now() at time zone 'utc')::date
+      on conflict ("month") do update set "active" = "activity_month"."active" + 1
       returning 1
     )
     select "actor_id" from live

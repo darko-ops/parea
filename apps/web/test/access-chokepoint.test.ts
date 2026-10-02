@@ -300,7 +300,7 @@ describe('the admin routes, and the staff gate in front of them', () => {
     // The runbook's first rule for a child-safety alert is not to open the
     // image. An API that could serve one would make that a matter of
     // discipline rather than of what is possible.
-    for (const file of ['src/admin.ts', 'src/adminPeople.ts', 'src/adminExperience.ts']) {
+    for (const file of ['src/admin.ts', 'src/adminPeople.ts', 'src/adminExperience.ts', 'src/adminPulse.ts']) {
       const source = await readCode(join(ROOT, file));
       expect(source, file).not.toMatch(/storageKey|coverKey|avatarKey|getStorage|imageUrl|signImage|presign/);
     }

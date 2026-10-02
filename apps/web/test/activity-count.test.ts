@@ -28,7 +28,7 @@ beforeAll(async () => {
 });
 
 beforeEach(async () => {
-  await db.execute(sql`truncate "actor", "session", "activity_day", "activity_week" restart identity cascade`);
+  await db.execute(sql`truncate "actor", "session", "activity_day", "activity_week", "activity_month" restart identity cascade`);
 });
 
 async function person(kind: 'guest' | 'user' = 'user', createdAt?: Date) {
@@ -59,6 +59,7 @@ describe('counting people as active', () => {
 
     expect(await days()).toEqual([{ kind: 'user', active: 1 }]);
     expect(await weeks()).toEqual([{ cohort: await monday(), active: 1 }]);
+    expect(await rows(sql`select "active" from "activity_month"`)).toEqual([{ active: 1 }]);
     const [row] = await db.select({ on: schema.actors.countedOn }).from(schema.actors).where(eq(schema.actors.id, me));
     expect(row!.on).toBe(await today());
   });
@@ -98,6 +99,22 @@ describe('counting people as active', () => {
     }
   });
 
+  it('counts a new month once, whatever the day', async () => {
+    const me = await person();
+    const s = await signIn(me);
+    // Last counted the day before this month began: new day, new month.
+    await db.execute(sql`update "actor" set "counted_on" = date_trunc('month', now() at time zone 'utc')::date - 1`);
+    await resolveSession(db, s);
+    expect(await rows(sql`select "active" from "activity_month"`)).toEqual([{ active: 1 }]);
+    // Earlier this month but not today: the day counts, the month already has them.
+    const first = (await rows(sql`select date_trunc('month', now() at time zone 'utc')::date::text as "d"`))[0].d;
+    if ((await today()) !== first) {
+      await db.execute(sql`update "actor" set "counted_on" = date_trunc('month', now() at time zone 'utc')::date`);
+      await resolveSession(db, s);
+      expect(await rows(sql`select "active" from "activity_month"`)).toEqual([{ active: 1 }]);
+    }
+  });
+
   it('does not count somebody suspended, or a revoked session', async () => {
     const banned = await person();
     const s = await signIn(banned);
@@ -110,11 +127,13 @@ describe('counting people as active', () => {
     await resolveSession(db, await signIn(await person()));
     const cols = await rows(sql`
       select table_name, column_name from information_schema.columns
-       where table_name in ('activity_day', 'activity_week') order by 1, 2`);
+       where table_name in ('activity_day', 'activity_week', 'activity_month') order by 1, 2`);
     expect(cols.map((c) => `${c.table_name}.${c.column_name}`)).toEqual([
       'activity_day.active',
       'activity_day.day',
       'activity_day.kind',
+      'activity_month.active',
+      'activity_month.month',
       'activity_week.active',
       'activity_week.cohort',
       'activity_week.week',
