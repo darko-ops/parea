@@ -474,6 +474,7 @@ export function PhotoViewer({
   onDownload,
   downloading,
   onRipple,
+  onSendToChat,
   uploader,
   onOpenPerson,
   onFavourite,
@@ -529,6 +530,12 @@ export function PhotoViewer({
    * drawn there.
    */
   onRipple?: () => void;
+  /**
+   * Send this photograph — or this moment — into one of your chats: the
+   * paper plane, left of the ripple. The caller opens `ChatPicker` with
+   * whichever it is. Absent where there is nothing to send.
+   */
+  onSendToChat?: () => void;
   /**
    * Whose photograph this is, for the square at the top.
    *
@@ -1188,6 +1195,24 @@ export function PhotoViewer({
                 photograph already in the frame, so the last step — Share — is
                 still somebody's own, looking at what their people will see.
               */}
+              {/*
+                Send it to somebody: the paper plane, first of the doing.
+
+                Into a chat — one person or a group — with a line if you want
+                one. Left of the ripple because it is the smaller act: one
+                chat, rather than everyone you share moments with.
+              */}
+              {onSendToChat && (
+                <Pressable
+                  onPress={onSendToChat}
+                  accessibilityRole="button"
+                  accessibilityLabel={moment ? 'Send this moment to a chat' : 'Send this photo to a chat'}
+                  style={({ pressed }) => [styles.disc, { opacity: pressed ? 0.55 : 1 }]}
+                >
+                  <Glyph name="send" size={21} color="#fff" />
+                </Pressable>
+              )}
+
               {onRipple && (
                 <Pressable
                   onPress={onRipple}

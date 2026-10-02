@@ -83,6 +83,7 @@ import { PickPhotos } from './src/PickPhotos';
 import { AddMoment } from './src/Moments';
 import { loadAppearance, useAppearance } from './src/appearance';
 import { Back, More, RoundButton } from './src/RoundButton';
+import { ChatPicker } from './src/ChatPicker';
 import { PhotoViewer } from './src/PhotoViewer';
 import { SwipeBack } from './src/SwipeBack';
 import { ProfileScreen } from './src/Profile';
@@ -2521,6 +2522,8 @@ function EventScreen({
    * screen's effect sees one object rather than a new one every render.
    */
   const [rippling, setRippling] = useState<{ id: string; url: string; mime: string } | null>(null);
+  /** The photograph on its way into a chat, while the picker is open. */
+  const [sendingPhoto, setSendingPhoto] = useState<string | null>(null);
   // Goes with the viewer: nothing to make a moment of once it has closed.
   useEffect(() => {
     if (!selected) setRippling(null);
@@ -5387,6 +5390,7 @@ function EventScreen({
                     })
                 : undefined
             }
+            onSendToChat={feed?.canPost ? () => setSendingPhoto(selected.id) : undefined}
           />
 
           {/*
@@ -5455,6 +5459,14 @@ function EventScreen({
               />
             </View>
           )}
+
+          {/* Sending it into a chat — in this modal for the same reason. */}
+          <ChatPicker
+            api={api}
+            t={t}
+            sending={sendingPhoto ? { photoId: sendingPhoto } : null}
+            onClose={() => setSendingPhoto(null)}
+          />
         </Modal>
       )}
 

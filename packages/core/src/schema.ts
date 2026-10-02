@@ -1819,6 +1819,17 @@ export const groupMessages = pgTable(
     }),
     /** The emoji, when the answer was a reaction rather than words. */
     momentEmoji: text('moment_emoji'),
+    /**
+     * A photograph from a roll, sent into the chat.
+     *
+     * The chat draws it while it is still there to see — not deleted, not
+     * hidden, not removed — and a blank where it was once it is not. Set
+     * null, not cascaded, if the photo row goes: the message is somebody's
+     * words as well, and they stay.
+     */
+    photoId: uuid('photo_id').references((): AnyPgColumn => photos.id, {
+      onDelete: 'set null',
+    }),
     createdAt: createdAt(),
     editedAt: timestamp('edited_at', { withTimezone: true }),
     deletedAt: timestamp('deleted_at', { withTimezone: true }),

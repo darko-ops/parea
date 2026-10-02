@@ -1,0 +1,2 @@
+ALTER TABLE "group_message" ADD COLUMN "photo_id" uuid;--> statement-breakpoint
+ALTER TABLE "group_message" ADD CONSTRAINT "group_message_photo_id_photo_id_fk" FOREIGN KEY ("photo_id") REFERENCES "public"."photo"("id") ON DELETE set null ON UPDATE no action;

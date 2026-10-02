@@ -79,6 +79,12 @@ export type Message = {
    * moment is the reader's own, which decides "your moment" or "their moment".
    */
   moment?: { id: string; thumb: string | null; emoji: string | null; mine: boolean };
+  /**
+   * Chats only: a roll's photograph sent into it. `thumb` and `full` are null
+   * once it is no longer there to see — deleted, hidden, or its taker blocked
+   * either way — and the client draws a blank where it was.
+   */
+  photo?: { id: string; thumb: string | null; full: string | null };
 };
 
 /**

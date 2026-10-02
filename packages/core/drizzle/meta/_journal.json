@@ -442,6 +442,13 @@
       "when": 1790955679726,
       "tag": "0062_download_scope",
       "breakpoints": true
+    },
+    {
+      "idx": 63,
+      "version": "7",
+      "when": 1790963979445,
+      "tag": "0063_chat_photo",
+      "breakpoints": true
     }
   ]
 }

@@ -195,7 +195,8 @@ describe('moments', () => {
     // Each new moment starts its own clock; the ⋯ sheet, the comment sheet
     // and the emoji picker all hold it.
     expect(MOMENTS).toMatch(/progress\.setValue\(0\);\s*\}, \[progress, showing\]\);/);
-    expect(MOMENTS).toMatch(/if \(!showing \|\| options \|\| engaged\) \{\s*progress\.stopAnimation\(\);/);
+    // Held, too, while the moment is being sent into a chat.
+    expect(MOMENTS).toMatch(/if \(!showing \|\| options \|\| engaged \|\| sendingMoment\) \{\s*progress\.stopAnimation\(\);/);
     expect(VIEWER).toMatch(/onEngaged\?\.\(talking \|\| picking\);/);
     // At the foot: the tiles, then the line, then the reaction and comment bar.
     expect(VIEWER).toMatch(/tiles: \{ position: 'absolute', bottom: TILES_BOTTOM, left: 0, right: 0 \}/);
@@ -208,7 +209,8 @@ describe('moments', () => {
   it('draws a reply to a moment in the chat, with the moment beside it', () => {
     const THREAD = read('src/Thread.tsx');
     expect(THREAD).toMatch(/\{message\.moment && \(\s*<MomentReference/);
-    expect(THREAD).toMatch(/const verb = moment\.emoji \? 'Reacted' : 'Replied';/);
+    // A reaction, a reply with words, or the moment sent on with none.
+    expect(THREAD).toMatch(/const verb = moment\.emoji \? 'Reacted to' : said \? 'Replied to' : 'Shared';/);
     expect(THREAD).toMatch(/moment\.thumb \? \(moment\.mine \? 'your moment' : 'their moment'\) : 'a moment that has ended'/);
     // A reaction is the emoji, at an emoji's size.
     expect(THREAD).toMatch(/\{message\.moment\?\.emoji \? \(/);

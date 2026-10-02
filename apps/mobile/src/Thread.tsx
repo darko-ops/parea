@@ -583,16 +583,19 @@ export function Thread({
  */
 function MomentReference({
   moment,
+  said,
   sided,
   t,
   onOpen,
 }: {
   moment: NonNullable<Message['moment']>;
+  /** Whether words came with it. None, and no emoji, is a moment sent on. */
+  said: boolean;
   sided: boolean;
   t: GroupTheme;
   onOpen?: (momentId: string) => void;
 }) {
-  const verb = moment.emoji ? 'Reacted' : 'Replied';
+  const verb = moment.emoji ? 'Reacted to' : said ? 'Replied to' : 'Shared';
   const whose = moment.thumb ? (moment.mine ? 'your moment' : 'their moment') : 'a moment that has ended';
   const live = moment.thumb !== null && onOpen !== undefined;
   return (
@@ -602,7 +605,7 @@ function MomentReference({
           onPress={live ? () => onOpen!(moment.id) : undefined}
           disabled={!live}
           accessibilityRole={live ? 'button' : 'image'}
-          accessibilityLabel={`${verb} to ${whose}${live ? '. Open it' : ''}`}
+          accessibilityLabel={`${verb} ${whose}${live ? '. Open it' : ''}`}
           style={({ pressed }) => [
             styles.momentShot,
             { borderColor: t.line, opacity: pressed ? 0.6 : 1 },
@@ -617,9 +620,55 @@ function MomentReference({
         </Pressable>
       )}
       <Text style={[styles.momentCaption, { color: t.dim }]} numberOfLines={1}>
-        {verb} to {whose}
+        {verb} {whose}
       </Text>
     </View>
+  );
+}
+
+/** A photograph sent into a chat: the picture, and the full one on a tap. */
+function SentPhoto({
+  photo,
+  sided,
+  t,
+}: {
+  photo: NonNullable<Message['photo']>;
+  sided: boolean;
+  t: GroupTheme;
+}) {
+  const [open, setOpen] = useState(false);
+  if (!photo.thumb) {
+    return (
+      <Text style={[styles.momentCaption, sided && { alignSelf: 'flex-end' }, { color: t.dim }]}>
+        A photo that isn’t available any more
+      </Text>
+    );
+  }
+  return (
+    <>
+      <Pressable
+        onPress={() => setOpen(true)}
+        accessibilityRole="button"
+        accessibilityLabel="A photo. Open it"
+        style={({ pressed }) => [
+          styles.sentPhoto,
+          sided && styles.sentPhotoMine,
+          { borderColor: t.line, opacity: pressed ? 0.7 : 1 },
+        ]}
+      >
+        <Image source={{ uri: photo.thumb }} style={StyleSheet.absoluteFill} contentFit="cover" transition={120} />
+      </Pressable>
+      <Modal visible={open} transparent animationType="fade" onRequestClose={() => setOpen(false)}>
+        <Pressable
+          style={styles.sentPhotoFull}
+          onPress={() => setOpen(false)}
+          accessibilityRole="button"
+          accessibilityLabel="Close the photo"
+        >
+          <Image source={{ uri: photo.full ?? photo.thumb }} style={StyleSheet.absoluteFill} contentFit="contain" transition={120} />
+        </Pressable>
+      </Modal>
+    </>
   );
 }
 
@@ -1012,11 +1061,22 @@ export function ThreadRow({
             {message.moment && (
               <MomentReference
                 moment={message.moment}
+                said={message.body.trim().length > 0}
                 sided={sided}
                 t={t}
                 onOpen={onOpenMoment}
               />
             )}
+
+            {/*
+              A roll's photograph, sent into the chat.
+
+              The picture is the message, so it is drawn at the size of one —
+              not the thumbnail beside a comment — and a tap opens it full.
+              Once it is gone (deleted, hidden, its taker blocked) the words
+              stay and the picture becomes a line saying so.
+            */}
+            {message.photo && <SentPhoto photo={message.photo} sided={sided} t={t} />}
 
             {about && (
               <Pressable
@@ -1061,11 +1121,11 @@ export function ThreadRow({
               <Text style={[styles.bodyEmoji, sided && styles.bodyEmojiMine]}>
                 {message.moment.emoji}
               </Text>
-            ) : (
+            ) : message.body.trim() || !(message.photo || message.moment) ? (
               <Text style={[styles.bodyText, { color: t.fg }]}>
                 {withMentions(message.body, { color: t.accent })}
               </Text>
-            )}
+            ) : null}
           </Pressable>
         )}
 
@@ -1605,6 +1665,16 @@ const styles = StyleSheet.create({
   momentRefMine: { alignSelf: 'flex-end', alignItems: 'flex-end' },
   momentShot: { borderWidth: 1, borderRadius: 12, overflow: 'hidden' },
   momentShotImage: { width: 64, height: 64 },
+  sentPhoto: {
+    width: 220,
+    height: 220,
+    borderRadius: 14,
+    overflow: 'hidden',
+    borderWidth: StyleSheet.hairlineWidth,
+    marginBottom: 6,
+  },
+  sentPhotoMine: { alignSelf: 'flex-end' },
+  sentPhotoFull: { flex: 1, backgroundColor: 'rgba(0,0,0,0.94)' },
   momentCaption: { fontSize: 12.5 },
   /* An emoji said on its own, at the size of one. */
   bodyEmoji: { fontSize: 38, lineHeight: 46 },

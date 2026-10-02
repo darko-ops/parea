@@ -665,6 +665,27 @@ function Row({
           </div>
         )}
 
+        {/*
+          A roll's photograph sent into the chat from the app: the picture is
+          the message, and a link opens it full. A blank line once it is gone.
+        */}
+        {message.photo && !editing && (
+          message.photo.thumb ? (
+            <a
+              href={message.photo.full ?? message.photo.thumb}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="message-photo"
+              aria-label="Open the photo"
+            >
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={message.photo.thumb} alt="" />
+            </a>
+          ) : (
+            <span className="message-moment-said">A photo that isn’t available any more</span>
+          )
+        )}
+
         {editing ? (
           <div className="message-edit">
             <textarea
@@ -681,11 +702,11 @@ function Row({
               </button>
             </div>
           </div>
-        ) : (
+        ) : message.body.trim() || !(message.photo || message.moment) ? (
           <p className={`message-text${message.moment?.emoji ? ' message-emoji' : ''}`}>
             {withMentions(message.body)}
           </p>
-        )}
+        ) : null}
 
         {said && <p className="photo-said">{said}</p>}
 
@@ -861,7 +882,7 @@ async function explain(res: Response): Promise<string> {
  */
 function momentLine(message: Message): string {
   const moment = message.moment!;
-  const verb = moment.emoji ? 'Reacted to' : 'Replied to';
+  const verb = moment.emoji ? 'Reacted to' : message.body.trim() ? 'Replied to' : 'Shared';
   if (!moment.thumb) return `${verb} a moment that has ended`;
   return `${verb} ${moment.mine ? 'your' : 'their'} moment`;
 }

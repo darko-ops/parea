@@ -41,6 +41,7 @@ import { avatarUrl } from './accounts';
 import { contributorKey } from './contributors';
 import { blockedBetween } from './moderation';
 import type { Db } from './db';
+import { imageSrc } from './images';
 import { getStorage } from './storage';
 import { MAX_BODY, type Message } from './messages';
 
@@ -128,10 +129,32 @@ export async function groupMessagesFor(
       // Live: not taken back, and still inside its day.
       momentLive: sql<boolean>`(${schema.moments.deletedAt} is null
         and ${schema.moments.createdAt} > now() - make_interval(hours => ${MOMENT_HOURS}))`,
+      photoId: schema.groupMessages.photoId,
+      photoEventId: schema.photos.eventId,
+      photoStorageKey: schema.photos.storageKey,
+      photoHash: schema.photos.contentHash,
+      photoCapEpoch: schema.events.capEpoch,
+      /*
+       * Still there to see: not deleted, not hidden while a removal is
+       * decided, processed, its roll not deleted — and nobody across a block
+       * from the reader took it. The message stays either way; the picture
+       * becomes a blank.
+       */
+      photoLive: viewerId
+        ? sql<boolean>`(${schema.photos.deletedAt} is null and ${schema.photos.hiddenAt} is null
+            and ${schema.photos.status} = 'ready' and ${schema.events.deletedAt} is null
+            and not exists (
+              select 1 from "block" b
+              where (b.blocker_actor_id = ${viewerId} and b.blocked_actor_id = ${schema.photos.uploaderId})
+                 or (b.blocked_actor_id = ${viewerId} and b.blocker_actor_id = ${schema.photos.uploaderId})
+            ))`
+        : sql<boolean>`false`,
     })
     .from(schema.groupMessages)
     .innerJoin(schema.actors, eq(schema.actors.id, schema.groupMessages.authorActorId))
     .leftJoin(schema.moments, eq(schema.moments.id, schema.groupMessages.momentId))
+    .leftJoin(schema.photos, eq(schema.photos.id, schema.groupMessages.photoId))
+    .leftJoin(schema.events, eq(schema.events.id, schema.photos.eventId))
     .where(
       and(
         eq(schema.groupMessages.groupId, groupId),
@@ -187,9 +210,29 @@ export async function groupMessagesFor(
     );
   }
 
+  // A photograph sent into the chat, signed the way its roll signs it, so
+  // rotating the roll's link stops it resolving here too.
+  const pictures = new Map<string, { thumb: string; full: string } | null>();
+  for (const row of rows) {
+    if (!row.photoId || pictures.has(row.photoId)) continue;
+    if (!row.photoLive || !row.photoEventId || !row.photoStorageKey || row.photoCapEpoch == null) {
+      pictures.set(row.photoId, null);
+      continue;
+    }
+    const ref = { eventId: row.photoEventId, storageKey: row.photoStorageKey, contentHash: row.photoHash };
+    pictures.set(row.photoId, {
+      thumb: await imageSrc(ref, 'grid', row.photoCapEpoch),
+      full: await imageSrc(ref, 'full', row.photoCapEpoch),
+    });
+  }
+
   return rows.map((row) => {
     const deleted = row.deletedAt != null;
+    const picture = row.photoId ? pictures.get(row.photoId) ?? null : null;
     return {
+      ...(row.photoId && !deleted
+        ? { photo: { id: row.photoId, thumb: picture?.thumb ?? null, full: picture?.full ?? null } }
+        : {}),
       ...(row.momentId
         ? {
             moment: {
@@ -285,10 +328,18 @@ export async function postGroupMessage(
   groupId: string,
   authorActorId: string,
   body: string,
+  /** A photograph or a moment sent along with it. Checked by the caller. */
+  attached: { photoId?: string | null; momentId?: string | null } = {},
 ): Promise<string> {
   const [row] = await db
     .insert(schema.groupMessages)
-    .values({ groupId, authorActorId, body })
+    .values({
+      groupId,
+      authorActorId,
+      body,
+      photoId: attached.photoId ?? null,
+      momentId: attached.momentId ?? null,
+    })
     .returning({ id: schema.groupMessages.id });
   return row!.id;
 }
@@ -574,12 +625,14 @@ export async function groupThreadSummaries(
     created_at: Date;
     deleted_at: Date | null;
     author_actor_id: string;
+    photo_id: string | null;
+    moment_id: string | null;
     display_name: string | null;
     handle: string | null;
     avatar_key: string | null;
   }>(await db.execute(sql`
     select distinct on (m.group_id)
-      m.group_id, m.body, m.created_at, m.deleted_at, m.author_actor_id,
+      m.group_id, m.body, m.created_at, m.deleted_at, m.author_actor_id, m.photo_id, m.moment_id,
       a.display_name, a.handle, a.avatar_key
     from "group_message" m
     join "actor" a on a.id = m.author_actor_id
@@ -591,7 +644,11 @@ export async function groupThreadSummaries(
     summaries.set(row.group_id, {
       lastMessage: {
         author: nameOf(row.display_name, row.handle),
-        body: row.deleted_at != null ? 'Message deleted' : row.body,
+        // A picture sent on its own has no words; say what it was instead.
+        body:
+          row.deleted_at != null
+            ? 'Message deleted'
+            : row.body || (row.photo_id ? 'Sent a photo' : row.moment_id ? 'Sent a moment' : ''),
         at: new Date(row.created_at).toISOString(),
         mine: viewerId != null && row.author_actor_id === viewerId,
         /*

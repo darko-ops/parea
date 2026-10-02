@@ -505,6 +505,8 @@ export type Message = {
    * `mine` when the moment is the reader's own.
    */
   moment?: { id: string; thumb: string | null; emoji: string | null; mine: boolean };
+  /** Chats only: a roll's photograph sent into it; null pictures once it is gone. */
+  photo?: { id: string; thumb: string | null; full: string | null };
 };
 
 /**
@@ -1462,10 +1464,19 @@ export class Api {
     );
   }
 
-  postGroupMessage(groupId: string, body: string): Promise<{ id: string }> {
+  /**
+   * A message in a chat, and optionally a roll's photograph or a moment sent
+   * with it — in which case the words may be empty. The server decides
+   * whether the picture may go there; see `ChatPicker` for its refusals.
+   */
+  postGroupMessage(
+    groupId: string,
+    body: string,
+    attached: { photoId?: string; momentId?: string } = {},
+  ): Promise<{ id: string }> {
     return this.call<{ id: string }>(`/api/groups/${groupId}/messages`, {
       method: 'POST',
-      body: JSON.stringify({ body }),
+      body: JSON.stringify({ body, ...attached }),
     });
   }
 

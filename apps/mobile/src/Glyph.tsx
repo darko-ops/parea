@@ -44,6 +44,8 @@ export type GlyphName =
   | 'tray'
   | 'face'
   | 'share'
+  /** A paper plane: sending something to a person, in a chat. Not `share`, which is the OS sheet. */
+  | 'send'
   | 'download'
   | 'trash'
   | 'door'
@@ -338,6 +340,19 @@ function paths(name: GlyphName, weight: number) {
           <Path d="M12 3.5v11" />
           <Path d="M8.5 7 12 3.5 15.5 7" />
           <Path d="M6.5 11.5H5.5a1.5 1.5 0 0 0-1.5 1.5v6a1.5 1.5 0 0 0 1.5 1.5h13a1.5 1.5 0 0 0 1.5-1.5v-6a1.5 1.5 0 0 0-1.5-1.5h-1" />
+        </>
+      );
+
+    /*
+     * A paper plane, nose to the upper right: the shape every messenger uses
+     * for "send this to someone", so it reads as a direct message rather than
+     * as the OS sheet that `share` opens.
+     */
+    case 'send':
+      return (
+        <>
+          <Path d="M20.5 3.5 3.5 10.5l7 3 3 7 7-17Z" />
+          <Path d="M20.5 3.5 10.5 13.5" />
         </>
       );
 

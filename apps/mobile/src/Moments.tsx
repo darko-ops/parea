@@ -47,6 +47,7 @@ import Svg, { Defs, G, LinearGradient, Mask, RadialGradient, Rect, Stop } from '
 import { ApiError, type Api, type FeedPhoto, type Moment } from './api';
 import type { GroupTheme } from './Groups';
 import { IconRing } from './IconField';
+import { ChatPicker } from './ChatPicker';
 import { PhotoViewer } from './PhotoViewer';
 import { reportContent } from './report';
 import { describeFile, fetchForMoment, putToStorage, saveToCameraRoll } from './platform';
@@ -832,6 +833,8 @@ export function MomentsViewer({
     [api],
   );
   const [saving, setSaving] = useState<string | null>(null);
+  /** The moment on its way into a chat, while the picker is open. */
+  const [sendingMoment, setSendingMoment] = useState<string | null>(null);
 
   // A removal can shorten the list under the index.
   const at = Math.min(index, photos.length - 1);
@@ -877,7 +880,7 @@ export function MomentsViewer({
     progress.setValue(0);
   }, [progress, showing]);
   useEffect(() => {
-    if (!showing || options || engaged) {
+    if (!showing || options || engaged || sendingMoment) {
       progress.stopAnimation();
       return;
     }
@@ -897,7 +900,7 @@ export function MomentsViewer({
       else onClose();
     });
     return () => run.stop();
-  }, [at, engaged, last, onClose, options, progress, showing]);
+  }, [at, engaged, last, onClose, options, progress, sendingMoment, showing]);
 
   if (!photo || !moment) return null;
   const owner = moment.author;
@@ -921,6 +924,7 @@ export function MomentsViewer({
         onClose={onClose}
         onChanged={momentsChanged}
         onOptions={() => setOptions(true)}
+        onSendToChat={() => setSendingMoment(moment.id)}
         onDownload={async () => {
           setSaving(photo.id);
           try {
@@ -1039,6 +1043,13 @@ export function MomentsViewer({
           </Pressable>
         </Modal>
       )}
+      {/* Sending it into a chat, inside this modal so it draws on top. */}
+      <ChatPicker
+        api={api}
+        t={t}
+        sending={sendingMoment ? { momentId: sendingMoment } : null}
+        onClose={() => setSendingMoment(null)}
+      />
     </Modal>
   );
 }
