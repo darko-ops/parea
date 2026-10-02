@@ -4,12 +4,12 @@ import { ACCEPT_ATTRIBUTE, MAX_PER_SELECTION, refuseFile } from '@parea/upload';
 import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useRef, useState } from 'react';
 
-import { CONTRIBUTE_EVERYONE, CONTRIBUTE_HOST } from '@parea/core';
+import { CONTRIBUTE_EVERYONE } from '@parea/core';
 
 import { policyFor } from './components/AccessChoice';
-import { ContributeChoice, type ContributePolicy } from './components/ContributeChoice';
-import { MemberPicker, type Person } from './components/MemberPicker';
-import { PlaceField } from './components/PlaceField';
+import { ContributeList, type ContributePolicy } from './components/ContributeChoice';
+import { InviteFaces } from './components/InviteFaces';
+import type { Person } from './components/MemberPicker';
 import { Shell } from './components/Shell';
 import { thumbnailUrl } from './components/thumbnails';
 import { SignIn, useSession } from './components/SignIn';
@@ -90,33 +90,30 @@ export default function CreatePage() {
   // Shared by both strips below — see `usePreviewUrls`.
   const previews = usePreviewUrls(picked);
   const [name, setName] = useState('');
-  const [caption, setCaption] = useState('');
-  const [place, setPlace] = useState('');
-  const [members, setMembers] = useState<Person[]>([]);
   /*
-   * The people who will hold the camera with them, on an album set to `host`.
+   * Who gets asked, held until there is a roll to ask them into.
    *
-   * Its own list rather than a flag on `members`, because the two questions are
-   * asked separately and answered separately: somebody can be in the album
-   * without being a co-host, which is the ordinary case, and naming a co-host is
-   * also asking them in, which is why the create call below sends this list on
-   * its own rather than repeating those names under members.
-   *
-   * Kept when the setting moves off "Hosts" rather than cleared. Somebody
-   * reading the three options and tapping between them has not withdrawn
-   * anything, and a list that emptied itself on the way past "Only me" would
-   * cost them the typing — see the note beside the field.
+   * Co-hosts are not asked for on this form any more, as on the app's: "Hosts"
+   * means the creator until somebody is made one under Manage, which is where
+   * that question is answered for every roll that already exists.
    */
-  const [coHosts, setCoHosts] = useState<Person[]>([]);
+  const [invitees, setInvitees] = useState<Person[]>([]);
   /*
-   * The picture the album leads with, if they chose one.
+   * The picture the album leads with: the first photograph, unless another
+   * was promoted — the app's rule, so a roll made in a browser has a face just
+   * as one made on a phone does.
+   *
+   * Held as a promotion rather than by reordering `picked`, because the
+   * previews are keyed on that array and reordering it would remake every
+   * thumbnail. The strip draws the cover first instead.
    *
    * A `File` and not a URL: it is sent the moment the album exists, before the
    * photographs are staged, so that an album has a face the first time anyone
    * sees it rather than whenever a queue of two hundred pictures reaches the
    * one that was going to be its cover.
    */
-  const [cover, setCover] = useState<File | null>(null);
+  const [promoted, setPromoted] = useState<File | null>(null);
+  const cover = promoted && picked.includes(promoted) ? promoted : (picked[0] ?? null);
   /*
    * How the cover sits in the card, from the framer — the app's question,
    * asked here too. Null is "not framed", which the server answers by
@@ -142,7 +139,7 @@ export default function CreatePage() {
   const [error, setError] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   /*
-   * The top of the details step: the photos, then the title under them.
+   * The top of the details step: the name, then the photos under it.
    *
    * Arriving at the details used to leave the page wherever the photo step
    * had scrolled it — often halfway down a long grid — so the first field was
@@ -154,11 +151,7 @@ export default function CreatePage() {
   const titleRef = useRef<HTMLInputElement>(null);
   useEffect(() => {
     if (step !== 'details') return;
-    // No photos picked leaves the strip empty and hidden; the title leads.
-    const top = detailsTop.current?.childElementCount
-      ? detailsTop.current
-      : titleRef.current?.closest('.field');
-    top?.scrollIntoView({ block: 'start' });
+    detailsTop.current?.scrollIntoView({ block: 'start' });
     titleRef.current?.focus({ preventScroll: true });
   }, [step]);
   /*
@@ -180,14 +173,31 @@ export default function CreatePage() {
     [picked],
   );
 
-  /** Leaving a photo out, and the cover with it if it was the cover. */
+  /** Leaving a photo out — and its framing with it, if it was the cover. */
   const leaveOut = useCallback(
     (file: File) => {
       setPicked((c) => c.filter((x) => x !== file));
       if (cover === file) {
-        setCover(null);
+        setPromoted(null);
         setCoverFraming(null);
       }
+    },
+    [cover],
+  );
+
+  /*
+   * This one leads, from now on — or, pressed when it already does, reframe it.
+   * A framing was a decision about a different photograph, so promoting clears
+   * it.
+   */
+  const promote = useCallback(
+    (file: File) => {
+      if (file === cover) {
+        setFraming(file);
+        return;
+      }
+      setPromoted(file);
+      setCoverFraming(null);
     },
     [cover],
   );
@@ -265,8 +275,6 @@ export default function CreatePage() {
           headers: { 'content-type': 'application/json' },
           body: JSON.stringify({
             name: name.trim(),
-            caption: caption.trim() || undefined,
-            place: place.trim() || undefined,
             accessPolicy: policyFor({ isPrivate }),
             contributePolicy: contribute,
             // No link or pass-phrase switches here any more — the app has
@@ -322,34 +330,14 @@ export default function CreatePage() {
         }
 
         /*
-         * The invitations, members and co-hosts in one call.
-         *
-         * One request rather than two, because the route counts them as one
-         * guest list and applies its cap of fifty to the pair — and because a
-         * name in both lists is one invitation, which the server is the right
-         * place to reconcile.
-         *
-         * The co-hosts are only sent where the setting means anything. Somebody
-         * who picked two co-hosts and then chose "Only me" has changed their
-         * mind about the album, and asking those people in *as co-hosts* of an
-         * album nobody but its owner can add to would be honouring a sentence
-         * they backed out of. They are still asked in — the names are kept, and
-         * they go under members, which is what "who is in it" meant.
+         * The invitations. A failure costs the roll nothing — it is made, and
+         * asking again is under Manage.
          */
-        const hosting = contribute === CONTRIBUTE_HOST;
-        const asHosts = hosting ? coHosts : [];
-        const asMembers = [
-          ...members,
-          ...(hosting ? [] : coHosts),
-        ];
-        if (asHosts.length > 0 || asMembers.length > 0) {
+        if (invitees.length > 0) {
           await fetch(`/api/events/${created.id}/invites`, {
             method: 'POST',
             headers: { 'content-type': 'application/json' },
-            body: JSON.stringify({
-              actorIds: asMembers.map((m) => m.actorId),
-              hostActorIds: asHosts.map((m) => m.actorId),
-            }),
+            body: JSON.stringify({ actorIds: invitees.map((m) => m.actorId) }),
           }).catch(() => {});
         }
 
@@ -379,12 +367,9 @@ export default function CreatePage() {
     },
     [
       name,
-      caption,
-      place,
       isPrivate,
       groupId,
-      members,
-      coHosts,
+      invitees,
       contribute,
       picked,
       cover,
@@ -488,119 +473,89 @@ export default function CreatePage() {
             )}
 
             {/* ---- step two: what it was --------------------------------- */}
+            {/*
+              The app's create screen, in a browser: the name as the heading, a
+              strip of what is going in, who can see it, who can add, and one
+              card for inviting. The caption, the place, the cover chooser and
+              the co-host picker are gone from it, as they are from the app's.
+            */}
             {step === 'details' && (
-              <>
-                {/*
-                  What is going in, above what it is called — each with its ×,
-                  so a photo that should not be there can go without a trip back
-                  to the photo step. See `detailsTop` for why the step opens here.
-                */}
-                <div ref={detailsTop} className="details-top">
-                  <Thumbs files={picked} urls={previews} onRemove={leaveOut} />
-                </div>
-
+              <div ref={detailsTop} className="create-details details-top">
                 <div className="field">
-                  <label className="field-label" htmlFor="name">
-                    ROLL TITLE
-                  </label>
                   <input
                     ref={titleRef}
                     id="name"
-                    className="big"
+                    className="roll-name"
                     type="text"
                     value={name}
                     onChange={(e) => setName(e.target.value)}
-                    placeholder="Sarah's birthday"
+                    placeholder="Name this roll"
+                    aria-label="Name this roll"
                     maxLength={120}
                     required
                   />
                 </div>
 
-                <div className="field">
-                  <label className="field-label" htmlFor="caption">
-                    CAPTION
-                  </label>
-                  <input
-                    id="caption"
-                    type="text"
-                    value={caption}
-                    onChange={(e) => setCaption(e.target.value)}
-                    placeholder="A line about it"
-                    maxLength={200}
-                  />
-                  {/* One line. The name says which evening, this says what it
-                      was, and anything longer is what the photographs are for. */}
-                  <p className="field-help">Optional, and it shows on the card.</p>
-                </div>
-
-                <div className="field">
-                  <div className="field-head">
-                    <label className="field-label">ROLL COVER</label>
-                    <span className="field-note">Optional</span>
+                {/*
+                  What is going in, cover first. Clicking one makes it the cover
+                  — clicking the cover reframes it — and its × leaves it out. See
+                  `detailsTop` for why the step opens here.
+                */}
+                {picked.length > 0 && (
+                  <div className="roll-strip">
+                    <div className="field-head">
+                      <span className="field-label">IN THIS ROLL</span>
+                      <span className="field-note">
+                        {picked.length} {picked.length === 1 ? 'photo' : 'photos'}
+                      </span>
+                    </div>
+                    <ul className="roll-thumbs">
+                      {[...(cover ? [cover] : []), ...picked.filter((f) => f !== cover)].map((file) => {
+                        const isCover = file === cover;
+                        return (
+                          <li key={signature(file)}>
+                            <button
+                              type="button"
+                              className={`roll-thumb${isCover ? ' is-cover' : ''}`}
+                              aria-pressed={isCover}
+                              aria-label={
+                                isCover ? `Reframe the cover, ${file.name}` : `Use ${file.name} as the cover`
+                              }
+                              onClick={() => promote(file)}
+                            >
+                              <Thumb src={previews[picked.indexOf(file)] ?? ''} name={file.name} />
+                            </button>
+                            <button
+                              type="button"
+                              className="roll-remove"
+                              aria-label={`Leave out ${file.name}`}
+                              onClick={() => leaveOut(file)}
+                            >
+                              ×
+                            </button>
+                          </li>
+                        );
+                      })}
+                    </ul>
+                    {framing && (
+                      <CoverFramer
+                        photos={picked.map((file, i) => ({ id: signature(file), src: previews[i] ?? '' }))}
+                        coverId={signature(framing)}
+                        initial={framing === cover && coverFraming ? coverFraming : CENTRED}
+                        sharpen={sharpen}
+                        onCancel={() => setFraming(null)}
+                        onConfirm={(id, chosenFraming) => {
+                          setPromoted(picked.find((file) => signature(file) === id) ?? framing);
+                          setCoverFraming(chosenFraming);
+                          setFraming(null);
+                        }}
+                      />
+                    )}
                   </div>
-                  {/*
-                    Chosen from the photographs already picked, because that is
-                    what a cover is here — one of the event's own pictures,
-                    promoted. Anything else would be a second kind of image
-                    living in an event, visible on everybody's home screen and
-                    in none of its own grids.
-                  */}
-                  <CoverPicker
-                    files={picked}
-                    urls={previews}
-                    cover={cover}
-                    onChoose={setFraming}
-                    onClear={() => {
-                      setCover(null);
-                      setCoverFraming(null);
-                    }}
-                  />
-                  {framing && (
-                    <CoverFramer
-                      photos={picked.map((file, i) => ({ id: signature(file), src: previews[i] ?? '' }))}
-                      coverId={signature(framing)}
-                      initial={framing === cover && coverFraming ? coverFraming : CENTRED}
-                      sharpen={sharpen}
-                      onCancel={() => setFraming(null)}
-                      onConfirm={(id, chosenFraming) => {
-                        setCover(picked.find((file) => signature(file) === id) ?? framing);
-                        setCoverFraming(chosenFraming);
-                        setFraming(null);
-                      }}
-                    />
-                  )}
-                </div>
+                )}
 
-                <div className="field">
-                  <div className="field-head">
-                    <label className="field-label" htmlFor="place">
-                      WHERE
-                    </label>
-                    <span className="field-note">Optional · shows up under Find, by place</span>
-                  </div>
-                  {/*
-                    Type it and pick, or just type it. The lookup is a spelling
-                    aid and nothing more: what is stored is the label, never a
-                    pin — §7.6 strips GPS from every photo at ingest, and an
-                    event that recorded coordinates would undo that for the
-                    sake of an autocomplete. See `api/places`.
-                  */}
-                  <PlaceField value={place} onChange={setPlace} />
-                  <p className="field-help">
-                    Only ever shown to people already in the roll.
-                  </p>
-                </div>
-
-                <fieldset className="field">
+                <fieldset className="field create-see">
                   <legend className="field-label">WHO CAN SEE IT</legend>
-                  {/*
-                    Two pills and a sentence, as the app asks it — and the same
-                    shape as the question under it, so the two read as a pair.
-                    It was a column of three switches (private, share link,
-                    pass phrase); the app never asked the last two at creation,
-                    and a browser and a phone asking different questions about
-                    the same roll is two products. They live on Manage.
-                  */}
                   <div className="pills">
                     {(
                       [
@@ -621,124 +576,35 @@ export default function CreatePage() {
                   </div>
                   <p className="field-help">
                     {isPrivate
-                      ? 'Only the people you add, and anyone you let in after they ask. A forwarded link opens nothing.'
-                      : 'Anyone can see it, no account needed. Adding photos always needs one.'}
+                      ? 'Only people you invite. A forwarded link opens nothing.'
+                      : 'Anyone with the link can see it, no account needed.'}
                   </p>
                 </fieldset>
 
-                <fieldset className="field">
+                {/*
+                  Second of the two, and the order is load-bearing: this
+                  question's first answer is named by the other one's — "Anyone"
+                  on a public roll, "Members" on a private one — so it reads the
+                  live switch above rather than a saved policy.
+                */}
+                <fieldset className="field create-add">
                   <legend className="field-label">WHO CAN ADD PHOTOS</legend>
-                  {/*
-                    Second of the two, and the order is load-bearing rather than
-                    a layout choice.
-
-                    This question's answers are named by the other one's: the
-                    middle option is "Everyone" on a public album and "Members"
-                    on a private one, because they compose rather than restate
-                    each other. Asked first — which is how this form used to ask
-                    it — somebody read three labels, chose one, and then ticked a
-                    switch underneath that silently renamed what they had chosen.
-                    The app has always asked them this way round; a browser and a
-                    phone disagreeing about the order of two questions that
-                    depend on each other is two products.
-
-                    Asked when the album is made, and changeable afterwards on
-                    the manage screen — the same component in both, so the
-                    words are written once.
-
-                    Here rather than left to the default because it is the one
-                    decision on this form that somebody can only discover by
-                    being surprised: an evening where one person had the camera
-                    is an ordinary thing to want, and an album that quietly
-                    accepts everybody's photographs is not what they meant.
-                  */}
-                  <ContributeChoice
+                  <ContributeList
                     value={contribute}
-                    /*
-                      The visibility chosen a field above, not the album's
-                      saved policy — there is no saved album yet.
-
-                      The two questions compose, so what this one's answers are
-                      called depends on the other's: "Everyone" on a public
-                      album is whoever opens the link, and on a private one it
-                      is the members. Reading the live switch means ticking
-                      "private" renames the option under the cursor rather than
-                      leaving a word that stopped being true.
-                    */
                     accessPolicy={policyFor({ isPrivate })}
                     onChange={setContribute}
                   />
-
-                  {/*
-                    And who those hosts are, asked here because this is the
-                    moment the answer exists.
-
-                    "Hosts" without a way to name one is a setting that means
-                    "only me" until somebody finds the People tab, which is a
-                    strange thing for an album to do on the evening it is made:
-                    the person handing over the camera is standing next to
-                    whoever they are handing it to. So the question follows the
-                    answer that raises it, on the same screen, and the same
-                    control answers it again afterwards on the manage screen.
-
-                    Picking somebody here asks them into the album *and* records
-                    that accepting makes them a co-host. Nobody is made a
-                    co-host of an album they have not joined — the role lives on
-                    the participant row — so the promise waits on the invitation
-                    and is spent when they say yes. Which is why the copy says
-                    asked.
-                  */}
-                  {contribute === CONTRIBUTE_HOST && (
-                    <div className="field" style={{ marginTop: 14 }}>
-                      <div className="field-head">
-                        <label className="field-label">CO-HOSTS</label>
-                        <span className="field-note">Optional · you are one already</span>
-                      </div>
-                      <MemberPicker
-                        picked={coHosts}
-                        onChange={setCoHosts}
-                        placeholder="Search friends, or anyone by handle"
-                        label="Search for people to make co-hosts"
-                        hint="Whoever you pick is asked into the roll as a co-host, and can add photographs once they accept. You can add or remove co-hosts later, under Manage."
-                        /*
-                          Not somebody already being asked in as a member. The
-                          two lists are one guest list, and a name in both is
-                          one invitation — see the picker's own header.
-                        */
-                        exclude={new Set(members.map((p) => p.actorId))}
-                      />
-                    </div>
-                  )}
                 </fieldset>
 
-                <div className="field">
-                  <div className="field-head">
-                    <label className="field-label">WHO IS IN IT</label>
-                    <span className="field-note">Optional</span>
-                  </div>
-                  {/*
-                    Last, after the settings, as the app has it: those are
-                    answered once, and this is a list that can keep growing
-                    without pushing them off the screen.
+                {/*
+                  Chosen here, asked once the roll exists. Nobody is put into a
+                  roll by somebody else: this writes invitations, and they
+                  answer in Activity.
+                */}
+                <InviteFaces picked={invitees} onChange={setInvitees} />
 
-                    Chosen here, asked once the event exists. Nobody is put into
-                    an event by somebody else: this writes invitations, and they
-                    answer in Activity.
-                  */}
-                  <MemberPicker
-                    picked={members}
-                    onChange={setMembers}
-                    /*
-                      Not the people already named as co-hosts. Naming a co-host
-                      asks them in, so offering them here again is one
-                      invitation dressed as two decisions — and "Add" beside a
-                      name that is already going to be asked does nothing.
-                    */
-                    exclude={new Set(coHosts.map((p) => p.actorId))}
-                  />
-                </div>
-
-                <div className="row">
+                <div className="create-foot">
+                  {error && <p className="muted" style={{ margin: 0, textAlign: 'center' }}>{error}</p>}
                   <button
                     type="submit"
                     className="create-go"
@@ -748,15 +614,14 @@ export default function CreatePage() {
                   </button>
                   <button
                     type="button"
-                    className="secondary"
+                    className="link-button"
                     onClick={() => setStep('photos')}
                     disabled={busy}
                   >
                     Back to the photos
                   </button>
                 </div>
-                {error && <p className="muted">{error}</p>}
-              </>
+              </div>
             )}
 
           </form>
@@ -777,23 +642,6 @@ export default function CreatePage() {
  * changes, which is the whole reason this is a component with an effect rather
  * than a `src` computed inline — inline, every render would leak one URL per
  * photo and nothing would ever release them.
- */
-/**
- * Choosing which of the picked photographs the event leads with.
- *
- * The same strip as `Thumbs`, doing the opposite job: there the button on each
- * tile takes a photograph out, here pressing a tile promotes it. They are not
- * one component with a mode — the two screens are a step apart, and a strip
- * where tapping means "remove" on one page and "choose" on the next is how
- * somebody deletes a photograph they meant to feature.
- *
- * Pressing the chosen one again clears it, which is the only way back to no
- * cover once there is one, and is what pressing a selected thing does
- * everywhere else in this product.
- *
- * With nothing picked there is nothing to choose from, and the line says so
- * rather than offering a file input of its own: a cover that is not in the
- * event would be an image nobody in the event can find.
  */
 /**
  * One small preview per picked file, made once for the whole screen.
@@ -832,68 +680,6 @@ function usePreviewUrls(files: File[]): string[] {
     };
   }, [files]);
   return urls;
-}
-
-function CoverPicker({
-  files,
-  urls,
-  cover,
-  onChoose,
-  onClear,
-}: {
-  files: File[];
-  urls: string[];
-  cover: File | null;
-  /** Opens the framer on this one — the cover, to reframe it, or another. */
-  onChoose: (file: File) => void;
-  onClear: () => void;
-}) {
-  if (files.length === 0) {
-    return (
-      <p className="field-help">
-        Pick some photos first — a cover is one of them, promoted to the front.
-      </p>
-    );
-  }
-
-  return (
-    <>
-      <ul className="picked picked-cover">
-        {files.map((file, i) => {
-          const chosen = cover === file;
-          return (
-            <li key={signature(file)}>
-              <button
-                type="button"
-                className={`cover-choice${chosen ? ' cover-chosen' : ''}`}
-                aria-pressed={chosen}
-                aria-label={
-                  chosen ? `Reframe the cover, ${file.name}` : `Use ${file.name} as the cover`
-                }
-                onClick={() => onChoose(file)}
-              >
-                <Thumb src={urls[i] ?? ''} name={file.name} />
-                {chosen && <span className="cover-badge">Cover</span>}
-              </button>
-            </li>
-          );
-        })}
-      </ul>
-      <p className="field-help">
-        {cover ? (
-          <>
-            This one leads, wherever the roll is shown. Tap it to reframe it, or{' '}
-            <button type="button" className="link-button" onClick={onClear}>
-              use no cover
-            </button>
-            .
-          </>
-        ) : (
-          'Optional. Tap one to frame it as the cover. Without one the roll leads with its newest photo.'
-        )}
-      </p>
-    </>
-  );
 }
 
 function Thumbs({

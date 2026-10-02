@@ -285,33 +285,16 @@ describe('the routes that write all this', () => {
 });
 
 describe('what both clients say', () => {
-  it('asks who the co-hosts are on the screen that offers "Hosts"', () => {
+  it('names co-hosts after the roll is made, not on the create form', () => {
     /*
-     * "Hosts" with no way to name one means "Only me" until somebody finds the
-     * People tab — which is a strange thing for an album to do on the evening it
-     * is made, since the person handing over the camera is standing next to
-     * whoever they are handing it to.
-     *
-     * The web's form still asks. The app's create screen no longer does — it
-     * was cut down to a name and three settings, and its hosts are named in
-     * the roll's own settings afterwards, which is checked below.
+     * Both create screens were cut down to a name and three settings. "Hosts"
+     * means the creator until somebody is made one in the roll's own settings,
+     * which is checked below — so neither form asks for co-hosts or sends any.
      */
-    const source = stripComments(read('app/page.tsx'));
-    expect(source).toContain('contribute === CONTRIBUTE_HOST');
-    expect(source.toLowerCase()).toContain('co-host');
-    expect(stripComments(read('../mobile/src/CreateEvent.tsx'))).not.toMatch(/coHosts/);
-  });
-
-  it('sends the co-hosts only where the setting means anything', () => {
-    /*
-     * Somebody who picked two co-hosts and then chose "Only me" has changed
-     * their mind about the album. Asking those people in *as co-hosts* of an
-     * album nobody but its owner can add to would honour a sentence they backed
-     * out of — so the names are kept and they go in as members instead.
-     */
-    const source = stripComments(read('app/page.tsx'));
-    expect(source).toMatch(/hosting \? coHosts : \[\]/);
-    expect(source).toMatch(/hosting \? \[\] : coHosts/);
+    for (const file of ['app/page.tsx', '../mobile/src/CreateEvent.tsx']) {
+      const source = stripComments(read(file));
+      expect(source, file).not.toMatch(/coHosts|hostActorIds/);
+    }
   });
 
   it('manages them in the same place the setting lives', () => {

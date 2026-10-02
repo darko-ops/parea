@@ -154,3 +154,43 @@ export function ContributeChoice({
     </>
   );
 }
+
+/**
+ * The same three, as a list with a radio on each row — the create form's shape,
+ * as the app draws it.
+ *
+ * A list rather than pills there because each answer carries its own line, and
+ * somebody naming a roll should be able to read all three without clicking
+ * through them. The manage screen keeps the pills, where the choice is being
+ * changed rather than made.
+ */
+export function ContributeList({
+  value,
+  onChange,
+  accessPolicy,
+}: {
+  value: ContributePolicy;
+  onChange: (next: ContributePolicy) => void;
+  accessPolicy: string;
+}) {
+  return (
+    <div className="choice-list" role="radiogroup" aria-label="Who can add photos">
+      {contributeOptions(accessPolicy).map((option) => (
+        <label key={option.value} className="choice-row">
+          <span className="choice-text">
+            <span className="choice-title">{option.label}</span>
+            <span className="choice-help">{option.help}</span>
+          </span>
+          <input
+            type="radio"
+            name="contribute"
+            className="choice-radio"
+            value={option.value}
+            checked={value === option.value}
+            onChange={() => onChange(option.value)}
+          />
+        </label>
+      ))}
+    </div>
+  );
+}

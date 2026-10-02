@@ -81,10 +81,11 @@ describe('the other two switches are their own facts', () => {
 });
 
 describe('the questions it asks, and the one it stopped asking', () => {
-  it('labels the two text fields as the event says them', () => {
-    expect(CREATE).toContain('ROLL TITLE');
-    expect(CREATE).toContain('CAPTION');
-    expect(CREATE).not.toContain('WHAT WAS IT?');
+  it('asks for a name and nothing else in words', () => {
+    // The name is the roll's heading, as on the app; the caption and the
+    // place are no longer asked when it is made.
+    expect(CREATE).toContain('placeholder="Name this roll"');
+    expect(CREATE).not.toMatch(/ROLL TITLE|CAPTION|WHAT WAS IT\?|PlaceField/);
   });
 
   it('has no when section left, in markup or in state', () => {

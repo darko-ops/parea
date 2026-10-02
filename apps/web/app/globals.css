@@ -114,6 +114,8 @@
   --row-line: #eeeef2;
   /* Dashed affordances: the empty grid cell, the add-contact circle. */
   --line-dashed: #cfcfd7;
+  /* A step past `--line`, for the edge of something that has opened. */
+  --line-strong: #c9ced6;
   /* Lifts the card text off the blurred photo bleeding up behind it. Two of
      them, because the card and the hero want different amounts of it: the
      card is 20px of name over a blurred strip and can afford to let the
@@ -180,6 +182,7 @@
   --unread: rgba(13, 15, 18, .7);
   --row-line: #1e2127;
   --line-dashed: #3a3f48;
+  --line-strong: #3a3f48;
   --scrim: linear-gradient(180deg, rgba(13, 15, 18, .34), rgba(13, 15, 18, .78));
   --scrim-deep: linear-gradient(180deg, rgba(13, 15, 18, .62), rgba(13, 15, 18, .9));
   --hairline: #22262d;
@@ -2329,6 +2332,175 @@ fieldset.field > legend { padding: 0; margin-bottom: 8px; }
 }
 
 .create-go { justify-self: start; padding: 15px 22px; border-radius: 12px; }
+
+/* ---------------------------------------------------------------------------
+   The details step, as the app draws it: a name as the heading, a strip of
+   small thumbnails, two questions, and an invite card.
+   --------------------------------------------------------------------------- */
+.create-details { display: grid; gap: 0; }
+.create-details > * + * { margin-top: 22px; }
+.create-details > .roll-strip { margin-top: 20px; }
+.create-details > .create-see { margin-top: 24px; }
+.create-details .field-label { letter-spacing: .3px; }
+.roll-name {
+  width: 100%; background: transparent; color: var(--fg);
+  border: 0; border-bottom: 1px solid var(--line); border-radius: 0;
+  padding: 10px 0; font-size: 24px; font-weight: 700; letter-spacing: -.01em;
+}
+.roll-name:focus { outline: none; border-bottom-color: var(--accent); box-shadow: none; }
+.roll-name::placeholder { color: var(--dim); opacity: 1; }
+
+.roll-strip { display: grid; gap: 6px; }
+.roll-thumbs {
+  list-style: none; margin: 0; padding: 6px 0 0; display: flex; gap: 10px;
+  overflow-x: auto; scrollbar-width: none;
+}
+.roll-thumbs::-webkit-scrollbar { display: none; }
+/* Room above and right of each tile for the × to sit outside the picture. */
+.roll-thumbs li { position: relative; flex: none; padding: 6px 6px 0 0; }
+.roll-thumb {
+  display: block; width: 48px; height: 48px; padding: 0; border: 0;
+  border-radius: 8px; overflow: hidden; background: var(--line); cursor: pointer;
+}
+.roll-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.roll-thumb .picked-dead { width: 100%; height: 100%; font-size: 9px; overflow: hidden; }
+/* Drawn over the picture rather than around it, so the cover is the same size
+   as every other tile. */
+.roll-thumb { position: relative; }
+.roll-thumb.is-cover::after {
+  content: ''; position: absolute; inset: 0;
+  border: 2px solid var(--accent); border-radius: 8px; pointer-events: none;
+}
+.roll-remove {
+  position: absolute; top: 0; right: 0; width: 16px; height: 16px; padding: 0;
+  border: 0; border-radius: 50%; cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  background: var(--fg); color: var(--bg); font-size: 11px; font-weight: 700; line-height: 1;
+}
+
+.create-see, .create-add { display: grid; gap: 8px; }
+.create-add { gap: 10px; }
+
+/* Who can add photos: a grouped list with a radio on each row. */
+.choice-list {
+  border: 1px solid var(--line); border-radius: 14px; background: var(--card);
+  overflow: hidden;
+}
+.choice-row {
+  display: flex; align-items: center; gap: 14px; padding: 14px 16px; cursor: pointer;
+}
+.choice-row + .choice-row { border-top: 1px solid var(--line); }
+.choice-text { flex: 1; display: grid; gap: 3px; }
+.choice-title { font-size: 16px; font-weight: 600; color: var(--fg); }
+.choice-help { font-size: 13px; line-height: 18px; color: var(--dim); }
+.choice-radio {
+  appearance: none; flex: none; margin: 0; width: 22px; height: 22px;
+  border-radius: 50%; border: 1.5px solid var(--line); background: transparent;
+  display: grid; place-content: center; cursor: pointer; padding: 0;
+}
+.choice-radio::before {
+  content: ''; width: 10px; height: 10px; border-radius: 50%;
+  background: var(--accent); transform: scale(0); transition: transform 150ms;
+}
+.choice-radio:checked { border-color: var(--accent); }
+.choice-radio:checked::before { transform: scale(1); }
+.choice-radio:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+/* Inviting: one card, a stack of faces, opening onto a rail. */
+.invite-card {
+  background: var(--card); border: 1px solid var(--line); border-radius: 18px;
+  overflow: hidden; transition: border-color 250ms;
+}
+.invite-card.is-open { border-color: var(--line-strong); }
+.invite-head {
+  width: 100%; display: flex; align-items: center; gap: 12px;
+  padding: 12px 12px 12px 14px; background: none; border: 0; color: inherit;
+  text-align: left; cursor: pointer; font: inherit;
+}
+.invite-stack { display: flex; flex: none; }
+.invite-stack.is-hint { opacity: .35; }
+.invite-stack-face {
+  width: 34px; height: 34px; border-radius: 17px; object-fit: cover;
+  box-shadow: 0 0 0 2.5px var(--card); display: grid; overflow: hidden;
+}
+.invite-stack-face + .invite-stack-face { margin-left: -10px; }
+.invite-stack-face .invite-letter { font-size: 13px; }
+.invite-letter {
+  width: 100%; height: 100%; display: grid; place-items: center; font-weight: 700;
+}
+.invite-text { flex: 1; min-width: 0; display: grid; gap: 2px; }
+.invite-title { font-size: 15px; font-weight: 600; color: var(--fg); }
+.invite-sub {
+  font-size: 13px; color: var(--dim);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.invite-search-button {
+  flex: none; width: 38px; height: 38px; border-radius: 50%;
+  display: grid; place-items: center;
+  background: var(--bg); color: var(--fg); transition: background 250ms, color 250ms;
+}
+.invite-card.is-open .invite-search-button { background: var(--accent); color: var(--on-accent); }
+.invite-panel {
+  display: grid; grid-template-rows: 0fr; opacity: 0;
+  transition: grid-template-rows 350ms ease, opacity 250ms;
+}
+.invite-card.is-open .invite-panel { grid-template-rows: 1fr; opacity: 1; }
+.invite-panel-inner { overflow: hidden; min-height: 0; }
+.invite-field {
+  display: flex; align-items: center; gap: 8px; margin: 0 14px;
+  padding: 0 14px; border-radius: 12px; background: var(--bg); color: var(--dim);
+}
+.invite-field input {
+  flex: 1; min-width: 0; border: 0; background: transparent; color: var(--fg);
+  font-size: 15px; padding: 11px 0; box-shadow: none;
+}
+.invite-field input:focus { outline: none; box-shadow: none; }
+.invite-rail {
+  list-style: none; margin: 0; padding: 16px 14px; display: flex; gap: 14px;
+  overflow-x: auto; scrollbar-width: none;
+}
+.invite-rail::-webkit-scrollbar { display: none; }
+.invite-rail li { flex: none; }
+.invite-person {
+  width: 58px; display: flex; flex-direction: column; align-items: center; gap: 6px;
+  padding: 0; background: none; border: 0; color: var(--dim); cursor: pointer; font: inherit;
+}
+.invite-person-face {
+  position: relative; display: block; border-radius: 50%;
+  transform: scale(.92); transition: transform 200ms, box-shadow 200ms;
+}
+.invite-rail-face {
+  width: 54px; height: 54px; border-radius: 27px; object-fit: cover;
+  display: grid; overflow: hidden;
+}
+.invite-rail-face .invite-letter { font-size: 19px; }
+.invite-person.is-on .invite-person-face {
+  transform: scale(1);
+  box-shadow: 0 0 0 2.5px var(--card), 0 0 0 4.5px var(--accent);
+}
+.invite-check {
+  position: absolute; right: -2px; bottom: -2px; width: 20px; height: 20px;
+  border-radius: 50%; display: grid; place-items: center;
+  background: var(--accent); color: var(--on-accent);
+  box-shadow: 0 0 0 2.5px var(--card);
+  font-size: 12px; font-weight: 800; line-height: 1;
+  opacity: 0; transition: opacity 200ms;
+}
+.invite-person.is-on .invite-check { opacity: 1; }
+.invite-person-name {
+  max-width: 100%; font-size: 12px; font-weight: 600;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.invite-person.is-on .invite-person-name { color: var(--fg); }
+.invite-empty { margin: 0; padding: 16px; font-size: 13px; line-height: 18px; color: var(--dim); }
+
+.create-foot { display: grid; gap: 10px; }
+.create-foot .create-go { justify-self: stretch; width: 100%; font-size: 16px; padding: 14px; }
+.create-foot .create-go:disabled { opacity: .45; }
+.create-foot .link-button { justify-self: center; }
+@media (prefers-reduced-motion: reduce) {
+  .invite-panel, .invite-person-face, .invite-check, .invite-search-button { transition: none; }
+}
 
 
 /* Step one. The button is the whole step, so it is the filled one and the

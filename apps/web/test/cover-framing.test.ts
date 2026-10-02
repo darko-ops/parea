@@ -429,7 +429,8 @@ describe('the setting that says who may add', () => {
      */
     const CHOICE = read('../app/components/ContributeChoice.tsx');
     expect(CHOICE).toMatch(/CONTRIBUTE_OPTIONS/);
-    expect(read('../app/page.tsx')).toMatch(/<ContributeChoice/);
+    // As a list on the create form, as the app draws it; pills on Manage.
+    expect(read('../app/page.tsx')).toMatch(/<ContributeList/);
     expect(read('../app/components/ManageView.tsx')).toMatch(/<ContributeChoice/);
     // And the answers depend on the other setting rather than restating it:
     // the two compose, and "Everyone" on a private album is its members.
