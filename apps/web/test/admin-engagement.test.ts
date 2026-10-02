@@ -44,7 +44,7 @@ afterAll(() => {
 beforeEach(async () => {
   process.env.ADMIN_API_TOKEN = TOKEN;
   process.env.ADMIN_STAFF = STAFF;
-  await db.execute(sql`truncate "actor", "event", "photo", "observation", "moment" restart identity cascade`);
+  await db.execute(sql`truncate "actor", "event", "photo", "observation", "moment", "groups" restart identity cascade`);
 });
 
 async function get(query = '') {
@@ -133,6 +133,73 @@ describe('the engagement totals', () => {
     // Totals only: no actor or roll id anywhere in the answer.
     const text = JSON.stringify(body);
     for (const id of [ada, sam, tom, e, p1, m]) expect(text).not.toContain(id);
+  });
+});
+
+describe('rolls, chats and moments', () => {
+  it('counts rolls made, how full they are, and who is in them', async () => {
+    const [ada, sam, tom] = [await person('Ada'), await person('Sam'), await person('Tom')];
+    const big = await roll(ada);
+    const empty = await roll(sam);
+    await roll(ada, 24 * 60); // made before the period
+    for (const who of [ada, sam, tom]) await db.insert(schema.eventParticipants).values({ eventId: big, actorId: who });
+    await db.insert(schema.eventParticipants).values({ eventId: empty, actorId: sam });
+    await photo(big, ada);
+    await photo(big, sam);
+    await photo(big, sam);
+    await db.insert(schema.eventMessages).values([{ eventId: big, authorActorId: tom, body: 'hi' }]);
+
+    const { body } = await get();
+    expect(body.rolls).toMatchObject({
+      created: 2,
+      ever: 3,
+      withPhotos: 1,
+      photos: 3,
+      medianPhotos: 1.5,
+      medianPhotosWhenAny: 3,
+      people: 4,
+      medianPeople: 2,
+      medianContributors: 2,
+      withThread: 1,
+      thread: 1,
+    });
+    expect(body.rolls.photoBuckets).toEqual({ none: 1, few: 1, some: 0, many: 0 });
+    expect(body.rolls.peopleBuckets).toEqual({ one: 1, few: 1, some: 0, many: 0 });
+  });
+
+  it('tells one-to-one chats from groups', async () => {
+    const [ada, sam, tom] = [await person('Ada'), await person('Sam'), await person('Tom')];
+    const [direct] = await db.insert(schema.groups).values({}).returning();
+    const [named] = await db.insert(schema.groups).values({ name: 'Flat', slug: 'flat' }).returning();
+    const [three] = await db.insert(schema.groups).values({}).returning();
+    for (const [g, who] of [[direct, [ada, sam]], [named, [ada, sam]], [three, [ada, sam, tom]]] as const) {
+      for (const a of who) await db.insert(schema.groupMembers).values({ groupId: g!.id, actorId: a });
+    }
+    const m = await moment(ada);
+    await db.insert(schema.groupMessages).values([
+      { groupId: direct!.id, authorActorId: ada, body: 'hey' },
+      { groupId: direct!.id, authorActorId: sam, body: 'hey', momentId: m },
+      { groupId: three!.id, authorActorId: tom, body: 'all' },
+    ]);
+
+    const { body } = await get();
+    expect(body.chats.direct).toMatchObject({ total: 1, active: 1, messages: 2, people: 2, momentReplies: 1, medianMembers: 2 });
+    expect(body.chats.groups).toMatchObject({ total: 2, active: 1, messages: 1, people: 1, momentReplies: 0, medianMembers: 2.5 });
+  });
+
+  it('counts moments shared, seen by others, and answered', async () => {
+    const [ada, sam, tom] = [await person('Ada'), await person('Sam'), await person('Tom')];
+    const [m1, m2] = [await moment(ada), await moment(sam)];
+    await db.insert(schema.momentViews).values([
+      { actorId: sam, momentId: m1 },
+      { actorId: tom, momentId: m1 },
+      { actorId: ada, momentId: m1 }, // its own author
+    ]);
+    await db.insert(schema.momentComments).values([{ momentId: m1, actorId: tom, body: 'ha' }]);
+
+    const { body } = await get();
+    expect(body.moments).toEqual({ shared: 2, people: 2, views: 2, viewers: 2, medianViews: 1, seen: 1, withComment: 1 });
+    expect(m2).toBeTruthy();
   });
 });
 
