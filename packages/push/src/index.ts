@@ -90,7 +90,14 @@ export type Notification =
    * tap opens it; the moment rides along for a client that wants it.
    */
   | { kind: 'moment_comment'; groupId: string; momentId: string; who: string; said: string }
-  | { kind: 'moment_reaction'; groupId: string; momentId: string; who: string; emoji: string };
+  | { kind: 'moment_reaction'; groupId: string; momentId: string; who: string; emoji: string }
+  /**
+   * You run a roll now. `who` is whoever handed it to you; absent when it came
+   * to you because its Host left Parea and you had added the most to it.
+   */
+  | { kind: 'roll_handed'; eventId: string; eventName: string; who?: string }
+  /** The same for a group, whose last admin left it or left Parea. */
+  | { kind: 'group_handed'; groupId: string; groupName: string; who?: string };
 
 /**
  * The set, enumerable at runtime.
@@ -115,6 +122,8 @@ const KINDS: Record<Notification['kind'], true> = {
   group_added: true,
   moment_comment: true,
   moment_reaction: true,
+  roll_handed: true,
+  group_handed: true,
 };
 
 export const NOTIFICATION_KINDS = Object.keys(KINDS) as Notification['kind'][];
@@ -281,6 +290,20 @@ export function render(notification: Notification): { title: string; body: strin
         // their name in it, so it must not be softened into an invitation.
         body: `${notification.who} put you in this.`,
       };
+    case 'roll_handed':
+      return {
+        title: notification.eventName,
+        body: notification.who
+          ? `${notification.who} made you the Host.`
+          : 'Its Host has left, so you’re the Host now.',
+      };
+    case 'group_handed':
+      return {
+        title: notification.groupName,
+        body: notification.who
+          ? `${notification.who} made you the admin.`
+          : 'Its admin has left, so you run it now.',
+      };
   }
 }
 
@@ -291,8 +314,11 @@ export function toMessage(token: string, notification: Notification): PushMessag
     title,
     body,
     // Strings only: the payload is a deep link target, not a data channel.
+    // An absent optional field stays absent rather than arriving as "undefined".
     data: Object.fromEntries(
-      Object.entries(notification).map(([k, v]) => [k, String(v)]),
+      Object.entries(notification)
+        .filter(([, v]) => v !== undefined)
+        .map(([k, v]) => [k, String(v)]),
     ),
     /*
      * The three fields that decide whether anybody sees this.

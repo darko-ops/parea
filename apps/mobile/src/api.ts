@@ -265,6 +265,12 @@ export type Feed = {
     contributePolicy: ContributePolicy;
     canAdminister: boolean;
     /**
+     * Where this reader stands in it. `creator` is its Host — the one person
+     * who may hand the roll to somebody else, which a group admin who can
+     * also administer it may not.
+     */
+    membership?: 'creator' | 'member' | 'none';
+    /**
      * Who can see it, as it stands: `public` or `private`.
      *
      * Sent to everybody rather than only to whoever can change it, on the same
@@ -2296,6 +2302,26 @@ export class Api {
     return this.call(`/api/events/${eventId}/host-requests`, {
       method: 'PATCH',
       body: JSON.stringify({ requestId, action: yes ? 'approve' : 'decline' }),
+    });
+  }
+
+  /**
+   * The roll's Host makes somebody else its Host, and stays in as a co-host.
+   * Refused with `not_eligible` for somebody without an account, suspended,
+   * or blocked either way.
+   */
+  handOverRoll(eventId: string, actorId: string): Promise<unknown> {
+    return this.call(`/api/events/${eventId}/handover`, {
+      method: 'POST',
+      body: JSON.stringify({ actorId }),
+    });
+  }
+
+  /** A group's admin makes another member its admin, and steps down. */
+  handOverGroup(groupId: string, actorId: string): Promise<unknown> {
+    return this.call(`/api/groups/${groupId}/handover`, {
+      method: 'POST',
+      body: JSON.stringify({ actorId }),
     });
   }
 

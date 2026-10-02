@@ -118,6 +118,8 @@ describe('what can be sent', () => {
       { kind: 'group_added', groupId: 'g', groupName: 'Flat', who: 'Ana' },
       { kind: 'moment_comment', groupId: 'g', momentId: 'm', who: 'Ana', said: 'hi' },
       { kind: 'moment_reaction', groupId: 'g', momentId: 'm', who: 'Ana', emoji: '🔥' },
+      { kind: 'roll_handed', eventId: 'e', eventName: 'Party', who: 'Ana' },
+      { kind: 'group_handed', groupId: 'g', groupName: 'Flat' },
     ];
     // One per kind, so a kind added without one fails here rather than going
     // silent on somebody's phone.
@@ -222,5 +224,16 @@ describe('delivery', () => {
 
     await sendAll([message()], { fetcher, accessToken: 'secret' });
     expect(auth).toBe('Bearer secret');
+  });
+});
+
+describe('handing on', () => {
+  it('names who handed it over, and says why when nobody did', () => {
+    expect(render({ kind: 'roll_handed', eventId: 'e', eventName: 'Party', who: 'Ana' }).body).toBe(
+      'Ana made you the Host.',
+    );
+    const left = toMessage(TOKEN, { kind: 'group_handed', groupId: 'g', groupName: 'Flat' });
+    expect(left.body).toBe('Its admin has left, so you run it now.');
+    expect(left.data).not.toHaveProperty('who');
   });
 });

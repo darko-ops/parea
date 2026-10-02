@@ -477,3 +477,61 @@ async function notBlockedWith(db: Db, from: string, recipients: string[]): Promi
   const across = new Set(rows.map((r) => (r.blocker === from ? r.blocked : r.blocker)));
   return recipients.filter((id) => !across.has(id));
 }
+
+/**
+ * Somebody runs a roll now — handed it by name (`from`), or chosen because its
+ * Host left Parea and they had added the most to it. See `./succession`.
+ */
+export async function notifyRollHanded(
+  db: Db,
+  heirs: { id: string; actorId: string }[],
+  from?: string,
+): Promise<void> {
+  try {
+    const who = from ? await nameOf(db, from) : undefined;
+    for (const heir of heirs) {
+      const [event] = await db
+        .select({ name: schema.events.name })
+        .from(schema.events)
+        .where(eq(schema.events.id, heir.id));
+      if (!event) continue;
+      await deliver(
+        db,
+        [heir.actorId],
+        { kind: 'roll_handed', eventId: heir.id, eventName: event.name, ...(who ? { who } : {}) },
+        from,
+      );
+    }
+  } catch {
+    /* see the module header */
+  }
+}
+
+/** The same for a group: its admin handed it over, or its last admin left. */
+export async function notifyGroupHanded(
+  db: Db,
+  heirs: { id: string; actorId: string }[],
+  from?: string,
+): Promise<void> {
+  try {
+    const who = from ? await nameOf(db, from) : undefined;
+    for (const heir of heirs) {
+      const [group] = await db
+        .select({ name: schema.groups.name })
+        .from(schema.groups)
+        .where(eq(schema.groups.id, heir.id));
+      if (!group) continue;
+      const buckets = await byTitle(db, [heir.actorId], heir.id, group.name);
+      for (const [groupName, actorIds] of buckets) {
+        await deliver(
+          db,
+          actorIds,
+          { kind: 'group_handed', groupId: heir.id, groupName, ...(who ? { who } : {}) },
+          from,
+        );
+      }
+    }
+  } catch {
+    /* see the module header */
+  }
+}

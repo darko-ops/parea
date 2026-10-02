@@ -3328,6 +3328,42 @@ function EventScreen({
     [api, event.id, refresh],
   );
 
+  /**
+   * Handing the roll to somebody else, asked first.
+   *
+   * An alert rather than a sheet: it is one yes-or-no, and the one thing in
+   * the People pane that cannot be undone from the same screen — after it the
+   * new Host has to hand it back.
+   */
+  const makeHost = useCallback(
+    (actorId: string, name: string) => {
+      Alert.alert(
+        `Make ${name} the Host?`,
+        'They will run this roll — its name, who is in it and who can add. You stay in as a co-host.',
+        [
+          { text: 'Cancel', style: 'cancel' },
+          {
+            text: 'Make Host',
+            onPress: async () => {
+              try {
+                await api.handOverRoll(event.id, actorId);
+                await refresh();
+              } catch (err) {
+                Alert.alert(
+                  'Could not hand it over',
+                  err instanceof ApiError && err.code === 'not_eligible'
+                    ? `${name} can’t be this roll’s Host.`
+                    : 'Try again in a moment.',
+                );
+              }
+            },
+          },
+        ],
+      );
+    },
+    [api, event.id, refresh],
+  );
+
   /** The album photograph on its way up as a cover, if one is. */
   const [sendingCover, setSendingCover] = useState(false);
 
@@ -4946,6 +4982,7 @@ function EventScreen({
             */
             hosted={(adding ?? feed?.event.contributePolicy) === 'host'}
             onSetHost={(actorId, host) => void setHost(actorId, host)}
+            onMakeHost={feed?.event.membership === 'creator' ? makeHost : undefined}
           />
         )}
       </View>

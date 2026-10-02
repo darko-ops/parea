@@ -22,6 +22,7 @@ import {
   participatedInGroup,
   removeMember,
 } from '@/groups';
+import { notifyGroupHanded } from '@/notify';
 import { currentActorId } from '@/session';
 
 export const runtime = 'nodejs';
@@ -83,6 +84,7 @@ export async function DELETE(
       ),
     );
   // If that was the last admin, somebody still in it becomes one.
-  await ensureAdmin(db, id);
+  const heir = await ensureAdmin(db, id);
+  if (heir) await notifyGroupHanded(db, [{ id, actorId: heir }]);
   return NextResponse.json({ member: false });
 }

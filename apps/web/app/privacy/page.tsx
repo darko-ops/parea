@@ -236,7 +236,7 @@ export default function PrivacyPage() {
           <h3>A notification token, if you turn notifications on</h3>
           <p className="muted">
             Only in the app, only after you allow it, and only used for the
-            twelve notifications this product sends: one reminder about a roll
+            fourteen notifications this product sends: one reminder about a roll
             you joined and have not added anything to, a new roll in a group
             you are in, the host&rsquo;s answer when you have asked for a photo
             of you to be taken down, that somebody is asking to come into a private
@@ -244,8 +244,10 @@ export default function PrivacyPage() {
             has asked you into a roll, that somebody has asked you into a
             group, that somebody has put you in a group they made, that somebody
             has commented on a photograph you added, that somebody has
-            commented on or reacted to a moment you shared, and that somebody
-            has said you are in a photograph. The last of those is the only one that
+            commented on or reacted to a moment you shared, that you now run
+            a roll or a group &mdash; because somebody handed it to you, or
+            because whoever ran it left &mdash; and that somebody has said
+            you are in a photograph. The last of those is the only one that
             tells you about a claim somebody else has made about you, which is
             why it is sent rather than left to be found.
           </p>
@@ -742,8 +744,9 @@ export default function PrivacyPage() {
               happens to your photos: left in other people&rsquo;s rolls, with
               no name on them, where they can still be removed one at a time;
               or removed as well. The rolls and groups you made stay, because
-              they belong to everyone in them, and so do safety and moderation
-              records, which may have to be kept by law. We also note that an
+              they belong to everyone in them, and each passes to whoever in it
+              has added the most photos. Safety and moderation records stay
+              too, because they may have to be kept by law. We also note that an
               account was closed, with the date it was opened and the date it
               closed and nothing that says whose, so we can count how many
               people leave.

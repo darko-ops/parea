@@ -428,6 +428,33 @@ export function EventView({
     [eventId, refresh],
   );
 
+  /** Handing the roll to somebody else, asked first. */
+  const makeHost = useCallback(
+    async (actorId: string, name: string) => {
+      if (
+        !confirm(
+          `Make ${name} the Host? They will run this roll — its name, who is in it and who can add. You stay in as a co-host.`,
+        )
+      ) {
+        return;
+      }
+      const res = await fetch(`/api/events/${eventId}/handover`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ actorId }),
+      });
+      if (res.ok) await refresh();
+      else {
+        alert(
+          res.status === 409
+            ? `${name} can’t be this roll’s Host.`
+            : 'Could not hand it over. Try again.',
+        );
+      }
+    },
+    [eventId, refresh],
+  );
+
   /**
    * Asking to be one of the people who may add.
    *
@@ -1265,6 +1292,11 @@ export function EventView({
             canAdminister={feed.event.canAdminister}
             contributePolicy={feed.event.contributePolicy}
             onSetHost={(actorId, host) => void setHost(actorId, host)}
+            onMakeHost={
+              feed.event.membership === 'creator'
+                ? (actorId, name) => void makeHost(actorId, name)
+                : undefined
+            }
             onInvite={() => setSharing(true)}
           />
           <SiteFooter />
@@ -1544,6 +1576,7 @@ function People({
   canAdminister,
   contributePolicy,
   onSetHost,
+  onMakeHost,
   onInvite,
 }: {
   roster: Roster[];
@@ -1571,6 +1604,11 @@ function People({
    */
   contributePolicy: string;
   onSetHost: (actorId: string, host: boolean) => void;
+  /**
+   * Only for the roll's Host — not a group admin who can also administer it.
+   * Being Host is the one thing about a roll that is a person's own to hand on.
+   */
+  onMakeHost?: (actorId: string, name: string) => void;
   onInvite: () => void;
 }) {
   /** Only worth asking about on an album actually set to `host`. */
@@ -1694,6 +1732,15 @@ function People({
                     ? 'Co-host asked'
                     : ROLE_WORDS[person.role]}
               </span>
+            )}
+            {onMakeHost && person.actorId && person.role !== 'invited' && person.role !== 'creator' && (
+              <button
+                type="button"
+                className="secondary small"
+                onClick={() => onMakeHost(person.actorId!, person.name)}
+              >
+                Make Host
+              </button>
             )}
           </li>
         ))}

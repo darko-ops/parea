@@ -22,6 +22,7 @@ import { invitable } from './friends';
 import { EMPTY_SUMMARY, groupThreadSummaries } from './groupMessages';
 import { imageSrc } from './images';
 import { getStorage } from './storage';
+import { crownGroups } from './succession';
 
 export type GroupRow = typeof schema.groups.$inferSelect;
 
@@ -192,9 +193,9 @@ export async function removeMember(
  *
  * Called after anybody leaves. When the last admin goes — by leaving, or by
  * deleting their account — the group used to carry on with nobody able to
- * approve a request, invite anyone or remove anyone, for good. The member who
- * has been in it longest becomes an admin instead: the closest thing a group
- * has to somebody everyone already trusts.
+ * approve a request, invite anyone or remove anyone, for good. Whoever has
+ * added the most to the group's albums becomes an admin instead, and the
+ * longest-standing member where nobody has added anything. See `./succession`.
  */
 export async function ensureAdmin(db: Db, groupId: string): Promise<string | null> {
   const [admin] = await db
@@ -204,19 +205,8 @@ export async function ensureAdmin(db: Db, groupId: string): Promise<string | nul
     .limit(1);
   if (admin) return null;
 
-  const [eldest] = await db
-    .select({ actorId: schema.groupMembers.actorId })
-    .from(schema.groupMembers)
-    .where(eq(schema.groupMembers.groupId, groupId))
-    .orderBy(asc(schema.groupMembers.joinedAt))
-    .limit(1);
-  if (!eldest) return null;
-
-  await db
-    .update(schema.groupMembers)
-    .set({ role: 'admin' })
-    .where(and(eq(schema.groupMembers.groupId, groupId), eq(schema.groupMembers.actorId, eldest.actorId)));
-  return eldest.actorId;
+  const [crowned] = await crownGroups(db, [groupId]);
+  return crowned?.actorId ?? null;
 }
 
 /**

@@ -81,6 +81,11 @@ export function notificationTarget(
     case 'photo_comment':
     case 'photo_tagged':
       return eventId ? { screen: 'event', eventId } : null;
+    case 'roll_handed':
+      // They run it now; the roll is where that means anything.
+      return eventId ? { screen: 'event', eventId } : null;
+    case 'group_handed':
+      return groupId ? { screen: 'group', groupId } : null;
     case 'event_invited':
       // A friend put them in it. The event is the point and they have never
       // seen it, so this is the one notification where opening the event is

@@ -413,6 +413,53 @@ export function GroupScreen({
     [api, groupId, load],
   );
 
+  /**
+   * An admin handing the room to somebody else, and stepping down.
+   *
+   * Asked first for the same reason removing is: it does not undo itself from
+   * here — once it is done, only the new admin can hand it back.
+   */
+  const handOver = useCallback(
+    (person: GroupPerson) => {
+      Alert.alert(
+        `Make ${person.firstName} the admin?`,
+        'They will run the group instead of you. You stay in it as a member.',
+        [
+          { text: 'Cancel', style: 'cancel' },
+          {
+            text: 'Make admin',
+            onPress: async () => {
+              try {
+                await api.handOverGroup(groupId, person.actorId);
+              } catch (err) {
+                Alert.alert(
+                  'Could not hand it over',
+                  err instanceof ApiError && err.code === 'not_eligible'
+                    ? `${person.firstName} can’t run this group.`
+                    : 'Try again in a moment.',
+                );
+              }
+              await load();
+            },
+          },
+        ],
+      );
+    },
+    [api, groupId, load],
+  );
+
+  /** What an admin's long press on somebody offers. */
+  const personActions = useCallback(
+    (person: GroupPerson) => {
+      Alert.alert(person.name, undefined, [
+        { text: 'Make admin', onPress: () => handOver(person) },
+        { text: 'Remove from group', style: 'destructive', onPress: () => removeMember(person) },
+        { text: 'Cancel', style: 'cancel' },
+      ]);
+    },
+    [handOver, removeMember],
+  );
+
   /*
    * Both of these sit above the `error` and `!group` returns below, and have
    * to stay there.
@@ -728,17 +775,23 @@ export function GroupScreen({
                          does nothing is worse than a label that never
                          offered. */
                       onPress={person.handle ? () => onOpenPerson(person.handle!) : undefined}
-                      onLongPress={removable ? () => removeMember(person) : undefined}
+                      onLongPress={removable ? () => personActions(person) : undefined}
                       delayLongPress={320}
                       disabled={!person.handle && !removable}
                       accessibilityRole={person.handle || removable ? 'button' : 'text'}
                       accessibilityActions={
-                        removable ? [{ name: 'longpress', label: 'Remove from group' }] : undefined
+                        removable
+                          ? [
+                              { name: 'makeAdmin', label: 'Make admin' },
+                              { name: 'longpress', label: 'Remove from group' },
+                            ]
+                          : undefined
                       }
                       onAccessibilityAction={
                         removable
                           ? (e) => {
                               if (e.nativeEvent.actionName === 'longpress') removeMember(person);
+                              if (e.nativeEvent.actionName === 'makeAdmin') handOver(person);
                             }
                           : undefined
                       }

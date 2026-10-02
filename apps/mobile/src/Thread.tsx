@@ -1361,12 +1361,19 @@ export function People({
   /** Only asked about on an album that is actually set to `host`. */
   hosted = false,
   onSetHost,
+  /**
+   * Set only for the roll's Host: pressing somebody offers to make them Host
+   * instead. Not for a group admin who can also administer the roll — being
+   * Host is the one thing about a roll that is a person's own to hand on.
+   */
+  onMakeHost,
 }: {
   roster: Roster[];
   t: GroupTheme;
   canAdminister?: boolean;
   hosted?: boolean;
   onSetHost?: (actorId: string, host: boolean) => void;
+  onMakeHost?: (actorId: string, name: string) => void;
 }) {
   return (
     <FlatList
@@ -1393,8 +1400,22 @@ export function People({
           item.actorId != null &&
           item.role !== 'invited' &&
           item.role !== 'creator';
+        // Somebody already in it, who is not the Host already.
+        const heir =
+          onMakeHost != null &&
+          item.actorId != null &&
+          item.role !== 'invited' &&
+          item.role !== 'creator';
         return (
-          <View style={[styles.personRow, { borderBottomColor: t.line }]}>
+          <Pressable
+            disabled={!heir}
+            onPress={() => onMakeHost!(item.actorId!, item.name)}
+            accessibilityHint={heir ? `Make ${item.name} the Host` : undefined}
+            style={({ pressed }) => [
+              styles.personRow,
+              { borderBottomColor: t.line, opacity: pressed ? 0.6 : 1 },
+            ]}
+          >
             {item.avatarUrl ? (
               <Image
                 source={{ uri: item.avatarUrl }}
@@ -1455,7 +1476,7 @@ export function People({
             ) : (
               <Text style={[styles.personHandle, { color: t.dim }]}>{standing(item, hosted === true)}</Text>
             )}
-          </View>
+          </Pressable>
         );
       }}
     />

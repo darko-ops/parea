@@ -190,6 +190,41 @@ export function GroupView({ group, tab }: { group: GroupData; tab: GroupTab }) {
   );
 
   /**
+   * Handing the group to somebody else, and stepping down. Asked first, on the
+   * page as removing is: once it is done, only the new admin can hand it back.
+   */
+  const [handing, setHanding] = useState<GroupPerson | null>(null);
+  const handOver = useCallback(
+    async (person: GroupPerson) => {
+      setBusy(true);
+      setError(null);
+      setRemoved(null);
+      try {
+        const res = await fetch(`/api/groups/${group.id}/handover`, {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ actorId: person.actorId }),
+        });
+        if (!res.ok) {
+          throw new Error(
+            res.status === 409
+              ? `${person.firstName} can’t run this group.`
+              : 'Could not hand it over. Try again.',
+          );
+        }
+        setRemoved(`${person.firstName} runs this group now.`);
+        setHanding(null);
+        router.refresh();
+      } catch (err) {
+        setError(err instanceof Error ? err.message : String(err));
+      } finally {
+        setBusy(false);
+      }
+    },
+    [group.id, router],
+  );
+
+  /**
    * Sending the guest list.
    *
    * One call for the whole selection rather than one per person, matching the
@@ -670,9 +705,25 @@ export function GroupView({ group, tab }: { group: GroupData; tab: GroupTab }) {
           edge. Beside it, the panel has the page to hang into.
         */}
         {group.role === 'admin' && removable.length > 0 && (
-          <Menu label="Remove somebody from this group" glyph="···" tone="round" className="strip-remove">
+          <Menu label="Manage people in this group" glyph="···" tone="round" className="strip-remove">
             {(close) => (
               <>
+                {removable.map((person) => (
+                  <button
+                    key={`admin-${person.actorId}`}
+                    role="menuitem"
+                    disabled={busy}
+                    onClick={() => {
+                      close();
+                      setRemoved(null);
+                      setError(null);
+                      setRemoving(null);
+                      setHanding(person);
+                    }}
+                  >
+                    Make {person.name} admin
+                  </button>
+                ))}
                 {removable.map((person) => (
                   <button
                     key={person.actorId}
@@ -682,6 +733,7 @@ export function GroupView({ group, tab }: { group: GroupData; tab: GroupTab }) {
                       close();
                       setRemoved(null);
                       setError(null);
+                      setHanding(null);
                       setRemoving(person);
                     }}
                   >
@@ -713,6 +765,20 @@ export function GroupView({ group, tab }: { group: GroupData; tab: GroupTab }) {
             {busy ? 'Removing…' : 'Remove'}
           </button>
           <button type="button" className="secondary" disabled={busy} onClick={() => setRemoving(null)}>
+            Cancel
+          </button>
+        </div>
+      )}
+      {handing && group.role === 'admin' && (
+        <div className="strip-confirm" role="group" aria-label="Confirm handing over">
+          <span>
+            Make {handing.name} the admin? They will run the group instead of you, and you
+            stay in it as a member.
+          </span>
+          <button type="button" disabled={busy} onClick={() => void handOver(handing)}>
+            {busy ? 'Handing over…' : 'Make admin'}
+          </button>
+          <button type="button" className="secondary" disabled={busy} onClick={() => setHanding(null)}>
             Cancel
           </button>
         </div>

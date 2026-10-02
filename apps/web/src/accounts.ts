@@ -34,6 +34,8 @@ import { createHmac, timingSafeEqual } from 'node:crypto';
 import type { Db } from './db';
 import { mergeActor } from './merge';
 import { revokePhotoLinks } from './revoke';
+import { notifyGroupHanded, notifyRollHanded } from './notify';
+import { crownGroups, passOnRolls, type Heir } from './succession';
 
 /** Long enough to find the mail, short enough that a leaked one is stale. */
 export const CODE_TTL_MS = 10 * 60_000;
@@ -499,9 +501,10 @@ export async function avatarUrl(key: string | null): Promise<string | null> {
  *
  * What is kept, on purpose, and said so on the privacy page: the photographs
  * (see above), the events and groups they made, which belong to everybody in
- * them, and the safety and moderation records — reports they filed, incidents
- * about what they uploaded — which a reviewer may need long after, and which
- * the law may require.
+ * them and are handed on to whoever added the most to each (`./succession`),
+ * and the safety and moderation records — reports they filed, incidents about
+ * what they uploaded — which a reviewer may need long after, and which the law
+ * may require.
  */
 export async function deleteAccount(db: Db, actorId: string): Promise<boolean> {
   const [actor] = await db
@@ -512,6 +515,8 @@ export async function deleteAccount(db: Db, actorId: string): Promise<boolean> {
   if (!actor?.accountId) return false;
 
   let avatarKeys: string[] = [];
+  let groupHeirs: Heir[] = [];
+  let rollHeirs: Heir[] = [];
   await db.transaction(async (tx) => {
     /*
      * The passkeys go, and they go first.
@@ -535,12 +540,15 @@ export async function deleteAccount(db: Db, actorId: string): Promise<boolean> {
     await tx.delete(schema.passkeys).where(inArray(schema.passkeys.actorId, theirs));
 
     const ids = (await theirs).map((row) => row.id);
-    avatarKeys = await eraseActors(tx as unknown as Db, ids);
+    ({ avatarKeys, groupHeirs } = await eraseActors(tx as unknown as Db, ids));
 
     await tx
       .update(schema.actors)
       .set({ accountId: null, kind: 'guest' })
       .where(eq(schema.actors.accountId, actor.accountId!));
+    // Every roll they were Host of goes to whoever added the most to it. After
+    // the line above, so a guest — which they now are — is never the heir.
+    rollHeirs = await passOnRolls(tx as unknown as Db, ids);
     const [closed] = await tx
       .delete(schema.accounts)
       .where(eq(schema.accounts.id, actor.accountId!))
@@ -564,6 +572,10 @@ export async function deleteAccount(db: Db, actorId: string): Promise<boolean> {
       console.error(`account deletion could not remove ${key}: ${err}`);
     }
   }
+  // Whoever runs something of theirs now is told, once nothing can roll back.
+  // Nameless: the person who left has no name any more.
+  await notifyRollHanded(db, rollHeirs);
+  await notifyGroupHanded(db, groupHeirs);
   return true;
 }
 
@@ -571,12 +583,15 @@ export async function deleteAccount(db: Db, actorId: string): Promise<boolean> {
  * Everything about these actors that is theirs alone. See `deleteAccount`.
  *
  * Returns the profile pictures to delete from storage once the transaction has
- * committed. Every statement is scoped to the actors' own ids; nothing here
+ * committed, and who now runs a group they ran. Every statement is scoped to the actors' own ids; nothing here
  * touches a row that is somebody else's — a block somebody made against them
  * stays, because it protects the other person.
  */
-async function eraseActors(db: Db, ids: string[]): Promise<string[]> {
-  if (ids.length === 0) return [];
+async function eraseActors(
+  db: Db,
+  ids: string[],
+): Promise<{ avatarKeys: string[]; groupHeirs: Heir[] }> {
+  if (ids.length === 0) return { avatarKeys: [], groupHeirs: [] };
   const list = sql.join(ids.map((id) => sql`${id}::uuid`), sql`, `);
 
   const avatars = (await db.execute(sql`
@@ -630,26 +645,10 @@ async function eraseActors(db: Db, ids: string[]): Promise<string[]> {
     await db.execute(sql`delete from ${sql.identifier(table)} where actor_id in (${list})`);
   }
   /*
-   * A group whose only admin this was keeps somebody who can run it: the
-   * member who has been in it longest. The same rule as `ensureAdmin`, as one
-   * statement over every group they left.
+   * A group whose only admin this was keeps somebody who can run it: whoever
+   * has added the most to it. See `./succession`.
    */
-  if (theirGroups.length > 0) {
-    const groupList = sql.join(theirGroups.map((id) => sql`${id}::uuid`), sql`, `);
-    await db.execute(sql`
-      update "group_member" gm set role = 'admin'
-      from (
-        select distinct on (g.group_id) g.group_id, g.actor_id
-        from "group_member" g
-        where g.group_id in (${groupList})
-          and not exists (
-            select 1 from "group_member" a where a.group_id = g.group_id and a.role = 'admin'
-          )
-        order by g.group_id, g.joined_at asc
-      ) heir
-      where gm.group_id = heir.group_id and gm.actor_id = heir.actor_id
-    `);
-  }
+  const groupHeirs = await crownGroups(db, theirGroups);
 
   // The other ends of what they were part of.
   await db.execute(sql`delete from "friendship" where friend_actor_id in (${list})`);
@@ -663,7 +662,7 @@ async function eraseActors(db: Db, ids: string[]): Promise<string[]> {
   // A moment is theirs alone; it goes whichever kind of deletion this is.
   await db.execute(sql`update "moment" set deleted_at = coalesce(deleted_at, now()) where actor_id in (${list})`);
 
-  return avatarKeys;
+  return { avatarKeys, groupHeirs };
 }
 
 /** Tombstones every photo this actor uploaded. The purge job removes the bytes. */
