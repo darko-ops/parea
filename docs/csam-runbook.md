@@ -262,6 +262,13 @@ explicit content, self-serve and cheap. A flag writes a `moderation_flag` and
 **hides nothing** — it orders a human queue. Acting on a probability would take
 down swimwear at a rate no small team can review. **Optional.**
 
+**What it covers: album photos only.** The deriver is the only caller
+(`services/deriver/src/moderation.ts`), so a classifier sees photos added to
+albums and nothing else. Moments, group photos, avatars and covers, which the
+web app re-encodes and stores itself, get hash matching
+(`apps/web/src/safety.ts`) but are never classified; a report is the only way
+one of them reaches a person.
+
 Providers are a table, the same shape as the mail providers: choosing one is
 configuration, adding one is an entry. `sightengine` is implemented against
 their nudity-2.1 model; `generic` is JSON in, labels and a score out, which is

@@ -239,12 +239,14 @@ pretending a code went out, and `/api/health` names what is missing.
    `https://api.twilio.com/2010-04-01/Accounts/<sid>/Messages.json`.
    `SMS_API_KEY` is one value: `<sid>:<token>` for Twilio, `<key>:<secret>` for
    Vonage, the access key alone for MessageBird.
-3. **Leave `PHONE_PEPPER` unset unless there is somewhere safe to keep it.** It
-   falls back to `SESSION_SECRET`, and rotating either invalidates every stored
-   number — everybody has to enter and confirm theirs again. A dedicated pepper
-   buys the ability to rotate the session secret without that; it costs one more
-   secret to lose. If you are going to set it, set it *before* anybody confirms a
-   number: while none are stored there is nothing to invalidate.
+3. **Set `PHONE_PEPPER` in production — it is required there.** It is the key
+   numbers are hashed with, and in production it never falls back to
+   `SESSION_SECRET`: `dedicatedSecret` in `apps/web/src/env.ts` returns nothing
+   when `VERCEL_ENV=production`, so without it numbers cannot be confirmed or
+   matched. Outside production it falls back to `SESSION_SECRET` for
+   convenience. Rotating it invalidates every stored number — everybody has to
+   enter and confirm theirs again — so set it *before* anybody confirms a
+   number, while there is nothing to invalidate.
 4. **Send one:**
 
    ```
@@ -412,7 +414,7 @@ Generate with `openssl rand -base64 32`.
 | `SMS_FROM` | ● | | the number or sender ID texts come from |
 | `SMS_API_URL` | ● | | required for `twilio`, whose path carries the account SID |
 | `SMS_COUNTRIES` | ● | | ISO codes texts may go to, comma-separated; default `US,CA,GB`. Caribbean +1 numbers are refused even with `US`. Keep in step with Twilio Geo Permissions |
-| `PHONE_PEPPER` | ● | | the key numbers are hashed with. Falls back to `SESSION_SECRET`; rotating either makes everybody confirm their number again |
+| `PHONE_PEPPER` | ● | | the key numbers are hashed with. Required in production, where it never falls back to `SESSION_SECRET` (it does elsewhere); rotating it makes everybody confirm their number again |
 | `QSTASH_TOKEN` | ● | | without it an upload is refused rather than never derived |
 | `QSTASH_URL` | | ● | only when the QStash account is outside the default region |
 | `DERIVER_JOB_URL` | ● | | where deliveries go; signed into each one, so it must match the deriver's `DERIVER_PUBLIC_URL` |
@@ -465,9 +467,14 @@ Generate with `openssl rand -base64 32`.
 
 ## Known gaps
 
-**Ingest polls.** The design has R2 event notifications driving a Cloudflare
-Queue. Polling every five seconds needs no extra infrastructure and is a
-change to one file when it stops being enough.
+**Ingest is pushed, one photo at a time.** `/api/uploads/:id/complete`
+publishes to Upstash QStash (`apps/web/src/queue.ts`), which delivers one
+signed request per photo to the deriver's `serve` process; Fly starts the
+machine on a delivery and stops it when idle (`min_machines_running = 0` in
+`fly.toml`), so nothing polls and the database is allowed to sleep. A publish
+that fails fails the request, so the client retries rather than the photo
+being silently never derived. `deriver watch`, which polls, is for development,
+where there is no QStash.
 
 **One deriver machine.** Two would race on the same pending rows. Scaling out
 needs claim-based work distribution first.

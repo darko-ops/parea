@@ -15,7 +15,7 @@ number here, change the policy in the same commit.
 | Download manifests | 1 day (links work 15 minutes) | R2 lifecycle rule `expire-manifests`; `TOKEN_TTL_SECONDS` in the download route |
 | Sign-in codes | 10 minutes, single use | `accounts.ts`; swept by `jobs.ts` |
 | Passkey challenges | 5 minutes, single use | `passkeys.ts`; swept by `jobs.ts` |
-| Rate-limit counters | under an hour, keyed by a hash, no address | `ratelimit.ts`; `expire-rate-limits` in `jobs.ts` |
+| Rate-limit counters | swept two hours after their window began, keyed by a hash, no address. Most windows are an hour; the two phone limits (per account and service-wide) are a day, and the sweep currently removes those early too | `ratelimit.ts`; `expire-rate-limits` in `jobs.ts` |
 | Signed-out sessions | a week on the device list | `staleSessions` in `apps/web/src/sessions.ts`, swept by `jobs.ts` |
 | Spoken album codes | released after 90 days unused | `jobs.ts` (`CODE_DORMANCY_DAYS`) |
 | Usage facts (`observation`) | one year | `jobs.ts` |

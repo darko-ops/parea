@@ -207,17 +207,18 @@ At this point the **web product is launchable**. Everything below is the app.
       `preview` then reaches live data with nothing between them but the
       release channel.
 - [ ] Age rating. A UGC app does not get to claim 4+.
-- [ ] **Nutrition labels**, and the one question in them that is not a
-      programmer's to answer: precise location is currently not declared, on the
-      reading that it is stripped at ingest and never stored — but the
-      unstripped original does sit in R2 between upload and ingest. Declaring it
-      makes the label say this app collects precise location, which
-      misdescribes the product; not declaring it and being wrong is a rejection.
-      `/privacy` discloses the window either way. The facts are in
-      `apps/mobile/README.md`.
+- [x] **Nutrition labels.** Precise location is declared (Location → Precise
+      location, app functionality, not tracking) in the iOS privacy manifest in
+      `apps/mobile/app.json` and in
+      [`store-privacy-labels.md`](store-privacy-labels.md). The location inside
+      an uploaded photo's metadata reaches our storage and sits there until
+      ingest, which strips it from the original itself, stores only the
+      stripped copy and deletes the upload (`services/deriver/src/pipeline.ts`)
+      — so it is collected, briefly, and never kept or shown. The store forms
+      themselves are filled in by hand from that file.
 
 ## Known limits, not blockers
 
-Ingest polls every five seconds rather than using R2 notifications. One deriver
-machine — two would race on the same pending rows. No bounce or complaint
+One deriver machine — QStash delivers one photo at a time to it, and scaling
+out needs claim-based work distribution first. No bounce or complaint
 handling on outbound mail.

@@ -28,7 +28,7 @@ account or their guest identity) and **not used for tracking**.
 | User ID | Personal info → User IDs | App functionality | The account and guest identifiers. |
 | Device ID | Device or other IDs | App functionality | The push notification token. |
 | Photos or videos | Photos and videos | App functionality | What people upload. |
-| Precise location | Location → Precise location | App functionality | Only what is already inside an uploaded photo's metadata. Kept with the original, removed from every copy anyone else sees. The app never reads the device's location. |
+| Precise location | Location → Precise location | App functionality | Only what is already inside an uploaded photo's metadata, and only until ingest: the deriver strips it from the original itself, stores only the stripped copy and deletes the upload (`services/deriver/src/pipeline.ts`). Nothing anyone sees, and nothing kept, carries it. The app never reads the device's location. |
 | Other user content | Messages → Other in-app messages; App activity → Other user-generated content | App functionality | Messages, comments, captions, reactions, reports. |
 | Product interaction | App activity → App interactions | Analytics | First-party only (`observation` table): a handful of events such as a download starting or a link being opened. No third party. |
 

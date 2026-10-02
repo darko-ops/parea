@@ -141,7 +141,7 @@ revisit later, the app tier is deliberately thin enough to move).
 | ORM | Drizzle | SQL-first, migrations checked in |
 | Objects | Cloudflare R2 | zero egress, S3-compatible |
 | Edge | Cloudflare Workers | image reads, zip streaming |
-| Async | Cloudflare Queues → container consumer | libvips/libheif won't run in a Worker (§7.7) |
+| Async | Upstash QStash → Fly.io container (`deriver serve`) | libvips/libheif won't run in a Worker (§7.7) |
 | Push | expo-notifications → APNs/FCM | one nudge, group events (§12) |
 
 ## 3. Identity without accounts
@@ -837,8 +837,10 @@ older storage permission below that.
 2. server   authorize(contribute) → presigned PUT per file (15 min)
             → `photo` rows at status='pending'
 3. client   PUT each file directly to R2, concurrency 3
-4. R2       event notification → Cloudflare Queue
-5. deriver  sha256, EXIF strip, crc32, derivatives → R2
+4. client   POST /api/uploads/:id/complete → server publishes to QStash
+            (a failed publish fails the request; the client retries)
+5. deriver  QStash delivers one signed request per photo;
+            sha256, EXIF strip, crc32, derivatives → R2
             → photo: status='ready', dimensions, captured_at, hash
 6. clients  grid fills in as photos flip to 'ready'
 ```
@@ -895,7 +897,9 @@ we promised. Derivatives are made server-side.
 ### 7.7 Deriving
 
 libheif/libvips will not run in a Workers isolate, so the deriver is a container
-(Fly.io or Railway) consuming a Cloudflare Queue, with R2 over the S3 API.
+on Fly.io that Upstash QStash delivers to — one signed HTTP request per photo,
+retried and then dead-lettered on failure — with R2 over the S3 API. Fly starts
+the machine on a delivery and stops it when idle, so nothing polls.
 
 | Kind | Longest edge | Format | Use |
 |---|---|---|---|
