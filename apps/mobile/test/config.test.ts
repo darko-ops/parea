@@ -169,6 +169,7 @@ describe('what App Store review asks for', () => {
       'expo-camera',
       'expo-notifications',
       'expo-secure-store',
+      '@sentry/react-native',
     ]) {
       expect(listed, plugin).toContain(plugin);
     }

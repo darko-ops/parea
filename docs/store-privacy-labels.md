@@ -6,12 +6,13 @@ safety). The iOS privacy manifest in `apps/mobile/app.json`
 store forms are filled in by hand and have to be kept in step with it. Check
 this list whenever the app starts sending something new to the server.
 
-Last checked against the code: 2026-09-30.
+Last checked against the code: 2026-10-01.
 
 ## Tracking
 
 None. No advertising identifier, no third-party analytics or tracking SDK, no
-data shared with data brokers. Answer **No** to "Do you or your third-party
+data shared with data brokers. The one third-party SDK in the app is Sentry's,
+for crash reports, which are not linked to anybody and not used for tracking. Answer **No** to "Do you or your third-party
 partners use data for tracking".
 
 ## Data collected
@@ -29,11 +30,16 @@ account or their guest identity) and **not used for tracking**.
 | Photos or videos | Photos and videos | App functionality | What people upload. |
 | Precise location | Location → Precise location | App functionality | Only what is already inside an uploaded photo's metadata. Kept with the original, removed from every copy anyone else sees. The app never reads the device's location. |
 | Other user content | Messages → Other in-app messages; App activity → Other user-generated content | App functionality | Messages, comments, captions, reactions, reports. |
-| Product interaction | App activity → App interactions | Analytics | First-party only (`observation` table): a handful of events such as a download starting. No third party. |
+| Product interaction | App activity → App interactions | Analytics | First-party only (`observation` table): a handful of events such as a download starting or a link being opened. No third party. |
+
+One more is **not linked to the person** and **not used for tracking**:
+
+| Data (Apple category) | Play category | Why | Notes |
+|---|---|---|---|
+| Crash data | App info and performance → Crash logs | App functionality | Sent to Sentry when the app crashes or hits an error nothing caught: what failed and where. No user, no device name, no IP, no screenshots; album links, emails and phone numbers are scrubbed on the phone first (`apps/mobile/src/scrub.ts`). Off in any build without `EXPO_PUBLIC_SENTRY_DSN`. |
 
 Not collected: contacts, address book, browsing history, search history,
-health, financial info, audio, crash logs or diagnostics (the phone app has no
-crash reporter), advertising data. A date of birth is asked for once at
+health, financial info, audio, performance diagnostics, advertising data. A date of birth is asked for once at
 account creation to check age and is not stored.
 
 ## Play Data safety, the yes/no questions
@@ -45,8 +51,8 @@ account creation to check age and is not stored.
 - Is data shared with third parties? **No** for sharing. Processors that act on
   our behalf (Vercel, Neon, Cloudflare, Fly, Upstash, the mail and SMS
   providers) are service providers, which Play does not count as sharing.
-- Is collection optional? Photos, name, user ID, device ID and product
-  interaction are required for the app to work; email is required only to
+- Is collection optional? Photos, name, user ID, device ID, product
+  interaction and crash logs are required for the app to work; email is required only to
   sign in; phone number is optional.
 
 ## When this changes

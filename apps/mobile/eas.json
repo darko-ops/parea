@@ -9,7 +9,10 @@
       "distribution": "internal",
       "channel": "development",
       "env": {
-        "EXPO_PUBLIC_API_URL": "http://localhost:3000"
+        "EXPO_PUBLIC_API_URL": "http://localhost:3000",
+        "SENTRY_DISABLE_AUTO_UPLOAD": "true",
+        "SENTRY_ORG": "parea-kc",
+        "SENTRY_PROJECT": "parea-mobile"
       }
     },
     "development-simulator": {
@@ -23,7 +26,10 @@
       "distribution": "internal",
       "channel": "preview",
       "env": {
-        "EXPO_PUBLIC_API_URL": "https://www.parea.photos"
+        "EXPO_PUBLIC_API_URL": "https://www.parea.photos",
+        "SENTRY_DISABLE_AUTO_UPLOAD": "true",
+        "SENTRY_ORG": "parea-kc",
+        "SENTRY_PROJECT": "parea-mobile"
       },
       "ios": {
         "buildConfiguration": "Release"
@@ -37,7 +43,10 @@
       "channel": "production",
       "autoIncrement": true,
       "env": {
-        "EXPO_PUBLIC_API_URL": "https://www.parea.photos"
+        "EXPO_PUBLIC_API_URL": "https://www.parea.photos",
+        "SENTRY_DISABLE_AUTO_UPLOAD": "true",
+        "SENTRY_ORG": "parea-kc",
+        "SENTRY_PROJECT": "parea-mobile"
       },
       "android": {
         "buildType": "app-bundle"
