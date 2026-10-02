@@ -30,6 +30,7 @@ import type { Message } from '@/messages';
 // module reads the database.
 import { REACTIONS } from '@/reactions';
 
+import { ChatPhotoViewer } from './ChatPhotoViewer';
 import { Face } from './Faces';
 import { IconGlyph } from './IconGlyph';
 import { Menu } from './Menu';
@@ -527,6 +528,9 @@ function Row({
    */
   const shot = useImageFailure(about?.src ?? '');
   const momentShot = useImageFailure(message.moment?.thumb ?? '');
+  const sentShot = useImageFailure(message.photo?.thumb ?? '');
+  /** A photograph sent into the chat, open full in `ChatPhotoViewer`. */
+  const [viewing, setViewing] = useState(false);
 
   if (message.deleted) {
     // A gap that says so, rather than a message quietly missing from the
@@ -671,16 +675,18 @@ function Row({
         */}
         {message.photo && !editing && (
           message.photo.thumb ? (
-            <a
-              href={message.photo.full ?? message.photo.thumb}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="message-photo"
-              aria-label="Open the photo"
-            >
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={message.photo.thumb} alt="" />
-            </a>
+            <>
+              <button
+                type="button"
+                onClick={() => setViewing(true)}
+                className="message-photo"
+                aria-label="Open the photo"
+              >
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img ref={sentShot.ref} src={message.photo.thumb} alt="" onError={sentShot.onError} />
+              </button>
+              {viewing && <ChatPhotoViewer photo={message.photo} onClose={() => setViewing(false)} />}
+            </>
           ) : (
             <span className="message-moment-said">A photo that isn’t available any more</span>
           )

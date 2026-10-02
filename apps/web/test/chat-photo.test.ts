@@ -25,6 +25,7 @@ const { sign } = await import('@/auth/cookies');
 const { addMember } = await import('@/groups');
 const { groupMessagesFor, groupThreadSummaries } = await import('@/groupMessages');
 const route = await import('../app/api/groups/[id]/messages/route');
+const moments = await import('../app/api/moments/route');
 
 const MIGRATIONS = fileURLToPath(new URL('../../../packages/core/drizzle', import.meta.url));
 
@@ -196,5 +197,26 @@ describe('a moment sent into a chat', () => {
 
     as(tom);
     expect((await send(await chat(tom, sam), { momentId: m })).status).toBe(404);
+  });
+});
+
+describe('a roll photo made a moment from the web', () => {
+  const make = (photoId: string) =>
+    moments.POST(
+      new Request('https://parea.test/api/moments', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ photoId }),
+      }),
+    );
+
+  it('is refused for a photo the requester cannot see, or one not ready', async () => {
+    const [ada, sam] = [await person('Ada'), await person('Sam')];
+    const hidden = await photo(await roll(ada, 'private'), ada);
+    const pending = await photo(await roll(ada, 'public'), ada, 'pending');
+    as(sam);
+    expect((await make(hidden)).status).toBe(404);
+    expect((await make(pending)).status).toBe(404);
+    expect((await make('not-an-id')).status).toBe(404);
   });
 });

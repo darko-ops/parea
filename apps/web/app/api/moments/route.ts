@@ -17,12 +17,15 @@ import { schema } from '@parea/core';
 import { eq, sql } from 'drizzle-orm';
 import { NextResponse } from 'next/server';
 
+import { derivativeKeyFrom } from '@parea/urls';
+
+import { decide, findEventById } from '@/access';
 import { getDb } from '@/db';
 import { admit, decode } from '@/imaging';
 import { MOMENT_MAX_BYTES, incomingPrefix, momentsResponse } from '@/moments';
 import { MOMENT_LIMIT, withinLimit } from '@/ratelimit';
 import { screenUpload } from '@/safety';
-import { currentActorId } from '@/session';
+import { currentActorId, requesterFor } from '@/session';
 import { getStorage } from '@/storage';
 
 export const runtime = 'nodejs';
@@ -77,7 +80,25 @@ export async function POST(request: Request) {
   let incoming: Buffer;
   let staged: string | null = null;
   if (json) {
-    const body = (await request.json().catch(() => ({}))) as { key?: unknown };
+    const body = (await request.json().catch(() => ({}))) as { key?: unknown; photoId?: unknown };
+    /*
+     * Or a roll's photograph, made a moment where it is — the web's ripple,
+     * which cannot fetch the picture into the browser to upload it again (the
+     * image Worker answers no cross-origin reads). Read here from its full
+     * size instead, and from there it is any other moment: admitted, scanned,
+     * re-encoded. Only somebody who can see it now may.
+     */
+    if (typeof body.photoId === 'string') {
+      if (!(await withinLimit(getDb(), MOMENT_LIMIT, process.env.SESSION_SECRET))) {
+        return NextResponse.json({ error: 'too_many_requests' }, { status: 429 });
+      }
+      const read = await readPhoto(body.photoId);
+      if (!read.ok) {
+        console.warn('moment refused', { error: read.error });
+        return NextResponse.json({ error: read.error }, { status: read.status });
+      }
+      return makeMoment(actorId, read.bytes);
+    }
     if (typeof body.key !== 'string' || !body.key.startsWith(incomingPrefix(actorId))) {
       return NextResponse.json({ error: 'not_found' }, { status: 404 });
     }
@@ -101,6 +122,42 @@ export async function POST(request: Request) {
   // copied, or refused, and in neither case read again.
   if (staged) await getStorage().delete(staged).catch(() => {});
   return made;
+}
+
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/** A roll's photograph at its full size, if this requester can see it now. */
+async function readPhoto(
+  photoId: string,
+): Promise<{ ok: true; bytes: Buffer } | { ok: false; error: string; status: number }> {
+  const gone = { ok: false as const, error: 'photo_not_found', status: 404 };
+  if (!UUID.test(photoId)) return gone;
+  const db = getDb();
+  const [photo] = await db
+    .select({
+      eventId: schema.photos.eventId,
+      storageKey: schema.photos.storageKey,
+      status: schema.photos.status,
+      deletedAt: schema.photos.deletedAt,
+      hiddenAt: schema.photos.hiddenAt,
+    })
+    .from(schema.photos)
+    .where(eq(schema.photos.id, photoId))
+    .limit(1);
+  if (!photo || photo.deletedAt || photo.hiddenAt || photo.status !== 'ready') return gone;
+  const event = await findEventById(db, photo.eventId);
+  if (!event || event.deletedAt) return gone;
+  const decision = await decide(db, event, 'view', await requesterFor(event.id));
+  if (!decision.allow) return gone;
+
+  const storage = getStorage();
+  const key = derivativeKeyFrom(photo.storageKey, 'full', 'jpeg');
+  const head = await storage.head(key).catch(() => null);
+  if (!head) return gone;
+  if (head.size > MOMENT_MAX_BYTES) return { ok: false, error: 'too_large', status: 413 };
+  const res = await fetch(await storage.presignGet(key, 60)).catch(() => null);
+  if (!res?.ok) return { ok: false, error: 'storage_failed', status: 502 };
+  return { ok: true, bytes: Buffer.from(await res.arrayBuffer()) };
 }
 
 async function readStaged(
