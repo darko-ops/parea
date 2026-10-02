@@ -38,8 +38,8 @@
  * first: the per-event cap does not depend on any of it.
  */
 
-import { schema } from '@parea/core';
-import { lt, sql } from 'drizzle-orm';
+import { RATE_LIMIT_LONG_WINDOWS, schema } from '@parea/core';
+import { sql } from 'drizzle-orm';
 import { createHmac } from 'node:crypto';
 import { headers } from 'next/headers';
 
@@ -326,14 +326,8 @@ export async function withinLimitFor(
   return verdict.allowed;
 }
 
-/** Drops windows that have closed. Called from the purge job. */
-export function expiredBefore(now: Date, longestWindowSeconds = 3600): Date {
-  return new Date(now.getTime() - longestWindowSeconds * 1000);
-}
-
-export function staleRateLimits(cutoff: Date) {
-  return lt(schema.rateLimits.windowStart, cutoff);
-}
+// Counters are swept by the hourly job (`expire-rate-limits` in the deriver),
+// which keeps each for its whole window — see `RATE_LIMIT_LONG_WINDOWS`.
 
 /**
  * Setting a profile picture, per source.
@@ -543,7 +537,8 @@ export const PHONE_CODE_LIMIT: Limit = {
 export const PHONE_ACCOUNT_LIMIT: Limit = {
   name: 'phone-account',
   max: 5,
-  windowSeconds: 86_400,
+  // Day-long, so listed in core for the hourly sweep to keep the whole day.
+  windowSeconds: RATE_LIMIT_LONG_WINDOWS['phone-account']!,
   failClosed: true,
 };
 
@@ -556,7 +551,8 @@ export const PHONE_ACCOUNT_LIMIT: Limit = {
 export const PHONE_DAILY_LIMIT: Limit = {
   name: 'phone-daily',
   max: 200,
-  windowSeconds: 86_400,
+  // Day-long, so listed in core for the hourly sweep to keep the whole day.
+  windowSeconds: RATE_LIMIT_LONG_WINDOWS['phone-daily']!,
   failClosed: true,
 };
 

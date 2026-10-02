@@ -10,7 +10,7 @@
  */
 
 import { PGlite } from '@electric-sql/pglite';
-import { newLinkToken, schema } from '@parea/core';
+import { newLinkToken, RATE_LIMIT_DEFAULT_WINDOW_SECONDS, RATE_LIMIT_LONG_WINDOWS, schema } from '@parea/core';
 import { and, count, eq, isNull, sql, sum } from 'drizzle-orm';
 import { drizzle } from 'drizzle-orm/pglite';
 import { migrate } from 'drizzle-orm/pglite/migrator';
@@ -24,10 +24,9 @@ import {
   SIGN_IN_LIMIT,
   SIGN_IN_VERIFY_LIMIT,
   consume,
-  expiredBefore,
-  staleRateLimits,
   withinLimitFor,
 } from '../src/ratelimit';
+import * as limits from '../src/ratelimit';
 
 const MIGRATIONS = fileURLToPath(
   new URL('../../../packages/core/drizzle', import.meta.url),
@@ -122,20 +121,26 @@ describe('the limits themselves', () => {
 });
 
 describe('cleanup', () => {
-  it('marks closed windows as removable and leaves live ones alone', async () => {
-    await consume(db, 'live', TINY);
-    await consume(db, 'old', TINY);
-    await db.execute(sql`
-      update "rate_limit" set "window_start" = now() - interval '2 hours'
-      where "bucket" = 'test:old'
-    `);
-
-    const removed = await db
-      .delete(schema.rateLimits)
-      .where(staleRateLimits(expiredBefore(new Date())))
-      .returning();
-
-    expect(removed.map((r: any) => r.bucket)).toEqual(['test:old']);
+  /*
+   * The hourly sweep cannot import this file, so it learns which limits count
+   * for longer than an hour from `RATE_LIMIT_LONG_WINDOWS` in core. A day-long
+   * limit missing from that list is swept after two hours and quietly becomes
+   * a two-hourly one — which is what happened to the phone limits.
+   */
+  it('lists every limit longer than an hour where the sweep can see it', () => {
+    const all = Object.values(limits).filter(
+      (v): v is { name: string; windowSeconds: number; max: number } =>
+        typeof v === 'object' && v !== null && 'windowSeconds' in v && 'name' in v,
+    );
+    expect(all.length).toBeGreaterThan(10);
+    for (const limit of all) {
+      expect(limit.windowSeconds, limit.name).toBe(
+        RATE_LIMIT_LONG_WINDOWS[limit.name] ?? RATE_LIMIT_DEFAULT_WINDOW_SECONDS,
+      );
+    }
+    for (const name of Object.keys(RATE_LIMIT_LONG_WINDOWS)) {
+      expect(all.map((l) => l.name), name).toContain(name);
+    }
   });
 });
 

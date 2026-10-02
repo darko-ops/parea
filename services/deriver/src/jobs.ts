@@ -19,6 +19,8 @@ import {
   codeWordTriples,
   MOMENT_GRACE_HOURS,
   MOMENT_HOURS,
+  RATE_LIMIT_LONG_WINDOWS,
+  rateLimitKeepSeconds,
   recordModeration,
   REASON,
   schema,
@@ -34,11 +36,14 @@ import {
   inArray,
   isNotNull,
   isNull,
+  like,
   lt,
   lte,
+  not,
   notExists,
   or,
   sql,
+  type SQL,
 } from 'drizzle-orm';
 import { drizzle } from 'drizzle-orm/postgres-js';
 import postgres from 'postgres';
@@ -414,15 +419,43 @@ export async function expireSessions(
   return removed.length;
 }
 
+/**
+ * Rate-limit counters, each kept for as long as it can still refuse somebody.
+ *
+ * A bucket is `<limit name>:<key>`. Hour-long limits are swept two hours after
+ * their window began; the day-long ones in `RATE_LIMIT_LONG_WINDOWS` are kept
+ * their whole day. Sweeping those after two hours — which this used to do —
+ * restarted their count, so a daily limit was really a two-hourly one.
+ */
 export async function expireRateLimits(
   database: ReturnType<typeof db>,
+  now: Date = new Date(),
 ): Promise<number> {
-  const cutoff = new Date(Date.now() - 2 * 3600_000);
+  const before = (seconds: number) => new Date(now.getTime() - seconds * 1000);
+  const long = Object.keys(RATE_LIMIT_LONG_WINDOWS);
+  const inLimit = (name: string) => like(schema.rateLimits.bucket, `${name}:%`);
   const removed = await database
     .delete(schema.rateLimits)
-    .where(lt(schema.rateLimits.windowStart, cutoff))
+    .where(
+      or(
+        long.length
+          ? and(
+              notOr(long.map(inLimit)),
+              lt(schema.rateLimits.windowStart, before(rateLimitKeepSeconds(''))),
+            )
+          : lt(schema.rateLimits.windowStart, before(rateLimitKeepSeconds(''))),
+        ...long.map((name) =>
+          and(inLimit(name), lt(schema.rateLimits.windowStart, before(rateLimitKeepSeconds(name)))),
+        ),
+      ),
+    )
     .returning({ bucket: schema.rateLimits.bucket });
   return removed.length;
+}
+
+/** None of these. */
+function notOr(conditions: SQL[]): SQL {
+  return not(or(...conditions)!);
 }
 
 /** Codes only stay short if they recycle, and late arrivals only work if they recycle slowly. */
