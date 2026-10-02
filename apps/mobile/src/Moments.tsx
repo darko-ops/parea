@@ -41,6 +41,7 @@ import {
   type ViewStyle,
 } from 'react-native';
 import { useAppearance } from './appearance';
+import { AURORA_DARK, AURORA_LIGHT } from './aurora';
 import Svg, { Defs, G, LinearGradient, Mask, RadialGradient, Rect, Stop } from 'react-native-svg';
 
 import { ApiError, type Api, type FeedPhoto, type Moment } from './api';
@@ -522,9 +523,9 @@ const BAR_DARK: BarLook = {
   frost: 'rgba(21,23,28,0.35)',
   quietGlow: 0.38,
   bloom: [
-    { id: 'violet', colour: '#8F46DA', opacity: 0.9, cx: '60%', cy: '70%', rx: '34%', ry: '80%' },
-    { id: 'pink', colour: '#F79AB6', opacity: 0.8, cx: '76%', cy: '28%', rx: '30%', ry: '75%' },
-    { id: 'teal', colour: '#66E7C6', opacity: 0.75, cx: '92%', cy: '72%', rx: '28%', ry: '70%' },
+    { ...AURORA_DARK[0]!, cx: '60%', cy: '70%', rx: '34%', ry: '80%' },
+    { ...AURORA_DARK[1]!, cx: '76%', cy: '28%', rx: '30%', ry: '75%' },
+    { ...AURORA_DARK[2]!, cx: '92%', cy: '72%', rx: '28%', ry: '70%' },
   ],
 };
 
@@ -549,9 +550,9 @@ const BAR_LIGHT: BarLook = {
   quietGlow: 0.4,
   bloom: [
     // The web's three, stop for stop and place for place — see `.moments-bar-bloom`.
-    { id: 'indigo', colour: '#6F7CE0', opacity: 0.6, cx: '60%', cy: '70%', rx: '34%', ry: '80%' },
-    { id: 'violet', colour: '#A78BFA', opacity: 0.66, cx: '76%', cy: '28%', rx: '30%', ry: '75%' },
-    { id: 'teal', colour: '#5FD4C4', opacity: 0.62, cx: '92%', cy: '72%', rx: '28%', ry: '70%' },
+    { ...AURORA_LIGHT[0]!, cx: '60%', cy: '70%', rx: '34%', ry: '80%' },
+    { ...AURORA_LIGHT[1]!, cx: '76%', cy: '28%', rx: '30%', ry: '75%' },
+    { ...AURORA_LIGHT[2]!, cx: '92%', cy: '72%', rx: '28%', ry: '70%' },
   ],
 };
 
