@@ -212,10 +212,46 @@ export async function groupMessagesFor(
 
   // A photograph sent into the chat, signed the way its roll signs it, so
   // rotating the roll's link stops it resolving here too.
-  const pictures = new Map<string, { thumb: string; full: string } | null>();
+  const pictures = new Map<string, SentPicture | null>();
+  const liveIds = [...new Set(rows.filter((r) => r.photoId && r.photoLive).map((r) => r.photoId!))];
+  /*
+   * What the viewer a chat opens needs beyond the picture: whose it is, this
+   * reader's star, and whether they may star it at all — favouriting is a
+   * roll's thing, so it needs the roll to be open to them: a public one, or a
+   * private one they are in.
+   */
+  const details = new Map<string, { name: string; handle: string | null; avatarKey: string | null; mime: string; byteSize: number; favourite: boolean; canKeep: boolean }>();
+  if (liveIds.length && viewerId) {
+    const list = sql.join(liveIds.map((id) => sql`${id}::uuid`), sql`, `);
+    const found = (await db.execute(sql`
+      select p.id, p.mime, p.byte_size as "byteSize", a.display_name as "displayName", a.handle, a.avatar_key as "avatarKey",
+        exists (select 1 from "photo_favourite" f where f.photo_id = p.id and f.actor_id = ${viewerId}) as "favourite",
+        (e.access_policy = 'public' or exists (
+          select 1 from "event_participant" ep where ep.event_id = e.id and ep.actor_id = ${viewerId}
+        )) as "canKeep"
+      from "photo" p
+      join "event" e on e.id = p.event_id
+      join "actor" a on a.id = p.uploader_id
+      where p.id in (${list})
+    `)) as unknown as { rows?: unknown[] } | unknown[];
+    for (const r of (Array.isArray(found) ? found : found.rows ?? []) as {
+      id: string; mime: string; byteSize: number; displayName: string | null; handle: string | null; avatarKey: string | null; favourite: boolean; canKeep: boolean;
+    }[]) {
+      details.set(r.id, {
+        name: r.displayName?.trim() || (r.handle ? `@${r.handle}` : 'Someone'),
+        handle: r.handle,
+        avatarKey: r.avatarKey,
+        mime: r.mime,
+        byteSize: Number(r.byteSize),
+        favourite: Boolean(r.favourite),
+        canKeep: Boolean(r.canKeep),
+      });
+    }
+  }
   for (const row of rows) {
     if (!row.photoId || pictures.has(row.photoId)) continue;
-    if (!row.photoLive || !row.photoEventId || !row.photoStorageKey || row.photoCapEpoch == null) {
+    const d = details.get(row.photoId);
+    if (!row.photoLive || !d || !row.photoEventId || !row.photoStorageKey || row.photoCapEpoch == null) {
       pictures.set(row.photoId, null);
       continue;
     }
@@ -223,6 +259,12 @@ export async function groupMessagesFor(
     pictures.set(row.photoId, {
       thumb: await imageSrc(ref, 'grid', row.photoCapEpoch),
       full: await imageSrc(ref, 'full', row.photoCapEpoch),
+      original: await imageSrc(ref, 'orig', row.photoCapEpoch),
+      mime: d.mime,
+      byteSize: d.byteSize,
+      favourite: d.favourite,
+      canKeep: d.canKeep,
+      by: { name: d.name, handle: d.handle, avatarUrl: await avatarUrl(d.avatarKey) },
     });
   }
 
@@ -230,9 +272,7 @@ export async function groupMessagesFor(
     const deleted = row.deletedAt != null;
     const picture = row.photoId ? pictures.get(row.photoId) ?? null : null;
     return {
-      ...(row.photoId && !deleted
-        ? { photo: { id: row.photoId, thumb: picture?.thumb ?? null, full: picture?.full ?? null } }
-        : {}),
+      ...(row.photoId && !deleted ? { photo: { id: row.photoId, ...(picture ?? GONE) } } : {}),
       ...(row.momentId
         ? {
             moment: {
@@ -323,6 +363,21 @@ export async function toggleGroupReaction(
 }
 
 /** Adds a message. The caller has already established membership. */
+/** Everything a chat needs to draw a sent photograph and open it full. */
+type SentPicture = Omit<NonNullable<Message['photo']>, 'id'>;
+
+/** A sent photograph that is no longer there to see: words stay, picture goes. */
+const GONE: SentPicture = {
+  thumb: null,
+  full: null,
+  original: null,
+  mime: null,
+  byteSize: null,
+  favourite: false,
+  canKeep: false,
+  by: null,
+};
+
 export async function postGroupMessage(
   db: Db,
   groupId: string,

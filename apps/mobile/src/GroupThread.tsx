@@ -33,6 +33,7 @@ import { blockAuthor } from './block';
 import { RoomMark } from './Events';
 import type { GroupTheme } from './Groups';
 import { reportContent } from './report';
+import { ChatPhotoView, type SentPhoto } from './ChatPhotoView';
 import { Thread } from './Thread';
 
 /**
@@ -71,6 +72,8 @@ export function GroupChat({
 }) {
   const [messages, setMessages] = useState<Message[] | null>(null);
   const [error, setError] = useState<string | null>(null);
+  /** A photograph somebody sent here, open full. */
+  const [viewing, setViewing] = useState<SentPhoto | null>(null);
 
   /**
    * Which request is the newest, and what the thread last looked like.
@@ -185,8 +188,10 @@ export function GroupChat({
       <Text style={[styles.error, { color: t.dim }]}>{error}</Text>
     </View>
   ) : (
+    <>
     <Thread
       onOpenMoment={onOpenMoment}
+      onOpenSentPhoto={setViewing}
       /*
         Null while the first request is out, which `Thread` draws as a wait
         rather than as an empty room. It used to be handled a level up — the
@@ -222,6 +227,17 @@ export function GroupChat({
       // so reaching the bottom re-reads and re-marks in one act.
       onSeen={() => void load()}
     />
+    <ChatPhotoView
+      api={api}
+      t={t}
+      photo={viewing}
+      onClose={() => {
+        setViewing(null);
+        // A star changed in there is on the server; read the room again so it is here too.
+        void load();
+      }}
+    />
+    </>
   );
 }
 

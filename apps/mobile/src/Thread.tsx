@@ -178,6 +178,7 @@ export function Thread({
   photoOf,
   onOpenPhoto,
   onOpenMoment,
+  onOpenSentPhoto,
 }: {
   /** What this thread's four verbs do. See `ThreadActions`. */
   actions: ThreadActions;
@@ -203,6 +204,8 @@ export function Thread({
   onOpenPhoto?: (photoId: string) => void;
   /** Where a reply to a moment opens the moment it answered. A chat's only. */
   onOpenMoment?: (momentId: string) => void;
+  /** Opening a photograph somebody sent into the chat, full, in the chat's viewer. */
+  onOpenSentPhoto?: (photo: NonNullable<Message['photo']>) => void;
   /**
    * The conversation, or null while nobody knows yet.
    *
@@ -442,6 +445,7 @@ export function Thread({
               about={item.photoId ? (photoOf?.(item.photoId) ?? null) : null}
               onOpenPhoto={onOpenPhoto}
               onOpenMoment={onOpenMoment}
+              onOpenSentPhoto={onOpenSentPhoto}
               /* Only where there is something to take back: your own
                  reaction, on a photograph, in a room that can reach it. */
               onUnreact={
@@ -626,15 +630,21 @@ function MomentReference({
   );
 }
 
-/** A photograph sent into a chat: the picture, and the full one on a tap. */
+/**
+ * A photograph sent into a chat: the picture at the size of a message, and a
+ * tap opens it in the chat's viewer — the roll's viewer without the roll's
+ * talk (`ChatPhotoView`). Where nobody handed that down, the picture alone.
+ */
 function SentPhoto({
   photo,
   sided,
   t,
+  onOpen,
 }: {
   photo: NonNullable<Message['photo']>;
   sided: boolean;
   t: GroupTheme;
+  onOpen?: (photo: NonNullable<Message['photo']>) => void;
 }) {
   const [open, setOpen] = useState(false);
   if (!photo.thumb) {
@@ -647,7 +657,7 @@ function SentPhoto({
   return (
     <>
       <Pressable
-        onPress={() => setOpen(true)}
+        onPress={() => (onOpen ? onOpen(photo) : setOpen(true))}
         accessibilityRole="button"
         accessibilityLabel="A photo. Open it"
         style={({ pressed }) => [
@@ -658,16 +668,18 @@ function SentPhoto({
       >
         <Image source={{ uri: photo.thumb }} style={StyleSheet.absoluteFill} contentFit="cover" transition={120} />
       </Pressable>
-      <Modal visible={open} transparent animationType="fade" onRequestClose={() => setOpen(false)}>
-        <Pressable
-          style={styles.sentPhotoFull}
-          onPress={() => setOpen(false)}
-          accessibilityRole="button"
-          accessibilityLabel="Close the photo"
-        >
-          <Image source={{ uri: photo.full ?? photo.thumb }} style={StyleSheet.absoluteFill} contentFit="contain" transition={120} />
-        </Pressable>
-      </Modal>
+      {!onOpen && (
+        <Modal visible={open} transparent animationType="fade" onRequestClose={() => setOpen(false)}>
+          <Pressable
+            style={styles.sentPhotoFull}
+            onPress={() => setOpen(false)}
+            accessibilityRole="button"
+            accessibilityLabel="Close the photo"
+          >
+            <Image source={{ uri: photo.full ?? photo.thumb }} style={StyleSheet.absoluteFill} contentFit="contain" transition={120} />
+          </Pressable>
+        </Modal>
+      )}
     </>
   );
 }
@@ -696,6 +708,7 @@ export function ThreadRow({
   about,
   onOpenPhoto,
   onOpenMoment,
+  onOpenSentPhoto,
 }: {
   message: Message;
   canPost: boolean;
@@ -731,6 +744,7 @@ export function ThreadRow({
   onOpenPhoto?: (photoId: string) => void;
   /** Opens the moment a reply answered, while it lives. */
   onOpenMoment?: (momentId: string) => void;
+  onOpenSentPhoto?: (photo: NonNullable<Message['photo']>) => void;
 }) {
   const [held, setHeld] = useState(false);
   const [more, setMore] = useState(false);
@@ -1076,7 +1090,7 @@ export function ThreadRow({
               Once it is gone (deleted, hidden, its taker blocked) the words
               stay and the picture becomes a line saying so.
             */}
-            {message.photo && <SentPhoto photo={message.photo} sided={sided} t={t} />}
+            {message.photo && <SentPhoto photo={message.photo} sided={sided} t={t} onOpen={onOpenSentPhoto} />}
 
             {about && (
               <Pressable

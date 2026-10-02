@@ -475,6 +475,8 @@ export function PhotoViewer({
   downloading,
   onRipple,
   onSendToChat,
+  bare = false,
+  canKeep = true,
   uploader,
   onOpenPerson,
   onFavourite,
@@ -536,6 +538,17 @@ export function PhotoViewer({
    * whichever it is. Absent where there is nothing to send.
    */
   onSendToChat?: () => void;
+  /**
+   * A photograph opened from a chat rather than from its roll.
+   *
+   * Nothing to say about it here: no reacting, no comments, no options sheet
+   * — those belong to the roll, which is somewhere else. What stays is whose
+   * it is at the top, and what you can do with it: keep it, send it on, make
+   * it a moment, save it.
+   */
+  bare?: boolean;
+  /** Whether the star may be used — a chat's photo from a roll you can't see cannot be kept. */
+  canKeep?: boolean;
   /**
    * Whose photograph this is, for the square at the top.
    *
@@ -1039,7 +1052,7 @@ export function PhotoViewer({
               on the right" however many of them there are.
             */}
             <View style={styles.tools}>
-            {!moment && (
+            {!moment && canKeep && (
             <Pressable
               onPress={() => void keep(!kept)}
               hitSlop={14}
@@ -1052,6 +1065,7 @@ export function PhotoViewer({
             </Pressable>
             )}
 
+            {!bare && (
             <Pressable
               onPress={onOptions}
               hitSlop={14}
@@ -1061,6 +1075,7 @@ export function PhotoViewer({
             >
               <Text style={styles.roundGlyph}>⋯</Text>
             </Pressable>
+            )}
             </View>
           </View>
 
@@ -1140,7 +1155,7 @@ export function PhotoViewer({
                 mean. So: one control, always the same shape, and the picker
                 behind it has their own recents at the front of it.
               */}
-              {canReact ? (
+              {bare ? null : canReact ? (
                 <Pressable
                   onPress={() => setPicking(true)}
                   accessibilityRole="button"
@@ -1163,7 +1178,7 @@ export function PhotoViewer({
                 corner when there is one, and pressing it opens the sheet —
                 list and box — exactly as the pill did.
               */}
-              {canPost && (
+              {canPost && !bare && (
                 <Pressable
                   onPress={() => setTalking(true)}
                   accessibilityRole="button"

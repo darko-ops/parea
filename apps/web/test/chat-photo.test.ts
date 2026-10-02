@@ -108,6 +108,9 @@ describe('a roll photo sent into a chat', () => {
     expect(messages).toHaveLength(2);
     expect(messages[0]).toMatchObject({ body: '', photo: { id: p } });
     expect(messages[0]!.photo?.thumb).toBeTruthy();
+    // What the viewer a tap opens needs: whose it is, and this reader's star.
+    expect(messages[0]!.photo).toMatchObject({ by: { name: 'Ada' }, favourite: false, canKeep: true, mime: 'image/jpeg' });
+    expect(messages[0]!.photo?.original).toBeTruthy();
 
     const summary = (await groupThreadSummaries(db, [c], ada)).get(c);
     expect(summary?.lastMessage?.body).toBe('look at this');
@@ -135,6 +138,11 @@ describe('a roll photo sent into a chat', () => {
 
     as(ada);
     expect((await send(c, { photoId: adas })).status).toBe(201);
+
+    // Sam is in the roll and may star it; Tom is not, so the star is not his to use.
+    await db.insert(schema.photoFavourites).values({ photoId: adas, actorId: sam });
+    expect((await groupMessagesFor(db, c, sam))[0]!.photo).toMatchObject({ favourite: true, canKeep: true });
+    expect((await groupMessagesFor(db, c, tom))[0]!.photo).toMatchObject({ favourite: false, canKeep: false });
   });
 
   it('is refused for a photo the sender cannot see, or one not there to see', async () => {

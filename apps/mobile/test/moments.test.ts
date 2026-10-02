@@ -31,7 +31,8 @@ describe('moments', () => {
     expect(VIEWER).toMatch(/if \(talk\) await talk\.post\(photo\.id, body\);/);
     expect(VIEWER).toMatch(/if \(talk\) await talk\.react\(photo\.id, emoji\);/);
     // What a moment does not have: the star, editing a comment, reacting to one.
-    expect(VIEWER).toMatch(/\{!moment && \(\s*<Pressable\s+onPress=\{\(\) => void keep/);
+    // No star on a moment; on a photo, only where it may be kept (a chat's photo from a roll you can't see may not).
+    expect(VIEWER).toMatch(/\{!moment && canKeep && \(\s*<Pressable\s+onPress=\{\(\) => void keep/);
     expect(VIEWER).toMatch(/onEdit=\{moment \? undefined : /);
     expect(VIEWER).toMatch(/canReact=\{canPost && !moment\}/);
     // The reactions list sits above the strip at the foot, not under it.

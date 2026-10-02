@@ -80,11 +80,26 @@ export type Message = {
    */
   moment?: { id: string; thumb: string | null; emoji: string | null; mine: boolean };
   /**
-   * Chats only: a roll's photograph sent into it. `thumb` and `full` are null
-   * once it is no longer there to see — deleted, hidden, or its taker blocked
-   * either way — and the client draws a blank where it was.
+   * Chats only: a roll's photograph sent into it, with what the viewer a tap
+   * opens needs. Every picture field is null once it is no longer there to
+   * see — deleted, hidden, or its taker blocked either way — and the client
+   * draws a blank where it was.
    */
-  photo?: { id: string; thumb: string | null; full: string | null };
+  photo?: {
+    id: string;
+    thumb: string | null;
+    full: string | null;
+    /** The file as it was taken, for saving. */
+    original: string | null;
+    mime: string | null;
+    byteSize: number | null;
+    /** This reader's star on it. */
+    favourite: boolean;
+    /** Whether this reader may star it: the roll is public, or they are in it. */
+    canKeep: boolean;
+    /** Who took it. */
+    by: { name: string; handle: string | null; avatarUrl: string | null } | null;
+  };
 };
 
 /**

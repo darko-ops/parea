@@ -506,7 +506,19 @@ export type Message = {
    */
   moment?: { id: string; thumb: string | null; emoji: string | null; mine: boolean };
   /** Chats only: a roll's photograph sent into it; null pictures once it is gone. */
-  photo?: { id: string; thumb: string | null; full: string | null };
+  photo?: {
+    id: string;
+    thumb: string | null;
+    full: string | null;
+    original: string | null;
+    mime: string | null;
+    byteSize: number | null;
+    /** This reader's star on it. */
+    favourite: boolean;
+    /** Whether this reader may star it: the roll is public, or they are in it. */
+    canKeep: boolean;
+    by: { name: string; handle: string | null; avatarUrl: string | null } | null;
+  };
 };
 
 /**
