@@ -929,7 +929,7 @@ const styles = StyleSheet.create({
   handle: { textAlign: 'center', fontSize: 14.5, marginTop: 3 },
   /* One line at the handle's size and in the handle's colour: three figures
      set larger than the name they belong to is a dashboard. */
-  counts: { textAlign: 'center', fontSize: 14.5, marginTop: 8 },
+  counts: { textAlign: 'center', fontSize: 14.5, fontWeight: '600', marginTop: 8 },
   /* The same size and rhythm as the counts line above it, in the accent — the
      one thing in this header that goes somewhere. Your own profile's to the
      point: one link, one line, one set of numbers for it. */

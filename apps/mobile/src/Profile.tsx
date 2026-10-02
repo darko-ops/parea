@@ -1247,7 +1247,7 @@ const styles = StyleSheet.create({
   handle: { textAlign: 'center', fontSize: 14.5, marginTop: 3 },
   /* One line at the handle's size and in the handle's colour: three figures
      set larger than the name they belong to is a dashboard. */
-  counts: { textAlign: 'center', fontSize: 14.5, marginTop: 8 },
+  counts: { textAlign: 'center', fontSize: 14.5, fontWeight: '600', marginTop: 8 },
   /* Underlined rather than accented: an accent word inside a grey line reads as
      a link in prose, and this is a line of facts. */
   /* One friend. A rule between rows and none under the last, which is the same
