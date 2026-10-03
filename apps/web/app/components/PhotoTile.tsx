@@ -186,7 +186,9 @@ export function PhotoTile({
             {by.replace('@', '').slice(0, 1).toUpperCase()}
           </span>
           <span className="tile-by-name">{by}</span>
-          <span className="tile-by-when">Added {ago(new Date(photo.takenAt), new Date())}</span>
+          {/* When it was taken, not when it went up — so "From", not "Added":
+              a photo from last month uploaded today was not added last month. */}
+          <span className="tile-by-when">From {ago(new Date(photo.takenAt), new Date())}</span>
         </span>
       )}
     </div>
