@@ -62,6 +62,7 @@ import {
   type GroupKind,
   type InvitablePerson,
   type MyGroupDetail,
+  type Roster,
 } from './src/api';
 import { Glyph, type GlyphName } from './src/Glyph';
 import { initialOf, lensFor } from './src/lens';
@@ -4046,22 +4047,29 @@ function EventScreen({
    */
   const mayHandOver = feed?.event.membership === 'creator';
   const mayRemove = (feed?.event.canAdminister ?? false) && visible === 'private';
-  const personActions =
-    mayHandOver || mayRemove
-      ? (actorId: string, name: string) => {
-          if (mayHandOver && !mayRemove) return makeHost(actorId, name);
-          if (mayRemove && !mayHandOver) return removeFromRoll(actorId, name);
-          Alert.alert(name, undefined, [
-            { text: 'Make Host', onPress: () => makeHost(actorId, name) },
-            {
-              text: 'Remove from roll',
-              style: 'destructive',
-              onPress: () => removeFromRoll(actorId, name),
-            },
-            { text: 'Cancel', style: 'cancel' },
-          ]);
-        }
-      : undefined;
+  /*
+   * A member's profile is a tap away for everybody, as their face is on the
+   * web's roster. Somebody who runs the roll gets the profile and the actions
+   * together in one sheet; everybody else goes straight to the profile.
+   */
+  const personActions = (person: Roster) => {
+    const { actorId, name, handle } = person;
+    if (!actorId) return;
+    const inIt = person.role !== 'invited' && person.role !== 'creator';
+    const buttons: { text: string; style?: 'destructive' | 'cancel'; onPress?: () => void }[] = [];
+    if (handle) buttons.push({ text: 'View profile', onPress: () => onOpenPerson(handle) });
+    if (mayHandOver && inIt) buttons.push({ text: 'Make Host', onPress: () => makeHost(actorId, name) });
+    if (mayRemove && inIt) {
+      buttons.push({
+        text: 'Remove from roll',
+        style: 'destructive',
+        onPress: () => removeFromRoll(actorId, name),
+      });
+    }
+    if (buttons.length === 0) return;
+    if (buttons.length === 1) return buttons[0]!.onPress?.();
+    Alert.alert(name, undefined, [...buttons, { text: 'Cancel', style: 'cancel' }]);
+  };
 
   const tabs = (
     <Segmented

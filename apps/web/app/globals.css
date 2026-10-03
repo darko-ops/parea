@@ -2918,6 +2918,15 @@ fieldset.field > legend { padding: 0; margin-bottom: 8px; }
   background: var(--accent-soft); color: var(--accent-ink);
   font-size: 17px; font-weight: 600;
 }
+/* Face, name and line as one link to the profile; the row's controls sit
+   after it. */
+.roster-person {
+  flex: 1; min-width: 0; display: flex; align-items: center; gap: 12px;
+  color: inherit; text-decoration: none;
+}
+a.roster-person:hover .roster-name > span:first-child {
+  text-decoration: underline; text-underline-offset: 3px;
+}
 .roster-who { flex: 1; min-width: 0; }
 .roster-name { display: flex; align-items: baseline; gap: 7px; min-width: 0; }
 .roster-name a, .roster-name > span:first-child {

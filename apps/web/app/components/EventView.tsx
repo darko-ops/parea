@@ -1517,6 +1517,17 @@ function Masonry({
   );
 }
 
+/** A roster row's person, as a link to their profile when they have one. */
+function RosterPerson({ handle, children }: { handle: string | null; children: React.ReactNode }) {
+  return handle ? (
+    <a className="roster-person" href={`/u/${encodeURIComponent(handle)}`}>
+      {children}
+    </a>
+  ) : (
+    <div className="roster-person">{children}</div>
+  );
+}
+
 /**
  * Everybody in the event, and everybody who was asked.
  *
@@ -1643,41 +1654,45 @@ function People({
             key={`${person.actorId}-${person.role}`}
             className={person.role === 'invited' ? 'roster-waiting' : undefined}
           >
-            <Face
-              src={person.role === 'invited' ? null : person.avatarUrl}
-              size={44}
-              className="roster-face"
-              fallback={
-                <span aria-hidden="true">
-                  {person.name.replace('@', '').slice(0, 1).toUpperCase()}
-                </span>
-              }
-            />
-            <div className="roster-who">
-              <div className="roster-name">
-                {person.handle ? (
-                  <a href={`/u/${encodeURIComponent(person.handle)}`}>{person.name}</a>
-                ) : (
+            {/*
+              The person — face, name and what they have added — is one link
+              to their profile, not just the name: the whole of that is what
+              somebody reaches for. The controls at the end of the row stay
+              outside it. No handle, no page, so no link.
+            */}
+            <RosterPerson handle={person.handle}>
+              <Face
+                src={person.role === 'invited' ? null : person.avatarUrl}
+                size={44}
+                className="roster-face"
+                fallback={
+                  <span aria-hidden="true">
+                    {person.name.replace('@', '').slice(0, 1).toUpperCase()}
+                  </span>
+                }
+              />
+              <div className="roster-who">
+                <div className="roster-name">
                   <span>{person.name}</span>
-                )}
-                {person.handle && <span className="roster-handle">@{person.handle}</span>}
+                  {person.handle && <span className="roster-handle">@{person.handle}</span>}
+                </div>
+                <div className="roster-did">
+                  {person.role === 'invited'
+                    ? /*
+                        A co-host who has not answered says so, because the two
+                        facts are different and both matter to whoever is reading
+                        the row: they were asked to hold the camera, and they
+                        cannot hold it yet. The role lives on the participant row,
+                        so until they accept there is nothing to grant — see
+                        `event_invite.as_host`.
+                      */
+                      `${person.hostAsked ? 'Asked to co-host' : 'Invited'} ${person.invitedAt ? relativeDay(person.invitedAt) : 'recently'} · not opened`
+                    : person.photoCount > 0
+                      ? `${person.photoCount} ${person.photoCount === 1 ? 'photo' : 'photos'} added`
+                      : 'Nothing added yet'}
+                </div>
               </div>
-              <div className="roster-did">
-                {person.role === 'invited'
-                  ? /*
-                      A co-host who has not answered says so, because the two
-                      facts are different and both matter to whoever is reading
-                      the row: they were asked to hold the camera, and they
-                      cannot hold it yet. The role lives on the participant row,
-                      so until they accept there is nothing to grant — see
-                      `event_invite.as_host`.
-                    */
-                    `${person.hostAsked ? 'Asked to co-host' : 'Invited'} ${person.invitedAt ? relativeDay(person.invitedAt) : 'recently'} · not opened`
-                  : person.photoCount > 0
-                    ? `${person.photoCount} ${person.photoCount === 1 ? 'photo' : 'photos'} added`
-                    : 'Nothing added yet'}
-              </div>
-            </div>
+            </RosterPerson>
             {/*
               The toggle, and the three things that have to be true for it.
 

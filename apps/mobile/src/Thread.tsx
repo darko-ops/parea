@@ -1436,10 +1436,10 @@ export function People({
   hosted = false,
   onSetHost,
   /**
-   * Pressing somebody who is in the roll, for whoever has something to do with
-   * them: the roll's Host can hand it to them, and whoever runs a private roll
-   * can take them out. Which of those is on offer is the caller's to decide —
-   * the sheet is drawn there. Unset, a row is not pressable.
+   * Pressing somebody on the list: their profile, and for whoever runs the
+   * roll the things they can do about them — which of those is on offer is the
+   * caller's to decide, with the person's row in hand. Unset, a row is not
+   * pressable.
    */
   onPerson,
 }: {
@@ -1448,7 +1448,7 @@ export function People({
   canAdminister?: boolean;
   hosted?: boolean;
   onSetHost?: (actorId: string, host: boolean) => void;
-  onPerson?: (actorId: string, name: string) => void;
+  onPerson?: (person: Roster) => void;
 }) {
   return (
     <FlatList
@@ -1475,17 +1475,17 @@ export function People({
           item.actorId != null &&
           item.role !== 'invited' &&
           item.role !== 'creator';
-        // Somebody already in it, who is not the Host already.
+        // Anybody with a profile to open, or somebody in it with things to do
+        // about them.
         const pressable =
           onPerson != null &&
           item.actorId != null &&
-          item.role !== 'invited' &&
-          item.role !== 'creator';
+          (item.handle != null || (item.role !== 'invited' && item.role !== 'creator'));
         return (
           <Pressable
             disabled={!pressable}
-            onPress={() => onPerson!(item.actorId!, item.name)}
-            accessibilityHint={pressable ? `Options for ${item.name}` : undefined}
+            onPress={() => onPerson!(item)}
+            accessibilityHint={pressable ? `Open ${item.name}` : undefined}
             style={({ pressed }) => [
               styles.personRow,
               { borderBottomColor: t.line, opacity: pressed ? 0.6 : 1 },
