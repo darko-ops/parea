@@ -616,83 +616,13 @@ export function ProfileScreen({
         Tapping one *is* a route, and closes this on the way.
       */}
       {showFriends && friends && (
-        <Modal
-          visible
-          animationType="slide"
-          transparent
-          onRequestClose={() => setShowFriends(false)}
-        >
-          <Pressable style={styles.backdrop} onPress={() => setShowFriends(false)}>
-            <Pressable style={[styles.panel, { backgroundColor: t.bg }]} onPress={() => {}}>
-              <ScrollView contentContainerStyle={styles.panelScroll}>
-                <Text style={[styles.panelTitle, { color: t.fg }]}>
-                  {friends.length} {friends.length === 1 ? 'friend' : 'friends'}
-                </Text>
-
-                {friends.map((friend) => {
-                  const lens = lensFor(friend.handle ?? friend.actorId);
-                  /*
-                   * Somebody with no handle cannot be opened.
-                   *
-                   * A profile is reached by handle — it is the half of a person
-                   * that is an address — and not everybody has chosen one. The
-                   * row still lists them, because they are a friend either way;
-                   * it simply does not pretend to be a way through.
-                   */
-                  const reachable = friend.handle != null;
-                  return (
-                    <Pressable
-                      key={friend.actorId}
-                      disabled={!reachable}
-                      onPress={() => {
-                        setShowFriends(false);
-                        if (friend.handle) onOpenPerson(friend.handle);
-                      }}
-                      accessibilityRole={reachable ? 'button' : undefined}
-                      accessibilityLabel={
-                        reachable
-                          ? `${friend.displayName ?? friend.handle}, open their profile`
-                          : undefined
-                      }
-                      style={({ pressed }) => [
-                        styles.friendRow,
-                        { borderBottomColor: t.line, opacity: pressed ? 0.6 : 1 },
-                      ]}
-                    >
-                      {friend.avatar ? (
-                        <Image
-                          source={{ uri: friend.avatar }}
-                          style={[styles.friendFace, { backgroundColor: t.line }]}
-                          contentFit="cover"
-                          transition={120}
-                        />
-                      ) : (
-                        <View style={[styles.friendFace, styles.friendBlank, { backgroundColor: lens.fill }]}>
-                          <Text style={[styles.friendLetter, { color: lens.ink }]}>
-                            {initialOf(friend.displayName ?? friend.handle)}
-                          </Text>
-                        </View>
-                      )}
-                      <View style={{ flex: 1, minWidth: 0 }}>
-                        <Text style={[styles.friendName, { color: t.fg }]} numberOfLines={1}>
-                          {friend.displayName?.trim() || friend.handle || 'Someone'}
-                        </Text>
-                        {friend.displayName && friend.handle && (
-                          <Text style={[styles.friendHandle, { color: t.dim }]} numberOfLines={1}>
-                            {friend.handle}
-                          </Text>
-                        )}
-                      </View>
-                      {reachable && <Text style={[styles.friendGo, { color: t.dim }]}>›</Text>}
-                    </Pressable>
-                  );
-                })}
-
-                <Button label="Close" t={t} onPress={() => setShowFriends(false)} />
-              </ScrollView>
-            </Pressable>
-          </Pressable>
-        </Modal>
+        <FriendsSheet
+          friends={friends}
+          t={t}
+          Button={Button}
+          onClose={() => setShowFriends(false)}
+          onOpenPerson={onOpenPerson}
+        />
       )}
 
       {creating && (
@@ -1191,6 +1121,111 @@ function EditProfile({
       )}
       <Button label="Cancel" onPress={onDone} t={t} disabled={busy} />
     </View>
+  );
+}
+
+/**
+ * A list of friends, as a sheet over a profile — yours, or somebody else's.
+ *
+ * A sheet rather than a route, because it is a list you came to from a number
+ * and will leave again immediately — pushing a screen for it would put a back
+ * arrow between somebody and the profile they were reading. Tapping one *is*
+ * a route, and closes this on the way.
+ */
+export function FriendsSheet({
+  friends,
+  title,
+  t,
+  Button,
+  onClose,
+  onOpenPerson,
+}: {
+  friends: InvitablePerson[];
+  /** Defaults to the count — "12 friends". */
+  title?: string;
+  t: GroupTheme;
+  Button: ButtonEl;
+  onClose: () => void;
+  onOpenPerson: (handle: string) => void;
+}) {
+  return (
+    <Modal
+      visible
+      animationType="slide"
+      transparent
+      onRequestClose={onClose}
+    >
+      <Pressable style={styles.backdrop} onPress={onClose}>
+        <Pressable style={[styles.panel, { backgroundColor: t.bg }]} onPress={() => {}}>
+          <ScrollView contentContainerStyle={styles.panelScroll}>
+            <Text style={[styles.panelTitle, { color: t.fg }]}>
+              {title ?? `${friends.length} ${friends.length === 1 ? 'friend' : 'friends'}`}
+            </Text>
+
+            {friends.map((friend) => {
+              const lens = lensFor(friend.handle ?? friend.actorId);
+              /*
+               * Somebody with no handle cannot be opened.
+               *
+               * A profile is reached by handle — it is the half of a person
+               * that is an address — and not everybody has chosen one. The
+               * row still lists them, because they are a friend either way;
+               * it simply does not pretend to be a way through.
+               */
+              const reachable = friend.handle != null;
+              return (
+                <Pressable
+                  key={friend.actorId}
+                  disabled={!reachable}
+                  onPress={() => {
+                    onClose();
+                    if (friend.handle) onOpenPerson(friend.handle);
+                  }}
+                  accessibilityRole={reachable ? 'button' : undefined}
+                  accessibilityLabel={
+                    reachable
+                      ? `${friend.displayName ?? friend.handle}, open their profile`
+                      : undefined
+                  }
+                  style={({ pressed }) => [
+                    styles.friendRow,
+                    { borderBottomColor: t.line, opacity: pressed ? 0.6 : 1 },
+                  ]}
+                >
+                  {friend.avatar ? (
+                    <Image
+                      source={{ uri: friend.avatar }}
+                      style={[styles.friendFace, { backgroundColor: t.line }]}
+                      contentFit="cover"
+                      transition={120}
+                    />
+                  ) : (
+                    <View style={[styles.friendFace, styles.friendBlank, { backgroundColor: lens.fill }]}>
+                      <Text style={[styles.friendLetter, { color: lens.ink }]}>
+                        {initialOf(friend.displayName ?? friend.handle)}
+                      </Text>
+                    </View>
+                  )}
+                  <View style={{ flex: 1, minWidth: 0 }}>
+                    <Text style={[styles.friendName, { color: t.fg }]} numberOfLines={1}>
+                      {friend.displayName?.trim() || friend.handle || 'Someone'}
+                    </Text>
+                    {friend.displayName && friend.handle && (
+                      <Text style={[styles.friendHandle, { color: t.dim }]} numberOfLines={1}>
+                        {friend.handle}
+                      </Text>
+                    )}
+                  </View>
+                  {reachable && <Text style={[styles.friendGo, { color: t.dim }]}>›</Text>}
+                </Pressable>
+              );
+            })}
+
+            <Button label="Close" t={t} onPress={onClose} />
+          </ScrollView>
+        </Pressable>
+      </Pressable>
+    </Modal>
   );
 }
 

@@ -55,7 +55,15 @@ import {
 } from 'react-native';
 
 import { LinkIcon } from './LinkIcon';
-import type { Api, EventListing, Person, ProfileAlbum, SharedEvent, Standing } from './api';
+import type {
+  Api,
+  EventListing,
+  InvitablePerson,
+  Person,
+  ProfileAlbum,
+  SharedEvent,
+  Standing,
+} from './api';
 import { blockAuthor } from './block';
 import { HangingTab, TAB_H } from './HangingTab';
 import { Back, More, RoundButton } from './RoundButton';
@@ -64,6 +72,7 @@ import { BELOW_TABS } from './chrome';
 import type { GroupTheme } from './Groups';
 import { initialOf, lensFor } from './lens';
 import { MomentsRow, MomentsViewer, useMoments } from './Moments';
+import { FriendsSheet } from './Profile';
 import { reportContent } from './report';
 import { Waiting } from './Waiting';
 
@@ -93,6 +102,7 @@ export function PersonScreen({
   onOpenEvent,
   onOpenChat,
   onOpenAlbum,
+  onOpenPerson,
   Button,
 }: {
   api: Api;
@@ -124,6 +134,8 @@ export function PersonScreen({
    * viewer may see. Resolves false when it would not open.
    */
   onOpenAlbum: (eventId: string) => Promise<boolean>;
+  /** One of their friends, from the sheet behind the count. */
+  onOpenPerson: (handle: string) => void;
   Button: (props: {
     label: string;
     onPress: () => void;
@@ -133,6 +145,19 @@ export function PersonScreen({
   }) => React.ReactElement;
 }) {
   const { width } = useWindowDimensions();
+  /*
+   * Their friends, fetched when the count is pressed rather than with the
+   * profile: most visits never open it, and the list is the one part of the
+   * page that grows with somebody else's social life.
+   */
+  const [theirFriends, setTheirFriends] = useState<InvitablePerson[] | null>(null);
+  const openFriends = useCallback(async () => {
+    try {
+      setTheirFriends(await api.friendsOf(handle));
+    } catch {
+      setTheirFriends(null);
+    }
+  }, [api, handle]);
 
   const [person, setPerson] = useState<Person | null>(null);
   const [shared, setShared] = useState<SharedEvent[]>([]);
@@ -473,8 +498,30 @@ export function PersonScreen({
         <Text style={[styles.counts, { color: t.dim }]}>
           {person.counts.albums} {person.counts.albums === 1 ? 'roll' : 'rolls'} ·{' '}
           {person.counts.photos} {person.counts.photos === 1 ? 'photo' : 'photos'} ·{' '}
-          {person.counts.friends} {person.counts.friends === 1 ? 'friend' : 'friends'}
+          {/* The friends half is a button, as it is on your own profile. */}
+          <Text
+            onPress={person.counts.friends > 0 ? () => void openFriends() : undefined}
+            suppressHighlighting
+            accessibilityRole={person.counts.friends > 0 ? 'button' : undefined}
+            accessibilityLabel={
+              person.counts.friends > 0
+                ? `${person.counts.friends} ${person.counts.friends === 1 ? 'friend' : 'friends'}, see them`
+                : undefined
+            }
+          >
+            {person.counts.friends} {person.counts.friends === 1 ? 'friend' : 'friends'}
+          </Text>
         </Text>
+        {theirFriends && (
+          <FriendsSheet
+            friends={theirFriends}
+            title={`${person.displayName?.trim() || person.handle}’s friends`}
+            t={t}
+            Button={Button}
+            onClose={() => setTheirFriends(null)}
+            onOpenPerson={onOpenPerson}
+          />
+        )}
 
         {/*
           The one link they put on their profile, under the counts and above

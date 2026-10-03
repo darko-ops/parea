@@ -471,9 +471,20 @@ export function PersonView({
             <span>
               {person.counts.photos} {person.counts.photos === 1 ? 'photo' : 'photos'}
             </span>
-            <span>
-              {person.counts.friends} {person.counts.friends === 1 ? 'friend' : 'friends'}
-            </span>
+            {/* Their friends, a tap away, as yours are on your own profile.
+                Not a link at zero: there is nobody behind it to show. */}
+            {person.counts.friends > 0 && person.handle ? (
+              <a
+                className="you-friends"
+                href={`/u/${encodeURIComponent(person.handle)}/friends`}
+              >
+                {person.counts.friends} {person.counts.friends === 1 ? 'friend' : 'friends'}
+              </a>
+            ) : (
+              <span>
+                {person.counts.friends} {person.counts.friends === 1 ? 'friend' : 'friends'}
+              </span>
+            )}
           </p>
           {/*
             The one link they put on their profile, under the counts.

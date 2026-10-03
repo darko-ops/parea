@@ -21,6 +21,7 @@ import {
   befriend,
   findPeople,
   friendsOf,
+  friendsSeenBy,
   requestsFor,
   suggestionsFor,
   unfriend,
@@ -257,6 +258,25 @@ describe('what the endpoints publish', () => {
     expect(page).toMatch(/avatarKey: undefined/);
     expect(page).toMatch(/friends=\{friendFaces\}/);
     expect(page).toMatch(/suggested=\{suggestedFaces\}/);
+  });
+});
+
+describe("somebody else's friends", () => {
+  it('lists them for another reader, leaving out anyone a block stands between', async () => {
+    const reader = await person('reader');
+    const them = await person('them');
+    const shown = await person('shown');
+    const blockedByReader = await person('blockedbyreader');
+    const blockingReader = await person('blockingreader');
+    for (const friend of [shown, blockedByReader, blockingReader]) await befriend(db, them, friend);
+    await db.insert(schema.blocks).values([
+      { blockerActorId: reader, blockedActorId: blockedByReader },
+      { blockerActorId: blockingReader, blockedActorId: reader },
+    ]);
+
+    expect((await friendsSeenBy(db, reader, them)).map((p) => p.handle)).toEqual(['shown']);
+    // Their own reading of the same list is untouched.
+    expect((await friendsOf(db, them)).map((p) => p.handle)).toHaveLength(3);
   });
 });
 

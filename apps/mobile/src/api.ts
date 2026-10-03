@@ -2231,6 +2231,14 @@ export class Api {
     return friends ?? [];
   }
 
+  /** Somebody else's friends, behind the count on their profile. */
+  async friendsOf(handle: string): Promise<InvitablePerson[]> {
+    const { friends } = await this.call<{ friends: InvitablePerson[] }>(
+      `/api/people/${encodeURIComponent(handle)}/friends`,
+    );
+    return friends ?? [];
+  }
+
   /**
    * Asking people into an album.
    *

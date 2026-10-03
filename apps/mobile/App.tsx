@@ -1813,6 +1813,7 @@ export default function App() {
             events={events}
             t={t}
             onBack={leaveToTabs}
+            onOpenPerson={(handle) => setRoute({ screen: 'person', handle })}
             /* Albums opened from here come back here: `back` names this
                profile, so Back from the album is not Back to Find. */
             onOpenEvent={(listing) =>

@@ -18,6 +18,7 @@ import { handleKey, normaliseEmail, schema } from '@parea/core';
 import { and, eq, isNotNull, isNull, ne, not, or, sql } from 'drizzle-orm';
 
 import type { Db } from './db';
+import { blockedBetween } from './moderation';
 import { hashPhone, normalisePhone } from './phone';
 
 /**
@@ -176,6 +177,38 @@ export async function friendsOf(db: Db, actorId: string | null): Promise<Person[
     .from(schema.friendships)
     .innerJoin(schema.actors, eq(schema.actors.id, schema.friendships.friendActorId))
     .where(eq(schema.friendships.actorId, actorId))
+    .orderBy(schema.actors.handle);
+}
+
+/**
+ * Somebody else's friends, as one particular reader may see them.
+ *
+ * Open to anybody signed in — the route checks that — which is the choice made
+ * for this list: the count was already on every profile, and the people behind
+ * it are now one tap from it, as they are on your own. What is held back is
+ * anybody a block stands between the reader and, either way round: a list
+ * that showed them would be the one place a block did not reach.
+ */
+export async function friendsSeenBy(
+  db: Db,
+  viewer: string,
+  actorId: string,
+): Promise<Person[]> {
+  return db
+    .select({
+      actorId: schema.actors.id,
+      handle: schema.actors.handle,
+      displayName: schema.actors.displayName,
+      avatarKey: schema.actors.avatarKey,
+    })
+    .from(schema.friendships)
+    .innerJoin(schema.actors, eq(schema.actors.id, schema.friendships.friendActorId))
+    .where(
+      and(
+        eq(schema.friendships.actorId, actorId),
+        not(blockedBetween(viewer, schema.actors.id)),
+      ),
+    )
     .orderBy(schema.actors.handle);
 }
 

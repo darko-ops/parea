@@ -33,6 +33,14 @@ const code = (source: string) =>
 const SCREEN = code(
   PROFILE.slice(PROFILE.indexOf('export function ProfileScreen'), PROFILE.indexOf('function Settings(')),
 );
+/* The friends sheet, its own component now — your profile and somebody
+   else's open the same one. */
+const SHEET = code(
+  PROFILE.slice(
+    PROFILE.indexOf('export function FriendsSheet'),
+    PROFILE.indexOf('const styles = StyleSheet.create'),
+  ),
+);
 
 describe('the two corners', () => {
   it('puts settings behind the same glyph a roll uses', () => {
@@ -95,17 +103,25 @@ describe('the friends', () => {
   });
 
   it('opens somebody’s own profile, by handle', () => {
-    expect(SCREEN).toMatch(/onOpenPerson\(friend\.handle\)/);
+    expect(SHEET).toMatch(/onOpenPerson\(friend\.handle\)/);
     expect(APP).toMatch(/onOpenPerson=\{\(handle\) => setRoute\(\{ screen: 'person', handle \}\)\}/);
     // And closes the sheet on the way, so there is no list behind the profile.
-    expect(SCREEN).toMatch(/setShowFriends\(false\);\s*if \(friend\.handle\)/);
+    expect(SHEET).toMatch(/onClose\(\);\s*if \(friend\.handle\)/);
+    expect(SCREEN).toMatch(/<FriendsSheet[\s\S]*?onClose=\{\(\) => setShowFriends\(false\)\}/);
+  });
+
+  it("opens somebody else's friends from the count on their profile", () => {
+    const PERSON = code(read('src/Person.tsx'));
+    expect(PERSON).toMatch(/onPress=\{person\.counts\.friends > 0 \? \(\) => void openFriends\(\) : undefined\}/);
+    expect(PERSON).toMatch(/api\.friendsOf\(handle\)/);
+    expect(PERSON).toMatch(/<FriendsSheet/);
   });
 
   it('lists somebody with no handle without pretending to be a way through', () => {
     // A profile is reached by handle, and not everybody has chosen one. They
     // are still a friend.
-    expect(SCREEN).toMatch(/const reachable = friend\.handle != null/);
-    expect(SCREEN).toMatch(/disabled=\{!reachable\}/);
+    expect(SHEET).toMatch(/const reachable = friend\.handle != null/);
+    expect(SHEET).toMatch(/disabled=\{!reachable\}/);
   });
 });
 
