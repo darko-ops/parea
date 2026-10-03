@@ -413,14 +413,24 @@ describe('being said yes to', () => {
     });
   });
 
-  it('does not tell the person who pressed Accept', async () => {
-    // They were there. Telling somebody what they have just done is the
-    // product confirming its own button.
+  it('tells the person who pressed Accept too, naming who asked', async () => {
+    // Their request leaves the bubble when they answer it, so without this the
+    // page had no trace of the new friend on their side either.
     const me = await actor('me');
     const them = await actor('wren');
     await asks(them, me, 'accepted', new Date());
 
-    expect(await did(db, me)).toEqual([]);
+    const items = await did(db, me);
+    expect(items).toHaveLength(1);
+    expect(items[0]).toMatchObject({
+      kind: 'friend_accepted',
+      who: 'You',
+      what: 'and @wren are friends now',
+      href: '/u/wren',
+      face: '@wren',
+    });
+    // And the asker still gets theirs, naming the accepter.
+    expect((await did(db, them))[0]).toMatchObject({ what: 'and @me are friends now' });
   });
 
   it('says nothing about one still waiting, or one refused', async () => {

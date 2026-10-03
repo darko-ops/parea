@@ -30,7 +30,7 @@
  */
 
 import { schema } from '@parea/core';
-import { and, desc, eq, ne, isNull, isNotNull, not, sql } from 'drizzle-orm';
+import { and, desc, eq, ne, isNull, isNotNull, not, or, sql } from 'drizzle-orm';
 
 import { avatarUrl } from './accounts';
 import {
@@ -667,9 +667,11 @@ export async function activityFor(
      * looked, from the asker's side, exactly like nothing having happened. The
      * question left one list and joined no other.
      *
-     * Only the asker's side. Whoever pressed Accept was there when it
-     * happened; telling them what they have just done is the product
-     * confirming its own button.
+     * Both sides, and the other person named on each. It was the asker's
+     * alone, on the reasoning that whoever pressed Accept was there — but the
+     * accepter's request leaves the bubble when they answer it, and a
+     * notifications page with no trace of a new friend read, to them too, as
+     * though it had not taken.
      */
     db
       .select({
@@ -680,10 +682,17 @@ export async function activityFor(
         avatarKey: schema.actors.avatarKey,
       })
       .from(schema.friendRequests)
-      .innerJoin(schema.actors, eq(schema.actors.id, schema.friendRequests.toActorId))
+      .innerJoin(
+        schema.actors,
+        sql`${schema.actors.id} = case when ${schema.friendRequests.fromActorId} = ${actorId}
+          then ${schema.friendRequests.toActorId} else ${schema.friendRequests.fromActorId} end`,
+      )
       .where(
         and(
-          eq(schema.friendRequests.fromActorId, actorId),
+          or(
+            eq(schema.friendRequests.fromActorId, actorId),
+            eq(schema.friendRequests.toActorId, actorId),
+          ),
           eq(schema.friendRequests.status, 'accepted'),
           isNotNull(schema.friendRequests.resolvedAt),
         ),
