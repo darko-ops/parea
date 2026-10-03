@@ -395,7 +395,11 @@ export default function CreatePage() {
               </div>
               <SignIn
                 why="Making a roll needs an account, so the people you invite know whose roll it is."
-                onSignedIn={session.refresh}
+                // A new account carries on to the roll it came to make;
+                // somebody signing back in lands on their home, not a blank form.
+                onSignedIn={({ created }) =>
+                  created ? session.refresh() : globalThis.location.assign('/events')
+                }
               />
             </form>
           </div>

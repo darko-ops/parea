@@ -31,3 +31,17 @@ describe('the sign-in card inside somebody else’s form', () => {
     expect(CARD).toMatch(/void \(stage === 'code' \? verify\(\) : request\(\)\);/);
   });
 });
+
+describe('where signing in lands', () => {
+  const HOME = readFileSync(fileURLToPath(new URL('../app/page.tsx', import.meta.url)), 'utf8');
+
+  it('tells the page whether the account was made just now', () => {
+    expect(CARD).toMatch(/onSignedIn: \(outcome: \{ created: boolean \}\) => void \| Promise<void>;/);
+    expect(CARD).toContain('await onSignedIn({ created: result.created });');
+    expect(CARD).toContain('await onSignedIn({ created: false });');
+  });
+
+  it('sends somebody signing back in to their home, not the Create Roll form', () => {
+    expect(HOME).toMatch(/created \? session\.refresh\(\) : globalThis\.location\.assign\('\/events'\)/);
+  });
+});

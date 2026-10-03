@@ -125,7 +125,12 @@ export function SignIn({
   title?: string;
   /** What the person was trying to do. Shown above the form. */
   why: string;
-  onSignedIn: () => void | Promise<void>;
+  /**
+   * Called once signed in, saying whether the account was made just now. A
+   * page that gated something — Create Roll — can carry on with it for a new
+   * account and send somebody coming back to their own home instead.
+   */
+  onSignedIn: (outcome: { created: boolean }) => void | Promise<void>;
 }) {
   const [stage, setStage] = useState<Stage>('email');
   const [mode, setMode] = useState<Mode>('create');
@@ -227,7 +232,7 @@ export function SignIn({
         return;
       }
 
-      await onSignedIn();
+      await onSignedIn({ created: result.created });
     },
     [onSignedIn],
   );
@@ -359,7 +364,8 @@ export function SignIn({
       }
       setMerged(result.value.merged);
       rememberAccount();
-      await onSignedIn();
+      // A passkey belongs to an account that already exists.
+      await onSignedIn({ created: false });
     } finally {
       setBusy(false);
     }
@@ -384,7 +390,8 @@ export function SignIn({
       }
     } finally {
       setBusy(false);
-      await onSignedIn();
+      // The offer only ever follows an account made just now.
+      await onSignedIn({ created: true });
     }
   }, [onSignedIn]);
 
@@ -556,7 +563,7 @@ export function SignIn({
           <button type="button" onClick={keepPasskey} disabled={busy}>
             {busy ? 'Working…' : 'Add a passkey'}
           </button>
-          <button type="button" className="secondary" onClick={() => void onSignedIn()} disabled={busy}>
+          <button type="button" className="secondary" onClick={() => void onSignedIn({ created: true })} disabled={busy}>
             Not now
           </button>
         </div>
