@@ -684,7 +684,9 @@ export function EventView({
                 ? 'Back to your rolls'
                 : backHref === '/account'
                   ? 'Back to your profile'
-                  : 'Back to the group'
+                  : backHref.startsWith('/u/')
+                    ? 'Back to their profile'
+                    : 'Back to the group'
             }
           >
             {'\u2039'}
@@ -2133,6 +2135,9 @@ function tabHref(eventId: string, tab: EventTab, backHref: string): string {
   const group = backHref.startsWith('/group/') ? backHref.slice('/group/'.length) : null;
   if (group) params.set('group', group);
   if (backHref === '/account') params.set('from', 'profile');
+  if (backHref.startsWith('/u/')) {
+    params.set('person', decodeURIComponent(backHref.slice('/u/'.length)));
+  }
   const query = params.toString();
   return query ? `/event/${eventId}?${query}` : `/event/${eventId}`;
 }

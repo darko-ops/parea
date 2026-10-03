@@ -252,7 +252,10 @@ describe('what the page looks like', () => {
     expect(VIEW).toMatch(/className="you-head"/);
     expect(VIEW).toMatch(/<Avatar\s+url=\{person\.avatar\}/);
     expect(VIEW).toMatch(/className="you-name"/);
-    expect(VIEW).toMatch(/<EventCard key=\{event\.id\} event=\{event\} \/>/);
+    expect(VIEW).toMatch(/<EventCard\s+key=\{event\.id\}/);
+    // Opened from here, a roll's back arrow comes back here.
+    expect(VIEW).toContain('href: `/event/${event.id}?person=${encodeURIComponent(person.handle)}`');
+    expect(VIEW).toContain('`/event/${album.id}?person=${encodeURIComponent(person.handle)}`');
     expect(VIEW).not.toMatch(/Edit profile|you-edit/);
   });
 

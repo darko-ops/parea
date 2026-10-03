@@ -678,8 +678,16 @@ export function PersonView({
             <h2>Rolls</h2>
           </div>
           <div className="cards">
+            {/* Opened from here, so the roll's back arrow comes back here. */}
             {events.map((event) => (
-              <EventCard key={event.id} event={event} />
+              <EventCard
+                key={event.id}
+                event={
+                  person.handle
+                    ? { ...event, href: `/event/${event.id}?person=${encodeURIComponent(person.handle)}` }
+                    : event
+                }
+              />
             ))}
           </div>
         </section>
@@ -736,7 +744,13 @@ export function PersonView({
                   */}
                   <Card
                     className="card"
-                    {...(album.locked ? {} : { href: `/event/${album.id}` })}
+                    {...(album.locked
+                      ? {}
+                      : {
+                          href: person.handle
+                            ? `/event/${album.id}?person=${encodeURIComponent(person.handle)}`
+                            : `/event/${album.id}`,
+                        })}
                   >
                     <div className="card-cover">
                       {/*

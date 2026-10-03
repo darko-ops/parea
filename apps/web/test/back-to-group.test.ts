@@ -16,10 +16,13 @@ describe('a roll opened from a group', () => {
   it('points its back arrow at that group, and only at a real id', () => {
     const page = read('app/event/[id]/page.tsx');
     expect(page).toMatch(
-      /backHref=\{backHrefFor\(\(await searchParams\)\.group, \(await searchParams\)\.from\)\}/,
+      /backHref=\{backHrefFor\(\s*\(await searchParams\)\.group,\s*\(await searchParams\)\.from,\s*\(await searchParams\)\.person,\s*\)\}/,
     );
     expect(page).toMatch(/if \(group && UUID\.test\(group\)\) return `\/group\/\$\{group\}`;/);
     expect(page).toMatch(/return from === 'profile' \? '\/account' : '\/events';/);
+    // Somebody else's profile, only for a handle-shaped value.
+    expect(page).toMatch(/if \(person && HANDLE\.test\(person\)\) return `\/u\/\$\{encodeURIComponent\(person\)\}`;/);
+    expect(read('app/components/EventView.tsx')).toMatch(/params\.set\('person',/);
     expect(read('app/components/EventView.tsx')).toMatch(/href=\{backHref\}/);
   });
 
