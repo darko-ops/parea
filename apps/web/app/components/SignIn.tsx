@@ -412,7 +412,7 @@ export function SignIn({
           send a new code.
         </p>
         <div className="row" style={{ marginTop: 16 }}>
-          <button
+          <button type="button"
             onClick={() => {
               setMode('signin');
               void request();
@@ -421,7 +421,7 @@ export function SignIn({
           >
             {busy ? 'Sending…' : 'Sign in instead'}
           </button>
-          <button
+          <button type="button"
             className="secondary"
             onClick={() => setStage('email')}
             disabled={busy}
@@ -443,7 +443,7 @@ export function SignIn({
           sign in with the address you used before.
         </p>
         <div className="row" style={{ marginTop: 16 }}>
-          <button
+          <button type="button"
             onClick={() => {
               setMode('create');
               setStage('age');
@@ -451,7 +451,7 @@ export function SignIn({
           >
             Create an account
           </button>
-          <button
+          <button type="button"
             className="secondary"
             onClick={() => {
               setProof(null);
@@ -481,7 +481,7 @@ export function SignIn({
           setAgreed={setAgreed}
         />
         <div className="row" style={{ marginTop: 16 }}>
-          <button onClick={confirmAge} disabled={busy || !name.trim() || !birthDate || !agreed}>
+          <button type="button" onClick={confirmAge} disabled={busy || !name.trim() || !birthDate || !agreed}>
             {busy ? 'Working…' : 'Create account'}
           </button>
         </div>
@@ -504,7 +504,7 @@ export function SignIn({
           ten minutes are up, the address needs a new code first.
         */}
         <div className="row" style={{ marginTop: 16 }}>
-          <button
+          <button type="button"
             className="secondary"
             onClick={() => {
               setError(null);
@@ -553,10 +553,10 @@ export function SignIn({
           extra, not a replacement.
         </p>
         <div className="row" style={{ marginTop: 16 }}>
-          <button onClick={keepPasskey} disabled={busy}>
+          <button type="button" onClick={keepPasskey} disabled={busy}>
             {busy ? 'Working…' : 'Add a passkey'}
           </button>
-          <button className="secondary" onClick={() => void onSignedIn()} disabled={busy}>
+          <button type="button" className="secondary" onClick={() => void onSignedIn()} disabled={busy}>
             Not now
           </button>
         </div>
@@ -566,6 +566,32 @@ export function SignIn({
   }
 
   const creating = mode === 'create';
+  /*
+   * Whether the main button can be pressed, and what pressing it does — named
+   * once, because Enter in either field presses it too.
+   *
+   * Every button here is `type="button"`, and that is the fix for a sign-in
+   * that sent code after code. This card is drawn inside other forms — the
+   * Create Roll page wraps it in its own — and a button with no type is a
+   * submit button. Pressing Go on a phone's keyboard, or a browser filling the
+   * code from Mail and submitting, "clicks" the first submit button in the
+   * form: the Sign in tab at the top, which puts the card back to its email
+   * step. So nothing here submits, and Enter is handled where it is pressed.
+   */
+  const ready =
+    !busy &&
+    (stage === 'code'
+      ? code.length >= 6
+      : email.includes('@') && !(creating && (!name.trim() || !birthDate || !agreed)));
+  const submit = () => {
+    if (!ready) return;
+    void (stage === 'code' ? verify() : request());
+  };
+  const onEnter = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key !== 'Enter') return;
+    e.preventDefault();
+    submit();
+  };
   const choose = (next: Mode) => {
     setMode(next);
     setStage('email');
@@ -580,7 +606,7 @@ export function SignIn({
 
       {/* The one question a newcomer can answer, before anything else. */}
       <div className="auth-switch" role="tablist" aria-label="Sign in or create an account">
-        <button
+        <button type="button"
           role="tab"
           aria-selected={!creating}
           className={!creating ? 'on' : ''}
@@ -589,7 +615,7 @@ export function SignIn({
         >
           Sign in
         </button>
-        <button
+        <button type="button"
           role="tab"
           aria-selected={creating}
           className={creating ? 'on' : ''}
@@ -631,6 +657,7 @@ export function SignIn({
         onChange={(e) => setEmail(e.target.value)}
         placeholder="you@example.com"
         disabled={stage === 'code'}
+        onKeyDown={onEnter}
       />
 
       {creating && stage === 'email' && (
@@ -654,6 +681,7 @@ export function SignIn({
             autoComplete="one-time-code"
             value={code}
             onChange={(e) => setCode(e.target.value)}
+            onKeyDown={onEnter}
             placeholder="123456"
             autoFocus
           />
@@ -665,14 +693,9 @@ export function SignIn({
       )}
 
       <div className="row" style={{ marginTop: 16 }}>
-        <button
-          onClick={stage === 'code' ? verify : request}
-          disabled={
-            busy ||
-            (stage === 'code'
-              ? code.length < 6
-              : !email.includes('@') || (creating && (!name.trim() || !birthDate || !agreed)))
-          }
+        <button type="button"
+          onClick={submit}
+          disabled={!ready}
         >
           {busy
             ? 'Working…'
@@ -683,7 +706,7 @@ export function SignIn({
               : 'Send me a code'}
         </button>
         {stage === 'code' && (
-          <button className="secondary" onClick={() => setStage('email')} disabled={busy}>
+          <button type="button" className="secondary" onClick={() => setStage('email')} disabled={busy}>
             Use a different address
           </button>
         )}
@@ -697,7 +720,7 @@ export function SignIn({
         <>
           <p className="signin-or">or</p>
           <div className="row">
-            <button className="secondary" onClick={withPasskey} disabled={busy}>
+            <button type="button" className="secondary" onClick={withPasskey} disabled={busy}>
               Sign in with a passkey
             </button>
           </div>
