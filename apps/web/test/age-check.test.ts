@@ -109,6 +109,25 @@ describe('making an account', () => {
     expect(await db.select().from(schema.accounts)).toHaveLength(0);
   });
 
+  it('lets a wrong date be corrected after a refusal, without a new code', async () => {
+    await storeCode(db, SECRET, 'sam@example.com', '123456');
+    const { body } = await signInWith({ email: 'sam@example.com', code: '123456' });
+    const refused = await signInWith({
+      email: 'sam@example.com',
+      proof: body.proof,
+      birthDate: yearsAgo(0),
+    });
+    expect(refused.status).toBe(403);
+    expect(typeof refused.body.proof).toBe('string');
+    const made = await signInWith({
+      email: 'sam@example.com',
+      proof: refused.body.proof,
+      birthDate: yearsAgo(30),
+    });
+    expect(made.status).toBe(200);
+    expect(made.body.created).toBe(true);
+  });
+
   it('makes the account, keeping only when the check passed', async () => {
     await storeCode(db, SECRET, 'sam@example.com', '123456');
     const { body } = await signInWith({ email: 'sam@example.com', code: '123456' });

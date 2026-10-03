@@ -77,11 +77,9 @@ import {
   loadSearches,
   rememberSearch,
   saveActorToken,
-  ageRefused,
   hadAccount,
   currentPushToken,
   rememberAccount,
-  rememberAgeRefused,
   signOutDevice,
   type RecentSearch,
 } from './platform';
@@ -3429,8 +3427,10 @@ export function AccountCard({
         setExists(true);
         return;
       }
+      // The code is spent; the proof lets a wrong date be put right.
       if (err instanceof ApiError && err.code === 'too_young') {
-        await rememberAgeRefused();
+        setCode('');
+        setAgeProof(typeof err.body.proof === 'string' ? err.body.proof : null);
         setRefused(true);
         return;
       }
@@ -3443,14 +3443,12 @@ export function AccountCard({
       }
       /*
        * The code was right and the address is new: a first account asks for a
-       * date of birth. A phone already refused goes straight to the refusal
-       * rather than to a second try at the date.
+       * date of birth.
        */
       if (err instanceof ApiError && err.code === 'birth_date_required') {
         setCode('');
         const proof = typeof err.body.proof === 'string' ? err.body.proof : null;
-        if (await ageRefused()) setRefused(true);
-        else if (mode === 'signin') setMissing(proof);
+        if (mode === 'signin') setMissing(proof);
         else setAgeProof(proof);
         return;
       }
@@ -3475,8 +3473,7 @@ export function AccountCard({
       await finish(await api.confirmAge(email.trim(), ageProof, birthDateText(), name.trim()));
     } catch (err) {
       if (err instanceof ApiError && err.code === 'too_young') {
-        await rememberAgeRefused();
-        setAgeProof(null);
+        setAgeProof(typeof err.body.proof === 'string' ? err.body.proof : null);
         setRefused(true);
       } else if (err instanceof ApiError && err.code === 'invalid_birth_date') {
         if (typeof err.body.proof === 'string') setAgeProof(err.body.proof);
@@ -3652,6 +3649,19 @@ export function AccountCard({
           Parea isn’t available to you right now. You can still open rolls people
           send you.
         </Text>
+        {/*
+          A wrong date is the commonest way here, so it can be fixed: with the
+          proof, back to the date; once its ten minutes are up, a new code.
+        */}
+        <Button
+          label="Change date of birth"
+          onPress={() => {
+            setError(null);
+            setRefused(false);
+            if (!ageProof) setSent(false);
+          }}
+          t={t}
+        />
       </View>
     );
   }

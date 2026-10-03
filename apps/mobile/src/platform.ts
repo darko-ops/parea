@@ -769,15 +769,6 @@ export async function markLibraryAsked(): Promise<void> {
  * nothing registered to take back.
  */
 /**
- * This phone was told it cannot make an account.
- *
- * Remembered so that changing the date and trying again is not the obvious
- * next move — the neutral age screen is only neutral once. Not cleared by
- * signing out, which hands the phone back to nobody in particular.
- */
-const AGE_REFUSED_KEY = 'parea.age-refused';
-
-/**
  * This phone has been signed in to an account at least once — the condition
  * for offering Face ID sign-in, and for opening on Sign in rather than Create
  * account. Not cleared by `signOutDevice`, because signed out is exactly when
@@ -791,14 +782,6 @@ export async function hadAccount(): Promise<boolean> {
 
 export async function rememberAccount(): Promise<void> {
   await SecureStore.setItemAsync(HAD_ACCOUNT_KEY, '1').catch(() => {});
-}
-
-export async function ageRefused(): Promise<boolean> {
-  return (await SecureStore.getItemAsync(AGE_REFUSED_KEY).catch(() => null)) === '1';
-}
-
-export async function rememberAgeRefused(): Promise<void> {
-  await SecureStore.setItemAsync(AGE_REFUSED_KEY, '1').catch(() => {});
 }
 
 export async function currentPushToken(): Promise<string | null> {

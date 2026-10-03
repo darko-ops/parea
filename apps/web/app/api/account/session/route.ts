@@ -169,7 +169,18 @@ export async function POST(request: Request) {
         { status: 400 },
       );
     }
-    if (age < MINIMUM_AGE) return NextResponse.json({ error: 'too_young' }, { status: 403 });
+    /*
+     * Refused with a fresh proof, so a mistyped year can be put right without
+     * a second code: a person who entered this year, or a child's birthday,
+     * is told no and shown the date to fix, and the next date is checked the
+     * same way. Nothing is made either time.
+     */
+    if (age < MINIMUM_AGE) {
+      return NextResponse.json(
+        { error: 'too_young', proof: ageProof(secret, proven.email) },
+        { status: 403 },
+      );
+    }
     ageConfirmedAt = new Date();
   }
 

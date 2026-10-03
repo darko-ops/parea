@@ -79,28 +79,6 @@ const rememberAccount = () => {
 };
 
 /**
- * This browser was told it cannot make an account. Remembered so that changing
- * the date and trying again is not the obvious next move — the neutral age
- * screen is only neutral once. Per browser, and a convenience rather than a
- * lock: nothing here is a secret.
- */
-const REFUSED_KEY = 'parea.age-refused';
-const wasRefused = () => {
-  try {
-    return globalThis.localStorage?.getItem(REFUSED_KEY) === '1';
-  } catch {
-    return false;
-  }
-};
-const rememberRefusal = () => {
-  try {
-    globalThis.localStorage?.setItem(REFUSED_KEY, '1');
-  } catch {
-    // Private windows and blocked storage: the server still refuses.
-  }
-};
-
-/**
  * Whether this browser is signed in.
  *
  * `null` while unknown, which callers must render as "not yet" rather than
@@ -276,12 +254,14 @@ export function SignIn({
         return;
       }
       if (res.status === 403) {
-        // Two refusals share the status, and only one is about age. Treating a
-        // suspension as "too young" would also remember it, and turn this
-        // browser away from making any account at all.
-        const body = (await res.json().catch(() => ({}))) as { error?: string };
+        // Two refusals share the status, and only one is about age. A
+        // suspension offered "change date of birth" would be offered a way
+        // round a decision that has nothing to do with a date.
+        const body = (await res.json().catch(() => ({}))) as { error?: string; proof?: string };
         if (body.error === 'suspended') throw new Error(SUSPENDED_NOTE);
-        rememberRefusal();
+        // The code is spent; the proof lets a wrong date be put right.
+        setCode('');
+        setProof(body.proof ?? null);
         setStage('refused');
         return;
       }
@@ -303,16 +283,11 @@ export function SignIn({
       /*
        * The code was right and the address is new: a first account asks for a
        * date of birth. Not before the code, because only a proved address can
-       * be told it has no account. A browser already refused goes straight to
-       * the refusal rather than to a second try at the date.
+       * be told it has no account.
        */
       if (res.status === 428) {
         const body = (await res.json()) as { proof?: string };
         setCode('');
-        if (wasRefused()) {
-          setStage('refused');
-          return;
-        }
         setProof(body.proof ?? null);
         // Signing in to an address with no account says so rather than
         // making one behind their back; Create account carries straight on.
@@ -341,9 +316,9 @@ export function SignIn({
         body: JSON.stringify({ email, proof, birthDate, displayName: name.trim() }),
       });
       if (res.status === 403) {
-        const body = (await res.json().catch(() => ({}))) as { error?: string };
+        const body = (await res.json().catch(() => ({}))) as { error?: string; proof?: string };
         if (body.error === 'suspended') throw new Error(SUSPENDED_NOTE);
-        rememberRefusal();
+        setProof(body.proof ?? null);
         setStage('refused');
         return;
       }
@@ -523,6 +498,22 @@ export function SignIn({
           Parea isn&rsquo;t available to you right now. You can still open rolls
           people send you.
         </p>
+        {/*
+          A wrong date is the commonest way here — a year left at this one — so
+          it can be fixed. With the proof the date goes straight back; once its
+          ten minutes are up, the address needs a new code first.
+        */}
+        <div className="row" style={{ marginTop: 16 }}>
+          <button
+            className="secondary"
+            onClick={() => {
+              setError(null);
+              setStage(proof ? 'age' : 'email');
+            }}
+          >
+            Change date of birth
+          </button>
+        </div>
       </section>
     );
   }
@@ -752,7 +743,32 @@ function AccountFields({
   agreed: boolean;
   setAgreed: (value: boolean) => void;
 }) {
-  const today = new Date().toISOString().slice(0, 10);
+  /*
+   * Day, month and year as three empty boxes, as the app asks, rather than a
+   * date input. A phone's date picker opens on today, and somebody who turns
+   * the day and the month but not the year has told the age check they were
+   * born this year. A year has to be typed.
+   *
+   * The parent holds the date only once all three make one; until then it is
+   * empty, which keeps Create account disabled. Started from the parent's,
+   * because the form can remount between the email and the age stages.
+   */
+  const [initialYear = '', initialMonth = '', initialDay = ''] = birthDate ? birthDate.split('-') : [];
+  const [day, setDay] = useState(initialDay);
+  const [month, setMonth] = useState(initialMonth);
+  const [year, setYear] = useState(initialYear);
+  const update = (next: { day?: string; month?: string; year?: string }) => {
+    const parts = { day, month, year, ...next };
+    for (const key of ['day', 'month', 'year'] as const) parts[key] = parts[key].replace(/\D/g, '');
+    setDay(parts.day);
+    setMonth(parts.month);
+    setYear(parts.year);
+    setBirthDate(
+      parts.day && parts.month && parts.year.length === 4
+        ? `${parts.year}-${parts.month.padStart(2, '0')}-${parts.day.padStart(2, '0')}`
+        : '',
+    );
+  };
   return (
     <>
       {setName && (
@@ -769,16 +785,42 @@ function AccountFields({
           />
         </>
       )}
-      <label htmlFor="account-birth-date" style={{ marginTop: 16 }}>
+      <label htmlFor="account-birth-day" style={{ marginTop: 16 }}>
         Date of birth
       </label>
-      <input
-        id="account-birth-date"
-        type="date"
-        max={today}
-        value={birthDate}
-        onChange={(e) => setBirthDate(e.target.value)}
-      />
+      <div className="birth-date">
+        <input
+          id="account-birth-day"
+          type="text"
+          inputMode="numeric"
+          autoComplete="bday-day"
+          maxLength={2}
+          placeholder="Day"
+          aria-label="Day you were born"
+          value={day}
+          onChange={(e) => update({ day: e.target.value })}
+        />
+        <input
+          type="text"
+          inputMode="numeric"
+          autoComplete="bday-month"
+          maxLength={2}
+          placeholder="Month"
+          aria-label="Month you were born, as a number"
+          value={month}
+          onChange={(e) => update({ month: e.target.value })}
+        />
+        <input
+          type="text"
+          inputMode="numeric"
+          autoComplete="bday-year"
+          maxLength={4}
+          placeholder="Year"
+          aria-label="Year you were born"
+          value={year}
+          onChange={(e) => update({ year: e.target.value })}
+        />
+      </div>
       <p className="muted">Used to check you can make an account, and not kept.</p>
       <label className="auth-agree">
         <input type="checkbox" checked={agreed} onChange={(e) => setAgreed(e.target.checked)} />
