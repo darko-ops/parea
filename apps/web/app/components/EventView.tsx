@@ -679,7 +679,13 @@ export function EventView({
           <a
             href={backHref}
             className="event-back"
-            aria-label={backHref === '/events' ? 'Back to your rolls' : 'Back to the group'}
+            aria-label={
+              backHref === '/events'
+                ? 'Back to your rolls'
+                : backHref === '/account'
+                  ? 'Back to your profile'
+                  : 'Back to the group'
+            }
           >
             {'\u2039'}
           </a>
@@ -842,7 +848,10 @@ export function EventView({
                     </>
                   )}
                   {feed.event.canAdminister ? (
-                    <a href={`/event/${eventId}/manage`} onClick={close}>
+                    <a
+                      href={`/event/${eventId}/manage${backHref === '/account' ? '?from=profile' : ''}`}
+                      onClick={close}
+                    >
                       Manage roll
                     </a>
                   ) : (
@@ -2115,14 +2124,15 @@ function explainDownloadFailure(body: { error?: string; pending?: number; missin
 }
 
 /**
- * A tab's link, carrying the group the roll was opened from, so switching
- * tabs does not lose the way back to it.
+ * A tab's link, carrying the group or profile the roll was opened from, so
+ * switching tabs does not lose the way back to it.
  */
 function tabHref(eventId: string, tab: EventTab, backHref: string): string {
   const params = new URLSearchParams();
   if (tab !== 'photos') params.set('tab', tab);
   const group = backHref.startsWith('/group/') ? backHref.slice('/group/'.length) : null;
   if (group) params.set('group', group);
+  if (backHref === '/account') params.set('from', 'profile');
   const query = params.toString();
   return query ? `/event/${eventId}?${query}` : `/event/${eventId}`;
 }

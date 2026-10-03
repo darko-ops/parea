@@ -30,7 +30,7 @@ export default async function ManagePage({
   searchParams,
 }: {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ tab?: string }>;
+  searchParams: Promise<{ tab?: string; from?: string }>;
 }) {
   const { id } = await params;
   const db = getDb();
@@ -54,6 +54,8 @@ export default async function ManagePage({
         // an error: `?tab=` is a thing people edit, and a 400 for a typo in a
         // tab name helps nobody.
         tab={(await searchParams).tab === 'members' ? 'members' : 'manage'}
+        // Opened from your profile: the way back, and where deleting it lands.
+        fromProfile={(await searchParams).from === 'profile'}
         initial={{
           name: event.name,
           caption: event.caption,

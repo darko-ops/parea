@@ -61,11 +61,18 @@ type CoHost = {
 export function ManageView({
   eventId,
   tab,
+  fromProfile = false,
   initial,
 }: {
   eventId: string;
   /** Which half of the screen this is. From the URL, so it survives a reload. */
   tab: 'manage' | 'members';
+  /**
+   * The roll was opened from your profile. Carried on every link out of here
+   * so the way back stays the way back, and deleting it lands on the profile
+   * rather than Home — the list it was on, minus it.
+   */
+  fromProfile?: boolean;
   initial: {
     name: string;
     joinsOpen: boolean;
@@ -466,7 +473,7 @@ export function ManageView({
     try {
       const res = await fetch(`/api/events/${eventId}`, { method: 'DELETE' });
       if (!res.ok) throw new Error('Could not delete it.');
-      window.location.href = '/';
+      window.location.href = fromProfile ? '/account' : '/';
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
       setBusy(null);
@@ -486,7 +493,7 @@ export function ManageView({
       <header className="manage-head">
         <a
           className="back"
-          href={`/event/${eventId}`}
+          href={`/event/${eventId}${fromProfile ? '?from=profile' : ''}`}
           aria-label="Back to the photos"
         >
           <span aria-hidden="true">{'\u2039'}</span>
@@ -502,13 +509,13 @@ export function ManageView({
       */}
       <nav className="tabs" aria-label="What to manage">
         <a
-          href={`/event/${eventId}/manage`}
+          href={`/event/${eventId}/manage${fromProfile ? '?from=profile' : ''}`}
           aria-current={tab === 'manage' ? 'page' : undefined}
         >
           Manage
         </a>
         <a
-          href={`/event/${eventId}/manage?tab=members`}
+          href={`/event/${eventId}/manage?tab=members${fromProfile ? '&from=profile' : ''}`}
           aria-current={tab === 'members' ? 'page' : undefined}
         >
           {/* No count. It was the access queue, which is on the album's own

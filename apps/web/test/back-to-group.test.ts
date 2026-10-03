@@ -15,9 +15,25 @@ describe('a roll opened from a group', () => {
 
   it('points its back arrow at that group, and only at a real id', () => {
     const page = read('app/event/[id]/page.tsx');
-    expect(page).toMatch(/backHref=\{backHrefFor\(\(await searchParams\)\.group\)\}/);
-    expect(page).toMatch(/UUID\.test\(group\) \? `\/group\/\$\{group\}` : '\/events'/);
+    expect(page).toMatch(
+      /backHref=\{backHrefFor\(\(await searchParams\)\.group, \(await searchParams\)\.from\)\}/,
+    );
+    expect(page).toMatch(/if \(group && UUID\.test\(group\)\) return `\/group\/\$\{group\}`;/);
+    expect(page).toMatch(/return from === 'profile' \? '\/account' : '\/events';/);
     expect(read('app/components/EventView.tsx')).toMatch(/href=\{backHref\}/);
+  });
+
+  it('opened from your profile, goes back there — and so does deleting it', () => {
+    expect(read('app/components/AccountView.tsx')).toContain('href: `/event/${event.id}?from=profile`');
+    const view = read('app/components/EventView.tsx');
+    expect(view).toMatch(/params\.set\('from', 'profile'\)/);
+    expect(view).toContain("/manage${backHref === '/account' ? '?from=profile' : ''}");
+    expect(read('app/event/[id]/manage/page.tsx')).toContain(
+      "fromProfile={(await searchParams).from === 'profile'}",
+    );
+    expect(read('app/components/ManageView.tsx')).toContain(
+      "window.location.href = fromProfile ? '/account' : '/';",
+    );
   });
 
   it('keeps the way back when switching tabs', () => {

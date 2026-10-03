@@ -611,6 +611,9 @@ export function AccountView() {
               key={event.id}
               event={{
                 id: event.id,
+                // Opened from your profile, so its back arrow — and deleting
+                // it from Manage — lands back here rather than on Home.
+                href: `/event/${event.id}?from=profile`,
                 name: event.name,
                 photoCount: event.photoCount,
                 cover: event.cover,

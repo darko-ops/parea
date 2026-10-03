@@ -46,7 +46,7 @@ export default async function EventPage({
    * `?tab=conversation|people`. Photos is the bare URL. `?group=<id>` when
    * the roll was opened from a group's page, so its back arrow returns there.
    */
-  searchParams: Promise<{ tab?: string; group?: string }>;
+  searchParams: Promise<{ tab?: string; group?: string; from?: string }>;
 }) {
   const { id } = await params;
 
@@ -288,7 +288,7 @@ export default async function EventPage({
       <EventView
         eventId={event.id}
         tab={tabOf((await searchParams).tab)}
-        backHref={backHrefFor((await searchParams).group)}
+        backHref={backHrefFor((await searchParams).group, (await searchParams).from)}
         initial={{
           event: {
             id: event.id,
@@ -411,10 +411,12 @@ function tabOf(value: string | undefined): EventTab {
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 /**
- * Where the roll's back arrow goes: the group it was opened from, or the
- * rolls list. Only ever a path on this site built from a validated id, so the
- * parameter cannot send anybody anywhere else.
+ * Where the roll's back arrow goes: the group it was opened from, your
+ * profile, or the rolls list. Only ever a path on this site built from a
+ * validated id or a fixed word, so the parameter cannot send anybody anywhere
+ * else.
  */
-function backHrefFor(group: string | undefined): string {
-  return group && UUID.test(group) ? `/group/${group}` : '/events';
+function backHrefFor(group: string | undefined, from: string | undefined): string {
+  if (group && UUID.test(group)) return `/group/${group}`;
+  return from === 'profile' ? '/account' : '/events';
 }
