@@ -46,6 +46,8 @@ export type ActivityRow = {
   href: string | null;
   /** A person's picture, or the event's newest photograph. Null draws a letter. */
   image: string | null;
+  /** Whose letter that is — the person or event the picture stands for. */
+  face: string;
   /**
    * The photographs the line is about. Only `photos_added` has any.
    *
@@ -130,7 +132,7 @@ export function ActivityList({ items }: { items: ActivityRow[] }) {
                     size={34}
                     className="activity-thumb"
                     fallback={
-                      <span aria-hidden="true">{row.who.slice(0, 1).toUpperCase()}</span>
+                      <span aria-hidden="true">{row.face.slice(0, 1).toUpperCase()}</span>
                     }
                   />
                   <span className="activity-said">

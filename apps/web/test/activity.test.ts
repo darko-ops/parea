@@ -408,6 +408,8 @@ describe('being said yes to', () => {
       who: 'You',
       what: 'and @wren are friends now',
       href: '/u/wren',
+      // The picture is Wren, so a missing one draws Wren's letter, not a Y.
+      face: '@wren',
     });
   });
 

@@ -79,6 +79,7 @@ export async function GET() {
       when: ago(item.at, now),
       href: item.href,
       image: item.image,
+      face: item.face ?? item.who,
       images: item.images,
       bucket: bucketFor(item.at, now),
       unread: since === null || item.at > since,

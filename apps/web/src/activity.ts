@@ -147,6 +147,16 @@ export type ActivityItem = {
    */
   image: string | null;
   /**
+   * The name `image` stands for, where it is not `who` — the letter drawn
+   * when there is no picture comes from it.
+   *
+   * Set on the rows that open with "You": "You and Wren are friends now" is a
+   * picture of Wren, and "You joined Barcelona" one of Barcelona, so a letter
+   * taken from `who` put a Y on all of them — the one letter that names nobody
+   * the line is about. Unset, the letter is `who`'s.
+   */
+  face?: string;
+  /**
    * The photographs the line is about. Empty on every kind but `photos_added`.
    *
    * "Maya added 12 photos to Naxos, September" is a sentence about pictures
@@ -853,6 +863,7 @@ export async function activityFor(
         what: `joined ${l.name}`,
         href: `/event/${l.eventId}`,
         image: await cover(l),
+        face: l.name,
         images: [],
       })),
     ...added.map(async (row) => ({
@@ -894,6 +905,7 @@ export async function activityFor(
       // Their page, which is what somebody does next with this: look.
       href: f.handle ? `/u/${encodeURIComponent(f.handle)}` : '/friends',
       image: await avatarUrl(f.avatarKey),
+      face: f.who,
       images: [],
     })),
     ...arrivals.map(async (a) => ({
@@ -976,6 +988,7 @@ export async function activityFor(
       what: `can see ${a.name} now`,
       href: `/event/${a.eventId}`,
       image: await cover(a),
+      face: a.name,
       images: [],
     })),
   ]);

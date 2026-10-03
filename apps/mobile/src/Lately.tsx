@@ -353,7 +353,7 @@ export function Lately({
                   >
                     <Tile
                       image={row.image}
-                      name={row.who}
+                      name={row.face ?? row.who}
                       keyed={row.id}
                       size={34}
                       radius={9}

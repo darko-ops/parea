@@ -929,6 +929,11 @@ export type ActivityRow = {
   href: string | null;
   /** A person's picture, or the event's newest photograph. */
   image: string | null;
+  /**
+   * Whose letter to draw when there is no picture — the friend in "You and
+   * Wren are friends now", not "You". Optional for a server that predates it.
+   */
+  face?: string;
   /** The photographs the line is about. Only `photos_added` has any. */
   images: string[];
   /** "Today", "Earlier this week", "March" — the server's words. */
