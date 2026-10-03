@@ -18,7 +18,7 @@ import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { beforeAll, beforeEach, describe, expect, it } from 'vitest';
 
-import { MOSAIC_TILES, eventsFor, leaveEvent } from '../src/events';
+import { MOSAIC_TILES, eventsFor, leaveEvent, removeFromEvent } from '../src/events';
 import type { Db } from '../src/db';
 
 const MIGRATIONS = fileURLToPath(
@@ -454,6 +454,92 @@ describe('leaving an event', () => {
     expect(
       await leaveEvent(db, '00000000-0000-0000-0000-000000000000', person),
     ).toEqual({ left: false, reason: 'not_found' });
+  });
+});
+
+describe('taking somebody out', () => {
+  async function roll(createdBy: string, groupId: string | null = null) {
+    const id = await event(createdBy, groupId ? { groupId } : {});
+    return { id, createdBy, groupId };
+  }
+
+  it('takes their place in it, and leaves their photographs', async () => {
+    const host = await actor();
+    const person = await actor();
+    const r = await roll(host);
+    await participates(r.id, person);
+    await db.insert(schema.photos).values({
+      eventId: r.id,
+      uploaderId: person,
+      storageKey: 'k/1',
+      mime: 'image/jpeg',
+      byteSize: 1024,
+      status: 'ready',
+    });
+
+    expect(await removeFromEvent(db, r, person, host)).toEqual({ removed: true });
+    expect(await eventsFor(db, person)).toEqual([]);
+    const photos = await db.select().from(schema.photos);
+    expect(photos.map((p) => p.uploaderId)).toEqual([person]);
+  });
+
+  it('closes the doors they came in by, so only an invitation brings them back', async () => {
+    const host = await actor();
+    const person = await actor();
+    const r = await roll(host);
+    await participates(r.id, person);
+    await db.insert(schema.eventInvites).values({
+      eventId: r.id,
+      actorId: person,
+      invitedByActorId: host,
+      status: 'accepted',
+    });
+    await db
+      .insert(schema.eventAccessRequests)
+      .values({ eventId: r.id, actorId: person, status: 'approved' });
+    await db.insert(schema.eventHostRequests).values({ eventId: r.id, actorId: person });
+
+    await removeFromEvent(db, r, person, host);
+
+    // The request answered no, which the request route reports rather than reopening.
+    const [request] = await db.select().from(schema.eventAccessRequests);
+    expect(request!.status).toBe('declined');
+    expect(request!.resolvedBy).toBe(host);
+    // The invitation gone, so asking them again is a new one rather than a conflict.
+    expect(await db.select().from(schema.eventInvites)).toEqual([]);
+    const [hostRequest] = await db.select().from(schema.eventHostRequests);
+    expect(hostRequest!.status).toBe('declined');
+  });
+
+  it('refuses whoever made it, and somebody in through its group', async () => {
+    const host = await actor();
+    const member = await actor();
+    const [group] = await db
+      .insert(schema.groups)
+      .values({ name: 'Sunday roast', slug: groupSlug('Sunday roast') })
+      .returning();
+    await db.insert(schema.groupMembers).values({ groupId: group!.id, actorId: member });
+    const r = await roll(host, group!.id);
+    await participates(r.id, member);
+
+    expect(await removeFromEvent(db, r, host, host)).toEqual({ removed: false, reason: 'creator' });
+    expect(await removeFromEvent(db, r, member, host)).toEqual({
+      removed: false,
+      reason: 'group_member',
+    });
+    expect(await db.select().from(schema.eventParticipants)).toHaveLength(1);
+  });
+
+  it('says so for somebody not in it, and writes nothing', async () => {
+    const host = await actor();
+    const stranger = await actor();
+    const r = await roll(host);
+
+    expect(await removeFromEvent(db, r, stranger, host)).toEqual({
+      removed: false,
+      reason: 'not_in',
+    });
+    expect(await db.select().from(schema.eventAccessRequests)).toEqual([]);
   });
 });
 

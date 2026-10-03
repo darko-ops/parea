@@ -1436,18 +1436,19 @@ export function People({
   hosted = false,
   onSetHost,
   /**
-   * Set only for the roll's Host: pressing somebody offers to make them Host
-   * instead. Not for a group admin who can also administer the roll — being
-   * Host is the one thing about a roll that is a person's own to hand on.
+   * Pressing somebody who is in the roll, for whoever has something to do with
+   * them: the roll's Host can hand it to them, and whoever runs a private roll
+   * can take them out. Which of those is on offer is the caller's to decide —
+   * the sheet is drawn there. Unset, a row is not pressable.
    */
-  onMakeHost,
+  onPerson,
 }: {
   roster: Roster[];
   t: GroupTheme;
   canAdminister?: boolean;
   hosted?: boolean;
   onSetHost?: (actorId: string, host: boolean) => void;
-  onMakeHost?: (actorId: string, name: string) => void;
+  onPerson?: (actorId: string, name: string) => void;
 }) {
   return (
     <FlatList
@@ -1475,16 +1476,16 @@ export function People({
           item.role !== 'invited' &&
           item.role !== 'creator';
         // Somebody already in it, who is not the Host already.
-        const heir =
-          onMakeHost != null &&
+        const pressable =
+          onPerson != null &&
           item.actorId != null &&
           item.role !== 'invited' &&
           item.role !== 'creator';
         return (
           <Pressable
-            disabled={!heir}
-            onPress={() => onMakeHost!(item.actorId!, item.name)}
-            accessibilityHint={heir ? `Make ${item.name} the Host` : undefined}
+            disabled={!pressable}
+            onPress={() => onPerson!(item.actorId!, item.name)}
+            accessibilityHint={pressable ? `Options for ${item.name}` : undefined}
             style={({ pressed }) => [
               styles.personRow,
               { borderBottomColor: t.line, opacity: pressed ? 0.6 : 1 },

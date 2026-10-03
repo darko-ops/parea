@@ -3363,6 +3363,46 @@ function EventScreen({
     [api, event.id, refresh],
   );
 
+  /**
+   * Taking somebody out of a private roll, asked first — an alert for the same
+   * reason handing it over is one: a single yes-or-no that the People pane
+   * cannot undo, since only an invitation brings them back.
+   */
+  const removeFromRoll = useCallback(
+    (actorId: string, name: string) => {
+      Alert.alert(
+        `Remove ${name}?`,
+        'They will no longer see this roll, and can come back only if you invite them. Their photos stay.',
+        [
+          { text: 'Cancel', style: 'cancel' },
+          {
+            text: 'Remove',
+            style: 'destructive',
+            onPress: async () => {
+              try {
+                await api.removeFromRoll(event.id, actorId);
+                await refresh();
+              } catch (err) {
+                // Already out — by leaving, or another device — is what was asked.
+                if (err instanceof ApiError && err.status === 404) {
+                  await refresh();
+                  return;
+                }
+                Alert.alert(
+                  'Could not remove them',
+                  err instanceof ApiError && err.code === 'group_member'
+                    ? `${name} is in this roll’s group, so it stays open to them. Remove them from the group instead.`
+                    : 'Try again in a moment.',
+                );
+              }
+            },
+          },
+        ],
+      );
+    },
+    [api, event.id, refresh],
+  );
+
   /** The album photograph on its way up as a cover, if one is. */
   const [sendingCover, setSendingCover] = useState(false);
 
@@ -3986,6 +4026,32 @@ function EventScreen({
   );
 
   const visible = (policy ?? feed?.event.accessPolicy) ?? 'public';
+
+  /*
+   * What pressing somebody on People offers. Make Host for the roll's Host
+   * only — not a group admin, since being Host is a person's own to hand on —
+   * and Remove for whoever runs a private one; on a public roll being a member
+   * is not what lets anybody see it. One choice goes straight to its own
+   * question; two are asked first, in a sheet naming the person.
+   */
+  const mayHandOver = feed?.event.membership === 'creator';
+  const mayRemove = (feed?.event.canAdminister ?? false) && visible === 'private';
+  const personActions =
+    mayHandOver || mayRemove
+      ? (actorId: string, name: string) => {
+          if (mayHandOver && !mayRemove) return makeHost(actorId, name);
+          if (mayRemove && !mayHandOver) return removeFromRoll(actorId, name);
+          Alert.alert(name, undefined, [
+            { text: 'Make Host', onPress: () => makeHost(actorId, name) },
+            {
+              text: 'Remove from roll',
+              style: 'destructive',
+              onPress: () => removeFromRoll(actorId, name),
+            },
+            { text: 'Cancel', style: 'cancel' },
+          ]);
+        }
+      : undefined;
 
   const tabs = (
     <Segmented
@@ -4981,7 +5047,7 @@ function EventScreen({
             */
             hosted={(adding ?? feed?.event.contributePolicy) === 'host'}
             onSetHost={(actorId, host) => void setHost(actorId, host)}
-            onMakeHost={feed?.event.membership === 'creator' ? makeHost : undefined}
+            onPerson={personActions}
           />
         )}
       </View>

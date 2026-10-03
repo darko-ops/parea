@@ -483,3 +483,110 @@ export async function leaveEvent(
     throughGroup: inGroup[0]?.groupId ?? null,
   };
 }
+
+/**
+ * Taking somebody out of a private roll — what the person who runs it does
+ * from the People tab, where `leaveEvent` is what somebody does to themselves.
+ *
+ * ## What it takes
+ *
+ * Being in, which on a private roll is the participant row and nothing else:
+ * `authorize` wants it for every door — an accepted invitation and an approved
+ * request only count alongside it — so once it is gone the roll is a
+ * `approval_required` to them, like it is to anybody else holding the link. A
+ * co-host stops being one with it, since the role lives on the row.
+ *
+ * And the two things that would quietly undo it. Their request to come in is
+ * marked declined — written if there was none — because the request route
+ * answers an existing row with its status rather than a new ask, so a removed
+ * person cannot ask their way straight back. Their invitation is deleted,
+ * because an accepted one makes inviting them again a conflict that does
+ * nothing; with it gone the owner can still ask them back, and that is the
+ * one way in. An open request to be a co-host is closed with the rest.
+ *
+ * ## What it does not take
+ *
+ * The photographs, for the reason leaving does not: they belong to the
+ * evening. The owner can still take any one of them down.
+ *
+ * ## Who cannot be removed
+ *
+ * Whoever made it — there is no roll without them, and handing it on is its own
+ * act. And somebody in the roll's group: their access is the group's, not a row
+ * here, so deleting the row would report a removal that changes nothing.
+ * Taking them out of the group is the act that does.
+ *
+ * Authorization is the caller's: this takes an event already passed through
+ * `administer`, and a public one is refused there too — on a public roll being
+ * a member is not what lets anybody see it, so there is nothing here to take.
+ */
+export type RemovedFromEvent =
+  | { removed: true }
+  | { removed: false; reason: 'creator' | 'group_member' | 'not_in' };
+
+export async function removeFromEvent(
+  db: Db,
+  event: { id: string; createdBy: string; groupId: string | null },
+  actorId: string,
+  removedBy: string,
+): Promise<RemovedFromEvent> {
+  if (actorId === event.createdBy) return { removed: false, reason: 'creator' };
+
+  if (event.groupId) {
+    const [member] = await db
+      .select({ actorId: schema.groupMembers.actorId })
+      .from(schema.groupMembers)
+      .where(
+        and(
+          eq(schema.groupMembers.groupId, event.groupId),
+          eq(schema.groupMembers.actorId, actorId),
+        ),
+      )
+      .limit(1);
+    if (member) return { removed: false, reason: 'group_member' };
+  }
+
+  return db.transaction(async (tx) => {
+    const removed = await tx
+      .delete(schema.eventParticipants)
+      .where(
+        and(
+          eq(schema.eventParticipants.eventId, event.id),
+          eq(schema.eventParticipants.actorId, actorId),
+        ),
+      )
+      .returning({ actorId: schema.eventParticipants.actorId });
+    if (removed.length === 0) return { removed: false, reason: 'not_in' } as const;
+
+    const now = new Date();
+    await tx
+      .insert(schema.eventAccessRequests)
+      .values({
+        eventId: event.id,
+        actorId,
+        status: 'declined',
+        resolvedAt: now,
+        resolvedBy: removedBy,
+      })
+      .onConflictDoUpdate({
+        target: [schema.eventAccessRequests.eventId, schema.eventAccessRequests.actorId],
+        set: { status: 'declined', resolvedAt: now, resolvedBy: removedBy },
+      });
+    await tx
+      .delete(schema.eventInvites)
+      .where(
+        and(eq(schema.eventInvites.eventId, event.id), eq(schema.eventInvites.actorId, actorId)),
+      );
+    await tx
+      .update(schema.eventHostRequests)
+      .set({ status: 'declined', resolvedAt: now, resolvedBy: removedBy })
+      .where(
+        and(
+          eq(schema.eventHostRequests.eventId, event.id),
+          eq(schema.eventHostRequests.actorId, actorId),
+          eq(schema.eventHostRequests.status, 'open'),
+        ),
+      );
+    return { removed: true } as const;
+  });
+}

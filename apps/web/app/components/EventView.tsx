@@ -418,6 +418,29 @@ export function EventView({
     [eventId, refresh],
   );
 
+  /**
+   * Taking somebody out of a private roll. The answer comes back as a sentence
+   * for the People tab to show, or null when it worked — the roster then
+   * redraws from the server rather than from a guess.
+   */
+  const removeMember = useCallback(
+    async (actorId: string, name: string): Promise<string | null> => {
+      const res = await fetch(
+        `/api/events/${eventId}/members?actorId=${encodeURIComponent(actorId)}`,
+        { method: 'DELETE' },
+      );
+      if (res.ok || res.status === 404) {
+        await refresh();
+        return null;
+      }
+      const body = (await res.json().catch(() => ({}))) as { error?: string };
+      return body.error === 'group_member'
+        ? `${name} is in this roll's group, so it stays open to them. Remove them from the group instead.`
+        : 'Could not remove them. Try again.';
+    },
+    [eventId, refresh],
+  );
+
   /** Handing the roll to somebody else, asked first. */
   const makeHost = useCallback(
     async (actorId: string, name: string) => {
@@ -1222,6 +1245,11 @@ export function EventView({
                 : undefined
             }
             onInvite={() => setSharing(true)}
+            onRemove={
+              feed.event.canAdminister && feed.event.accessPolicy === PRIVATE
+                ? removeMember
+                : undefined
+            }
           />
           <SiteFooter />
         </div>
@@ -1495,6 +1523,7 @@ function People({
   onSetHost,
   onMakeHost,
   onInvite,
+  onRemove,
 }: {
   roster: Roster[];
   linkToken: string;
@@ -1527,11 +1556,25 @@ function People({
    */
   onMakeHost?: (actorId: string, name: string) => void;
   onInvite: () => void;
+  /**
+   * Only for somebody who runs a private roll: on a public one being a member
+   * is not what lets anybody see it, so there is nothing to take. Resolves to
+   * a sentence when it could not be done.
+   */
+  onRemove?: (actorId: string, name: string) => Promise<string | null>;
 }) {
   /** Only worth asking about on an album actually set to `host`. */
   const hosted = contributePolicy === CONTRIBUTE_HOST;
   const [copied, setCopied] = useState(false);
   const joined = roster.filter((person) => person.role !== 'invited');
+  /*
+   * Two presses, the second on the page rather than in a dialog — the way a
+   * group asks before taking somebody out — naming them and saying what it
+   * costs. `removing` is who the line is about; null is no line.
+   */
+  const [removing, setRemoving] = useState<{ actorId: string; name: string } | null>(null);
+  const [removeBusy, setRemoveBusy] = useState(false);
+  const [removeNote, setRemoveNote] = useState<string | null>(null);
 
   return (
     <div className="people-tab">
@@ -1548,6 +1591,40 @@ function People({
           Invite
         </button>
       </div>
+
+      {removing && onRemove && (
+        <div className="strip-confirm" role="group" aria-label="Confirm removal">
+          <span>
+            Remove {removing.name}? They will no longer see this roll, and can come back only if
+            you invite them. Their photos stay.
+          </span>
+          <button
+            type="button"
+            className="danger"
+            disabled={removeBusy}
+            onClick={async () => {
+              setRemoveBusy(true);
+              const note = await onRemove(removing.actorId, removing.name).catch(
+                () => 'Could not remove them. Try again.',
+              );
+              setRemoveBusy(false);
+              setRemoveNote(note ?? `${removing.name} was removed.`);
+              setRemoving(null);
+            }}
+          >
+            {removeBusy ? 'Removing…' : 'Remove'}
+          </button>
+          <button
+            type="button"
+            className="secondary"
+            disabled={removeBusy}
+            onClick={() => setRemoving(null)}
+          >
+            Cancel
+          </button>
+        </div>
+      )}
+      {removeNote && !removing && <p className="muted">{removeNote}</p>}
 
       <ul className="roster">
         {roster.map((person) => (
@@ -1657,6 +1734,19 @@ function People({
                 onClick={() => onMakeHost(person.actorId!, person.name)}
               >
                 Make Host
+              </button>
+            )}
+            {onRemove && person.actorId && person.role !== 'invited' && person.role !== 'creator' && (
+              <button
+                type="button"
+                className="secondary small"
+                aria-label={`Remove ${person.name} from this roll`}
+                onClick={() => {
+                  setRemoveNote(null);
+                  setRemoving({ actorId: person.actorId!, name: person.name });
+                }}
+              >
+                Remove
               </button>
             )}
           </li>

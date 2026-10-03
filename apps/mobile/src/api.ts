@@ -2362,6 +2362,18 @@ export class Api {
   }
 
   /**
+   * Taking somebody out of a private roll — whoever runs it, from People.
+   * Refused as `group_member` for somebody in through the roll's group, whose
+   * access is the group's to take.
+   */
+  removeFromRoll(eventId: string, actorId: string): Promise<unknown> {
+    return this.call(
+      `/api/events/${encodeURIComponent(eventId)}/members?actorId=${encodeURIComponent(actorId)}`,
+      { method: 'DELETE' },
+    );
+  }
+
+  /**
    * The album's co-hosts, for the sheet that manages them.
    *
    * Both kinds in one list — the people who are here with the role, and the
