@@ -46,7 +46,7 @@ import { getDb } from '@/db';
 import { invitesSeenAtFor, markInvitesSeen } from '@/invites';
 import { pendingRequestsFor } from '@/requests';
 import { currentActorId } from '@/session';
-import { ago, bucketFor } from '@/when';
+import { agoShort, bucketFor } from '@/when';
 
 export const runtime = 'nodejs';
 
@@ -71,18 +71,19 @@ export async function GET() {
   const since = seenAt ? seenAt.toISOString() : null;
 
   return NextResponse.json({
-    waiting: waiting.map((request) => ({ ...request, when: ago(request.at, now) })),
+    waiting: waiting.map((request) => ({ ...request, when: agoShort(request.at, now) })),
     items: items.map((item) => ({
       id: item.id,
       who: item.who,
       what: item.what,
-      when: ago(item.at, now),
+      when: agoShort(item.at, now),
       href: item.href,
       image: item.image,
       face: item.face ?? item.who,
       images: item.images,
       bucket: bucketFor(item.at, now),
-      unread: since === null || item.at > since,
+      // Your own asking is never news to you.
+      unread: item.kind !== 'asked_to_join' && (since === null || item.at > since),
     })),
   });
 }

@@ -139,8 +139,8 @@ describe('the day headings', () => {
      * has to have one — and the phone's copy would be the one nobody notices
      * drifting, because nothing renders both side by side.
      */
-    expect(PAGE).toMatch(/import \{ ago, bucketFor \} from '@\/when'/);
-    expect(ROUTE).toMatch(/import \{ ago, bucketFor \} from '@\/when'/);
+    expect(PAGE).toMatch(/import \{ agoShort, bucketFor \} from '@\/when'/);
+    expect(ROUTE).toMatch(/import \{ agoShort, bucketFor \} from '@\/when'/);
     expect(PAGE).not.toMatch(/function bucketFor|function ago/);
     expect(ROUTE).not.toMatch(/function bucketFor|function ago/);
   });
@@ -223,11 +223,29 @@ describe('the route the phone reads', () => {
   });
 
   it('words the times and the buckets on this side', () => {
-    expect(ROUTE).toMatch(/when: ago\(item\.at, now\)/);
+    expect(ROUTE).toMatch(/when: agoShort\(item\.at, now\)/);
     expect(ROUTE).toMatch(/bucket: bucketFor\(item\.at, now\)/);
     // The cards carry one too: "asked you into Tom & Ruth's wedding · 2 hours
     // ago" is one sentence and half of it would otherwise be the phone's.
-    expect(ROUTE).toMatch(/when: ago\(request\.at, now\)/);
+    expect(ROUTE).toMatch(/when: agoShort\(request\.at, now\)/);
+  });
+
+  it('says times in short units', async () => {
+    const { agoShort } = await import('../src/when');
+    const now = new Date('2026-10-03T12:00:00Z');
+    const back = (s: number) => new Date(now.getTime() - s * 1000).toISOString();
+    expect(agoShort(back(20), now)).toBe('just now');
+    expect(agoShort(back(28 * 60), now)).toBe('28min ago');
+    expect(agoShort(back(3600), now)).toBe('1hr ago');
+    expect(agoShort(back(5 * 3600), now)).toBe('5hr ago');
+    expect(agoShort(back(3 * 86_400), now)).toBe('3d ago');
+    expect(agoShort(back(14 * 86_400), now)).toBe('2w ago');
+  });
+
+  it('pins a request to join for its first day only', () => {
+    expect(PAGE).toMatch(/const pinned = asked\.filter\(/);
+    expect(PAGE).toMatch(/< 24 \* 60 \* 60 \* 1000/);
+    expect(PAGE).toMatch(/\{pinned\.length > 0 && \(/);
   });
 
   it('reads the boundary before it moves it', () => {

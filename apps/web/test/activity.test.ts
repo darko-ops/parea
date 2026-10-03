@@ -184,7 +184,8 @@ describe('one act, one line', () => {
       resolvedAt: new Date(),
     } as never);
 
-    const items = await did(db, me);
+    // Beside the line for having asked, which is a different act.
+    const items = (await did(db, me)).filter((item) => item.kind !== 'asked_to_join');
     expect(items).toHaveLength(1);
     expect(items[0]).toMatchObject({
       kind: 'request_answered',
@@ -219,7 +220,30 @@ describe('one act, one line', () => {
       resolvedAt: new Date(),
     } as never);
 
-    expect(await did(db, me)).toEqual([]);
+    // Only that you asked: the refusal itself is not said down here.
+    const items = await did(db, me);
+    expect(items.map((item) => item.kind)).toEqual(['asked_to_join']);
+    expect(items[0]).toMatchObject({ who: 'You', what: 'asked to join Ultra', image: null });
+  });
+
+  it('puts your asking in the feed at the moment you asked, with no cover', async () => {
+    const me = await actor('me');
+    const host = await actor('host');
+    const made = await event(host, 'Ultra');
+    const at = new Date(Date.now() - 3 * 86_400_000);
+    await db
+      .insert(schema.eventAccessRequests)
+      .values({ eventId: made.id, actorId: me, createdAt: at } as never);
+
+    const [item] = await did(db, me);
+    expect(item).toMatchObject({
+      kind: 'asked_to_join',
+      at: at.toISOString(),
+      what: 'asked to join Ultra',
+      href: `/event/${made.id}`,
+      image: null,
+      face: 'Ultra',
+    });
   });
 });
 

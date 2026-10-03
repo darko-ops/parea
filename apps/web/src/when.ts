@@ -38,6 +38,26 @@ export function ago(iso: string, now: Date): string {
   return AGO.format(Math.round(seconds / size), unit);
 }
 
+/**
+ * The same, in the short units a notification row wants — "28min ago", "1hr
+ * ago", "3d ago". Spelt-out units made the time the longest thing on a row
+ * whose subject is somebody else's name. Past only: a notification is about
+ * something that has happened, and a clock running a little fast reads as now.
+ */
+export function agoShort(iso: string, now: Date): string {
+  const seconds = Math.max(0, Math.round((now.getTime() - new Date(iso).getTime()) / 1000));
+  if (seconds < 60) return 'just now';
+  const minutes = Math.round(seconds / 60);
+  if (minutes < 60) return `${minutes}min ago`;
+  const hours = Math.round(seconds / 3600);
+  if (hours < 24) return `${hours}hr ago`;
+  const days = Math.round(seconds / 86_400);
+  if (days < 7) return `${days}d ago`;
+  if (days < 35) return `${Math.round(days / 7)}w ago`;
+  if (days < 365) return `${Math.round(days / 30)}mo ago`;
+  return `${Math.round(days / 365)}yr ago`;
+}
+
 const MONTH = new Intl.DateTimeFormat('en-GB', { month: 'long' });
 
 /**

@@ -122,7 +122,16 @@ export type ActivityKind =
   | 'photos_added'
   | 'request_answered'
   | 'friend_accepted'
-  | 'joined_yours';
+  | 'joined_yours'
+  /**
+   * You asked to be let into somebody's private roll.
+   *
+   * Your own act, in the list at the moment it happened, so the page's history
+   * says it. The panel at the top holds the same request only for its first
+   * day — pinned for good, it sat over everything newer for as long as the
+   * host took to answer, which can be never.
+   */
+  | 'asked_to_join';
 
 export type ActivityItem = {
   /** Stable across polls: the source row's id, prefixed by kind. */
@@ -284,6 +293,7 @@ export async function activityFor(
     answered,
     befriended,
     arrivals,
+    askedFor,
   ] = await Promise.all([
     db
       .select({ key: schema.hiddenActivity.itemKey })
@@ -754,6 +764,30 @@ export async function activityFor(
       )
       .orderBy(desc(schema.eventParticipants.firstSeenAt))
       .limit(LIMIT),
+
+    /*
+     * You asked to join somebody's roll — open, refused or let in, because
+     * the asking happened whichever way it went. No cover: you are not in it,
+     * and its photographs are not yours to see yet.
+     */
+    db
+      .select({
+        id: schema.eventAccessRequests.id,
+        at: schema.eventAccessRequests.createdAt,
+        name: schema.events.name,
+        eventId: schema.events.id,
+      })
+      .from(schema.eventAccessRequests)
+      .innerJoin(schema.events, eq(schema.events.id, schema.eventAccessRequests.eventId))
+      .where(
+        and(
+          not(blockedBetween(actorId, schema.events.createdBy)),
+          eq(schema.eventAccessRequests.actorId, actorId),
+          isNull(schema.events.deletedAt),
+        ),
+      )
+      .orderBy(desc(schema.eventAccessRequests.createdAt))
+      .limit(LIMIT),
   ]);
 
   /*
@@ -997,6 +1031,17 @@ export async function activityFor(
       what: `can see ${a.name} now`,
       href: `/event/${a.eventId}`,
       image: await cover(a),
+      face: a.name,
+      images: [],
+    })),
+    ...askedFor.map(async (a) => ({
+      id: `asked:${a.id}`,
+      kind: 'asked_to_join' as const,
+      at: a.at.toISOString(),
+      who: 'You',
+      what: `asked to join ${a.name}`,
+      href: `/event/${a.eventId}`,
+      image: null,
       face: a.name,
       images: [],
     })),

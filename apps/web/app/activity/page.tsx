@@ -28,7 +28,7 @@ import { askedToJoin, invitesSeenAtFor, markInvitesSeen } from '@/invites';
 import { pendingRequestsFor } from '@/requests';
 import { currentActorId } from '@/session';
 import { readerZone } from '@/zone';
-import { ago, bucketFor } from '@/when';
+import { agoShort, bucketFor } from '@/when';
 
 export const dynamic = 'force-dynamic';
 
@@ -76,6 +76,15 @@ export default async function ActivityPage() {
   // which is UTC and said good afternoon over somebody's breakfast.
   const zone = await readerZone();
   const greeting = greetingFor(account?.displayName ?? null, now, zone);
+  /*
+   * Pinned above the feed for a day, then only in it. Held there for good, a
+   * request sat over everything newer for as long as the host took to answer —
+   * which can be never — while the feed below has it at the moment it was
+   * sent, where it stays.
+   */
+  const pinned = asked.filter(
+    (request) => now.getTime() - new Date(request.askedAt).getTime() < 24 * 60 * 60 * 1000,
+  );
 
   return (
     <Shell current="invites" at={partOfDay(now, zone)}>
@@ -99,11 +108,11 @@ export default async function ActivityPage() {
         <PendingRequests
           requests={requests.map((request) => ({
             ...request,
-            when: ago(request.at, now),
+            when: agoShort(request.at, now),
           }))}
         />
 
-        {asked.length > 0 && (
+        {pinned.length > 0 && (
           /*
             Kept, and made lighter. These are not answerable by the person
             reading them — somebody else is deciding — so they are rows rather
@@ -114,11 +123,11 @@ export default async function ActivityPage() {
               <h2>You asked to join</h2>
             </div>
             <ul className="asked">
-              {asked.map((request) => (
+              {pinned.map((request) => (
                 <li key={request.eventId}>
                   <span className="asked-what">
                     <span className="asked-name">{request.name}</span>
-                    <span className="asked-when">Asked {ago(request.askedAt, now)}</span>
+                    <span className="asked-when">Asked {agoShort(request.askedAt, now)}</span>
                   </span>
                   <span
                     className={`pip ${request.status === 'open' ? 'pip-open' : 'pip-declined'}`}
@@ -149,13 +158,14 @@ export default async function ActivityPage() {
               id: item.id,
               who: item.who,
               what: item.what,
-              when: ago(item.at, now),
+              when: agoShort(item.at, now),
               href: item.href,
               image: item.image,
               face: item.face ?? item.who,
               images: item.images,
               bucket: bucketFor(item.at, now),
-              unread: since === null || item.at > since,
+              // Your own asking is never news to you.
+              unread: item.kind !== 'asked_to_join' && (since === null || item.at > since),
             }))}
           />
 
