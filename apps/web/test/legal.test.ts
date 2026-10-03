@@ -541,19 +541,25 @@ describe('what the carriers require', () => {
      * named specifically, and it wants the *consent record* covered as well as the
      * number — so both halves are pinned.
      */
-    expect(PRIVACY).toMatch(/<h3>Your number is not shared for anybody&rsquo;s marketing<\/h3>/);
+    expect(PRIVACY).toMatch(/<h3>Text messages \(SMS\) and your phone number<\/h3>/);
     expect(PRIVACY).toMatch(
-      /will not be shared with third parties or affiliates for marketing or\s+promotional purposes/,
+      /No mobile information will be shared with third parties or\s+affiliates for marketing or promotional purposes/,
     );
-    expect(PRIVACY).toMatch(/the record that you asked to be sent a code/);
-    expect(PRIVACY).toMatch(/Neither is used to send you anything other than the code you asked/);
+    // The carriers' own sentence for the consent record, as reviewers look for it.
+    expect(PRIVACY).toMatch(
+      /Text messaging\s+originator opt-in data and consent will not be shared with any third\s+parties/,
+    );
+    expect(PRIVACY).toMatch(/the record that you asked to be sent\s+a code/);
+    expect(PRIVACY).toMatch(/never used to\s+send you anything other than the code you asked for/);
   });
 
   it('names the one place a number does go, rather than claiming it goes nowhere', () => {
     // "Never shared" would be false: the carrier receives it in order to deliver
     // the message. The honest version names that and bounds it, which is the same
     // move `phone.ts` makes about "never stored" versus "never sent".
-    expect(PRIVACY).toMatch(/the number reaches the\s+company that delivers the text/);
+    expect(PRIVACY).toMatch(/the number is passed to the company that sends\s+the text on our behalf/);
+    // Named without calling it an exception — a reviewer reads that as sharing.
+    expect(PRIVACY).not.toMatch(/One exception/);
     expect(PRIVACY).toContain('Twilio');
   });
 });
