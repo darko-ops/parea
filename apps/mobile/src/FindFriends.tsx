@@ -48,6 +48,8 @@
 import { Image as ExpoImage } from 'expo-image';
 import { useCallback, useEffect, useState } from 'react';
 import {
+  ActionSheetIOS,
+  Alert,
   KeyboardAvoidingView,
   Linking,
   Platform,
@@ -67,6 +69,35 @@ import type { GroupTheme } from './Groups';
 import { initialOf, lensFor } from './lens';
 import { Back, RoundButton } from './RoundButton';
 import { Waiting } from './Waiting';
+
+/**
+ * The countries a code can be texted to, as the server allows them.
+ *
+ * The same three as `smsCountries` defaults to on the web, which production
+ * does not widen. Offering a country the server refuses would only turn a
+ * choice into an error, so the list is the allowance and no longer — if
+ * `SMS_COUNTRIES` grows, this grows with it.
+ */
+const COUNTRIES = [
+  { region: 'US', name: 'United States', code: '+1' },
+  { region: 'CA', name: 'Canada', code: '+1' },
+  { region: 'GB', name: 'United Kingdom', code: '+44' },
+] as const;
+type Country = (typeof COUNTRIES)[number];
+
+/**
+ * The phone's own region, from `Intl` rather than `expo-localization` — a
+ * native module, and this ships without a new build. Anywhere not on the list
+ * starts on the first entry; the picker is one tap away.
+ */
+function deviceCountry(): Country {
+  let region = '';
+  try {
+    const locale = Intl.DateTimeFormat().resolvedOptions().locale;
+    region = (locale.split('-').find((part) => /^[A-Z]{2}$/.test(part)) ?? '').toUpperCase();
+  } catch {}
+  return COUNTRIES.find((c) => c.region === region) ?? COUNTRIES[0];
+}
 
 type ButtonComponent = (props: {
   label: string;
@@ -110,12 +141,15 @@ export function FindFriends({
   Button,
   onBack,
   onOpenPerson,
+  onSearchHandle,
 }: {
   api: Api;
   t: GroupTheme;
   Button: ButtonComponent;
   onBack: () => void;
   onOpenPerson: (handle: string) => void;
+  /** "Know their handle?": back to Find, on people, with the field focused. */
+  onSearchHandle: () => void;
 }) {
   /*
    * Nothing is handed back to the caller when a number is proved, and that is a
@@ -132,7 +166,9 @@ export function FindFriends({
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  /** The national number; the country code is `country`, its own control. */
   const [phone, setPhone] = useState('');
+  const [country, setCountry] = useState<Country>(deviceCountry);
   const [code, setCode] = useState('');
   /**
    * The number a code has just gone to, as its last two digits.
@@ -181,7 +217,7 @@ export function FindFriends({
     setBusy(true);
     setError(null);
     try {
-      const answer = await api.startPhone(phone);
+      const answer = await api.startPhone(fullNumber(country, phone));
       setSentTo(answer.last2 ?? null);
       setCode('');
     } catch (err) {
@@ -209,7 +245,7 @@ export function FindFriends({
     } finally {
       setBusy(false);
     }
-  }, [api, phone]);
+  }, [api, country, phone]);
 
   const confirm = useCallback(async () => {
     setBusy(true);
@@ -254,6 +290,47 @@ export function FindFriends({
   );
 
   const verified = state?.phone.verified === true;
+  /** The first state: nothing added and no code outstanding — the whole page is the ask. */
+  const asking = state !== null && !verified && sentTo === null;
+  const nationalDigits = phone.replace(/\D/g, '').length;
+
+  /*
+   * A pasted international number, split back into its two controls: a code
+   * the picker knows moves into the picker, and the rest stays. One it does
+   * not know is left whole, and sent as typed — the server says whether it
+   * can text there, in the same words as before.
+   */
+  const typeNumber = (next: string) => {
+    const compact = next.replace(/[\s()-]/g, '');
+    if (compact.startsWith('+')) {
+      const match = [...COUNTRIES]
+        .sort((a, b) => b.code.length - a.code.length)
+        .find((c) => compact.startsWith(c.code));
+      if (match) {
+        setCountry(match.code === country.code ? country : match);
+        setPhone(next.trim().slice(next.trim().indexOf(match.code) + match.code.length).trim());
+        return;
+      }
+    }
+    setPhone(next);
+  };
+
+  const pickCountry = () => {
+    const labels = COUNTRIES.map((c) => `${c.name}  ${c.code}`);
+    if (Platform.OS === 'ios') {
+      ActionSheetIOS.showActionSheetWithOptions(
+        { options: [...labels, 'Cancel'], cancelButtonIndex: labels.length, title: 'Country code' },
+        (index) => {
+          if (index < COUNTRIES.length) setCountry(COUNTRIES[index]!);
+        },
+      );
+    } else {
+      Alert.alert('Country code', undefined, [
+        ...COUNTRIES.map((c, i) => ({ text: labels[i]!, onPress: () => setCountry(c) })),
+        { text: 'Cancel', style: 'cancel' as const },
+      ]);
+    }
+  };
 
   return (
     <View style={[styles.root, { backgroundColor: t.bg }]}>
@@ -268,7 +345,7 @@ export function FindFriends({
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       >
         <ScrollView
-          contentContainerStyle={[styles.scroll, state === null && styles.filling]}
+          contentContainerStyle={[styles.scroll, (state === null || asking) && styles.filling]}
           keyboardShouldPersistTaps="handled"
           refreshControl={
             <RefreshControl
@@ -290,13 +367,148 @@ export function FindFriends({
             </View>
           ) : (
             <>
-              {!verified && (
+              {asking && (
                 /*
                   The ask, and it is the whole page until it is answered.
 
                   A list of people underneath an unanswered form is a page
                   arguing with itself: one half saying "we need something from
-                  you", the other already doing the thing.
+                  you", the other already doing the thing. So there is no card
+                  around it any more — the page is the card: one promise, the
+                  number in two parts, the button and what pressing it agrees
+                  to, and a quiet way out for somebody who only wanted a handle.
+                */
+                <>
+                  <View style={styles.hero}>
+                    <View style={[styles.disc, { backgroundColor: t.card, borderColor: t.line }]}>
+                      <Glyph name="add-person" size={34} color={t.fg} />
+                    </View>
+                    <Text style={[styles.headline, { color: t.fg }]}>
+                      Let people who have your number find you
+                    </Text>
+                    <Text style={[styles.body, { color: t.dim }]}>
+                      That is all it does. We never read your contacts, and the
+                      number is never shown to anybody.
+                    </Text>
+                  </View>
+
+                  {/*
+                    The country code as its own control, so a local number can
+                    be typed the way people know it. It is what the old hint
+                    under the field was asking for in words — we cannot guess
+                    which country a local number belongs to, and a wrong guess
+                    would quietly find nobody — answered by asking instead.
+                  */}
+                  <View style={styles.fieldRow}>
+                    <Pressable
+                      onPress={pickCountry}
+                      accessibilityRole="button"
+                      accessibilityLabel={`Country code ${country.code}, ${country.name}. Change`}
+                      style={({ pressed }) => [
+                        styles.countryBox,
+                        { backgroundColor: t.card, borderColor: t.line, opacity: pressed ? 0.6 : 1 },
+                      ]}
+                    >
+                      <Text style={[styles.countryCode, { color: t.fg }]}>{country.code}</Text>
+                      <Text style={[styles.countryCaret, { color: t.dim }]}>▾</Text>
+                    </Pressable>
+                    <TextInput
+                      value={phone}
+                      onChangeText={typeNumber}
+                      placeholder={country.code === '+44' ? '7700 900123' : '201 555 0123'}
+                      placeholderTextColor={t.dim}
+                      keyboardType="phone-pad"
+                      autoComplete="tel"
+                      textContentType="telephoneNumber"
+                      style={[
+                        styles.input,
+                        styles.numberField,
+                        { color: t.fg, borderColor: t.line, backgroundColor: t.card },
+                      ]}
+                      accessibilityLabel="Your phone number"
+                    />
+                  </View>
+
+                  <Button
+                    label="Send me a code"
+                    t={t}
+                    primary
+                    disabled={busy || nationalDigits < 6}
+                    onPress={() => void sendCode()}
+                  />
+                  {/*
+                    What pressing the button does, under the button.
+
+                    Five things have to be here and each is a sentence rather
+                    than a clause of boilerplate: who texts you, what
+                    arrives, how often, who pays, and where the rules are. It
+                    reads as ordinary honesty and it is also, precisely, what
+                    US carriers check when they ask for proof of consent — a
+                    verification campaign is approved or refused on whether
+                    the screen asking for the number tells somebody they are
+                    about to be texted.
+
+                    Under the control rather than over it, which is where the
+                    eye already is when reaching for it — and the same place
+                    the web's card puts it. Two clients wording one consent
+                    two ways is bad enough; two clients *placing* it
+                    differently is a screenshot of one that does not evidence
+                    the other, and one campaign covers both.
+
+                    It *asks* rather than describes, which is a correction a
+                    carrier made for us. "Tapping this sends you one text…"
+                    states a fact about the button; consent has to be somebody
+                    agreeing to receive messages, not being told some will
+                    arrive. Naming the button inside the sentence is what ties
+                    the agreement to the act.
+
+                    The two links open a browser, the way Settings opens the
+                    safety page: these are the product's own published
+                    documents and there is no version of them in the app.
+                  */}
+                  {/* Word for word as reviewed. A shorter version was drawn
+                      with this layout and waits on the A2P campaign, since web
+                      and app have to say the same thing. */}
+                  <Text style={[styles.hint, styles.centred, { color: t.dim }]}>
+                    By tapping “Send me a code” you agree to receive one text
+                    message from Parea containing a verification code. One
+                    message per request, not a subscription. Message and data
+                    rates may apply. See our{' '}
+                    <Text
+                      style={[styles.link, { color: t.accent }]}
+                      onPress={() => void Linking.openURL('https://parea.photos/terms')}
+                    >
+                      Terms
+                    </Text>
+                    {' '}and{' '}
+                    <Text
+                      style={[styles.link, { color: t.accent }]}
+                      onPress={() => void Linking.openURL('https://parea.photos/privacy')}
+                    >
+                      Privacy
+                    </Text>
+                    .
+                  </Text>
+                  {busy && <Waiting size={20} />}
+                  {error && <Text style={[styles.error, { color: t.fg }]}>{error}</Text>}
+
+                  <Text style={[styles.handleLine, { color: t.dim }]}>
+                    Know their handle?{' '}
+                    <Text
+                      style={[styles.handleLink, { color: t.fg }]}
+                      onPress={onSearchHandle}
+                      accessibilityRole="link"
+                    >
+                      Search on Find
+                    </Text>
+                  </Text>
+                </>
+              )}
+
+              {!verified && !asking && (
+                /*
+                  A code outstanding: the card it has always been, with the
+                  six digits and the two of the number it went to.
                 */
                 <View style={[styles.card, { backgroundColor: t.card, borderColor: t.accent }]}>
                   <Text style={[styles.cardTitle, { color: t.fg }]}>
@@ -308,129 +520,49 @@ export function FindFriends({
                     the number itself is never stored or shown to anybody.
                   </Text>
 
-                  {sentTo === null ? (
-                    <>
-                      <TextInput
-                        value={phone}
-                        onChangeText={setPhone}
-                        placeholder="+44 7700 900123"
-                        placeholderTextColor={t.dim}
-                        keyboardType="phone-pad"
-                        autoComplete="tel"
-                        textContentType="telephoneNumber"
-                        style={[styles.input, { color: t.fg, borderColor: t.line }]}
-                        accessibilityLabel="Your phone number, with its country code"
-                      />
-                      <Text style={[styles.hint, { color: t.dim }]}>
-                        Start with the country code. We cannot guess which
-                        country a local number belongs to, so a wrong guess
-                        would quietly find nobody.
-                      </Text>
-                      <Button
-                        label="Send me a code"
-                        t={t}
-                        primary
-                        disabled={busy || phone.trim().length < 7}
-                        onPress={() => void sendCode()}
-                      />
-                      {/*
-                        What pressing the button does, under the button.
-
-                        Five things have to be here and each is a sentence rather
-                        than a clause of boilerplate: who texts you, what
-                        arrives, how often, who pays, and where the rules are. It
-                        reads as ordinary honesty and it is also, precisely, what
-                        US carriers check when they ask for proof of consent — a
-                        verification campaign is approved or refused on whether
-                        the screen asking for the number tells somebody they are
-                        about to be texted.
-
-                        Under the control rather than over it, which is where the
-                        eye already is when reaching for it — and the same place
-                        the web's card puts it. Two clients wording one consent
-                        two ways is bad enough; two clients *placing* it
-                        differently is a screenshot of one that does not evidence
-                        the other, and one campaign covers both.
-
-                        It *asks* rather than describes, which is a correction a
-                        carrier made for us. "Tapping this sends you one text…"
-                        states a fact about the button; consent has to be somebody
-                        agreeing to receive messages, not being told some will
-                        arrive. Naming the button inside the sentence is what ties
-                        the agreement to the act.
-
-                        The two links open a browser, the way Settings opens the
-                        safety page: these are the product's own published
-                        documents and there is no version of them in the app.
-                      */}
-                      <Text style={[styles.hint, { color: t.dim }]}>
-                        By tapping “Send me a code” you agree to receive one text
-                        message from Parea containing a verification code. One
-                        message per request, not a subscription. Message and data
-                        rates may apply. See our{' '}
-                        <Text
-                          style={[styles.link, { color: t.accent }]}
-                          onPress={() => void Linking.openURL('https://parea.photos/terms')}
-                        >
-                          Terms
-                        </Text>
-                        {' '}and{' '}
-                        <Text
-                          style={[styles.link, { color: t.accent }]}
-                          onPress={() => void Linking.openURL('https://parea.photos/privacy')}
-                        >
-                          Privacy
-                        </Text>
-                        .
-                      </Text>
-                    </>
-                  ) : (
-                    <>
-                      <Text style={[styles.small, { color: t.fg }]}>
-                        We sent a code to the number ending {sentTo}.
-                      </Text>
-                      <TextInput
-                        value={code}
-                        onChangeText={setCode}
-                        placeholder="123456"
-                        placeholderTextColor={t.dim}
-                        keyboardType="number-pad"
-                        // Lets the keyboard fill it straight from the text,
-                        // which is the same hand-off the sign-in field takes.
-                        autoComplete="sms-otp"
-                        textContentType="oneTimeCode"
-                        maxLength={6}
-                        style={[styles.input, styles.code, { color: t.fg, borderColor: t.line }]}
-                        accessibilityLabel="The six-digit code we texted you"
-                      />
-                      <Button
-                        label="Confirm"
-                        t={t}
-                        primary
-                        disabled={busy || code.trim().length < 6}
-                        onPress={() => void confirm()}
-                      />
-                      {/* Asking again supersedes rather than accumulating —
-                          only the newest code can be presented — so this is
-                          "start over" without saying so. */}
-                      <Button
-                        label="Use a different number"
-                        t={t}
-                        disabled={busy}
-                        onPress={() => {
-                          setSentTo(null);
-                          setCode('');
-                          setError(null);
-                        }}
-                      />
-                    </>
-                  )}
+                  <Text style={[styles.small, { color: t.fg }]}>
+                    We sent a code to the number ending {sentTo}.
+                  </Text>
+                  <TextInput
+                    value={code}
+                    onChangeText={setCode}
+                    placeholder="123456"
+                    placeholderTextColor={t.dim}
+                    keyboardType="number-pad"
+                    // Lets the keyboard fill it straight from the text,
+                    // which is the same hand-off the sign-in field takes.
+                    autoComplete="sms-otp"
+                    textContentType="oneTimeCode"
+                    maxLength={6}
+                    style={[styles.input, styles.code, { color: t.fg, borderColor: t.line }]}
+                    accessibilityLabel="The six-digit code we texted you"
+                  />
+                  <Button
+                    label="Confirm"
+                    t={t}
+                    primary
+                    disabled={busy || code.trim().length < 6}
+                    onPress={() => void confirm()}
+                  />
+                  {/* Asking again supersedes rather than accumulating —
+                      only the newest code can be presented — so this is
+                      "start over" without saying so. */}
+                  <Button
+                    label="Use a different number"
+                    t={t}
+                    disabled={busy}
+                    onPress={() => {
+                      setSentTo(null);
+                      setCode('');
+                      setError(null);
+                    }}
+                  />
 
                   {busy && <Waiting size={20} />}
                 </View>
               )}
 
-              {error && <Text style={[styles.error, { color: t.fg }]}>{error}</Text>}
+              {error && !asking && <Text style={[styles.error, { color: t.fg }]}>{error}</Text>}
 
               {verified && (
                 <>
@@ -546,6 +678,17 @@ export function FindFriends({
   );
 }
 
+/**
+ * What `startPhone` is sent: the picker's code and the digits, spaces gone —
+ * `+447700900123`. A number typed with its own `+` that the picker did not
+ * claim is sent as typed, so the server can say what it says about it.
+ */
+function fullNumber(country: Country, phone: string): string {
+  const trimmed = phone.trim();
+  if (trimmed.startsWith('+')) return trimmed.replace(/[\s()-]/g, '');
+  return `${country.code}${trimmed.replace(/\D/g, '').replace(/^0+/, '')}`;
+}
+
 const styles = StyleSheet.create({
   root: { flex: 1 },
   fill: { flex: 1 },
@@ -569,6 +712,43 @@ const styles = StyleSheet.create({
      visible without counting. */
   code: { textAlign: 'center', letterSpacing: 6, fontSize: 20, fontVariant: ['tabular-nums'] },
   hint: { fontSize: 12.5, lineHeight: 18 },
+  centred: { textAlign: 'center' },
+
+  /* The first state, with no card: the promise centred under the title. */
+  hero: { alignItems: 'center', gap: 14, paddingTop: 44, paddingHorizontal: 8, paddingBottom: 8 },
+  disc: {
+    width: 72,
+    height: 72,
+    borderRadius: 36,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  headline: {
+    fontSize: 22,
+    fontWeight: '700',
+    letterSpacing: -0.4,
+    lineHeight: 28,
+    textAlign: 'center',
+    maxWidth: 300,
+  },
+  body: { fontSize: 14, lineHeight: 21, textAlign: 'center', maxWidth: 310 },
+  fieldRow: { flexDirection: 'row', gap: 8 },
+  countryBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    borderWidth: 1,
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 11,
+  },
+  countryCode: { fontSize: 16 },
+  countryCaret: { fontSize: 12 },
+  numberField: { flex: 1 },
+  /* At the foot of the page, which `filling` makes the foot of the screen. */
+  handleLine: { marginTop: 'auto', paddingTop: 56, fontSize: 13, lineHeight: 18, textAlign: 'center' },
+  handleLink: { fontWeight: '600' },
   /* Underlined as well as coloured: colour alone is not a link to somebody who
      cannot see the difference, and these two are the only pressable words in a
      paragraph rather than a row of their own. */

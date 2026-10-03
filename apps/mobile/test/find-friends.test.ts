@@ -191,7 +191,19 @@ describe('what the screen will not draw', () => {
      */
     expect(SCREEN).toMatch(/const verified = state\?\.phone\.verified === true;/);
     expect(SCREEN).toMatch(/\{verified && \(/);
-    expect(SCREEN).toMatch(/\{!verified && \(/);
+    expect(SCREEN).toMatch(/const asking = state !== null && !verified && sentTo === null;/);
+    expect(SCREEN).toMatch(/\{asking && \(/);
+    expect(SCREEN).toMatch(/\{!verified && !asking && \(/);
+  });
+
+  it('asks with the whole page, the country code as its own control', () => {
+    expect(SCREEN).toContain('Let people who have your number find you');
+    expect(SCREEN).toMatch(/<Glyph name="add-person" size=\{34\}/);
+    expect(SCREEN).toMatch(/api\.startPhone\(fullNumber\(country, phone\)\)/);
+    expect(SCREEN).toMatch(/disabled=\{busy \|\| nationalDigits < 6\}/);
+    expect(SCREEN).toContain('Search on Find');
+    // Only the countries the server texts.
+    expect(SCREEN).toMatch(/region: 'US'.*\n.*region: 'CA'.*\n.*region: 'GB'/);
   });
 
   it('tells "nobody yet" apart from "could not load"', () => {

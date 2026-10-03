@@ -446,6 +446,8 @@ export default function App() {
    * `+` twice has to open it twice.
    */
   const [makeGroup, setMakeGroup] = useState(0);
+  /** Find Friends asked for the Find tab, on people, with its field focused. */
+  const [searchHandle, setSearchHandle] = useState(false);
   const [events, setEvents] = useState<EventListing[]>([]);
   /**
    * How many things are waiting on an answer, for the badge on the tray.
@@ -1791,6 +1793,11 @@ export default function App() {
             t={t}
             Button={Button}
             onBack={leaveToTabs}
+            onSearchHandle={() => {
+              setSearchHandle(true);
+              setTab('search');
+              leaveToTabs();
+            }}
             /* Deeper rather than back: a suggestion is somebody you are
                deciding whether you recognise, and their page is how. */
             onOpenPerson={(handle) => setRoute({ screen: 'person', handle })}
@@ -2024,6 +2031,8 @@ export default function App() {
                 onOpenGroup={(id) => setRoute({ screen: 'group', id })}
                 onOpenPerson={(handle) => setRoute({ screen: 'person', handle })}
                 onFindFriends={() => setRoute({ screen: 'findFriends' })}
+                searchHandle={searchHandle}
+                onSearchHandled={() => setSearchHandle(false)}
                 onCreateGroup={() => {
                   /*
                    * Spent on the way in, and that is the whole of this fix.

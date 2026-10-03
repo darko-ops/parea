@@ -2042,6 +2042,8 @@ export function SearchTab({
   onCreateGroupFrom,
   active,
   openCreate = 0,
+  searchHandle = false,
+  onSearchHandled,
   Button,
 }: {
   api: Api;
@@ -2069,6 +2071,14 @@ export function SearchTab({
    * normally, rather than somebody arriving on it holding a press.
    */
   openCreate?: number;
+  /**
+   * Arrived from Find Friends' "Know their handle?": open on people with the
+   * field focused. Spent through `onSearchHandled` as soon as it is acted on,
+   * for the reason `openCreate` is — the tabs remount on every return, and a
+   * request still standing would focus the field again each time.
+   */
+  searchHandle?: boolean;
+  onSearchHandled?: () => void;
   Button: ButtonComponent;
 }) {
   /** The shelf of doors below is laid out from this. See `door`. */
@@ -2198,6 +2208,16 @@ export function SearchTab({
   useEffect(() => {
     if (!active) setAllGroups(false);
   }, [active]);
+
+  const field = useRef<null | TextInput>(null);
+  useEffect(() => {
+    if (!searchHandle) return;
+    setScope('people');
+    field.current?.focus();
+    onSearchHandled?.();
+    // Once per request; the callback is a state setter above.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchHandle]);
 
   useEffect(() => {
     if (openCreate > 0) onCreateGroup();
@@ -2413,6 +2433,7 @@ export function SearchTab({
           >
             <Glyph name="search" size={19} color={t.dim} />
             <TextInput
+              ref={field}
               value={query}
               onChangeText={(next) => void search(next, scope)}
               placeholder={PLACEHOLDER[scope]}
