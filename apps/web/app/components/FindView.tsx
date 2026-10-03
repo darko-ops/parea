@@ -284,6 +284,7 @@ const SCOPES = [
 ] as const;
 
 export function FindView({
+  initialScope = 'all',
   greeting,
   events,
   friends,
@@ -293,6 +294,8 @@ export function FindView({
   clusters,
   also,
 }: {
+  /** Which scope the page opens on — `people` from Find Friends' handle link. */
+  initialScope?: Scope;
   /** "Evening, Nadia", or nothing for a browser that has not signed in. */
   greeting: string | null;
   /**
@@ -326,7 +329,7 @@ export function FindView({
   also: ClusterPerson[];
 }) {
   const [query, setQuery] = useState('');
-  const [scope, setScope] = useState<Scope>('all');
+  const [scope, setScope] = useState<Scope>(initialScope);
   const [doors, setDoors] = useState<Door[]>([]);
   const [people, setPeople] = useState<Person[]>([]);
   const [searching, setSearching] = useState(false);

@@ -91,8 +91,19 @@ describe('the page', () => {
      * thing, is a page arguing with itself.
      */
     expect(VIEW).toMatch(/const verified = state\?\.phone\.verified === true;/);
-    expect(VIEW).toMatch(/\{!verified && \(/);
+    expect(VIEW).toMatch(/const asking = state !== null && !verified && sentTo === null;/);
+    expect(VIEW).toMatch(/\{asking && \(/);
+    expect(VIEW).toMatch(/\{!verified && !asking && \(/);
     expect(VIEW).toMatch(/\{verified && \(/);
+  });
+
+  it('asks with the whole page, the country code as its own control', () => {
+    expect(VIEW).toContain('Let people who have your number find you');
+    expect(VIEW).toMatch(/<RailIcon glyph="add-person" \/>/);
+    expect(VIEW).toMatch(/JSON\.stringify\(\{ phone: fullNumber\(country\.code, phone\) \}\)/);
+    expect(VIEW).toContain('<a href="/find?scope=people">Search on Find</a>');
+    // Only the countries the server texts — the app offers the same three.
+    expect(VIEW).toMatch(/region: 'US'.*\n.*region: 'CA'.*\n.*region: 'GB'/);
   });
 
   it('says it does not read your contacts', () => {
@@ -199,7 +210,7 @@ describe('the page', () => {
     // Inside the unverified card, not somewhere further down the page: consent
     // has to be on screen at the moment it is given, and the rest of this page
     // does not exist yet for somebody who has no number on file.
-    const card = VIEW.slice(VIEW.indexOf('Add your phone number'), VIEW.indexOf('{verified && ('));
+    const card = VIEW.slice(VIEW.indexOf('{asking && ('), VIEW.indexOf('{!verified && !asking && ('));
     expect(flat(card)).toMatch(/you agree to receive one text/);
   });
 

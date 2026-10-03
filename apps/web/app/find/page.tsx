@@ -50,7 +50,14 @@ export const metadata = {
   robots: { index: false, follow: false },
 };
 
-export default async function FindPage() {
+export default async function FindPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ scope?: string }>;
+}) {
+  // Find Friends' "Know their handle?" opens this on people. Anything else is
+  // the default, never an error — it is a link people can edit.
+  const scope = (await searchParams).scope === 'people' ? 'people' : 'all';
   const db = getDb();
   const actorId = await currentActorId();
   const [listings, friends, suggested, groups, offered, account, clusters] =
@@ -167,6 +174,7 @@ export default async function FindPage() {
       <main className="main main-find">
         <div className="find-page">
           <FindView
+            initialScope={scope}
             greeting={greetingFor(account?.displayName ?? null, now, zone)}
             events={events}
             friends={friendFaces}

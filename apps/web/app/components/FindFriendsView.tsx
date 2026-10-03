@@ -39,6 +39,42 @@
 import { useCallback, useEffect, useState } from 'react';
 
 import { Face } from './Faces';
+import { RailIcon } from './RailIcon';
+
+/**
+ * The countries a code can be texted to — the server's allowance, as
+ * `smsCountries` defaults it and production leaves it. A country it refuses
+ * would only turn a choice into an error. The app offers the same three.
+ */
+const COUNTRIES = [
+  { region: 'US', name: 'United States', code: '+1', short: 'US' },
+  { region: 'CA', name: 'Canada', code: '+1', short: 'CA' },
+  { region: 'GB', name: 'United Kingdom', code: '+44', short: 'UK' },
+] as const;
+type Region = (typeof COUNTRIES)[number]['region'];
+
+/** The browser's own region, to start the picker on; the first entry otherwise. */
+function browserRegion(): Region {
+  try {
+    for (const tag of navigator.languages ?? [navigator.language]) {
+      const region = tag.split('-').find((part) => /^[A-Z]{2}$/.test(part));
+      const match = COUNTRIES.find((c) => c.region === region);
+      if (match) return match.region;
+    }
+  } catch {}
+  return COUNTRIES[0].region;
+}
+
+/**
+ * What the phone route is sent: the picker's code and the digits, spaces gone.
+ * A number typed with its own `+` is sent as typed, so the server can say what
+ * it says about it.
+ */
+function fullNumber(code: string, phone: string): string {
+  const trimmed = phone.trim();
+  if (trimmed.startsWith('+')) return trimmed.replace(/[\s()-]/g, '');
+  return `${code}${trimmed.replace(/\D/g, '').replace(/^0+/, '')}`;
+}
 
 /** The first letter of a name, for a row with no picture in it. */
 function initial(name: string): string {
@@ -104,7 +140,16 @@ export function FindFriendsView() {
   const [state, setState] = useState<Payload | null>(null);
   const [error, setError] = useState<string | null>(null);
 
+  /** The national number; the country code is `region`'s, its own control. */
   const [phone, setPhone] = useState('');
+  /*
+   * Starts on the first entry and moves to the browser's region after mount:
+   * read during render, the server's guess and the browser's would disagree
+   * and React would throw the tree away.
+   */
+  const [region, setRegion] = useState<Region>(COUNTRIES[0].region);
+  useEffect(() => setRegion(browserRegion()), []);
+  const country = COUNTRIES.find((c) => c.region === region) ?? COUNTRIES[0];
   const [code, setCode] = useState('');
   /**
    * The number a code has just gone to, as its last two digits.
@@ -153,7 +198,7 @@ export function FindFriendsView() {
       const res = await fetch('/api/account/phone', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ phone }),
+        body: JSON.stringify({ phone: fullNumber(country.code, phone) }),
       });
       const body = (await res.json().catch(() => ({}))) as {
         error?: string;
@@ -188,7 +233,7 @@ export function FindFriendsView() {
     } finally {
       setBusy(false);
     }
-  }, [phone]);
+  }, [country.code, phone]);
 
   const confirm = useCallback(async () => {
     setBusy(true);
@@ -238,6 +283,28 @@ export function FindFriendsView() {
   }, []);
 
   const verified = state?.phone.verified === true;
+  /** Nothing added and no code outstanding: the whole page is the ask. */
+  const asking = state !== null && !verified && sentTo === null;
+
+  /*
+   * A pasted international number, split back into the two controls: a code
+   * the picker knows moves into it and the rest stays. One it does not know is
+   * left whole and sent as typed.
+   */
+  const typeNumber = (next: string) => {
+    const trimmed = next.trim();
+    if (trimmed.startsWith('+')) {
+      const match = [...COUNTRIES]
+        .sort((a, b) => b.code.length - a.code.length)
+        .find((c) => trimmed.replace(/[\s()-]/g, '').startsWith(c.code));
+      if (match) {
+        if (match.code !== country.code) setRegion(match.region);
+        setPhone(trimmed.slice(match.code.length).trim());
+        return;
+      }
+    }
+    setPhone(next);
+  };
 
   return (
     /*
@@ -255,13 +322,121 @@ export function FindFriendsView() {
         <p className="muted">Looking…</p>
       ) : (
         <>
-          {!verified && (
+          {asking && (
             /*
               The ask, and it is the whole page until it is answered.
 
               A list of people under an unanswered form is a page arguing with
               itself: one half saying "we need something from you", the other
-              half already doing the thing.
+              half already doing the thing. So there is no panel around it —
+              the page is the panel: one promise, the number in two parts, the
+              button and what pressing it agrees to, and a way out for somebody
+              who only wanted a handle. The app's screen is the same page.
+            */
+            <section className="ff-ask">
+              <div className="ff-hero">
+                <span className="ff-disc" aria-hidden="true">
+                  <RailIcon glyph="add-person" />
+                </span>
+                <h2>Let people who have your number find you</h2>
+                <p className="muted">
+                  That is all it does. We never read your contacts, and the number
+                  is never shown to anybody.
+                </p>
+              </div>
+
+              {/*
+                The country code as its own control, so a local number is typed
+                the way people know it. It answers in a control what the old
+                hint asked for in words: we cannot guess which country a local
+                number belongs to, and a wrong guess would quietly find nobody.
+              */}
+              <div className="ff-field">
+                <select
+                  className="ff-country"
+                  aria-label="Country code"
+                  value={region}
+                  onChange={(e) => setRegion(e.target.value as Region)}
+                >
+                  {COUNTRIES.map((c) => (
+                    <option key={c.region} value={c.region} aria-label={`${c.name} ${c.code}`}>
+                      {c.code} {c.short}
+                    </option>
+                  ))}
+                </select>
+                <input
+                  id="ff-phone"
+                  className="ff-number"
+                  type="tel"
+                  autoComplete="tel-national"
+                  aria-label="Your phone number"
+                  value={phone}
+                  onChange={(e) => typeNumber(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' && !busy && phone.replace(/\D/g, '').length >= 6) {
+                      void sendCode();
+                    }
+                  }}
+                  placeholder={country.code === '+44' ? '7700 900123' : '201 555 0123'}
+                />
+              </div>
+
+              <button
+                className="ff-send"
+                disabled={busy || phone.replace(/\D/g, '').length < 6}
+                onClick={() => void sendCode()}
+              >
+                {busy ? 'Sending…' : 'Send me a code'}
+              </button>
+
+              {/*
+                What pressing the button does, under the button.
+
+                Five things have to be here and each is a sentence rather
+                than a clause of boilerplate: who texts you, what arrives,
+                how often, who pays, and where the rules are. It reads as
+                ordinary honesty and it is also, precisely, what US carriers
+                check when they ask for proof of consent — a verification
+                campaign is approved or refused on whether the screen that
+                asks for the number tells somebody they are about to be
+                texted.
+
+                Under the control rather than over it: that is where the eye
+                already is when reaching for it. The app places it identically —
+                one campaign covers both clients, and a screenshot of one is
+                submitted as evidence for the other.
+
+                It *asks* rather than describes, and that is a correction. It
+                used to open "Tapping this sends you one text…", which states
+                a fact about what the button does — true, and not consent. A
+                carrier reviewing it said so: the opt-in has to show somebody
+                agreeing to receive text messages rather than merely being
+                told that some will arrive. "You agree to receive" is the
+                difference, and naming the button in the sentence is what ties
+                the agreement to the act.
+
+                Word for word as reviewed. A shorter version was drawn with this
+                layout and waits on the A2P campaign.
+              */}
+              <p className="muted ff-consent">
+                By tapping &ldquo;Send me a code&rdquo; you agree to receive
+                one text message from Parea containing a verification code.
+                One message per request, not a subscription. Message and data
+                rates may apply. See our <a href="/terms">Terms</a> and{' '}
+                <a href="/privacy">Privacy</a>.
+              </p>
+              {error && <p className="muted ff-error">{error}</p>}
+
+              <p className="ff-handle">
+                Know their handle? <a href="/find?scope=people">Search on Find</a>
+              </p>
+            </section>
+          )}
+
+          {!verified && !asking && (
+            /*
+              A code outstanding: the panel it has always been, with the six
+              digits and the two of the number it went to.
             */
             <section className="panel">
               <h2>Add your phone number</h2>
@@ -271,106 +446,44 @@ export function FindFriendsView() {
                 the number itself is never stored or shown to anybody.
               </p>
 
-              {sentTo === null ? (
-                <>
-                  <label htmlFor="ff-phone">Phone number</label>
-                  <div className="row">
-                    <input
-                      id="ff-phone"
-                      type="tel"
-                      autoComplete="tel"
-                      value={phone}
-                      onChange={(e) => setPhone(e.target.value)}
-                      placeholder="+44 7700 900123"
-                    />
-                    <button
-                      className="small"
-                      disabled={busy || phone.trim().length < 7}
-                      onClick={() => void sendCode()}
-                    >
-                      Send me a code
-                    </button>
-                  </div>
-                  <p className="muted">
-                    Start with the country code. We cannot guess which country a
-                    local number belongs to, so a wrong guess would quietly find
-                    nobody.
-                  </p>
-                  {/*
-                    What pressing the button does, under the button.
-
-                    Five things have to be here and each is a sentence rather
-                    than a clause of boilerplate: who texts you, what arrives,
-                    how often, who pays, and where the rules are. It reads as
-                    ordinary honesty and it is also, precisely, what US carriers
-                    check when they ask for proof of consent — a verification
-                    campaign is approved or refused on whether the screen that
-                    asks for the number tells somebody they are about to be
-                    texted.
-
-                    Under the control rather than over it: that is where the eye
-                    already is when reaching for it, and the field's own hint has
-                    the line directly beneath it. The app places it identically —
-                    one campaign covers both clients, and a screenshot of one is
-                    submitted as evidence for the other.
-
-                    It *asks* rather than describes, and that is a correction. It
-                    used to open "Tapping this sends you one text…", which states
-                    a fact about what the button does — true, and not consent. A
-                    carrier reviewing it said so: the opt-in has to show somebody
-                    agreeing to receive text messages rather than merely being
-                    told that some will arrive. "You agree to receive" is the
-                    difference, and naming the button in the sentence is what ties
-                    the agreement to the act.
-                  */}
-                  <p className="muted sms-consent">
-                    By tapping &ldquo;Send me a code&rdquo; you agree to receive
-                    one text message from Parea containing a verification code.
-                    One message per request, not a subscription. Message and data
-                    rates may apply. See our <a href="/terms">Terms</a> and{' '}
-                    <a href="/privacy">Privacy</a>.
-                  </p>
-                </>
-              ) : (
-                <>
-                  <p className="muted">We sent a code to the number ending {sentTo}.</p>
-                  <label htmlFor="ff-code">The six-digit code</label>
-                  <div className="row">
-                    <input
-                      id="ff-code"
-                      // Lets a browser fill it straight from the text message,
-                      // which is the same hand-off the sign-in field takes.
-                      autoComplete="one-time-code"
-                      inputMode="numeric"
-                      maxLength={6}
-                      value={code}
-                      onChange={(e) => setCode(e.target.value)}
-                      placeholder="123456"
-                    />
-                    <button
-                      className="small"
-                      disabled={busy || code.trim().length < 6}
-                      onClick={() => void confirm()}
-                    >
-                      Confirm
-                    </button>
-                  </div>
-                  {/* Asking again supersedes rather than accumulating — only the
-                      newest code can be presented — so this is "start over"
-                      without having to say so. */}
+              <>
+                <p className="muted">We sent a code to the number ending {sentTo}.</p>
+                <label htmlFor="ff-code">The six-digit code</label>
+                <div className="row">
+                  <input
+                    id="ff-code"
+                    // Lets a browser fill it straight from the text message,
+                    // which is the same hand-off the sign-in field takes.
+                    autoComplete="one-time-code"
+                    inputMode="numeric"
+                    maxLength={6}
+                    value={code}
+                    onChange={(e) => setCode(e.target.value)}
+                    placeholder="123456"
+                  />
                   <button
-                    className="secondary small"
-                    disabled={busy}
-                    onClick={() => {
-                      setSentTo(null);
-                      setCode('');
-                      setError(null);
-                    }}
+                    className="small"
+                    disabled={busy || code.trim().length < 6}
+                    onClick={() => void confirm()}
                   >
-                    Use a different number
+                    Confirm
                   </button>
-                </>
-              )}
+                </div>
+                {/* Asking again supersedes rather than accumulating — only the
+                    newest code can be presented — so this is "start over"
+                    without having to say so. */}
+                <button
+                  className="secondary small"
+                  disabled={busy}
+                  onClick={() => {
+                    setSentTo(null);
+                    setCode('');
+                    setError(null);
+                  }}
+                >
+                  Use a different number
+                </button>
+              </>
 
               {error && <p className="muted">{error}</p>}
             </section>
