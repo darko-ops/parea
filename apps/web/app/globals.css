@@ -466,15 +466,15 @@ button.secondary {
     profile itself. Styled as a rail row, because that is what it is now. */
 .rail-settings { justify-content: flex-start; }
 /* Who is signed in: grey and small, a label rather than a row, in the rail's
-   bottom-right corner — set apart from Settings rather than tucked under it,
-   where it read as part of that row. Placed against the rail itself (sticky,
+   bottom-left corner, lined up with the rows' icons — set apart from Settings
+   rather than tucked under it, where it read as part of that row. Placed against the rail itself (sticky,
    so it is the positioned box) because its markup sits in the list of rows,
    which ends well above the foot. Cut rather than wrapped — a long handle on a
    narrow rail is still recognisable from its start. */
 .rail-handle {
   position: absolute; right: 16px; bottom: 22px; left: 16px;
   margin: 0; padding: 0 10px;
-  text-align: right;
+  text-align: left;
   font-size: 13px; color: var(--dim-soft);
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
