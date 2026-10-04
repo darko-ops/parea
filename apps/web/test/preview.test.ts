@@ -131,4 +131,15 @@ describe('a preview costs nothing', () => {
     const branch = source.slice(at('isLinkUnfurler('), at('const requester ='));
     expect(branch).toMatch(/return new Response\(/);
   });
+
+  /*
+   * The card shares a URL with the door. A shared cache keyed on that URL
+   * hands the fetcher's card to the person who taps the link next — and
+   * iMessage fetches the moment a link is sent, so that is everybody.
+   */
+  it('is never stored where a person’s request could be answered with it', () => {
+    const branch = source.slice(at('isLinkUnfurler('), at('const requester ='));
+    expect(branch).toMatch(/'cache-control':\s*'private, no-store'/);
+    expect(branch).not.toMatch(/public|max-age|s-maxage/);
+  });
 });

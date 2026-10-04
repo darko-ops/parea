@@ -64,9 +64,13 @@ export async function GET(
     return new Response(previewHtml({ name: event.name, url: request.url }), {
       headers: {
         'content-type': 'text/html; charset=utf-8',
-        // Same answer for everyone, and it is not about this browser — but it
-        // must not be stored anywhere a person's request could pick it up.
-        'cache-control': 'public, max-age=300',
+        // Never stored, anywhere. This was `public, max-age=300`, and Vercel's
+        // CDN took it at its word: the URL is the same for the fetcher and the
+        // person, so the card iMessage fetched the moment a link was sent was
+        // what the friend got when they tapped it — for five minutes, which is
+        // exactly when people tap. Its "Open it" pointed back at the same URL,
+        // which served the same cached card again. The link looked dead.
+        'cache-control': 'private, no-store',
         'x-robots-tag': 'noindex, nofollow',
       },
     });
