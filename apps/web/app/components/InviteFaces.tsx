@@ -27,12 +27,26 @@ function firstNameOf(person: Person): string {
   return nameOf(person).split(/\s+/)[0] ?? nameOf(person);
 }
 
-/** "Nobody yet", "Maya & Priya", "Maya, Jonah +2" — then "will be asked". */
-function askedLine(picked: Person[]): string {
-  if (picked.length === 0) return 'Nobody yet — tap to pick friends';
-  const names = picked.map(firstNameOf);
-  if (names.length <= 2) return `${names.join(' & ')} will be asked`;
-  return `${names[0]}, ${names[1]} +${names.length - 2} will be asked`;
+/**
+ * What the card says, per question it is asking.
+ *
+ * The same card asks two things on the create screen — who is in the roll, and,
+ * on a roll set to "Hosts", who holds the camera — and they are the same act of
+ * finding a person. Only the words differ, so only the words are a table.
+ */
+const WORDS = {
+  invite: { title: 'Invite friends', count: (n: number) => `${n} invited`, empty: 'tap to pick friends', asked: 'will be asked' },
+  hosts: { title: 'Add hosts', count: (n: number) => (n === 1 ? '1 host' : `${n} hosts`), empty: 'tap to pick who can add', asked: 'will be asked to host' },
+} as const;
+
+export type InviteKind = keyof typeof WORDS;
+
+/** "Nobody yet", "Maya & Priya", "Maya, Jonah +2" — then what happens to them. */
+function askedLine(picked: Person[], names: string[], kind: InviteKind): string {
+  const words = WORDS[kind];
+  if (picked.length === 0) return `Nobody yet — ${words.empty}`;
+  if (names.length <= 2) return `${names.join(' & ')} ${words.asked}`;
+  return `${names[0]}, ${names[1]} +${names.length - 2} ${words.asked}`;
 }
 
 /** Their picture, or their letter on their lens — keyed on the actor. */
@@ -55,9 +69,19 @@ function PersonFace({ person, size, className }: { person: Person; size: number;
 export function InviteFaces({
   picked,
   onChange,
+  /** Which question this card is asking — see `WORDS`. */
+  kind = 'invite',
+  /**
+   * Actors this card must not offer: whoever the other card on the form has
+   * picked. Both lists are one guest list, and a name in both is one
+   * invitation dressed as two decisions.
+   */
+  exclude,
 }: {
   picked: Person[];
   onChange: (next: Person[]) => void;
+  kind?: InviteKind;
+  exclude?: Set<string>;
 }) {
   const [open, setOpen] = useState(false);
   const [friends, setFriends] = useState<Person[]>([]);
@@ -114,13 +138,17 @@ export function InviteFaces({
    */
   const searched = term.trim().length >= 2;
   const friendIds = new Set(friends.map((f) => f.actorId));
-  const rail = searched
-    ? found.filter((p) => !chosen.has(p.actorId))
-    : [...picked.filter((p) => !friendIds.has(p.actorId)), ...friends];
+  const offered = (p: Person) => !exclude?.has(p.actorId);
+  const rail = (
+    searched
+      ? found.filter((p) => !chosen.has(p.actorId))
+      : [...picked.filter((p) => !friendIds.has(p.actorId)), ...friends]
+  ).filter(offered);
 
   // Nobody picked: the first three friends, faint, as a hint of what goes here.
-  const stack = picked.length > 0 ? picked.slice(0, 3) : friends.slice(0, 3);
-  const title = picked.length === 0 ? 'Invite friends' : `${picked.length} invited`;
+  const stack = picked.length > 0 ? picked.slice(0, 3) : friends.filter(offered).slice(0, 3);
+  const words = WORDS[kind];
+  const title = picked.length === 0 ? words.title : words.count(picked.length);
 
   return (
     <div className={`invite-card${open ? ' is-open' : ''}`}>
@@ -139,7 +167,7 @@ export function InviteFaces({
         )}
         <span className="invite-text">
           <span className="invite-title">{title}</span>
-          <span className="invite-sub">{askedLine(picked)}</span>
+          <span className="invite-sub">{askedLine(picked, picked.map(firstNameOf), kind)}</span>
         </span>
         <span className="invite-search-button" aria-hidden="true">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">

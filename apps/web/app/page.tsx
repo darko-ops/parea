@@ -4,7 +4,7 @@ import { ACCEPT_ATTRIBUTE, MAX_PER_SELECTION, refuseFile } from '@parea/upload';
 import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useRef, useState } from 'react';
 
-import { CONTRIBUTE_EVERYONE } from '@parea/core';
+import { CONTRIBUTE_EVERYONE, CONTRIBUTE_HOST } from '@parea/core';
 
 import { policyFor } from './components/AccessChoice';
 import { ContributeList, type ContributePolicy } from './components/ContributeChoice';
@@ -90,14 +90,21 @@ export default function CreatePage() {
   // Shared by both strips below — see `usePreviewUrls`.
   const previews = usePreviewUrls(picked);
   const [name, setName] = useState('');
-  /*
-   * Who gets asked, held until there is a roll to ask them into.
-   *
-   * Co-hosts are not asked for on this form any more, as on the app's: "Hosts"
-   * means the creator until somebody is made one under Manage, which is where
-   * that question is answered for every roll that already exists.
-   */
+  /* Who gets asked, held until there is a roll to ask them into. */
   const [invitees, setInvitees] = useState<Person[]>([]);
+  /*
+   * The people who will hold the camera with them, on a roll set to `host`.
+   *
+   * Its own list rather than a flag on `invitees`, because the two questions
+   * are asked separately: being in the roll is the ordinary case, and naming a
+   * co-host is also asking them in — which is why the create call below sends
+   * this list on its own rather than repeating those names under members.
+   *
+   * Kept when the setting moves off "Hosts" rather than cleared. Somebody
+   * clicking between the three answers has not withdrawn anything, and a list
+   * that emptied itself on the way past "Just me" would cost them the picking.
+   */
+  const [coHosts, setCoHosts] = useState<Person[]>([]);
   /*
    * The picture the album leads with: the first photograph, unless another
    * was promoted — the app's rule, so a roll made in a browser has a face just
@@ -330,14 +337,27 @@ export default function CreatePage() {
         }
 
         /*
-         * The invitations. A failure costs the roll nothing — it is made, and
-         * asking again is under Manage.
+         * The invitations, members and co-hosts in one call, because the route
+         * counts them as one guest list and applies its cap of fifty to the
+         * pair. A failure costs the roll nothing — it is made, and asking again
+         * is under Manage.
+         *
+         * The co-hosts are only sent *as* co-hosts where the setting means
+         * anything. Somebody who picked two and then chose "Just me" has
+         * changed their mind about the roll; they are still asked in, as
+         * members, which is what inviting meant.
          */
-        if (invitees.length > 0) {
+        const hosting = contribute === CONTRIBUTE_HOST;
+        const asHosts = hosting ? coHosts : [];
+        const asMembers = [...invitees, ...(hosting ? [] : coHosts)];
+        if (asHosts.length > 0 || asMembers.length > 0) {
           await fetch(`/api/events/${created.id}/invites`, {
             method: 'POST',
             headers: { 'content-type': 'application/json' },
-            body: JSON.stringify({ actorIds: invitees.map((m) => m.actorId) }),
+            body: JSON.stringify({
+              actorIds: asMembers.map((m) => m.actorId),
+              hostActorIds: asHosts.map((m) => m.actorId),
+            }),
           }).catch(() => {});
         }
 
@@ -370,6 +390,7 @@ export default function CreatePage() {
       isPrivate,
       groupId,
       invitees,
+      coHosts,
       contribute,
       picked,
       cover,
@@ -598,6 +619,20 @@ export default function CreatePage() {
                     accessPolicy={policyFor({ isPrivate })}
                     onChange={setContribute}
                   />
+                  {/*
+                    And who those hosts are, asked under the answer that raises
+                    it. Picking somebody asks them in *and* records that
+                    accepting makes them a co-host; Manage answers it again
+                    afterwards.
+                  */}
+                  {contribute === CONTRIBUTE_HOST && (
+                    <InviteFaces
+                      kind="hosts"
+                      picked={coHosts}
+                      onChange={setCoHosts}
+                      exclude={new Set(invitees.map((p) => p.actorId))}
+                    />
+                  )}
                 </fieldset>
 
                 {/*
@@ -605,7 +640,11 @@ export default function CreatePage() {
                   roll by somebody else: this writes invitations, and they
                   answer in Activity.
                 */}
-                <InviteFaces picked={invitees} onChange={setInvitees} />
+                <InviteFaces
+                  picked={invitees}
+                  onChange={setInvitees}
+                  exclude={new Set(coHosts.map((p) => p.actorId))}
+                />
 
                 <div className="create-foot">
                   {error && <p className="muted" style={{ margin: 0, textAlign: 'center' }}>{error}</p>}

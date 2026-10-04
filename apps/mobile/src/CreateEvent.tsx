@@ -158,9 +158,11 @@ export function CreateEvent({
     [],
   );
 
-  const bringIntoView = useCallback((key: string) => {
-    const top = fieldTops.current[key];
-    if (top === undefined) return;
+  /** `inner` is a field nested in `key`, whose offset is from `key`'s top. */
+  const bringIntoView = useCallback((key: string, inner?: string) => {
+    const outer = fieldTops.current[key];
+    if (outer === undefined) return;
+    const top = outer + (inner ? (fieldTops.current[inner] ?? 0) : 0);
     scroller.current?.scrollTo({ y: Math.max(top - 24, 0), animated: true });
   }, []);
 
@@ -178,12 +180,21 @@ export function CreateEvent({
    * Nothing is sent from here: backing out of this form asks nobody, where a
    * picker that sent as it went would leave a trail of invitations to an event
    * that was never made. See `InvitePeople.tsx`.
-   *
-   * Co-hosts are not asked for on this screen any more. "Hosts" here means the
-   * creator until somebody is made one in the roll's own settings, which is
-   * where that question is answered for every roll that already exists.
    */
   const [invitees, setInvitees] = useState<InvitablePerson[]>([]);
+  /*
+   * The people who will hold the camera with them, on a roll set to `host`.
+   *
+   * Its own list rather than a flag on `invitees`: being in the roll is the
+   * ordinary case and holding the camera the exception, and naming a co-host
+   * is also asking them in — which is why the call below sends this list on
+   * its own rather than repeating those names under the other one.
+   *
+   * Kept when the setting moves off "Hosts" rather than cleared. Somebody
+   * tapping between the three answers has not withdrawn anything, and a list
+   * that emptied itself on the way past "Just me" would cost them the picking.
+   */
+  const [coHosts, setCoHosts] = useState<InvitablePerson[]>([]);
 
   /**
    * Asked once, on arrival, rather than waited for.
@@ -263,11 +274,24 @@ export function CreateEvent({
        * costs the event nothing — it is made, and asking again is in its own
        * `⋯` sheet — which is why nothing here surfaces one.
        */
-      if (invitees.length > 0) {
+      /*
+       * Members and co-hosts in one call, because the route counts them as one
+       * guest list and applies its cap of fifty to the pair.
+       *
+       * The co-hosts are only sent *as* co-hosts where the setting means
+       * anything. Somebody who picked two and then chose "Just me" has changed
+       * their mind about the roll; they are still asked in, under the other
+       * list, which is what inviting meant.
+       */
+      const hosting = contribute === 'host';
+      const asHosts = hosting ? coHosts : [];
+      const asMembers = [...invitees, ...(hosting ? [] : coHosts)];
+      if (asHosts.length > 0 || asMembers.length > 0) {
         void api
           .invite(
             created.id,
-            invitees.map((person) => person.actorId),
+            asMembers.map((person) => person.actorId),
+            asHosts.map((person) => person.actorId),
           )
           .catch(() => {});
       }
@@ -293,7 +317,7 @@ export function CreateEvent({
     } finally {
       setBusy(false);
     }
-  }, [api, contribute, framing, groupId, invitees, isPrivate, name, onCreated, photos, span]);
+  }, [api, coHosts, contribute, framing, groupId, invitees, isPrivate, name, onCreated, photos, span]);
 
   return (
     <View style={[styles.screen, { backgroundColor: t.bg }]}>
@@ -467,7 +491,7 @@ export function CreateEvent({
           Who can add to it — the same three answers the settings sheet offers,
           as a list here so each one's line can be read without tapping it.
         */}
-        <View style={styles.addField}>
+        <View style={styles.addField} onLayout={measureField('add')}>
           <Text style={[styles.fieldLabel, { color: t.dim }]}>WHO CAN ADD PHOTOS</Text>
           <ContributeList
             t={t}
@@ -480,6 +504,24 @@ export function CreateEvent({
             accessPolicy={isPrivate ? 'private' : 'public'}
             onChange={setContribute}
           />
+          {/*
+            And who those hosts are, asked under the answer that raises it.
+            Picking somebody asks them in *and* records that accepting makes
+            them a co-host; the roll's settings answer it again afterwards.
+          */}
+          {contribute === 'host' && (
+            <View onLayout={measureField('hostsInAdd')}>
+              <InviteFaces
+                api={api}
+                t={t}
+                kind="hosts"
+                picked={coHosts}
+                onChange={setCoHosts}
+                exclude={new Set(invitees.map((person) => person.actorId))}
+                onSearchFocus={() => bringIntoView('add', 'hostsInAdd')}
+              />
+            </View>
+          )}
         </View>
 
         <View style={styles.inviteField} onLayout={measureField('invite')}>
@@ -488,6 +530,7 @@ export function CreateEvent({
             t={t}
             picked={invitees}
             onChange={setInvitees}
+            exclude={new Set(coHosts.map((person) => person.actorId))}
             onSearchFocus={() => bringIntoView('invite')}
           />
         </View>
