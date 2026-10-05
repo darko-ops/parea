@@ -47,6 +47,22 @@ export default function PrivacyPage() {
             your email address, a handle, and whatever name and picture you
             choose to add.
           </p>
+          {/*
+            The carriers' standard sentences, verbatim and at the top.
+
+            They were already further down, in our own words and split across
+            two paragraphs — and a second A2P 10DLC review still came back
+            "a compliant privacy policy can not be verified". Reviewers read a
+            long policy for these exact lines, so they are here word for word,
+            where the page starts, with a link to the full section.
+          */}
+          <p className="muted">
+            <strong>Text messages (SMS):</strong> No mobile information will be
+            shared with third parties/affiliates for marketing/promotional
+            purposes. All the above categories exclude text messaging originator
+            opt-in data and consent; this information will not be shared with
+            any third parties. <a href="#sms">More about text messages</a>.
+          </p>
         </section>
 
         <section className="panel">
@@ -474,7 +490,7 @@ export default function PrivacyPage() {
             the standard sentences, a heading that says SMS, and no word like
             "exception" next to where a number goes. All three are here.
           */}
-          <h3>Text messages (SMS) and your phone number</h3>
+          <h3 id="sms">Text messages (SMS) and your phone number</h3>
           <p className="muted">
             Parea, operated by {LEGAL_ENTITY}, sends one kind of text message: a
             one-time verification code, sent only when you ask for one, to a

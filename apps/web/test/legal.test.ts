@@ -541,7 +541,12 @@ describe('what the carriers require', () => {
      * named specifically, and it wants the *consent record* covered as well as the
      * number — so both halves are pinned.
      */
-    expect(PRIVACY).toMatch(/<h3>Text messages \(SMS\) and your phone number<\/h3>/);
+    expect(PRIVACY).toMatch(/<h3 id="sms">Text messages \(SMS\) and your phone number<\/h3>/);
+    // And the carriers' template, verbatim, in the summary at the top.
+    const top = PRIVACY.slice(0, PRIVACY.indexOf('What is collected'));
+    expect(top).toMatch(
+      /No mobile information will be\s+shared with third parties\/affiliates for marketing\/promotional\s+purposes\. All the above categories exclude text messaging originator\s+opt-in data and consent; this information will not be shared with\s+any third parties\./,
+    );
     expect(PRIVACY).toMatch(
       /No mobile information will be shared with third parties or\s+affiliates for marketing or promotional purposes/,
     );
