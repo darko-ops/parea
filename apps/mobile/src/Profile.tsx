@@ -546,9 +546,9 @@ export function ProfileScreen({
                 key={event.id}
                 onPress={() => onOpen(event)}
                 accessibilityRole="button"
-                accessibilityLabel={`${event.name}, ${event.photoCount} ${
-                  event.photoCount === 1 ? 'photo' : 'photos'
-                }`}
+                accessibilityLabel={`${event.name}, ${
+                  event.accessPolicy === 'private' ? 'private, ' : ''
+                }${event.photoCount} ${event.photoCount === 1 ? 'photo' : 'photos'}`}
                 style={{ width: tile }}
               >
                 {event.cover ? (
@@ -571,13 +571,21 @@ export function ProfileScreen({
                 <Text style={[styles.tileName, { color: t.fg }]} numberOfLines={1}>
                   {event.name}
                 </Text>
-                <Text style={[styles.tileMeta, { color: t.dim }]} numberOfLines={1}>
-                  {event.photoCount === 0
-                    ? 'Nothing in it yet'
-                    : when
-                      ? `${when} · ${event.photoCount}`
-                      : `${event.photoCount} ${event.photoCount === 1 ? 'photo' : 'photos'}`}
-                </Text>
+                {/* A private album wears the padlock its home card does, in front. */}
+                <View style={styles.tileMetaRow}>
+                  {event.accessPolicy === 'private' && (
+                    <View style={styles.tileLock}>
+                      <Glyph name="locked" size={11} weight={2.4} color={t.dim} />
+                    </View>
+                  )}
+                  <Text style={[styles.tileMeta, { color: t.dim, flexShrink: 1 }]} numberOfLines={1}>
+                    {event.photoCount === 0
+                      ? 'Nothing in it yet'
+                      : when
+                        ? `${when} · ${event.photoCount}`
+                        : `${event.photoCount} ${event.photoCount === 1 ? 'photo' : 'photos'}`}
+                  </Text>
+                </View>
               </Pressable>
             );
           })}
@@ -1372,6 +1380,9 @@ const styles = StyleSheet.create({
      with the same six people apart. */
   tileName: { fontSize: 14, fontWeight: '600', marginTop: 6 },
   tileMeta: { fontSize: 12.5 },
+  tileMetaRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  // Up 1pt onto the line's cap height; never the thing that gives way.
+  tileLock: { marginTop: -1, flexShrink: 0 },
   /* The keyboard avoider around a sheet: full height, no colour of its own. */
   fill: { flex: 1 },
   backdrop: { flex: 1, justifyContent: 'flex-end', backgroundColor: '#000b' },

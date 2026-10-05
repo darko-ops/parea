@@ -42,7 +42,7 @@
  * cannot be found, it cannot be visited.
  */
 
-import { PRIVATE, schema } from '@parea/core';
+import { PRIVATE, schema, type AccessPolicy } from '@parea/core';
 import { and, desc, eq, isNull, or, sql } from 'drizzle-orm';
 
 import type { Db } from './db';
@@ -336,6 +336,11 @@ export type ProfileAlbum = {
   name: string;
   /** Private, and the viewer is not in it. Decides everything below. */
   locked: boolean;
+  /**
+   * Who can see it. On an open row this is what the viewer already knows from
+   * inside; on a locked one it is always `private`, which `locked` says too.
+   */
+  accessPolicy: AccessPolicy;
   coverKey: string | null;
   /**
    * The newest photograph, for when no cover was chosen. Null when locked, for
@@ -466,6 +471,7 @@ export async function albumsBy(
       id: row.id,
       name: row.name,
       locked,
+      accessPolicy: row.accessPolicy,
       coverKey: locked ? null : row.coverKey,
       shot: locked ? null : row.shot,
       capEpoch: row.capEpoch,

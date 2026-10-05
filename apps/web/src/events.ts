@@ -20,7 +20,7 @@
  */
 
 import { CARD_FACES } from '@parea/cards';
-import { schema } from '@parea/core';
+import { schema, type AccessPolicy } from '@parea/core';
 import { and, desc, eq, isNull, not, or, sql } from 'drizzle-orm';
 
 import type { Db } from './db';
@@ -74,6 +74,13 @@ export type EventListing = {
   linkToken: string;
   /** Needed to sign the mosaic's image URLs; rotating a link invalidates them. */
   capEpoch: number;
+  /**
+   * Who can see it — what the card's padlock is drawn from.
+   *
+   * Safe on every row: this list is only ever the viewer's own albums, each of
+   * which they could open and read the setting off.
+   */
+  accessPolicy: AccessPolicy;
   /** Most recent first. Empty for an event nobody has added to yet. */
   mosaic: MosaicPhoto[];
   /**
@@ -201,6 +208,7 @@ export async function eventsFor(
       groupId: schema.events.groupId,
       groupName: schema.groups.name,
       capEpoch: schema.events.capEpoch,
+      accessPolicy: schema.events.accessPolicy,
       lastActiveAt: schema.events.lastActiveAt,
       /*
        * The card leads with photos, so the photos come back with the list.

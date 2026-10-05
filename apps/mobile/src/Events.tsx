@@ -238,7 +238,11 @@ function EventCard({
    */
   onOpenPerson: (handle: string) => void;
 }) {
-  const label = `${event.name}, ${plural(event.photoCount, 'photo')}`;
+  // The padlock below is hidden from a screen reader with the rest of its
+  // line, so the card's name says it instead.
+  const isPrivate = event.accessPolicy === 'private';
+  const privately = isPrivate ? 'private, ' : '';
+  const label = `${event.name}, ${privately}${plural(event.photoCount, 'photo')}`;
 
   /*
    * Nothing in it is a different card, not this card with the picture missing.
@@ -500,6 +504,16 @@ function EventCard({
         <Text style={[styles.measuredText, { color: t.dim }]} numberOfLines={1}>
           {measured}
         </Text>
+        {/*
+          A private album says so here, on the label on the outside of the box,
+          in the padlock its own header wears. A public one stays unmarked:
+          it is the common case, and a mark on every card is a mark nobody reads.
+        */}
+        {isPrivate && (
+          <View style={styles.measuredLock}>
+            <Glyph name="locked" size={11} weight={2.4} color={t.dim} />
+          </View>
+        )}
         <View style={[styles.rule, { backgroundColor: t.line }]} />
       </View>
 
@@ -4222,6 +4236,13 @@ const styles = StyleSheet.create({
     letterSpacing: 1.5,
     textTransform: 'uppercase',
   },
+  /*
+   * Tucked toward the words, 2pt closer than the row's gap of 8, so it reads as
+   * part of the measurement rather than the start of the rule; up 1pt to sit on
+   * the cap height of 10.5pt uppercase Menlo. Weight 2.4 rather than the
+   * family's 2 so the shackle holds at 11pt.
+   */
+  measuredLock: { marginLeft: -2, marginTop: -1 },
   rule: { flex: 1, height: 1 },
   /*
    * The album's name, at the head of the card's column.

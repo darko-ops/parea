@@ -95,6 +95,7 @@ export async function GET(
       shared.map(async (listing) => ({
         id: listing.id,
         name: listing.name,
+        accessPolicy: listing.accessPolicy,
         caption: listing.caption,
         lastActiveAt: listing.lastActiveAt,
         thumb: await leadImage(listing),
@@ -115,6 +116,8 @@ export async function GET(
           id: album.id,
           name: album.name,
           locked: album.locked,
+          // The padlock on an open row: a private album the viewer is in.
+          accessPolicy: album.accessPolicy,
           // Your own ask, so the button says "Requested" when you come back.
           asked: album.asked,
           photoCount: album.photoCount,

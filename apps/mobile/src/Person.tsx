@@ -68,6 +68,7 @@ import { blockAuthor } from './block';
 import { HangingTab, TAB_H } from './HangingTab';
 import { Back, More, RoundButton } from './RoundButton';
 import { FrostedGlass } from './FrostedGlass';
+import { Glyph } from './Glyph';
 import { BELOW_TABS } from './chrome';
 import type { GroupTheme } from './Groups';
 import { initialOf, lensFor } from './lens';
@@ -419,6 +420,7 @@ export function PersonScreen({
         // When the album was made, which is what every shelf of them shows.
         at: mine?.createdAt ?? event.lastActiveAt,
         locked: false,
+        isPrivate: (mine?.accessPolicy ?? event.accessPolicy) === 'private',
         open: mine ? () => onOpenEvent(mine) : null,
         album: null as ProfileAlbum | null,
       };
@@ -430,6 +432,7 @@ export function PersonScreen({
       photoCount: album.photoCount,
       at: album.createdAt,
       locked: album.locked,
+      isPrivate: album.accessPolicy === 'private',
       /*
        * An open album of theirs opens, as it does on the web. It used to be
        * `null` for every row from this list — right for the locked ones, whose
@@ -791,7 +794,9 @@ export function PersonScreen({
                         : armed === item.id
                           ? `Ask to join ${item.name}`
                           : `${item.name}, private`
-                      : item.name
+                      : item.isPrivate
+                        ? `${item.name}, private`
+                        : item.name
                   }
                   accessibilityHint={
                     item.locked && !status
@@ -848,17 +853,29 @@ export function PersonScreen({
                 <Text style={[styles.tileName, { color: t.fg }]} numberOfLines={1}>
                   {item.name}
                 </Text>
-                <Text style={[styles.tileMeta, { color: t.dim }]} numberOfLines={1}>
-                  {item.locked
-                    ? // A date, like every album beside it — it is safe on a
-                      // locked one, and the ask lives on the picture now.
-                      (when ?? '')
-                    : item.photoCount === null || item.photoCount === 0
-                      ? 'Nothing in it yet'
-                      : when
-                        ? `${when} · ${item.photoCount}`
-                        : `${item.photoCount} ${item.photoCount === 1 ? 'photo' : 'photos'}`}
-                </Text>
+                {/*
+                  The padlock on an open album that is private — one the viewer
+                  is already in. A locked one says it with its frosted glass, and
+                  a padlock under that would say it twice.
+                */}
+                <View style={styles.tileMetaRow}>
+                  {!item.locked && item.isPrivate && (
+                    <View style={styles.tileLock}>
+                      <Glyph name="locked" size={11} weight={2.4} color={t.dim} />
+                    </View>
+                  )}
+                  <Text style={[styles.tileMeta, { color: t.dim, flexShrink: 1 }]} numberOfLines={1}>
+                    {item.locked
+                      ? // A date, like every album beside it — it is safe on a
+                        // locked one, and the ask lives on the picture now.
+                        (when ?? '')
+                      : item.photoCount === null || item.photoCount === 0
+                        ? 'Nothing in it yet'
+                        : when
+                          ? `${when} · ${item.photoCount}`
+                          : `${item.photoCount} ${item.photoCount === 1 ? 'photo' : 'photos'}`}
+                  </Text>
+                </View>
               </View>
             );
           })}
@@ -1029,4 +1046,7 @@ const styles = StyleSheet.create({
   /* No `marginTop`. The profile's own shelf sets none, and one pixel of drift
      between two grids of the same object is a pixel nobody chose. */
   tileMeta: { fontSize: 12.5 },
+  tileMetaRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  // Up 1pt onto the line's cap height; never the thing that gives way.
+  tileLock: { marginTop: -1, flexShrink: 0 },
 });

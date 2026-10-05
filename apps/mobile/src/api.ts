@@ -648,6 +648,14 @@ export type EventListing = {
   id: string;
   name: string;
   linkToken: string;
+  /**
+   * Who can see it: the same value as `feed.event.accessPolicy`. A private one
+   * wears a padlock on its card and on a profile's shelf.
+   *
+   * Optional because a server from before it sends nothing, which draws as it
+   * always did — unmarked.
+   */
+  accessPolicy?: 'public' | 'private';
   place: string | null;
   eventDate: string | null;
   startsAt: string | null;
@@ -1019,6 +1027,8 @@ export type Person = {
 export type SharedEvent = {
   id: string;
   name: string;
+  /** Who can see it — see `EventListing.accessPolicy`. */
+  accessPolicy?: 'public' | 'private';
   caption: string | null;
   lastActiveAt: string;
   thumb: string | null;
@@ -1035,6 +1045,8 @@ export type ProfileAlbum = {
   id: string;
   name: string;
   locked: boolean;
+  /** Who can see it — see `EventListing.accessPolicy`. Optional for the same reason. */
+  accessPolicy?: 'public' | 'private';
   /** Null when locked. */
   photoCount: number | null;
   /** When it was made, ISO — what a shelf of albums is dated by. */

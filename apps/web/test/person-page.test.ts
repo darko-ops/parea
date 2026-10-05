@@ -471,6 +471,28 @@ describe('the rolls on somebody’s page', () => {
     expect(album!.locked).toBe(false);
   });
 
+  it('says an open roll is private, so the app can draw its padlock', async () => {
+    /*
+     * The open row is the only one that needs telling: a locked one is
+     * private by definition. Both lists the app shelves — what they made and
+     * what you share — carry it, the second through the viewer's own listing.
+     */
+    const me = await person('me');
+    const them = await person('wren');
+    const shut = await event(them, 'Quiet weekend', 'private');
+    await event(them, 'Open weekend', 'public');
+    await joins(shut.id, me);
+    await joins(shut.id, them);
+
+    const albums = await albumsBy(db, me, them);
+    expect(Object.fromEntries(albums.map((a) => [a.name, a.accessPolicy]))).toEqual({
+      'Quiet weekend': 'private',
+      'Open weekend': 'public',
+    });
+    const [shared] = await eventsWithBoth(db, me, them);
+    expect(shared).toMatchObject({ name: 'Quiet weekend', accessPolicy: 'private' });
+  });
+
   it('leaves a public one unlocked for a stranger', async () => {
     // Public means anyone can see it. A profile that drew a door in front of
     // one would be a second policy, disagreeing with `authorize`.
