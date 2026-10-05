@@ -148,7 +148,7 @@ export function InvitePicker({
    * rule that picking somebody asks them rather than adds them. Only the words
    * differ, so only the words are passed in.
    */
-  placeholder = 'Find somebody by handle',
+  placeholder = 'Find somebody by name or handle',
   /**
    * Actors this picker must not offer.
    *
@@ -675,12 +675,12 @@ export function InviteFaces({
               value={term}
               onChangeText={setTerm}
               onFocus={onSearchFocus}
-              placeholder="Search friends or @handle"
+              placeholder="Search by name or @handle"
               placeholderTextColor={t.dim}
               autoCapitalize="none"
               autoCorrect={false}
               style={[styles.searchInput, { color: t.fg }]}
-              accessibilityLabel="Search friends or @handle"
+              accessibilityLabel="Search by name or @handle"
             />
             {searching && <ActivityIndicator color={t.dim} />}
           </View>
@@ -710,7 +710,7 @@ export function InviteFaces({
                 ? searching
                   ? ' '
                   : 'Nobody to show for that.'
-                : 'Search for somebody by their @handle.'}
+                : 'Search for somebody by name or @handle.'}
             </Text>
           )}
 

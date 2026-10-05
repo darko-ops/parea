@@ -113,12 +113,24 @@ export const SEARCH_LIMIT = 10;
 export const SEARCH_MIN = 2;
 
 /**
- * Find people by handle.
+ * Find people by handle or by name.
  *
- * Prefix only, and never on the display name: display names are not unique and
- * are not something anyone chose to be findable by, whereas a handle is
- * exactly that. Signed-in accounts only, so a guest actor — which exists for
- * anybody who ever opened a link — is not a person in a list.
+ * A handle matches from its start — `may` finds `@maya_c`. A name matches from
+ * the start of any word in it — `chen` finds "Maya Chen", and so does `maya c`
+ * — because a person half-remembers somebody by what they are called, not by
+ * the handle they picked. This was handle-only on the reasoning that a display
+ * name is not something anyone chose to be findable by; but it is printed on
+ * their profile, on every roll they are in and beside every message, so finding
+ * them by it discloses nothing those do not, and a search that could not find
+ * "Lillian" by typing "Lillian" was a search people gave up on.
+ *
+ * A leading `@` asks for handles only, which is what somebody typing one means.
+ *
+ * Handles first, then names, so the person whose handle you typed is never
+ * pushed off the end of ten by people who happen to share a first name with it.
+ *
+ * Signed-in accounts only, so a guest actor — which exists for anybody who ever
+ * opened a link — is not a person in a list.
  *
  * Blocked people are excluded in both directions. Someone you blocked should
  * not surface, and you should not surface to them: a block that still let them
@@ -129,8 +141,18 @@ export async function findPeople(
   actorId: string | null,
   query: string,
 ): Promise<FoundPerson[]> {
-  const key = handleKey(query);
+  const raw = handleKey(query);
+  const handleOnly = raw.startsWith('@');
+  const key = raw.replace(/^@/, '');
   if (key.length < SEARCH_MIN) return [];
+
+  // `%` and `_` are wildcards to LIKE and ordinary characters to a person.
+  const literal = key.replace(/[\\%_]/g, (c) => `\\${c}`);
+  const byHandle = sql`lower(${schema.actors.handle}) like ${`${literal}%`}`;
+  const byName = handleOnly
+    ? sql`false`
+    : sql`(lower(${schema.actors.displayName}) like ${`${literal}%`}
+          or lower(${schema.actors.displayName}) like ${`% ${literal}%`})`;
 
   const rows = await db
     .select({
@@ -147,7 +169,7 @@ export async function findPeople(
         // else, which is the same test everything here uses for "a person".
         sql`${schema.actors.accountId} is not null`,
         sql`${schema.actors.mergedIntoId} is null`,
-        sql`lower(${schema.actors.handle}) like ${`${key}%`}`,
+        or(byHandle, byName),
         actorId ? ne(schema.actors.id, actorId) : sql`true`,
         actorId
           ? sql`not exists (
@@ -158,7 +180,7 @@ export async function findPeople(
           : sql`true`,
       ),
     )
-    .orderBy(schema.actors.handle)
+    .orderBy(sql`case when ${byHandle} then 0 else 1 end`, schema.actors.handle)
     .limit(SEARCH_LIMIT);
 
   return rows;

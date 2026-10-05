@@ -190,8 +190,8 @@ export function InviteFaces({
             type="search"
             value={term}
             onChange={(e) => setTerm(e.target.value)}
-            placeholder="Search friends or @handle"
-            aria-label="Search friends or @handle"
+            placeholder="Search by name or @handle"
+            aria-label="Search by name or @handle"
             autoComplete="off"
           />
         </label>
@@ -228,7 +228,7 @@ export function InviteFaces({
               ? searching
                 ? 'Looking…'
                 : 'Nobody to show for that.'
-              : 'Search for somebody by their @handle.'}
+              : 'Search for somebody by name or @handle.'}
           </p>
         )}
 

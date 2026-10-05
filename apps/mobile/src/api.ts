@@ -2191,9 +2191,9 @@ export class Api {
   // --- people ----------------------------------------------------------
 
   /**
-   * Somebody, by handle.
+   * Somebody, by name or handle.
    *
-   * Prefix-only, ten results, a handle and a name and nothing else — the same
+   * From the start of a handle or of a word in a name, ten results, a handle and a name and nothing else — the same
    * narrowness the web search has, because it is the same endpoint. Being
    * findable leads to being able to ask and to nothing further.
    */

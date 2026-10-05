@@ -179,21 +179,21 @@ export function FriendsView() {
           type="search"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
-          placeholder="Their handle"
+          placeholder="Their name or handle"
           autoCapitalize="none"
           autoCorrect="off"
           spellCheck={false}
         />
         <p className="field-help">
-          By handle, and only by handle. Nobody is listed and there are no
-          suggestions — you have to be told who somebody is before you can find
-          them.
+          By the start of their name or their handle. Nobody is listed and
+          there are no suggestions — you have to know who somebody is before you
+          can find them.
         </p>
 
         {results !== null && (
           results.length === 0 ? (
             <p className="muted">
-              {query.trim().length < 2 ? '' : 'No handle starts with that.'}
+              {query.trim().length < 2 ? '' : 'Nobody by that name or handle.'}
             </p>
           ) : (
             <ul className="people">

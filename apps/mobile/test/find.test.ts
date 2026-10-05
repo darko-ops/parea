@@ -216,7 +216,7 @@ describe('what the page says it can reach', () => {
      * themselves, which say the same thing at the moment it means something:
      * a handle that matches nothing says so, and so does a group.
      */
-    expect(TAB).toMatch(/No handle starts with that\./);
+    expect(TAB).toMatch(/Nobody by that name or handle\./);
     expect(TAB).toMatch(/Nothing findable by that name\./);
   });
 });

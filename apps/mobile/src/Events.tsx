@@ -3074,11 +3074,11 @@ export function SearchTab({
 
       {/*
         Nothing came back, said once and only after something was asked. The
-        wording is per scope because "no handle starts with that" is a fact
-        about handles and would be a lie about places.
+        wording is per scope because "nobody by that name or handle" is a
+        fact about people and would be a lie about places.
       */}
       {scope === 'people' && asked && people.length === 0 && (
-        <Text style={[styles.small, { color: t.dim }]}>No handle starts with that.</Text>
+        <Text style={[styles.small, { color: t.dim }]}>Nobody by that name or handle.</Text>
       )}
       {scope === 'groups' && asked && groups.length === 0 && (
         <Text style={[styles.small, { color: t.dim }]}>Nothing findable by that name.</Text>
@@ -3090,7 +3090,7 @@ export function SearchTab({
       */}
       {scope === 'all' && asked && people.length === 0 && groups.length === 0 && (
         <Text style={[styles.small, { color: t.dim }]}>
-          No handle or findable group by that name.
+          Nobody and no findable group by that name.
         </Text>
       )}
       {scope === 'places' && places.length === 0 && (

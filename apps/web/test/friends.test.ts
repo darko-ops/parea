@@ -70,6 +70,57 @@ async function guest(handle: string | null = null) {
   return actor!.id;
 }
 
+describe('finding somebody by name', () => {
+  it('finds them by the start of any word in their name', async () => {
+    // Somebody remembers "Lillian", or "Chen", not `@lilc_22`.
+    const me = await person('me');
+    await person('lilc_22', 'Lillian Chen');
+
+    for (const query of ['lillian', 'Chen', 'lil', 'lillian ch']) {
+      expect((await findPeople(db, me, query)).map((p) => p.handle), query).toEqual(['lilc_22']);
+    }
+  });
+
+  it('still not from the middle of a word', async () => {
+    // The same floor the handle search keeps: a couple of common letters
+    // inside words would sweep the table.
+    const me = await person('me');
+    await person('lilc_22', 'Lillian Chen');
+    expect(await findPeople(db, me, 'llian')).toEqual([]);
+    expect(await findPeople(db, me, 'hen')).toEqual([]);
+  });
+
+  it('searches only handles behind an @', async () => {
+    const me = await person('me');
+    await person('lilc_22', 'Lillian Chen');
+    await person('chenny');
+    expect((await findPeople(db, me, '@chen')).map((p) => p.handle)).toEqual(['chenny']);
+    expect((await findPeople(db, me, '@lil')).map((p) => p.handle)).toEqual(['lilc_22']);
+  });
+
+  it('puts a handle that matches ahead of names that do', async () => {
+    const me = await person('me');
+    await person('aaron', 'Maya Ross');
+    await person('maya', null);
+    expect((await findPeople(db, me, 'maya')).map((p) => p.handle)).toEqual(['maya', 'aaron']);
+  });
+
+  it('reads % and _ as the characters they are', async () => {
+    const me = await person('me');
+    await person('anyone', 'Anyone At All');
+    expect(await findPeople(db, me, '%%')).toEqual([]);
+    expect(await findPeople(db, me, '__')).toEqual([]);
+  });
+
+  it('keeps the floors and the block on a name search too', async () => {
+    const me = await person('me');
+    const them = await person('lilc_22', 'Lillian Chen');
+    expect(await findPeople(db, me, 'l')).toEqual([]);
+    await db.insert(schema.blocks).values({ blockerActorId: them, blockedActorId: me });
+    expect(await findPeople(db, me, 'lillian')).toEqual([]);
+  });
+});
+
 describe('finding somebody by handle', () => {
   it('matches the start of a handle, not the middle', async () => {
     // Prefix only. Substring search would let somebody sweep the table with a

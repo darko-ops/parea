@@ -1,8 +1,8 @@
 /**
- * Finding a person by handle.
+ * Finding a person by name or handle.
  *
- * The one place accounts are searchable, and it is deliberately narrow: prefix
- * of a handle, ten results, and nothing about anyone comes back except the
+ * The one place accounts are searchable, and it is deliberately narrow: the
+ * start of a handle or of a word in a name — see `findPeople` — ten results, and nothing about anyone comes back except the
  * handle, the name they chose to show and their picture. No events, no photos,
  * no counts, no mutual friends — being findable leads to somebody being able
  * to ask, and to nothing else.
