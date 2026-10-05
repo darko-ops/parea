@@ -16,9 +16,16 @@
 
 import { useCallback, useEffect, useState } from 'react';
 
+import { Face } from './Faces';
 import { SiteFooter } from './SiteFooter';
 
-type Person = { actorId: string; handle: string | null; displayName: string | null };
+/** `avatar` comes with friends and requests; search results carry none. */
+type Person = {
+  actorId: string;
+  handle: string | null;
+  displayName: string | null;
+  avatar?: string | null;
+};
 type Request = Person & { id: string; askedAt: string };
 
 /** What we call somebody. The handle is the durable one; the name is theirs. */
@@ -27,7 +34,10 @@ function name(person: Person): string {
 }
 
 /**
- * A name, linked to the person it belongs to.
+ * A face and a name, the name linked to the person it belongs to.
+ *
+ * The face is a rounded square, like every other face in this product — the
+ * same one, at the same size, as the list of somebody else's friends.
  *
  * Keyed by handle, which is the only thing about somebody that is durable and
  * public — a row without one is not a findable person and has no page, so it
@@ -36,16 +46,24 @@ function name(person: Person): string {
 function Named({ person }: { person: Person }) {
   const label = name(person);
   return (
-    <div>
-      {person.handle ? (
-        <a href={`/u/${encodeURIComponent(person.handle)}`} className="named">
+    <>
+      <Face
+        src={person.avatar ?? null}
+        size={34}
+        className="member-face"
+        fallback={<span aria-hidden="true">{label.replace('@', '').slice(0, 1).toUpperCase()}</span>}
+      />
+      <div>
+        {person.handle ? (
+          <a href={`/u/${encodeURIComponent(person.handle)}`} className="named">
+            <strong>{label}</strong>
+          </a>
+        ) : (
           <strong>{label}</strong>
-        </a>
-      ) : (
-        <strong>{label}</strong>
-      )}
-      {person.displayName && person.handle && <p className="muted">@{person.handle}</p>}
-    </div>
+        )}
+        {person.displayName && person.handle && <p className="muted">@{person.handle}</p>}
+      </div>
+    </>
   );
 }
 

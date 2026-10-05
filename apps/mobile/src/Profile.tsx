@@ -1294,7 +1294,8 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     borderBottomWidth: 1,
   },
-  friendFace: { width: 38, height: 38, borderRadius: 19 },
+  // A rounded square, like every other face in this product (`Groups.tsx`).
+  friendFace: { width: 38, height: 38, borderRadius: 10, overflow: 'hidden' },
   friendBlank: { alignItems: 'center', justifyContent: 'center' },
   friendLetter: { fontSize: 15, fontWeight: '700' },
   friendName: { fontSize: 15.5, fontWeight: '600' },
