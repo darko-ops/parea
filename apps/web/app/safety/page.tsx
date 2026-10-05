@@ -11,6 +11,8 @@ import { Shell } from '@/../app/components/Shell';
 
 export const metadata = {
   title: 'Safety, reporting and contact',
+  description: 'How to report a photo or a person on Parea, and how to reach us.',
+  alternates: { canonical: '/safety' },
 };
 
 const CONTACT = process.env.SAFETY_CONTACT_EMAIL ?? 'safety@example.com';

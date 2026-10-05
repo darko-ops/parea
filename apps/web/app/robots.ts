@@ -21,6 +21,8 @@
 
 import type { MetadataRoute } from 'next';
 
+import { SITE } from '@/site';
+
 export default function robots(): MetadataRoute.Robots {
   return {
     rules: [
@@ -38,5 +40,6 @@ export default function robots(): MetadataRoute.Robots {
         ],
       },
     ],
+    sitemap: `${SITE}/sitemap.xml`,
   };
 }

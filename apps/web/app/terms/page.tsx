@@ -25,6 +25,7 @@ import { Shell } from '@/../app/components/Shell';
 export const metadata = {
   title: 'Terms',
   description: 'The agreement for using Parea, including what is not allowed.',
+  alternates: { canonical: '/terms' },
 };
 
 export default function TermsPage() {

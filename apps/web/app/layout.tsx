@@ -1,23 +1,8 @@
 import type { Metadata } from 'next';
 
+import { SITE } from '@/site';
 import { THEME_COOKIE } from '@/theme';
 import './globals.css';
-
-/**
- * The site's own origin.
- *
- * A constant rather than configuration, for the reason `deeplinks.ts` gives
- * about the bundle identifiers: it is not configurable. The app claims
- * `applinks:parea.photos` and `applinks:www.parea.photos` in `app.json`, and a
- * deployment serving a different canonical origin would be pointing every card
- * it produces at somewhere the app does not answer for.
- *
- * It is here for `metadataBase`, which is what turns the relative image path
- * below into the absolute URL an unfurler needs. Without one Next guesses from
- * `VERCEL_URL` — the per-deployment hostname, which changes on every push and
- * is not the address anybody's link points at.
- */
-const SITE = 'https://parea.photos';
 
 /**
  * What the product looks like as a link.
@@ -45,8 +30,14 @@ const DESCRIPTION =
 
 export const metadata: Metadata = {
   metadataBase: new URL(SITE),
-  title: TITLE,
+  /*
+   * The brand in every title. "Privacy" alone is what a search result said,
+   * which names nothing — and the front page, which is the one result anybody
+   * searching for the product should see, said the tagline without the name.
+   */
+  title: { default: `Parea — ${TITLE}`, template: '%s · Parea' },
   description: DESCRIPTION,
+  applicationName: 'Parea',
   openGraph: {
     type: 'website',
     siteName: 'Parea',
@@ -82,11 +73,41 @@ export const metadata: Metadata = {
  */
 const CHOOSE = `try{if(document.cookie.split('; ').indexOf('${THEME_COOKIE}=light')>-1)document.documentElement.dataset.theme='light'}catch(e){}`;
 
+/**
+ * Who the site is, for a search engine — the name it shows over the result and
+ * the site it belongs to.
+ *
+ * On every page rather than only the front one because it says nothing about
+ * any page: a name, an address and an icon. The private pages it also lands on
+ * are `noindex`, so it is never read there.
+ */
+const STRUCTURED = JSON.stringify({
+  '@context': 'https://schema.org',
+  '@graph': [
+    {
+      '@type': 'Organization',
+      '@id': `${SITE}/#organization`,
+      name: 'Parea',
+      url: SITE,
+      logo: `${SITE}/api/og`,
+    },
+    {
+      '@type': 'WebSite',
+      '@id': `${SITE}/#website`,
+      name: 'Parea',
+      url: SITE,
+      description: DESCRIPTION,
+      publisher: { '@id': `${SITE}/#organization` },
+    },
+  ],
+}).replace(/</g, '\\u003c');
+
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en" data-theme="dark" suppressHydrationWarning>
       <head>
         <script dangerouslySetInnerHTML={{ __html: CHOOSE }} />
+        <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: STRUCTURED }} />
       </head>
       <body>{children}</body>
     </html>

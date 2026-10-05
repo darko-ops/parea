@@ -32,6 +32,7 @@ export const metadata = {
   title: 'Text messages',
   description:
     'Parea sends one kind of text message: a code you asked for, to confirm your own phone number.',
+  alternates: { canonical: '/texts' },
 };
 
 const CONTACT = process.env.SAFETY_CONTACT_EMAIL ?? 'safety@example.com';

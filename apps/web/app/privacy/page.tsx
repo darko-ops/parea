@@ -22,6 +22,7 @@ import { Shell } from '@/../app/components/Shell';
 export const metadata = {
   title: 'Privacy',
   description: 'What Parea collects, what it does not, and how to get rid of it.',
+  alternates: { canonical: '/privacy' },
 };
 
 export default function PrivacyPage() {

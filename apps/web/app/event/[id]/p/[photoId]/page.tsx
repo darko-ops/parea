@@ -79,12 +79,12 @@ export async function generateMetadata({
 
   const db = getDb();
   const event = await findEventById(db, id);
-  if (!event) return { title: 'Parea', ...noindex };
+  if (!event) return { title: { absolute: 'Parea' }, ...noindex };
 
   const decision = await decide(db, event, 'view', await requesterFor(id));
-  if (!decision.allow) return { title: 'Parea', ...noindex };
+  if (!decision.allow) return { title: { absolute: 'Parea' }, ...noindex };
 
-  return { title: `${event.name} · Parea`, ...noindex };
+  return { title: event.name, ...noindex };
 }
 
 export default async function PhotoPage({
