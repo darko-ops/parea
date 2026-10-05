@@ -494,8 +494,9 @@ export default function PrivacyPage() {
           <p className="muted">
             Parea, operated by {LEGAL_ENTITY}, sends one kind of text message: a
             one-time verification code, sent only when you ask for one, to a
-            number you typed in yourself. One message per request; message and
-            data rates may apply. Reply STOP to stop texts to that number, or
+            number you typed in yourself. Message frequency: one message per
+            request, and none unless you ask. Message and data rates may apply.
+            Reply STOP to stop texts to that number, or
             HELP for help. Everything about these messages is set out on{' '}
             <a href="/texts">the text messages page</a>.
           </p>
@@ -503,8 +504,10 @@ export default function PrivacyPage() {
             No mobile information will be shared with third parties or
             affiliates for marketing or promotional purposes. Text messaging
             originator opt-in data and consent will not be shared with any third
-            parties. Your phone number, and the record that you asked to be sent
-            a code, are never sold or rented, to anybody, and are never used to
+            parties. We do not share, sell, or provide your mobile phone number
+            or messaging consent data to third parties or affiliates for
+            marketing or promotional purposes. Your phone number, and the record
+            that you asked to be sent a code, are never sold or rented, to anybody, and are never used to
             send you anything other than the code you asked for.
           </p>
           <p className="muted">

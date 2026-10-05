@@ -554,7 +554,13 @@ describe('what the carriers require', () => {
     expect(PRIVACY).toMatch(
       /Text messaging\s+originator opt-in data and consent will not be shared with any third\s+parties/,
     );
-    expect(PRIVACY).toMatch(/the record that you asked to be sent\s+a code/);
+    expect(PRIVACY).toMatch(/the record\s+that you asked to be sent\s+a code/);
+    // Twilio's own example of language that passes (error 30908), word for word.
+    expect(PRIVACY).toMatch(
+      /We do not share, sell, or provide your mobile phone number\s+or messaging consent data to third parties or affiliates for\s+marketing or promotional purposes\./,
+    );
+    // "Message frequency" by name, which the 30908 checklist asks for.
+    expect(PRIVACY).toMatch(/Message frequency: one message per\s+request/);
     expect(PRIVACY).toMatch(/never used to\s+send you anything other than the code you asked for/);
   });
 
