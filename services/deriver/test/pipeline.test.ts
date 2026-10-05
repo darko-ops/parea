@@ -798,6 +798,16 @@ describe('the declared posture', () => {
     expect(detail).toMatch(/MODERATOR_URL/);
   });
 
+  it('takes "automated" from a named provider, which brings its own endpoint', () => {
+    // It used to demand MODERATOR_URL here, which `contentModeratorFromEnv`
+    // does not — so a working Sightengine set-up refused to start.
+    const provider = 'sightengine';
+    expect(MODERATORS[provider]?.endpoint).toBeTruthy();
+    expect(
+      postureFromEnv({ PAREA_MODERATION: 'automated', MODERATOR_PROVIDER: provider, MODERATOR_KEY: 'k' }).ok,
+    ).toBe(true);
+  });
+
   it('accepts automation that is actually configured', () => {
     expect(
       postureFromEnv({

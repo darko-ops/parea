@@ -237,14 +237,18 @@ export function postureFromEnv(
   env: NodeJS.ProcessEnv = process.env,
 ): { ok: boolean; detail: string } {
   const declared = env.PAREA_MODERATION;
-  const moderator = Boolean(env.MODERATOR_URL && env.MODERATOR_KEY);
+  // The same test `contentModeratorFromEnv` applies, rather than its own: a
+  // named provider brings its endpoint, so `MODERATOR_URL` is not required
+  // and this used to fail a correctly configured `sightengine` deployment.
+  const moderator = contentModeratorFromEnv(env) !== null;
 
   if (declared === 'automated') {
     return moderator
       ? { ok: true, detail: 'automated — classifier flags to a review queue' }
       : {
           ok: false,
-          detail: 'FAILED — PAREA_MODERATION=automated but MODERATOR_URL/KEY are unset',
+          detail:
+            'FAILED — PAREA_MODERATION=automated but no moderator is configured (MODERATOR_KEY, and MODERATOR_PROVIDER or MODERATOR_URL)',
         };
   }
   if (declared === 'manual') {

@@ -33,10 +33,14 @@ with the poster's friends for 24 hours.
 
 It is available on the web and as iOS and Android apps. Accounts are for people
 aged 13 and over; a date-of-birth check at sign-up refuses anyone younger, and
-the date is not stored. Albums are private by default: reachable only through
-an invitation, a group, a link or a spoken code the creator shares. There is no
-public feed, no discovery of other people's photos, and no messaging with
-strangers.
+the date is not stored. A roll is either public or private, chosen by its
+creator, and public is the default. A public roll can be opened by anybody
+holding its link or spoken code, and by signed-in users from its creator's
+profile; a private one only by people the creator adds or lets in on request.
+Neither kind is indexed by search engines. People can be found by name or
+handle. There is no public feed and no browsing of strangers' photos. Messages
+live inside rolls and groups, and a one-to-one chat starts as an invitation the
+other person has to accept before anything can be sent to them.
 
 ## How images enter and are published
 
