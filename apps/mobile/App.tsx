@@ -45,7 +45,6 @@ import {
   useWindowDimensions,
 } from 'react-native';
 
-import { resolveWindow, type Window } from '@parea/autoselect';
 import { CARD_FACES, dateLabel, shortDate } from '@parea/cards';
 
 import {
@@ -90,7 +89,6 @@ import { SwipeBack } from './src/SwipeBack';
 import { ProfileScreen } from './src/Profile';
 import { arrivalFromUrl } from './src/links';
 import { notificationTarget } from './src/notifications';
-import { AutoSelect } from './src/AutoSelect';
 import { Waiting } from './src/Waiting';
 import { reportContent } from './src/report';
 import { blockAuthor } from './src/block';
@@ -100,7 +98,6 @@ import {
   isLibraryAsset,
   libraryAccess,
   releaseCopies,
-  requestLibraryAccess,
   resolveForUpload,
   sweepOutbox,
   type LibraryAccess,
@@ -111,9 +108,7 @@ import { Platform as RNPlatform } from 'react-native';
 import {
   BACKGROUND_UPLOAD_SUPPORTED,
   currentPushToken,
-  libraryAlreadyAsked,
   loadActorToken,
-  markLibraryAsked,
   pushAlreadyAsked,
   fetchForCover,
   registerForPush,
@@ -2568,32 +2563,7 @@ function EventScreen({
   const landed = useRef(false);
   /** The `⋯` sheet inside the viewer: remove, ask down, report, block. */
   const [actionsFor, setActionsFor] = useState<FeedPhoto | null>(null);
-  const [autoWindow, setAutoWindow] = useState<Window | null>(null);
   const [access, setAccess] = useState<LibraryAccess>('undetermined');
-  /**
-   * The card that asks for the library, in our own words.
-   *
-   * It used to appear *after* a first upload — "next time we can find them for
-   * you" — on the argument that a permission wall in front of a stranger is
-   * how a permission gets refused forever. That argument is still right about
-   * a cold prompt and was wrong about where the moment of value is: the person
-   * who has just scrolled a five-year camera roll looking for last night has
-   * already paid the cost the permission exists to remove, and telling them it
-   * could have been avoided is a receipt rather than an offer.
-   *
-   * So it comes up when they press Add photos, before the picker, and only
-   * when the app can say something concrete — there is a window for this
-   * evening, so it can promise *these* photographs rather than access in
-   * general.
-   *
-   * Still our words before the system's. That is the half of the old design
-   * that was load-bearing: a decline here costs nothing and the picker opens
-   * anyway, where a decline at the system prompt costs auto-selection for good
-   * and is not re-askable in practice.
-   */
-  const [offerUpgrade, setOfferUpgrade] = useState(false);
-  /** Whether that card has ever been put up. See `libraryAlreadyAsked`. */
-  const asked = useRef(true);
   /**
    * Which of the three panes is up.
    *
@@ -2643,12 +2613,6 @@ function EventScreen({
 
   useEffect(() => {
     void libraryAccess().then(setAccess);
-    // Starts true so that a slow read cannot put the card up before we know
-    // whether it has been put up before. One extra pass through the picker
-    // beats asking somebody a second time.
-    void libraryAlreadyAsked().then((was: boolean) => {
-      asked.current = was;
-    });
   }, []);
 
   /**
@@ -2913,16 +2877,6 @@ function EventScreen({
    * work and outlives every screen. See the note there.
    */
 
-  const windowFor = useCallback((): Window | null => {
-    return resolveWindow({
-      startsAt: event.startsAt ? Date.parse(event.startsAt) : null,
-      endsAt: event.endsAt ? Date.parse(event.endsAt) : null,
-      // Inference from what is already there helps contributor five, not
-      // contributor one — which is why the host-set window comes first.
-      existing: (feed?.photos ?? []).map((p) => Date.parse(p.takenAt)),
-    });
-  }, [event, feed]);
-
   const enqueue = useCallback(
     async (files: { id: string; source: string; name: string; size: number; mime: string }[]) => {
       if (files.length === 0) return;
@@ -2962,12 +2916,7 @@ function EventScreen({
   );
 
   /**
-   * The whole camera roll, through the system picker.
-   *
-   * Its own function rather than the tail of `addPhotos`, because it is now
-   * reached two ways: as the fallback when there is nothing to suggest from,
-   * and from inside the suggestion screen when the suggestion is not what
-   * somebody wanted. That second way is the point — see `onPickManually`.
+   * The whole camera roll, through the system picker — what Add photos opens.
    *
    * No permission prompt and no library access: the picker hands back the
    * files somebody chose and nothing else, which is why it can be the thing
@@ -3089,34 +3038,17 @@ function EventScreen({
     }
   }, [api, enqueue, event.id]);
 
-  const addPhotos = useCallback(async () => {
-    // With library access and a known window, offer the photos rather than
-    // asking someone to find them — the reason this client exists (§7.1).
-    const window = windowFor();
-    if ((access === 'granted' || access === 'limited') && window) {
-      setAutoWindow(window);
-      return;
-    }
+  /*
+   * Adding photos opens the phone's own picker: every photo, nothing ticked.
 
-    /*
-     * Never asked, and something concrete to ask for.
-     *
-     * Both halves matter. Without a window there is nothing to promise — the
-     * app cannot find photographs from an evening it cannot date — so the ask
-     * would be for access in general, which is the prompt people refuse. And
-     * `undetermined` is the only state worth asking in: granted and limited
-     * are already handled above, and denied is not re-askable from inside an
-     * app at all.
-     */
-    if (access === 'undetermined' && window && !asked.current) {
-      asked.current = true;
-      void markLibraryAsked();
-      setOfferUpgrade(true);
-      return;
-    }
-
-    await pickFromLibrary();
-  }, [access, pickFromLibrary, windowFor]);
+   * It used to open on a guess when it could — the photos taken during the
+   * roll's dates, already ticked — and to ask for the whole library first so
+   * that it could. However careful the guess, it decided on somebody's behalf
+   * which of their photos belonged in front of other people, and a wrong tick
+   * is a photo shared that nobody meant to share. People know which photos
+   * are theirs to add. The picker also needs no library permission at all.
+   */
+  const addPhotos = pickFromLibrary;
 
   /**
    * Save everything to the camera roll — the native terminal action.
@@ -4398,67 +4330,6 @@ function EventScreen({
   );
 
 
-  /*
-   * The auto-select sheet, which has to be decided *after* every hook above.
-   *
-   * This branch used to sit thirty lines into the component, ahead of a dozen
-   * of them. Opening the sheet therefore rendered this screen with a dozen
-   * hooks fewer than the render before it, and React — which matches hooks by
-   * position, not by name — refuses a render that runs fewer than the last
-   * one. The screen the `+` button opens was the render that could not happen.
-   *
-   * It reads worse here, further from the thing it replaces. That is the
-   * trade: an early return in a component is only early in the source, never
-   * in the hooks.
-   */
-  if (autoWindow) {
-    return (
-      <AutoSelect
-        window={autoWindow}
-        theme={t}
-        onCancel={() => setAutoWindow(null)}
-        /*
-          The way out of the guess and into the whole camera roll.
-
-          Granting the library turned the `+` into this screen and nothing
-          else, so an album whose window holds none of your photographs — a
-          weekend added to on the Tuesday, an evening somebody else set the
-          dates of, a phone whose clock was wrong — ended at "Nothing from
-          this time on this phone" with a Cancel under it. The picker was
-          still there in the code; it was simply unreachable for anybody the
-          permission had been granted by, which is everybody the feature was
-          built for.
-        */
-        onPickManually={() => {
-          setAutoWindow(null);
-          void pickFromLibrary();
-        }}
-        onShown={(preselected, candidates) =>
-          api.observe({
-            kind: 'autoselect_shown',
-            eventId: event.id,
-            count: preselected,
-            outOf: candidates,
-          })
-        }
-        onConfirm={async (assetIds, preselected) => {
-          setAutoWindow(null);
-          // How much of the suggestion survived. `outOf` is what was ticked
-          // when the screen opened, not what was offered — precision is about
-          // the guess, and someone adding photos the guess missed should not
-          // read as the guess having been right.
-          api.observe({
-            kind: 'autoselect_confirmed',
-            eventId: event.id,
-            count: assetIds.filter((id) => preselected.includes(id)).length,
-            outOf: preselected.length,
-          });
-          await enqueue(await resolveForUpload(assetIds));
-        }}
-      />
-    );
-  }
-
   return (
     <View style={[styles.root, { backgroundColor: t.bg }]}>
       {/*
@@ -4813,59 +4684,6 @@ function EventScreen({
                     </Pressable>
                   )
                 )}
-              </View>
-            )}
-
-            {offerUpgrade && (
-              <View
-                style={[styles.upgrade, { backgroundColor: t.card, borderColor: t.line }]}
-              >
-                <Text style={[styles.body, { color: t.fg }]}>
-                  We can pick out the photos from that evening so you do not
-                  have to scroll for them. Your photos stay on your phone; only
-                  the ones you choose are uploaded.
-                </Text>
-                <Button
-                  label="Find them for me"
-                  t={t}
-                  primary
-                  onPress={async () => {
-                    setOfferUpgrade(false);
-                    const next = await requestLibraryAccess();
-                    setAccess(next);
-                    /*
-                     * Straight into the suggestion, rather than back to where
-                     * they were. They pressed Add photos; the permission was a
-                     * question on the way, and answering it should not leave
-                     * somebody on the screen they were trying to leave.
-                     *
-                     * `windowFor()` again rather than the one captured above:
-                     * the system prompt is a round trip through another
-                     * process, and the feed may have landed while it was up.
-                     */
-                    const window = windowFor();
-                    if ((next === 'granted' || next === 'limited') && window) {
-                      setAutoWindow(window);
-                      return;
-                    }
-                    // Said no at the system prompt, or there is nothing to
-                    // suggest from. The picker is what always works.
-                    await pickFromLibrary();
-                  }}
-                />
-                {/*
-                  Not a dismissal — the thing they asked for, without the part
-                  they declined. A card that closes and leaves somebody looking
-                  at the album again has taken a press and given nothing back.
-                */}
-                <Button
-                  label="I'll pick them"
-                  t={t}
-                  onPress={() => {
-                    setOfferUpgrade(false);
-                    void pickFromLibrary();
-                  }}
-                />
               </View>
             )}
 
@@ -7537,7 +7355,6 @@ const styles = StyleSheet.create({
   },
   queueText: { flex: 1, fontSize: 13, lineHeight: 18 },
   queueDo: { fontSize: 13, lineHeight: 18, fontWeight: '700' },
-  upgrade: { borderRadius: 14, borderWidth: 1, padding: 16, gap: 12, marginHorizontal: 16, marginBottom: 10 },
   /* --- the album, folded up ---------------------------------------------
 
      The head the thread and the roster get: the same event, with its cover

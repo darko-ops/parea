@@ -142,7 +142,6 @@ describe('where it replaced the ring', () => {
      */
     for (const name of [
       'App.tsx',
-      'src/AutoSelect.tsx',
       'src/DetectedEvents.tsx',
       'src/Door.tsx',
       'src/Person.tsx',
@@ -181,7 +180,6 @@ describe('where it replaced the ring', () => {
   it('leaves no ring behind on a screen that has one of these', () => {
     for (const name of [
       'App.tsx',
-      'src/AutoSelect.tsx',
       'src/DetectedEvents.tsx',
       'src/Door.tsx',
       'src/Person.tsx',

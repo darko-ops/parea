@@ -639,92 +639,33 @@ describe('a cover that knows which photograph it came from', () => {
 });
 
 /**
- * When the library is asked for, which has moved once and must not drift back.
+ * Adding to a roll shows somebody their photos and decides nothing for them.
  *
- * The old placement — after a manual contribution, "next time we can find them
- * for you" — was protecting something real: a permission wall in front of a
- * stranger is how a permission gets refused forever, and this one is not
- * re-askable from inside an app once refused. What it got wrong is where the
- * value is demonstrated. Somebody who has just scrolled a five-year camera
- * roll looking for last night has already paid the cost the permission
- * removes; telling them afterwards is a receipt, not an offer.
- *
- * So it moved to the press of Add photos, and what these guard is the half of
- * the old design that was load-bearing rather than the placement itself.
+ * It used to open on a guess — the photos taken during the roll's dates,
+ * already ticked — and to put up a card asking for the whole library so that
+ * it could. A wrong tick is a photo shared that nobody meant to share, and the
+ * person adding knows which of their photos belong; the product does not.
  */
-describe('asking for the camera roll', () => {
+describe('adding photos to a roll', () => {
   const ALBUM = code(APP);
 
-  it('asks on the way in, not after the work is done', () => {
-    // The offer is reached from `addPhotos`, before the picker opens.
-    expect(ALBUM).toMatch(
-      /const addPhotos = useCallback\([\s\S]{0,900}setOfferUpgrade\(true\);/,
-    );
-    // And no longer after an upload has been queued.
-    expect(ALBUM).not.toMatch(/enqueue\([\s\S]{0,400}setOfferUpgrade\(true\)/);
+  it('opens the system picker and nothing else', () => {
+    expect(ALBUM).toMatch(/const addPhotos = pickFromLibrary;/);
+    expect(ALBUM).not.toMatch(/<AutoSelect/);
+    expect(ALBUM).not.toMatch(/setAutoWindow|offerUpgrade|windowFor\(/);
   });
 
-  it('only asks where it can say what for', () => {
-    /*
-     * Without a window there is nothing to promise — the app cannot find
-     * photographs from an evening it cannot date — so the ask would be for
-     * access in general, which is the prompt people refuse. And `undetermined`
-     * is the only state worth asking in: granted and limited are already
-     * served, and denied cannot be re-asked from inside an app at all.
-     */
-    expect(ALBUM).toMatch(
-      /access === 'undetermined' && window && !asked\.current/,
-    );
+  it('ticks nothing on the way in', () => {
+    // The picker hands back what was chosen; there is no initial selection.
+    const picker = ALBUM.slice(ALBUM.indexOf('const pickFromLibrary'));
+    expect(picker).toMatch(/launchImageLibraryAsync\(\{/);
+    expect(picker.slice(0, 2000)).not.toMatch(/preselected|selectedAssets|initial/);
   });
 
-  it('puts our words in front of the system prompt', () => {
-    /*
-     * The one property that must survive any future move of this. A decline on
-     * our card costs nothing and the picker opens anyway; a decline at the
-     * system prompt costs auto-selection for good.
-     */
-    const card = APP.slice(APP.indexOf('{offerUpgrade && ('));
-    const sentence = card.indexOf('We can pick out the photos');
-    const button = card.indexOf('Find them for me');
-    const system = card.indexOf('requestLibraryAccess()');
-    expect(sentence).toBeGreaterThan(-1);
-    expect(system).toBeGreaterThan(-1);
-    // Our sentence, then our button, then theirs — in that order.
-    expect(sentence).toBeLessThan(button);
-    expect(button).toBeLessThan(system);
-  });
-
-  it('is asked once ever, including the answer the system cannot see', () => {
-    /*
-     * Granted and denied both stop `libraryAccess()` returning `undetermined`,
-     * so the OS prevents a second ask on its own. What it cannot see is
-     * somebody closing our card without reaching it — from its side nothing
-     * happened — and without a flag that person is asked again on every album
-     * they add to.
-     *
-     * Recorded when the card goes up, not when it is answered: it records that
-     * we asked, not what they said.
-     */
-    expect(ALBUM).toMatch(/asked\.current = true;\s*void markLibraryAsked\(\);/);
-    expect(ALBUM).toMatch(/const asked = useRef\(true\)/);
-    const platform = read('src/platform.ts');
-    expect(platform).toMatch(/LIBRARY_ASKED_KEY = 'parea\.libraryAsked'/);
-    expect(platform).toMatch(/export async function libraryAlreadyAsked/);
-  });
-
-  it('gives back what the press asked for, whichever button is used', () => {
-    /*
-     * They pressed Add photos. The permission was a question on the way, and
-     * neither answer should leave somebody on the screen they were leaving —
-     * a card that closes onto the album again has taken a press and returned
-     * nothing.
-     */
-    const card = APP.slice(APP.indexOf('{offerUpgrade && ('), APP.indexOf('The grid, and only the grid'));
-    // Yes: into the suggestion, re-reading the window because the system
-    // prompt is a round trip through another process.
-    expect(card).toMatch(/const window = windowFor\(\);\s*if \(\(next === 'granted' \|\| next === 'limited'\) && window\) \{\s*setAutoWindow\(window\);/);
-    // No, or nothing to suggest from: the picker, which always works.
-    expect(card.match(/pickFromLibrary\(\)/g) ?? []).toHaveLength(2);
+  it('does not ask for the library to make a guess', () => {
+    // The picker needs no permission; the card that asked existed for the guess.
+    expect(ALBUM).not.toMatch(/Find them for me|We can pick out the photos/);
+    expect(ALBUM).not.toMatch(/markLibraryAsked/);
   });
 });
 

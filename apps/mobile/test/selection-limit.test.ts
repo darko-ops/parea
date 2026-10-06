@@ -16,7 +16,6 @@ const read = (name: string) =>
   readFileSync(fileURLToPath(new URL(`../${name}`, import.meta.url).href), 'utf8');
 
 const APP = read('App.tsx');
-const AUTO = read('src/AutoSelect.tsx');
 const PICK = read('src/PickPhotos.tsx');
 
 const code = (source: string) =>
@@ -46,32 +45,6 @@ describe('the system picker', () => {
 
   it('is never a hard-coded twenty', () => {
     expect(pick).not.toMatch(/selectionLimit: \d/);
-  });
-});
-
-describe('the suggestion screen', () => {
-  const auto = code(AUTO);
-
-  it('reads the limit from @parea/upload', () => {
-    expect(AUTO).toMatch(/import \{ MAX_PER_SELECTION \} from '@parea\/upload'/);
-    expect(auto).not.toMatch(/(size|length) >= \d|slice\(0, \d/);
-  });
-
-  it('opens with no more than the limit ticked', () => {
-    expect(auto).toMatch(/setSelected\(new Set\(next\.preselected\.slice\(0, MAX_PER_SELECTION\)\)\)/);
-  });
-
-  it('will not tick past it', () => {
-    const toggle = between(auto, 'const toggle = useCallback(', '}, []);');
-    expect(toggle).toMatch(/next\.size >= MAX_PER_SELECTION\) return prev/);
-  });
-
-  it('says why when it is full', () => {
-    expect(auto).toMatch(/Up to \{MAX_PER_SELECTION\} at a time\. Add the rest after these are in\./);
-  });
-
-  it('confirms no more than the limit', () => {
-    expect(auto).toMatch(/onConfirm\(\[\.\.\.selected\]\.slice\(0, MAX_PER_SELECTION\)/);
   });
 });
 

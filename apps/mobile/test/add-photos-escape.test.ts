@@ -35,7 +35,6 @@ const read = (name: string) =>
   readFileSync(fileURLToPath(new URL(`../${name}`, import.meta.url).href), 'utf8');
 
 const APP = read('App.tsx');
-const AUTO = read('src/AutoSelect.tsx');
 
 describe('adding photos to a roll', () => {
   it('keeps the system picker reachable once the library is granted', () => {
@@ -45,31 +44,8 @@ describe('adding photos to a roll', () => {
      * unreachable code after an early `return`, this is the test that says so.
      */
     expect(APP).toMatch(/const pickFromLibrary = useCallback\(async \(\) => \{/);
-    expect(APP).toMatch(/await pickFromLibrary\(\);/);
-    expect(APP).toMatch(/onPickManually=\{\(\) => \{/);
-    // And it closes the suggestion on the way, so cancelling the picker does
-    // not land back on the grid that was already refused.
-    expect(APP).toMatch(/setAutoWindow\(null\);\s*\n\s*void pickFromLibrary\(\);/);
-  });
-
-  it('offers the whole library from inside the suggestion', () => {
-    /*
-     * Always, not only when the grid is empty: "Show everything from this
-     * window" widens the window and never leaves it, so a guess that is wrong
-     * by being narrow had no answer either.
-     */
-    expect(AUTO).toMatch(/onPickManually: \(\) => void;/);
-    expect(AUTO).toMatch(/Choose from all photos/);
-  });
-
-  it('makes the library the action when there is nothing to suggest', () => {
-    /*
-     * A disabled "Nothing selected" was the whole of the footer on a screen
-     * with nothing in it — a dead end under an empty grid, which is the one
-     * state where the screen owes somebody a way forward rather than a report.
-     */
-    expect(AUTO).toMatch(/suggestion\.candidates\.length === 0 \? \(/);
-    expect(AUTO).toMatch(/Choose photos/);
+    // It is now the only thing the button does — see `pick-photos.test.ts`.
+    expect(APP).toMatch(/const addPhotos = pickFromLibrary;/);
   });
 
   it('says so when the picker will not open', () => {

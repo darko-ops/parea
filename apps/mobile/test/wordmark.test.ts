@@ -235,7 +235,7 @@ describe('what left the home screen with it', () => {
 const SCREENS = [
     'App.tsx',
     ...[
-      'AutoSelect.tsx', 'CoverFramer.tsx', 'CreateEvent.tsx', 'CreateGroup.tsx',
+      'CoverFramer.tsx', 'CreateEvent.tsx', 'CreateGroup.tsx',
       'DetectedEvents.tsx', 'Door.tsx', 'Events.tsx', 'FindFriends.tsx',
       'GroupThread.tsx', 'Groups.tsx',
       'InvitePeople.tsx', 'Lately.tsx', 'NewGroup.tsx', 'PageHead.tsx', 'Person.tsx',

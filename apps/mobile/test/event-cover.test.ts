@@ -34,7 +34,12 @@ const API = read('src/api.ts');
  * fronted by, sending one of those, opening the frame, and taking the cover
  * off. They are contiguous on purpose — a cover is one subject.
  */
-const COVER = APP.slice(APP.indexOf('const sendCover'), APP.indexOf('if (autoWindow)'));
+// To the screen's own `return (`: where the auto-select branch used to sit,
+// which was this slice's end until adding photos stopped guessing.
+const COVER = APP.slice(
+  APP.indexOf('const sendCover'),
+  APP.indexOf('\n  return (\n', APP.indexOf('const sendCover')),
+);
 
 /**
  * The row that opens it.
