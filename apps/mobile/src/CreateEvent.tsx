@@ -5,15 +5,10 @@
  * It used to: a radio list of Tonight / Last night / Today / Yesterday, turned
  * into a window by `when.ts`. That put the question to the wrong party. The
  * phone holds the answer already and holds it exactly — a night out is a run
- * of photos with hours of nothing either side — so `DetectedEvents` reads the
- * last few days and offers the runs it finds. Tap one and the window comes
- * from the actual first and last shutter press, accurate to the minute rather
- * than to the nearest six hours.
- *
- * The picker survives as the fallback, because detection has two honest ways
- * to come up empty: no library permission, and an event that has not been
- * photographed yet — someone creating the event as the party starts. Both end
- * with the same question, now asked second and only when needed.
+ * of photos — so the window comes from the photos somebody picks on the way
+ * in, the first and last shutter press among them, accurate to the minute
+ * rather than to the nearest six hours. Nothing guesses which photos those
+ * are; the person choosing them does.
  *
  * After creating, the screen becomes the share step rather than dumping the
  * host back into an empty grid. The event is worth nothing until the link
