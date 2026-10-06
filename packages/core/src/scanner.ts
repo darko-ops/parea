@@ -28,8 +28,25 @@ export type ScanInput = {
   mime: string;
 };
 
+/**
+ * What a provider will take, when it is particular about it.
+ *
+ * Callers turn an image that falls outside these into one that does not — a
+ * JPEG, within the size bounds — before scanning, because a provider that
+ * refuses the format is a provider that never checked the photo. Absent means
+ * the provider takes what it is given.
+ */
+export type ScanLimits = {
+  /** MIME types sent as they are. Anything else is converted first. */
+  types: readonly string[];
+  maxBytes: number;
+  /** Neither side may be shorter than this. */
+  minSide: number;
+};
+
 export interface CsamScanner {
   readonly name: string;
+  readonly limits?: ScanLimits;
   scan(input: ScanInput): Promise<ScanVerdict>;
 }
 
@@ -127,6 +144,123 @@ export class HttpHashScanner implements CsamScanner {
   }
 }
 
+/** Microsoft's Match endpoint. A regional host replaces it via CSAM_SCANNER_URL. */
+export const PHOTODNA_ENDPOINT = 'https://api.microsoftmoderator.com/photodna/v1.0/Match';
+
+/**
+ * What PhotoDNA accepts: these five formats, up to 4 MB, at least 160 pixels a
+ * side. Not HEIC — every iPhone photograph — and not WebP or AVIF, so those
+ * are converted to JPEG before they are sent (see `ScanLimits`).
+ */
+export const PHOTODNA_LIMITS: ScanLimits = {
+  types: ['image/jpeg', 'image/png', 'image/gif', 'image/bmp', 'image/tiff'],
+  maxBytes: 4 * 1024 * 1024,
+  minSide: 160,
+};
+
+/** Reads a field whatever its case: the service's JSON is PascalCase, and has not always been. */
+function field(body: unknown, name: string): unknown {
+  if (!body || typeof body !== 'object') return undefined;
+  const key = Object.keys(body).find((k) => k.toLowerCase() === name.toLowerCase());
+  return key === undefined ? undefined : (body as Record<string, unknown>)[key];
+}
+
+/**
+ * Microsoft PhotoDNA Cloud Service.
+ *
+ * The image itself goes in the body, as its own content type, with the
+ * subscription key in `Ocp-Apim-Subscription-Key`. PhotoDNA hashes it on
+ * Microsoft's side, perceptually, so a re-encoded or resized copy still
+ * matches — which is what lets callers send a JPEG of a HEIC.
+ *
+ * Only `Status.Code` 3000 is an answer. Everything else — 3002 a bad request,
+ * 3004 their error, 3206 not an image, 3208 out of size, an HTTP error, the
+ * five-a-second rate limit, a body that is not what was expected — is
+ * `ScanUnavailable`, which leaves the photo unpublished and retried rather
+ * than waved through.
+ */
+export class PhotoDnaScanner implements CsamScanner {
+  readonly name = 'photodna';
+  readonly limits = PHOTODNA_LIMITS;
+  private readonly timeoutMs: number;
+
+  constructor(
+    private readonly apiKey: string,
+    private readonly endpoint: string = PHOTODNA_ENDPOINT,
+    options: { timeoutMs?: number } = {},
+  ) {
+    this.timeoutMs = options.timeoutMs ?? 15_000;
+  }
+
+  async scan(input: ScanInput): Promise<ScanVerdict> {
+    // The caller's job, checked here so a slip is a retry rather than a pass.
+    if (!this.limits.types.includes(input.mime)) {
+      throw new ScanUnavailable(`photodna does not accept ${input.mime}`);
+    }
+    if (input.bytes.length > this.limits.maxBytes) {
+      throw new ScanUnavailable(`photodna limit is ${this.limits.maxBytes} bytes`);
+    }
+
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), this.timeoutMs);
+    try {
+      const url = new URL(this.endpoint);
+      if (!url.searchParams.has('enhance')) url.searchParams.set('enhance', 'false');
+      const response = await fetch(url, {
+        method: 'POST',
+        signal: controller.signal,
+        headers: {
+          'content-type': input.mime,
+          'Ocp-Apim-Subscription-Key': this.apiKey,
+        },
+        body: new Uint8Array(input.bytes),
+      });
+      if (!response.ok) {
+        throw new ScanUnavailable(`photodna returned HTTP ${response.status}`);
+      }
+
+      const body: unknown = await response.json();
+      const status = field(body, 'Status');
+      const code = field(status, 'Code');
+      if (code !== 3000) {
+        const said = field(status, 'Description');
+        throw new ScanUnavailable(
+          `photodna status ${String(code)}${typeof said === 'string' ? `: ${said}` : ''}`,
+        );
+      }
+      const isMatch = field(body, 'IsMatch');
+      if (typeof isMatch !== 'boolean') {
+        throw new ScanUnavailable('photodna answered 3000 without IsMatch');
+      }
+      if (!isMatch) return { match: false };
+
+      // Which list it matched, and what it is — what the incident and the
+      // NCMEC report need. `TrackingId` is the reference Microsoft asks for.
+      const flags = field(field(body, 'MatchDetails'), 'MatchFlags');
+      const list = Array.isArray(flags) ? flags : [];
+      const violations = list.flatMap((f) => {
+        const v = field(f, 'Violations');
+        return Array.isArray(v) ? v.filter((x): x is string => typeof x === 'string') : [];
+      });
+      const sources = list
+        .map((f) => field(f, 'Source'))
+        .filter((x): x is string => typeof x === 'string');
+      const tracking = field(body, 'TrackingId');
+      return {
+        match: true,
+        classification:
+          [...new Set(violations)].join(', ') || [...new Set(sources)].join(', ') || 'photodna match',
+        providerReference: typeof tracking === 'string' ? tracking : undefined,
+      };
+    } catch (err) {
+      if (err instanceof ScanUnavailable) throw err;
+      throw new ScanUnavailable(err instanceof Error ? err.message : String(err));
+    } finally {
+      clearTimeout(timer);
+    }
+  }
+}
+
 /**
  * The scanner, or null when there is none.
  *
@@ -148,6 +282,13 @@ export function scannerFromEnv(
 ): CsamScanner | null {
   const endpoint = env.CSAM_SCANNER_URL;
   const apiKey = env.CSAM_SCANNER_KEY;
+
+  // PhotoDNA knows its own endpoint; CSAM_SCANNER_URL only moves it to a
+  // regional host. A key alone is enough to turn it on.
+  if (env.CSAM_SCANNER_PROVIDER === 'photodna') {
+    return apiKey ? new PhotoDnaScanner(apiKey, endpoint || PHOTODNA_ENDPOINT) : null;
+  }
+
   if (!endpoint || !apiKey) return null;
 
   return new HttpHashScanner(endpoint, apiKey, {

@@ -11,6 +11,8 @@
  * instead of on the terms page.
  */
 
+import { scannerFromEnv } from '@parea/core';
+
 const placeholder = (value: string | undefined, fallback: string) =>
   value?.trim() || fallback;
 
@@ -52,5 +54,6 @@ export const LEGAL_UPDATED = '5 October 2026';
 export function hashMatchingLive(
   env: Record<string, string | undefined> = process.env,
 ): boolean {
-  return Boolean(env.CSAM_SCANNER_URL && env.CSAM_SCANNER_KEY);
+  // The scanner's own test, so a PhotoDNA key — which needs no URL — counts.
+  return scannerFromEnv(env as NodeJS.ProcessEnv) !== null;
 }

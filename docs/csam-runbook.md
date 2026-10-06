@@ -190,7 +190,7 @@ too.
 
 None of these are code, and all of them gate shipping:
 
-- [ ] A scanning provider chosen, onboarded, and credentialed. The code speaks
+- [x] A scanning provider chosen, onboarded, and credentialed — PhotoDNA, approved 2026-10-06. Keys still to be set on Vercel *and* the deriver. The code speaks
       to a generic hash-matching HTTP endpoint; which provider is appropriate
       depends on eligibility rather than anything technical. PhotoDNA Cloud
       Service, Thorn's Safer, Google's Content Safety API and Cloudflare's CSAM
@@ -230,9 +230,10 @@ would be an unexplained disappearance, and a test refuses one.
 
 | Variable | Meaning |
 |---|---|
-| `CSAM_SCANNER_URL` | Provider endpoint. |
-| `CSAM_SCANNER_KEY` | Bearer credential. |
-| `CSAM_SCANNER_NAME` | Recorded on incidents, so old records say what checked them. |
+| `CSAM_SCANNER_PROVIDER` | `photodna` for Microsoft PhotoDNA Cloud Service (approved 2026-10-06). Unset means the generic HTTP scanner below. |
+| `CSAM_SCANNER_URL` | Provider endpoint. Required for the generic scanner; for PhotoDNA it only moves the call to a regional host (default `https://api.microsoftmoderator.com/photodna/v1.0/Match`). |
+| `CSAM_SCANNER_KEY` | The credential — for PhotoDNA, the subscription key from the portal, sent as `Ocp-Apim-Subscription-Key`. |
+| `CSAM_SCANNER_NAME` | Recorded on incidents, so old records say what checked them (generic scanner; PhotoDNA records `photodna`). |
 | `MODERATOR_PROVIDER` | `sightengine` or `generic`. A named one brings its own endpoint. |
 | `MODERATOR_URL` | Classifier endpoint. Required for `generic`; overrides a named one. |
 | `MODERATOR_KEY` | Bearer credential for it. |

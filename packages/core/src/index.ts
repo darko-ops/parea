@@ -105,7 +105,11 @@ export {
 export {
   type CsamScanner,
   HttpHashScanner,
+  PHOTODNA_ENDPOINT,
+  PHOTODNA_LIMITS,
+  PhotoDnaScanner,
   type ScanInput,
+  type ScanLimits,
   ScanUnavailable,
   type ScanVerdict,
   scannerFromEnv,

@@ -35,6 +35,7 @@ import {
   buildDerivatives,
   DERIVATIVES,
   readDimensions,
+  scanRendition,
   type DerivativeKind,
 } from './derivatives';
 import {
@@ -184,9 +185,23 @@ export async function processPhoto(
       // Absent scanner: nothing to match against, and that is a stated posture
       // rather than a failure — see `postureFromEnv`. A photo is not held back
       // for the absence of a check nobody is running.
-      const verdict = scanner
-        ? await scanner.scan({ bytes: stripped, contentHash, mime: photo.mime })
-        : { match: false as const };
+      //
+      // What is sent is what the provider takes: PhotoDNA reads no HEIC, so an
+      // iPhone photo goes as a JPEG of itself — see `scanRendition`. A copy
+      // that cannot be made is a scan that cannot be done, and waits like one.
+      const sendable = scanner
+        ? await scanRendition(stripped, photo.mime ?? 'application/octet-stream', scanner.limits).catch(
+            (err: unknown) => {
+              throw new ScanUnavailable(
+                `no scan copy: ${err instanceof Error ? err.message : String(err)}`,
+              );
+            },
+          )
+        : null;
+      const verdict =
+        scanner && sendable
+          ? await scanner.scan({ bytes: sendable.bytes, contentHash, mime: sendable.mime })
+          : { match: false as const };
       if (verdict.match && scanner) {
         return quarantine(db, objects, photo, original, contentHash, {
           provider: scanner.name,

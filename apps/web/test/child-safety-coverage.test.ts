@@ -59,6 +59,9 @@ describe('what the privacy page and terms promise', () => {
     expect(hashMatchingLive({})).toBe(false);
     expect(hashMatchingLive({ CSAM_SCANNER_URL: 'https://x.test' })).toBe(false);
     expect(hashMatchingLive({ CSAM_SCANNER_URL: 'https://x.test', CSAM_SCANNER_KEY: 'k' })).toBe(true);
+    // PhotoDNA knows its own endpoint, so its key alone turns matching on.
+    expect(hashMatchingLive({ CSAM_SCANNER_PROVIDER: 'photodna' })).toBe(false);
+    expect(hashMatchingLive({ CSAM_SCANNER_PROVIDER: 'photodna', CSAM_SCANNER_KEY: 'k' })).toBe(true);
   });
 
   it('only says every image is checked when it is', () => {

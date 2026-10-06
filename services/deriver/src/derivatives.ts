@@ -23,6 +23,7 @@ import sharp, { type Sharp } from 'sharp';
 
 import { MIME, formatsFor, type ImageFormat } from '@parea/urls';
 import { MAX_INPUT_PIXELS, restrictDecoders } from '@parea/upload';
+import type { ScanLimits } from '@parea/core';
 
 import { runParser } from './subprocess';
 
@@ -467,5 +468,66 @@ export async function canDecodeViaHeifConvert(input: Buffer): Promise<boolean> {
     return true;
   } catch {
     return false;
+  }
+}
+
+/** The long edge of a copy made for the child-safety scan. Plenty for a perceptual hash, and well under 4 MB as a JPEG. */
+const SCAN_EDGE = 2048;
+
+/**
+ * The photograph as the child-safety provider will take it.
+ *
+ * Unchanged when it already fits `limits` — the type, the byte ceiling and the
+ * smallest side. Otherwise a JPEG of it: oriented, no longer than `SCAN_EDGE`,
+ * and enlarged if a side is under the minimum. That is the iPhone case — HEIC
+ * is not a format PhotoDNA reads, and sending one would refuse every photo a
+ * phone takes — so HEVC goes through `heifConvert` the way `buildDerivatives`
+ * does, and only for bytes that really are HEIF.
+ *
+ * Perceptual matching is why a converted copy is still the right thing to
+ * send: it survives re-encoding and resizing, which is what it is for.
+ */
+export async function scanRendition(
+  input: Buffer,
+  mime: string,
+  limits: ScanLimits | undefined,
+): Promise<{ bytes: Buffer; mime: string }> {
+  if (!limits) return { bytes: input, mime };
+
+  const meta = await sharp(input, { limitInputPixels: MAX_INPUT_PIXELS })
+    .metadata()
+    .catch(() => null);
+  const fits =
+    limits.types.includes(mime) &&
+    input.length <= limits.maxBytes &&
+    !!meta?.width &&
+    !!meta?.height &&
+    Math.min(meta.width, meta.height) >= limits.minSide;
+  if (fits) return { bytes: input, mime };
+
+  const render = async (source: Buffer) => {
+    const { width, height } = await sharp(source, { limitInputPixels: MAX_INPUT_PIXELS }).metadata();
+    if (!width || !height) throw new Error('no dimensions');
+    let scale = Math.min(1, SCAN_EDGE / Math.max(width, height));
+    if (Math.min(width, height) * scale < limits.minSide) scale = limits.minSide / Math.min(width, height);
+    // A square box of the scaled long edge, `inside`: the aspect is kept
+    // whichever way EXIF turns the picture.
+    const edge = Math.ceil(Math.max(width, height) * scale);
+    for (const quality of [88, 72]) {
+      const bytes = await sharp(source, { failOn: 'error', limitInputPixels: MAX_INPUT_PIXELS })
+        .rotate()
+        .resize({ width: edge, height: edge, fit: 'inside' })
+        .jpeg({ quality })
+        .toBuffer();
+      if (bytes.length <= limits.maxBytes) return bytes;
+    }
+    throw new Error('could not fit the scan copy under the provider limit');
+  };
+
+  try {
+    return { bytes: await render(input), mime: 'image/jpeg' };
+  } catch (err) {
+    if (!isHeif(input)) throw err;
+    return { bytes: await render(await heifConvert(input)), mime: 'image/jpeg' };
   }
 }

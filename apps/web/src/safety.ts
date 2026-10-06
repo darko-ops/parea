@@ -27,11 +27,19 @@
 
 import { createHash, randomUUID } from 'node:crypto';
 
-import { alertResponder, recordModeration, scannerFromEnv, ScanUnavailable, schema } from '@parea/core';
+import {
+  alertResponder,
+  recordModeration,
+  scannerFromEnv,
+  ScanUnavailable,
+  schema,
+  type ScanLimits,
+} from '@parea/core';
 import { eq } from 'drizzle-orm';
 import { NextResponse } from 'next/server';
 
 import { type Db, getDb } from '@/db';
+import { decode } from '@/imaging';
 import { revokePhotoLinks } from '@/revoke';
 import { getStorage } from '@/storage';
 
@@ -41,6 +49,49 @@ export type ScreenedSubject =
   | { kind: 'group_photo'; groupId: string }
   | { kind: 'avatar' }
   | { kind: 'cover'; eventId: string };
+
+/** The long edge of the copy a provider is sent, when one has to be made. */
+const SCAN_EDGE = 2048;
+
+/**
+ * The image as `limits` will take it, or null when this tier cannot read it.
+ *
+ * Unchanged when it fits; otherwise a JPEG, oriented, no longer than
+ * `SCAN_EDGE` and enlarged to the minimum side — the deriver's `scanRendition`,
+ * without its HEIC path, which this tier has no decoder for.
+ */
+async function scanCopy(
+  bytes: Buffer,
+  mime: string,
+  limits: ScanLimits | undefined,
+): Promise<{ bytes: Buffer; mime: string } | null> {
+  if (!limits) return { bytes, mime };
+  const meta = await decode(bytes).metadata().catch(() => null);
+  if (!meta?.width || !meta.height) return null;
+  if (
+    limits.types.includes(mime) &&
+    bytes.length <= limits.maxBytes &&
+    Math.min(meta.width, meta.height) >= limits.minSide
+  ) {
+    return { bytes, mime };
+  }
+  let scale = Math.min(1, SCAN_EDGE / Math.max(meta.width, meta.height));
+  if (Math.min(meta.width, meta.height) * scale < limits.minSide) {
+    scale = limits.minSide / Math.min(meta.width, meta.height);
+  }
+  const edge = Math.ceil(Math.max(meta.width, meta.height) * scale);
+  for (const quality of [88, 72]) {
+    const out = await decode(bytes)
+      .rotate()
+      .resize({ width: edge, height: edge, fit: 'inside' })
+      .jpeg({ quality })
+      .toBuffer()
+      .catch(() => null);
+    if (!out) return null;
+    if (out.length <= limits.maxBytes) return { bytes: out, mime: 'image/jpeg' };
+  }
+  return null;
+}
 
 /**
  * Checks an image before it is stored. `null` means go ahead; a response means
@@ -60,9 +111,18 @@ export async function screenUpload(
 
   const contentHash = createHash('sha256').update(bytes).digest();
 
+  /*
+   * In a form the provider reads. PhotoDNA takes no WebP, so a WebP goes as a
+   * JPEG of itself. HEIC and AVIF this tier cannot decode at all, and every
+   * route here refuses them as unsupported a few lines later anyway — so they
+   * are refused as that now, rather than as an outage they are not.
+   */
+  const sendable = await scanCopy(bytes, mime, scanner.limits);
+  if (!sendable) return NextResponse.json({ error: 'unsupported_type' }, { status: 415 });
+
   let verdict;
   try {
-    verdict = await scanner.scan({ bytes, contentHash, mime });
+    verdict = await scanner.scan({ bytes: sendable.bytes, contentHash, mime: sendable.mime });
   } catch (err) {
     if (err instanceof ScanUnavailable) {
       console.error(`safety: scan unavailable for a ${subject.kind}:`, err.message);
