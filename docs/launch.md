@@ -21,13 +21,6 @@ checklist, because it is consulted instead of the thing itself.
       and the longest lead time: onboarding is email and paperwork with humans
       on the other end. [`csam-runbook.md`](csam-runbook.md) is the checklist.
       Until it is done, nothing anyone else can reach may be deployed.
-- [ ] **Run the geotag probe** against a real photo library
-      (`tools/geotag-probe`). It is the only measurement left that can change
-      what gets built: if cameras are not writing GPS, auto-selection degrades
-      to a nicer file picker and the native client loses its main reason to
-      exist. **Read §2 of that README first** — the convenient ways to move
-      photos off a phone strip exactly the metadata being measured, and a
-      stripping path produces a confident 0% from a healthy camera roll.
 
 ## 1. DNS
 

@@ -3,7 +3,6 @@
   "version": "1.0.0",
   "main": "index.ts",
   "dependencies": {
-    "@parea/autoselect": "*",
     "@parea/cards": "*",
     "@parea/upload": "*",
     "@sentry/cli": "^2.58.6",

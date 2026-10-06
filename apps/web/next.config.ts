@@ -112,7 +112,6 @@ const config: NextConfig = {
     '@parea/urls',
     '@parea/push',
     '@parea/upload',
-    '@parea/autoselect',
     '@parea/cards',
   ],
   // Development-only routes are named `route.dev.ts` and are only recognised

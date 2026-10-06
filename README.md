@@ -68,8 +68,6 @@ packages/core        schema, access policy, credentials, visibility,
                      session retention, naming a client from its user agent
 packages/zip         streaming Zip64 writer, download manifests
 packages/urls        signed, cacheable image URLs
-packages/autoselect  find the event on the phone, decide which of its photos
-                     to offer, and know when not to guess
 packages/push        the three notifications this product is allowed to send
 packages/upload      the upload queue, shared by both clients
 packages/cards       what an event card says about itself, shared likewise

@@ -25,8 +25,8 @@
 # against a clean `git archive` with these directories removed, along with a
 # typecheck of the app itself, before this file existed.
 #
-# What must stay: `packages/`, which is where `@parea/autoselect`,
-# `@parea/cards` and `@parea/upload` live, and which the app imports directly.
+# What must stay: `packages/`, which is where `@parea/cards` and
+# `@parea/upload` live, and which the app imports directly.
 
 # --- the .gitignore rules, because this file replaces them -------------------
 node_modules/

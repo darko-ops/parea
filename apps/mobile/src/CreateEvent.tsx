@@ -52,18 +52,6 @@ export type CreatedEvent = {
   endsAt: string | null;
 };
 
-/*
- * The picked run is deliberately *not* carried on CreatedEvent.
- *
- * It was, briefly, so the event screen could open the grid on photos already
- * read and narrowed. It did not need to: the run's window is stored on the
- * event, and the event screen's `resolveWindow` already prefers a stored
- * window over anything it could infer. Threading the bundle through bought a
- * skipped rescan and cost a field on a shared type that one screen set and
- * nothing read — which is how the other rotted lists in this repository
- * started.
- */
-
 export function CreateEvent({
   api,
   groupId,

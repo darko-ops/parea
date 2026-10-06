@@ -1,20 +1,13 @@
 /**
- * Reading the photo library for auto-selection — docs/design.md §7.1, §7.4.
+ * The photo library, as the app's own pickers and the upload queue read it:
+ * whether it may be read, the most recent photographs for somebody choosing by
+ * eye, and turning a chosen photo into a file the queue can send.
  *
- * Two passes, because location lookups are the expensive call and there is no
- * point paying for one on every photo in a five-year camera roll:
- *
- *   1. query the media store by capture time — cheap, and the window already
- *      cuts it down to tens of assets;
- *   2. read location and screenshot status only for what survived.
- *
- * Nothing read here is uploaded. Capture times and locations decide *what to
- * offer*; the files that actually go up have their GPS stripped server-side
- * (design §7.6). The app knows where your photos were taken only in the sense
- * that your phone already does.
+ * Nothing here decides which photos somebody means. It used to: a pass over
+ * the library by capture time and location fed the auto-selection that ticked
+ * photos on somebody's behalf, and that is gone — people choose their own.
  */
 
-import type { Candidate, Window } from '@parea/autoselect';
 import {
   Asset,
   AssetField,
@@ -25,11 +18,12 @@ import {
   type PermissionResponse,
 } from 'expo-media-library';
 import { Directory, File, Paths } from 'expo-file-system';
-import { Platform } from 'react-native';
 
-/** Guards against a pathological window over a huge library. */
-const MAX_LOOKUPS = 600;
+/** At most this many library reads in flight at once. */
 const CONCURRENCY = 8;
+
+/** A span of time, ms since the epoch, inclusive at both ends. */
+export type Window = { start: number; end: number };
 
 export type LibraryAccess = 'granted' | 'limited' | 'denied' | 'undetermined';
 
@@ -38,22 +32,8 @@ export async function libraryAccess(): Promise<LibraryAccess> {
 }
 
 /**
- * The permission upgrade — asked when somebody presses Add photos, behind a
- * card of our own, and never cold.
- *
- * It used to come *after* a manual contribution. That placement was protecting
- * the right thing — a permission wall in front of a stranger is how a
- * permission gets refused forever — and it was wrong about when the value is
- * demonstrated: the person who has just scrolled a five-year camera roll
- * looking for last night has already paid the cost this removes, and being
- * told afterwards that it could have been avoided is a receipt rather than an
- * offer.
- *
- * What is kept is the part that was load-bearing. This is never the first
- * thing anybody sees, it is only asked where there is an event window to be
- * concrete about, and our own card comes first: saying no there costs nothing
- * and the system picker opens anyway, where saying no at the system prompt
- * costs auto-selection for good and is not re-askable in practice.
+ * Asked by the new-roll picker, which is nothing but the library. Adding to an
+ * existing roll uses the system picker instead and needs no permission.
  */
 export async function requestLibraryAccess(): Promise<LibraryAccess> {
   return classify(await requestPermissionsAsync(false, ['photo']));
@@ -64,8 +44,8 @@ function classify(response: PermissionResponse): LibraryAccess {
     return response.canAskAgain ? 'undetermined' : 'denied';
   }
   // iOS and Android 14+ let someone grant access to a hand-picked subset.
-  // Treated as a first-class state, not an error — auto-selection still works
-  // over what was granted, it just cannot see the rest.
+  // Treated as a first-class state, not an error — the picker shows what was
+  // granted, it just cannot see the rest.
   return response.accessPrivileges === 'limited' ? 'limited' : 'granted';
 }
 
@@ -86,90 +66,6 @@ async function pooled<T, R>(
   return out;
 }
 
-export type LibraryScan = {
-  candidates: Candidate[];
-  /** Lookups that threw — "could not look", never "no GPS". */
-  locationErrors: number;
-  truncated: boolean;
-};
-
-/**
- * Everything on the phone from the last few days, for session detection.
- *
- * `keep: 'newest'` is the whole reason this is not just a `scanWindow` call.
- * Over a window a human chose, which end gets dropped on truncation is
- * arbitrary. Over "the last three days" it is not: the run being looked for is
- * the most recent one, and keeping the oldest 600 of a heavy shooter's weekend
- * discards last night and offers Friday instead.
- */
-export async function scanRecent(
-  days: number,
-  now: number = Date.now(),
-): Promise<LibraryScan> {
-  return scanWindow({ start: now - days * 24 * 60 * 60 * 1000, end: now }, 'newest');
-}
-
-export async function scanWindow(
-  window: Window,
-  keep: 'oldest' | 'newest' = 'oldest',
-): Promise<LibraryScan> {
-  const metas = await new Query()
-    .eq(AssetField.MEDIA_TYPE, MediaType.IMAGE)
-    .gte(AssetField.CREATION_TIME, window.start)
-    .lte(AssetField.CREATION_TIME, window.end)
-    .orderBy({ key: AssetField.CREATION_TIME, ascending: true })
-    .exeForMetadata();
-
-  const dated = metas.filter(
-    (m): m is typeof m & { creationTime: number } => m.creationTime != null,
-  );
-  const truncated = dated.length > MAX_LOOKUPS;
-  const wanted =
-    keep === 'newest' ? dated.slice(-MAX_LOOKUPS) : dated.slice(0, MAX_LOOKUPS);
-
-  let locationErrors = 0;
-
-  const candidates = await pooled(wanted, CONCURRENCY, async (meta) => {
-    const asset = new Asset(meta.id);
-    let lat: number | null = null;
-    let lon: number | null = null;
-
-    try {
-      const location = await asset.getLocation();
-      if (location) {
-        lat = location.latitude;
-        lon = location.longitude;
-      }
-    } catch {
-      // On Android this usually means ACCESS_MEDIA_LOCATION was not granted.
-      // Distinguishing it from "this photo has no GPS" matters: conflating
-      // them reports zero coverage on a healthy library and silently disables
-      // the filter that makes the suggestion safe.
-      locationErrors++;
-    }
-
-    let isScreenshot = false;
-    if (Platform.OS === 'ios') {
-      try {
-        isScreenshot = (await asset.getMediaSubtypes()).includes('screenshot' as never);
-      } catch {
-        // Non-fatal: a screenshot has no GPS, so the location filter drops it
-        // anyway whenever the filter is running at all.
-      }
-    }
-
-    return {
-      id: meta.id,
-      createdAt: meta.creationTime,
-      lat,
-      lon,
-      isScreenshot,
-    } satisfies Candidate;
-  });
-
-  return { candidates, locationErrors, truncated };
-}
-
 /** One photograph on the phone, as a picker needs it. */
 export type LibraryPhoto = {
   id: string;
@@ -182,14 +78,10 @@ export type LibraryPhoto = {
 /**
  * The most recent photographs, for somebody choosing by eye.
  *
- * Deliberately not `scanWindow`. That exists for auto-selection and pays for a
- * location lookup per asset so it can group them by where they were — which is
- * the expensive call, and a grid somebody is scrolling needs none of it. This
- * asks for ids, times and a URI and nothing else.
+ * Ids, times and a URI and nothing else — no location lookup, which is the
+ * expensive call and which a grid somebody is scrolling needs none of.
  *
- * Paged rather than bounded, because the bound `scanWindow` needs is a
- * protection against a pathological window and the bound here is a screenful:
- * `after` is the id to continue from, so a picker can fetch more as somebody
+ * Paged, with a screenful as the bound: `after` is the id to continue from, so a picker can fetch more as somebody
  * scrolls instead of reading a five-year camera roll to draw twelve tiles.
  */
 export async function recentPhotos(

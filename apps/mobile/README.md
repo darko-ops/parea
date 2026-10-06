@@ -381,11 +381,6 @@ uploads only helps contributor five, not contributor one" has in fact always
 been inferred from uploads, and contributor one has always fallen through to
 the system picker. This screen is the first place it is asked.
 
-The list lives in `@parea/autoselect`, next to the `resolveWindow` that
-consumes it, and the web create form asks the same question from the same
-module — two copies would drift on what "Tonight" means and nothing would
-notice.
-
 It asks with a short list of phrases rather than a time picker, because §17
 records the constraint: *a wrong window is worse than no window*. Someone
 creating an event is standing at the thing, and two spinners get a careless
@@ -424,57 +419,18 @@ privacy-manifest entry and a different nutrition label — a decision about what
 the app collects, not a styling one. The system share sheet reaches the same
 people and tells this app nothing about them. See design §17b.
 
-## Auto-selection
+## Adding photos
 
-The reason this client exists (design §1). With photo-library access and a
-known time window, "Add photos" opens on what it thinks are your photos from
-the event, already ticked — one tap instead of scrolling a camera roll.
+"Add photos" on a roll opens the phone's own picker: every photo, nothing
+ticked, and no library permission needed. It used to open on a guess — the
+photos from the roll's time window, pre-selected, grouped by where they were
+taken — and that whole path (`AutoSelect`, `DetectedEvents`,
+`@parea/autoselect` and the geotag probe that measured it) was removed on
+2026-10-05. A wrong tick is a photo shared that nobody meant to share, and the
+person adding knows which photos are theirs to add.
 
-### Where the window comes from
-
-The create screen does not ask. It reads the last three days, splits them into
-runs on a four-hour gap, and offers the recent ones as cards — "Last night · 34
-photos · 8:14pm – 1:40am". Tapping one sets the event's window from the real
-first and last capture, padded by an hour, and prefills the name.
-
-It used to ask: a radio list of Tonight / Last night / Today / Yesterday. That
-put the question to the wrong party. The phone already held the answer and held
-it exactly, and §17's worry about a careless answer turns out to be best solved
-by not asking. The picker survives as the fallback for the case detection
-cannot serve — an event created before it has been photographed — and on the
-web, which has no library to read.
-
-Detection changes *which* photos get offered, not how confidently. Everything
-below still applies to the run once it is found.
-
-Built to degrade correctly rather than to assume it works, because the geotag
-coverage number it depends on **has not been measured** (`tools/geotag-probe`
-exists to get it). Confidence decides how much is pre-selected, never whether
-the screen appears:
-
-| Signal | What happens |
-|---|---|
-| Most photos geotagged, tightly clustered | the cluster is pre-selected |
-| Under 60% carry GPS | grid appears, **nothing ticked** |
-| Geotagged but spread across places | grid appears, **nothing ticked** |
-| No usable window | system picker |
-
-Degrading to "here is a useful grid of the right time range, you pick" is a
-good outcome. Degrading to forty-seven pre-ticked photos, three of which you
-would be mortified to send, is the outcome that kills the feature — it spends
-the contributor's trust and the photo-library permission in the same moment.
-"Show everything from this window" is always available, which is what makes a
-tight default safe rather than annoying.
-
-The measurement therefore decides *which row of that table people mostly land
-on*, not whether any of it works. Run the probe before assuming the top row.
-
-The selection logic lives in `@parea/autoselect` and is shared, by fixture,
-with the probe — so what the probe measures is what the app will do.
-
-Permission is asked for **after** a first contribution, never in front of one:
-the picker path needs no permission at all, and the upgrade is pitched as
-"next time we can find them for you".
+A new roll starts from the in-app picker (`PickPhotos`), also with nothing
+chosen; the roll's window is the first and last capture among what was picked.
 
 ## Building and submitting
 

@@ -1532,8 +1532,9 @@ the column from day one costs nothing.
   and "not sure", nothing pre-selected, and the server refuses a window that
   does not run forwards. Until that screen existed no client sent `starts_at`
   at all, so every event in the product had been falling back to inference.
-  Both clients ask, from the same list in `@parea/autoselect`, beside the
-  `resolveWindow` that consumes it. The open part is now only the measurement
+  (Since 2026-10-05 neither client asks: a roll's window is the first and last
+  capture among the photos picked to start it, and `@parea/autoselect` is gone
+  with the auto-selection it served.) The open part is now only the measurement
   — §18's "what fraction of events have a creator-set window", and whether the
   phrases match how people actually describe when a thing happened.
 - **App Clips.** Deferred, but the strongest candidate for the next thing built,
