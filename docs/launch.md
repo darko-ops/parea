@@ -71,16 +71,17 @@ Vercel's anycast address says nothing about whether a project is attached to
 it — `curl -s -H "authorization: Bearer $HEALTH_TOKEN" https://parea.photos/api/health` is what answers that, and it is
 §4's job.
 
-- [ ] **Inbound email.** Routing is switched on; nothing has been received
-      through it. Three addresses have to actually arrive in a real inbox:
-      `SAFETY_CONTACT_EMAIL` (published on `/safety`, an App Store 1.2
-      requirement a reviewer will check), the `rua` address above, and whatever
-      `MAIL_FROM` is — someone will reply to a sign-in code saying "I did not
-      ask for this", and that is exactly the person to hear from. Cloudflare
-      Email Routing is free and forwards to a real inbox. Send one to each and
-      watch it land; a route that was configured and a route that delivers are
-      different facts, and the difference is only ever discovered by the person
-      who needed to reach you.
+- **Inbound email.** Routing is on (MX → Cloudflare Email Routing). Three
+  addresses have to actually arrive in a real inbox, and a route that was
+  configured and a route that delivers are different facts — the difference is
+  only ever discovered by the person who needed to reach you. Send one to each
+  and watch it land:
+  - [x] `SAFETY_CONTACT_EMAIL` — safety@parea.photos, published on `/safety`
+        (an App Store 1.2 requirement a reviewer will check) and given to NCMEC.
+        A test message arrived, 2026-10-06.
+  - [ ] the DMARC `rua` address above, dmarc@parea.photos.
+  - [ ] whatever `MAIL_FROM` is — someone will reply to a sign-in code saying
+        "I did not ask for this", and that is exactly the person to hear from.
 
 `img.` and `zip.` come later: a Worker custom domain is added from the Worker's
 own settings and the Worker has to exist first.
