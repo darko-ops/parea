@@ -26,7 +26,7 @@
  * has one at all.
  */
 
-import { PRIVATE } from '@parea/core';
+import { PRIVATE } from '@parea/core/settings';
 import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 

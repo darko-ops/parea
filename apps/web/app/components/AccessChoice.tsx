@@ -20,7 +20,7 @@
  * "account required" was a setting they had to interpret.
  */
 
-import { PRIVATE, PUBLIC } from '@parea/core';
+import { PRIVATE, PUBLIC } from '@parea/core/settings';
 
 export type AccessPolicy = typeof PUBLIC | typeof PRIVATE;
 

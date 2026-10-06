@@ -9,7 +9,7 @@
  * the name saves on blur like it does everywhere else.
  */
 
-import { handleProblem, HANDLE_MAX } from '@parea/core';
+import { handleProblem, HANDLE_MAX } from '@parea/core/handles';
 import { useCallback, useRef, useState } from 'react';
 
 import { Avatar } from './Avatar';

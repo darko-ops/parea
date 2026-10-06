@@ -13,8 +13,8 @@
  * ability to decline is theoretical.
  */
 
-import { PRIVATE, PUBLIC } from '@parea/core';
-import { CONTRIBUTE_EVERYONE, CONTRIBUTE_HOST } from '@parea/core';
+import { PRIVATE, PUBLIC } from '@parea/core/settings';
+import { CONTRIBUTE_EVERYONE, CONTRIBUTE_HOST } from '@parea/core/settings';
 import { ACCEPT_ATTRIBUTE } from '@parea/upload';
 import { useCallback, useEffect, useRef, useState } from 'react';
 

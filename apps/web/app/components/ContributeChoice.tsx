@@ -29,7 +29,7 @@ import {
   CONTRIBUTE_HOST,
   CONTRIBUTE_NOBODY,
   PRIVATE,
-} from '@parea/core';
+} from '@parea/core/settings';
 
 export type ContributePolicy =
   | typeof CONTRIBUTE_EVERYONE

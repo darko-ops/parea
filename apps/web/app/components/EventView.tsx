@@ -27,7 +27,7 @@
  */
 
 import { ago } from '@parea/cards';
-import { CONTRIBUTE_CREATOR, CONTRIBUTE_HOST, PRIVATE } from '@parea/core';
+import { CONTRIBUTE_CREATOR, CONTRIBUTE_HOST, PRIVATE } from '@parea/core/settings';
 import type { Message } from '@/messages';
 import { ACCEPT_ATTRIBUTE, MAX_PER_SELECTION, refuseFile } from '@parea/upload';
 import { capSelection, selectionNote } from './capSelection';

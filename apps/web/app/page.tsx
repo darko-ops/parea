@@ -4,7 +4,7 @@ import { ACCEPT_ATTRIBUTE, MAX_PER_SELECTION, refuseFile } from '@parea/upload';
 import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useRef, useState } from 'react';
 
-import { CONTRIBUTE_EVERYONE, CONTRIBUTE_HOST } from '@parea/core';
+import { CONTRIBUTE_EVERYONE, CONTRIBUTE_HOST } from '@parea/core/settings';
 
 import { policyFor } from './components/AccessChoice';
 import { ContributeList, type ContributePolicy } from './components/ContributeChoice';
