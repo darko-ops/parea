@@ -8,7 +8,10 @@ Two things here have latency nothing can compress — **mail reputation** (days)
 and **child-safety provider onboarding** (days to weeks) — so both start at the
 top even though neither is needed until much later.
 
-Tick as you go. §1 is partly done; everything from §2 on is untouched.
+Tick as you go. Status as of **6 October 2026**: the web product, the
+Workers, the deriver and the jobs are live, with real people on them, and the
+iOS app runs as an EAS `preview` build. Child-safety matching (PhotoDNA) went
+live today. What is still open is mostly not code — see §8.
 
 A ticked box here means somebody watched it work, not that it was attempted.
 Where the evidence is weaker than that, the box stays open and says what is
@@ -17,10 +20,17 @@ checklist, because it is consulted instead of the thing itself.
 
 ## 0. In parallel, starting now
 
-- [ ] **Start the child-safety provider conversation.** This is the hard gate
-      and the longest lead time: onboarding is email and paperwork with humans
-      on the other end. [`csam-runbook.md`](csam-runbook.md) is the checklist.
-      Until it is done, nothing anyone else can reach may be deployed.
+- [x] **Start the child-safety provider conversation.** Microsoft PhotoDNA
+      Cloud Service approved Parea on 2026-10-06, and it is live — see §8.
+- [ ] **NCMEC CyberTipline registration** as an electronic service provider
+      (<https://esp.ncmec.org/registration>). The privacy page now says a
+      confirmed match is reported to NCMEC, so this has to exist before the
+      first one, not after. Not confirmed.
+- [ ] **SMS (A2P 10DLC) campaign.** Rejected twice with error 30908 (privacy
+      policy could not be verified). Both policies — parea.photos and daed.io —
+      were fixed on 2026-10-05; the campaign has to be resubmitted. Phone
+      verification texts are not reliably delivered in the US until it passes.
+      See [`sms-a2p.md`](sms-a2p.md).
 
 ## 1. DNS
 
@@ -36,9 +46,12 @@ before they can even be verified.
       it, wait an hour, then switch.
 - [x] Confirm with `dig +short NS parea.photos`. `dig +trace` if a resolver is
       holding the old answer.
-- [ ] Set SSL/TLS to **Full (strict)**. Not confirmed. It is the one setting
-      here that fails quietly in the wrong direction: Flexible serves the site
-      over plaintext to the origin and looks perfectly fine in a browser.
+- [ ] Set SSL/TLS to **Full (strict)**. Not confirmed — it is a dashboard
+      setting nothing here can read. It only matters for a proxied record with
+      an origin behind it, and today there is none (Vercel is grey-cloud and
+      `img.`/`zip.` are Worker custom domains), so it is a trap for later rather
+      than a hole now. Flexible serves plaintext to the origin and looks fine in
+      a browser.
 
 Records, once the zone is live. Everything Vercel-facing is **DNS only** — grey
 cloud. Proxying Cloudflare in front of Vercel's own edge stacks two CDNs and
@@ -50,7 +63,7 @@ commonly breaks certificate issuance outright.
 | `www` | CNAME | `cname.vercel-dns.com` | grey cloud | resolving |
 | `send` | MX + TXT | from the mail provider | return path and SPF | provider reports verified |
 | `<selector>._domainkey` | TXT | from the mail provider | DKIM | provider reports verified |
-| `_dmarc` | TXT | `v=DMARC1; p=none; rua=mailto:dmarc@parea.photos` | start at `p=none` | **unconfirmed** |
+| `_dmarc` | TXT | `v=DMARC1; p=quarantine; rua=mailto:dmarc@parea.photos; adkim=r; aspf=r` | already at `p=quarantine` | resolving (checked 2026-10-06) |
 
 "Resolving" is the whole claim for the first two: the names answer with the
 right values. Nothing is served at them yet, and an A record pointing at
@@ -79,36 +92,40 @@ generates all three shared secrets together so they cannot disagree, writes
 `apps/web/.env.local`, applies migrations and seeds the code pool. Idempotent,
 deletes nothing.
 
-- [ ] Neon project, `npm run db:migrate`. Only the first time: a production
+- [x] Neon project, `npm run db:migrate`. Only the first time: a production
       deploy runs it from `vercel-build` after this. See `docs/deploy.md`.
-- [ ] R2 bucket, lifecycle rule on `tmp/manifest/` expiring after 1 day, and no
-      public access. Confirm the rule landed —
+- [x] R2 bucket, lifecycle rule on `tmp/manifest/` expiring after 1 day, and no
+      public access. Confirmed 2026-10-06 (`moments/incoming/` has a 1-day rule
+      too). Confirm the rule landed —
       `npx wrangler r2 bucket lifecycle list parea` should name
       `expire-manifests`. Nothing else ever deletes those objects.
-- [ ] **R2 CORS.** Without it every browser upload fails, silently and in a way
+- [x] **R2 CORS.** Confirmed 2026-10-06: PUT/GET/HEAD from `parea.photos`,
+      `www.parea.photos`, `*.vercel.app` and localhost. Without it every browser upload fails, silently and in a way
       that points somewhere else — see [`deploy.md`](deploy.md#2-r2). Confirm
       with `npx wrangler r2 bucket cors list parea`, and confirm it names the
       origin actually being used: a policy listing the wrong hostname reads as
       configured and behaves as absent.
-- [ ] R2 S3-API token — dashboard only, the script stops here and says so.
-- [ ] `seed-codes`, or the spoken-code door never opens.
+- [x] R2 S3-API token — set on Vercel and on both Fly apps; photos ingest.
+- [x] `seed-codes`, or the spoken-code door never opens. Runs inside the hourly
+      job on `parea-jobs`, which exits 0 each hour.
 
 ## 3. Workers
 
-- [ ] Deploy `parea-img` and `parea-zip`.
-- [ ] Add `img.parea.photos` and `zip.parea.photos` as custom domains **from
+- [x] Deploy `parea-img` and `parea-zip`.
+- [x] Add `img.parea.photos` and `zip.parea.photos` as custom domains **from
       each Worker's settings**, which writes the DNS record itself. Do not
-      hand-create a CNAME.
-- [ ] Set `IMAGE_BASE_URL` and `ZIP_BASE_URL` to those hostnames.
+      hand-create a CNAME. Both answer from their Worker.
+- [x] Set `IMAGE_BASE_URL` and `ZIP_BASE_URL` to those hostnames.
 
 Both Worker secrets must match the web app's. A mismatch is silent: every
 thumbnail 404s, or every download does.
 
 ## 4. Web app
 
-- [ ] Deploy `apps/web` to Vercel with the environment in
+- [x] Deploy `apps/web` to Vercel with the environment in
       [`deploy.md`](deploy.md#full-environment).
-- [ ] `LEGAL_ENTITY` and `LEGAL_JURISDICTION` — required in production. Without
+- [x] `LEGAL_ENTITY` and `LEGAL_JURISDICTION` — required in production. Both
+      set; `/terms` reads "governed by the law of the State of North Carolina". Without
       them `/terms` and `/privacy` render a visible placeholder where the
       operator's name should be.
 
@@ -124,23 +141,26 @@ thumbnail 404s, or every download does.
       grammar when setting it — `/terms` reads "governed by the law of
       {`LEGAL_JURISDICTION`}, and its courts have jurisdiction", so the value
       wants to be `the State of North Carolina` rather than a bare `NC`.
-- [ ] `/api/health` returns 200 and reports nothing missing.
+- [ ] `/api/health` returns 200 and reports nothing missing. It returns 200;
+      the detailed report needs `HEALTH_TOKEN` and has not been read.
 
 ## 5. Mail
 
-- [ ] Verify the domain with the provider; DKIM green is the gate.
-- [ ] `npm run mail:test -- you@example.com`, then sign in at `/account` for
-      real. **Nothing else will tell you this is broken**: the code endpoint
+- [x] Verify the domain with the provider; DKIM green is the gate.
+- [x] `npm run mail:test -- you@example.com`, then sign in at `/account` for
+      real. People sign in with emailed codes every day. **Nothing else will tell you this is broken**: the code endpoint
       answers 204 however it went, on purpose, so a misconfigured mailer looks
       exactly like a working one from the outside.
 - [ ] Check spam. First mail from a new sending domain often lands there.
 
 ## 6. Deriver
 
-- [ ] Fly app, secrets, deploy. The image runs a boot probe and refuses to
+- [x] Fly app, secrets, deploy. Redeployed 2026-10-06 with PhotoDNA; its boot
+      probe reports `ok csam-scanner photodna`. The image runs a boot probe and refuses to
       start if it cannot decode HEIC, encode AVIF, find exiftool, or reach a
       scanner — a deriver that starts is one that can do the job.
-- [ ] Schedule the jobs. `nudge`, `auto-hide` and `expire-rate-limits` have
+- [x] Schedule the jobs. Hourly, on `parea-jobs` — see the note on updating
+      its image in `deploy.md`, which `fly deploy` does not do. `nudge`, `auto-hide` and `expire-rate-limits` have
       clocks attached: an unanswered removal request only hides after 48 hours
       if `auto-hide` is actually running.
 
@@ -164,11 +184,14 @@ The two items in it that no test can cover:
 
 ## 8. Before anyone else can reach it
 
-- [ ] A real hash-matching provider set on the deriver *and* Vercel, and the
-      privacy page saying matching is running.
+- [x] A real hash-matching provider set on the deriver *and* Vercel, and the
+      privacy page saying matching is running. PhotoDNA, 2026-10-06: a test
+      image scanned end to end from the deriver (`match: false`), and
+      `/privacy` says every image is checked.
 - [ ] Everything in [`csam-runbook.md`](csam-runbook.md): credentials before the
       first detection, counsel briefed, a named human who receives alerts, and
-      a synthetic alert proven to reach them.
+      a synthetic alert proven to reach them. The provider is done; NCMEC
+      registration (§0), counsel and the synthetic alert are not confirmed.
 - [ ] A lawyer has read `/terms` and `/privacy`. They are written from the
       schema and every number in them is asserted against the constant it came
       from, which makes them accurate — not reviewed.
@@ -184,11 +207,11 @@ At this point the **web product is launchable**. Everything below is the app.
       files that exist. Not yet seen on a device: nothing in this client has
       been rendered, so how the icon looks under a launcher's mask is still
       unobserved.
-- [ ] **`expo prebuild`, and run it.** No screen in this client has ever been
-      rendered. Everything typechecks; nothing has been looked at. Budget a day
-      for layout.
-- [ ] `APPLE_TEAM_ID` and `ANDROID_CERT_FINGERPRINTS` on the web deployment
-      **before any build goes out**. Both `.well-known` files 404 until they are
+- [x] **`expo prebuild`, and run it.** Runs daily — on the simulator from
+      Metro, and on the owner's iPhone as an EAS `preview` build (internal
+      distribution, 2026-10-05) that takes over-the-air updates.
+- [x] `APPLE_TEAM_ID` and `ANDROID_CERT_FINGERPRINTS` on the web deployment
+      **before any build goes out**. Both set; both `.well-known` files serve. Both `.well-known` files 404 until they are
       set, and Apple caches the AASA hard — absent is recoverable, wrong is not.
       Android needs both certificates: the upload key and the Play signing key.
 - [x] `staging.parea.photos` — the `preview` EAS profile pointed at a host
@@ -200,6 +223,7 @@ At this point the **web product is launchable**. Everything below is the app.
       `preview` then reaches live data with nothing between them but the
       release channel.
 - [ ] Age rating. A UGC app does not get to claim 4+.
+- [ ] App Store / TestFlight submission. Only internal (ad hoc) builds exist.
 - [x] **Nutrition labels.** Precise location is declared (Location → Precise
       location, app functionality, not tracking) in the iOS privacy manifest in
       `apps/mobile/app.json` and in
