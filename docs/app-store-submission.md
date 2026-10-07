@@ -20,7 +20,7 @@ update [`store-privacy-labels.md`](store-privacy-labels.md) first.
 | Field | Value |
 |---|---|
 | Platform | iOS |
-| Name | Parea |
+| Name | Parea – Group Photos ("Parea" alone is taken on the store; the home-screen name is still Parea, from `app.json`) |
 | Primary language | English (U.S.) |
 | Bundle ID | `photos.parea` |
 | SKU | `parea-ios` |
