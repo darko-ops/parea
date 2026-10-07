@@ -586,7 +586,11 @@ describe('what happens to the photographs', () => {
      */
     expect(APP).toMatch(/initialUpload/);
     // Each run of finished copies goes into the queue as it lands.
-    expect(APP).toMatch(/await resolveInOrder\(initialUpload, \(files\) => \{\s*void onAddUploads\(event\.id, event\.linkToken, files\)/);
+    expect(APP).toMatch(/await resolveInOrder\(initialUpload, \(files\) => \{\s*held\.push\(\.\.\.files\);/);
+    expect(APP).toMatch(/onAddUploads\(event\.id, event\.linkToken, files\)/);
+    // The first goes at once; the rest are gathered, so a roll is a handful of
+    // presign rounds rather than one per photograph.
+    expect(APP).toMatch(/timer = setTimeout\(send, 800\);/);
     // The form's list, not the picker's: the row under the cover has a ⊗ on
     // every tile, so what arrives is not always what was chosen.
     expect(APP).toMatch(/photos\.map\(\(photo\) => photo\.id\)/);

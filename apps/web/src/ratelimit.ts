@@ -75,6 +75,22 @@ export const PRESIGN_LIMIT: Limit = {
 };
 
 /**
+ * Presigning by signed-in people, per network rather than per person.
+ *
+ * Signed-in people are counted per account (`PRESIGN_LIMIT`, keyed to the
+ * account), because a venue's wifi — or a carrier's shared address — puts a
+ * whole party behind one IP, and the per-source limit was reached by a few
+ * dozen guests uploading after the speeches. This is the ceiling left on the
+ * network itself, so a crowd of fresh accounts behind one address is still
+ * bounded: ten times the per-person allowance, which is a very large party.
+ */
+export const PRESIGN_NETWORK_LIMIT: Limit = {
+  name: 'presign-network',
+  max: 3000,
+  windowSeconds: 3600,
+};
+
+/**
  * Event creation, per source.
  *
  * The hole this closes: every other bound is per event, so an attacker who can

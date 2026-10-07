@@ -101,6 +101,7 @@ import {
   libraryAccess,
   releaseCopies,
   resolveInOrder,
+  type UploadFile,
   sweepOutbox,
   type LibraryAccess,
   type LibraryPhoto,
@@ -3729,16 +3730,48 @@ function EventScreen({
         if (!(await loadActorToken())) {
           await saveActorToken(await api.startSession());
         }
+        /*
+         * Gathered for a moment before they go in.
+         *
+         * Each add starts a presign round, and presigns are counted — per
+         * network for anybody not signed in, which at a venue is everybody on
+         * its wifi. One round per photograph spent fifteen requests on a roll
+         * of fifteen. The first copy goes at once, so uploading starts
+         * straight away; the rest are gathered for 800ms at a time, which is
+         * a handful of rounds for a whole roll.
+         */
         let first = true;
+        let started = false;
+        let held: UploadFile[] = [];
+        let timer: ReturnType<typeof setTimeout> | null = null;
+        let adding: Promise<void> = Promise.resolve();
+        const send = () => {
+          timer = null;
+          const files = held;
+          held = [];
+          if (files.length === 0) return;
+          adding = adding.then(() =>
+            onAddUploads(event.id, event.linkToken, files).then(() => {
+              void runQueue();
+              if (first) {
+                first = false;
+                void askForPush();
+              }
+            }),
+          );
+        };
         const { unreadable } = await resolveInOrder(initialUpload, (files) => {
-          void onAddUploads(event.id, event.linkToken, files).then(() => {
-            void runQueue();
-            if (first) {
-              first = false;
-              void askForPush();
-            }
-          });
+          held.push(...files);
+          if (!started) {
+            started = true;
+            send();
+          } else if (!timer) {
+            timer = setTimeout(send, 800);
+          }
         });
+        if (timer) clearTimeout(timer);
+        send();
+        await adding;
         setPreparing([]);
         if (unreadable > 0) {
           setQueueStatus(

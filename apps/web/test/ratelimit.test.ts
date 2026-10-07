@@ -20,6 +20,7 @@ import { beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import {
   CREATE_EVENT_LIMIT,
   PRESIGN_LIMIT,
+  PRESIGN_NETWORK_LIMIT,
   SIGN_IN_ADDRESS_LIMIT,
   SIGN_IN_LIMIT,
   SIGN_IN_VERIFY_LIMIT,
@@ -317,5 +318,35 @@ describe('sending a code and answering one are separate allowances', () => {
       await consume(db, source, SIGN_IN_VERIFY_LIMIT);
     }
     expect((await consume(db, source, SIGN_IN_VERIFY_LIMIT)).allowed).toBe(false);
+  });
+});
+
+describe('presigning from one venue\'s wifi', () => {
+  /*
+   * A party on one network shares an address, and counting the address
+   * refused uploads once a few dozen guests had posted. Signed-in people are
+   * counted as themselves now; the network keeps a far higher ceiling; and a
+   * guest, who can mint a new identity with a cleared cookie, is still counted
+   * by address.
+   */
+  it('counts a signed-in person per account, and the network only past ten times that', async () => {
+    const source = await import('node:fs/promises').then((fs) =>
+      fs.readFile(
+        fileURLToPath(new URL('../app/api/events/[id]/uploads/route.ts', import.meta.url)),
+        'utf8',
+      ),
+    );
+    expect(source).toMatch(/withinLimitFor\(db, PRESIGN_LIMIT, secret, `account:\$\{account\}`\)/);
+    expect(source).toMatch(/withinLimit\(db, PRESIGN_NETWORK_LIMIT, secret\)/);
+    expect(source).toMatch(/: await withinLimit\(db, PRESIGN_LIMIT, secret\);/);
+    expect(PRESIGN_NETWORK_LIMIT.max).toBe(PRESIGN_LIMIT.max * 10);
+  });
+
+  it('keeps one person\'s presigns from using up another\'s', async () => {
+    const ana = 'acct-a';
+    const bo = 'acct-b';
+    for (let i = 0; i < PRESIGN_LIMIT.max; i++) await consume(db, `presign:account:${ana}`, PRESIGN_LIMIT);
+    expect((await consume(db, `presign:account:${ana}`, PRESIGN_LIMIT)).allowed).toBe(false);
+    expect((await consume(db, `presign:account:${bo}`, PRESIGN_LIMIT)).allowed).toBe(true);
   });
 });

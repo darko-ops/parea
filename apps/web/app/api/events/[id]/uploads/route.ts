@@ -13,8 +13,8 @@ import { NextResponse } from 'next/server';
 import { findEventById, guard, recordParticipant, toResponse } from '@/access';
 import { getDb } from '@/db';
 import { isBlockedBy } from '@/moderation';
-import { PRESIGN_LIMIT, withinLimit } from '@/ratelimit';
-import { ensureActor, requesterFor } from '@/session';
+import { PRESIGN_LIMIT, PRESIGN_NETWORK_LIMIT, withinLimit, withinLimitFor } from '@/ratelimit';
+import { currentAccountActorId, ensureActor, requesterFor } from '@/session';
 import { getStorage, objectKey } from '@/storage';
 
 export const runtime = 'nodejs';
@@ -79,7 +79,21 @@ export async function POST(
   // thing to refuse is a request nothing has been spent on yet — and because
   // this is the one bound that survives the caller discarding their cookie
   // between requests.
-  if (!(await withinLimit(db, PRESIGN_LIMIT, process.env.SESSION_SECRET))) {
+  //
+  // Who is counted depends on who is asking. Somebody signed in is counted as
+  // themselves: a party on one venue's wifi shares an address, and counting
+  // the address refused uploads once a few dozen guests had posted. The
+  // network keeps a ceiling ten times higher, so a crowd of fresh accounts
+  // behind one address is still bounded. Somebody without an account can mint
+  // a new identity by clearing a cookie, so for them the address is the only
+  // thing worth counting, as before.
+  const secret = process.env.SESSION_SECRET;
+  const account = await currentAccountActorId();
+  const allowed = account
+    ? (await withinLimitFor(db, PRESIGN_LIMIT, secret, `account:${account}`)) &&
+      (await withinLimit(db, PRESIGN_NETWORK_LIMIT, secret))
+    : await withinLimit(db, PRESIGN_LIMIT, secret);
+  if (!allowed) {
     return NextResponse.json({ error: 'too_many_requests' }, { status: 429 });
   }
 
