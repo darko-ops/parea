@@ -3,8 +3,8 @@
  *
  * Each is "ask the server for options, run the platform ceremony, post the
  * result back", and each is three awaits with two failure modes. They live here
- * rather than in the screens because both screens need the second one and two
- * copies of a ceremony is two places for the error handling to drift.
+ * rather than in the screens so each ceremony's error handling lives in one
+ * place.
  *
  * `note: null` means the person cancelled, and callers say nothing about it: a
  * red line under a sheet somebody deliberately dismissed reads as a fault in
@@ -24,9 +24,9 @@ function quiet(reason: string | typeof CANCELLED): { ok: false; note: string | n
 /**
  * Makes a passkey on this device and registers it.
  *
- * Needs an account already, which both callers have: the offer runs straight
- * after a sign-in, and the Devices card is only reachable from the signed-in
- * half of the profile tab.
+ * Needs an account already, which its one caller has: the Devices card is only
+ * reachable from the signed-in half of the profile tab. Sign-in never offers
+ * one — adding a passkey is a setting, not a step on the way in.
  */
 export async function addPasskey(api: Api): Promise<Flow<void>> {
   let options;

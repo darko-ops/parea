@@ -33,34 +33,26 @@
  * Signing in with an address that has no account does not quietly make one:
  * it says so, and offers to. Making an account with an address that already has
  * one simply signs in — there is nothing to refuse.
+ *
+ * Adding a passkey never happens here. Signing in is the email and the code;
+ * somebody who wants it faster adds one under Devices and passkeys, and from
+ * then on the button below is theirs to use.
  */
 
 import { useCallback, useEffect, useState } from 'react';
 
 import { birthFieldsNeeded, birthValue } from '@/birth';
 
-import {
-  addPasskey,
-  CANCELLED,
-  passkeysAvailable,
-  platformAuthenticator,
-  signInWithPasskey,
-  SUSPENDED_NOTE,
-} from './passkey';
+import { CANCELLED, passkeysAvailable, signInWithPasskey, SUSPENDED_NOTE } from './passkey';
 
-/**
- * `offer` is the step after being let in, not a step towards it — see the note
- * where it is set. Everything before it is the two-field form this screen has
- * always been.
- */
-type Stage = 'email' | 'code' | 'missing' | 'exists' | 'age' | 'refused' | 'offer';
+type Stage = 'email' | 'code' | 'missing' | 'exists' | 'age' | 'refused';
 
 /** Which question the person answered on the first screen. */
 type Mode = 'signin' | 'create';
 
 /**
  * This browser has been signed in to an account at least once — the condition
- * for offering a passkey, and for opening on Sign in rather than Create
+ * for the passkey button, and for opening on Sign in rather than Create
  * account. Kept through sign-out, which is exactly when it matters. A hint and
  * not a lock: clearing it only means seeing Create account first.
  */
@@ -166,15 +158,12 @@ export function SignIn({
    * screen.
    */
   const [canPasskey, setCanPasskey] = useState<boolean | null>(null);
-  /** Whether Face ID and Touch ID specifically, for the words in the offer. */
-  const [onThisDevice, setOnThisDevice] = useState(false);
 
   useEffect(() => {
     const before = hadAccount();
     setReturning(before);
     if (before) setMode('signin');
     setCanPasskey(passkeysAvailable());
-    void platformAuthenticator().then(setOnThisDevice);
   }, []);
 
   const request = useCallback(async () => {
@@ -211,29 +200,10 @@ export function SignIn({
       const result = (await res.json()) as {
         merged: boolean;
         created: boolean;
-        hasPasskey: boolean;
       };
       setMerged(result.merged);
       setCode('');
       rememberAccount();
-
-      /*
-       * The one moment worth interrupting for.
-       *
-       * Somebody who has just created an account has also just typed a code out
-       * of an inbox, so "next time, use Face ID" lands on the one screen where
-       * the cost of the alternative is fresh. Any later and it is an
-       * interruption; in Settings it is a thing nobody goes looking for.
-       *
-       * `onSignedIn` is *not* called yet, which is the whole mechanism: it
-       * navigates, and a card rendered after it would be a card on a page that
-       * is being replaced. Both buttons on the offer call it.
-       */
-      if (result.created && !result.hasPasskey && passkeysAvailable()) {
-        setStage('offer');
-        return;
-      }
-
       await onSignedIn({ created: result.created });
     },
     [onSignedIn],
@@ -359,8 +329,6 @@ export function SignIn({
 
   /**
    * Signing in with a passkey, which is one press and no form.
-   *
-   * No offer afterwards: somebody who just used a passkey has one.
    */
   const withPasskey = useCallback(async () => {
     setBusy(true);
@@ -382,38 +350,6 @@ export function SignIn({
     }
   }, [onSignedIn]);
 
-  /** Taking the offer, or declining it. Either way the hand-off happens. */
-  const keepPasskey = useCallback(async () => {
-    setBusy(true);
-    setError(null);
-    try {
-      const result = await addPasskey();
-      if (!result.ok && result.message !== CANCELLED) {
-        /*
-         * Said, and then carried on anyway.
-         *
-         * A passkey that could not be made is not a failed sign-in — they are
-         * signed in, and the account exists. Leaving them on this card with an
-         * error would turn a declined extra into a dead end, so the message is
-         * shown and the hand-off still runs.
-         */
-        setError(result.message as string);
-      }
-    } finally {
-      setBusy(false);
-      // The offer only ever follows an account made just now.
-      await onSignedIn({ created: true });
-    }
-  }, [onSignedIn]);
-
-  /*
-   * Signed in already, being asked one question before carrying on.
-   *
-   * A separate return rather than a branch inside the form, because none of the
-   * form belongs on it: there is no address to type, no code, and nothing to go
-   * back to. Leaving the fields on screen would invite somebody to sign in
-   * again on top of the session they already have.
-   */
   /*
    * A first account: the date of birth, and the terms, on one screen.
    *
@@ -532,53 +468,6 @@ export function SignIn({
             Change birth year
           </button>
         </div>
-      </section>
-    );
-  }
-
-  if (stage === 'offer') {
-    return (
-      <section className="panel">
-        <h2>Next time, {onThisDevice ? 'sign in with Face ID' : 'skip the code'}</h2>
-        {/*
-          Two sentences, because there are two moments and only one of them is
-          fast.
-
-          This said "add a passkey and this device will let you straight in",
-          which is true of every sign-in after the first and not of the next
-          thirty seconds: the browser asks where to keep the key — a keychain, a
-          password manager — and that prompt arrives immediately after a button
-          promising no further steps. The site cannot remove it and should not
-          want to, since a site that could choose where a credential is filed
-          could steer somebody off their own password manager.
-
-          So the setup is described as setup and the payoff as the payoff. The
-          order matters too: the cost is named first, because a promise followed
-          by a caveat reads as a promise that was not kept.
-        */}
-        <p className="muted">
-          {onThisDevice
-            ? 'Setting one up takes a moment — your browser will ask where to keep it. After that, signing in here is Face ID, Touch ID or your screen lock, with no code to fetch.'
-            : 'Setting one up takes a moment — your browser will ask where to keep it, and may ask for your phone. After that, signing in here is one prompt, with no code to fetch.'}
-        </p>
-        {/*
-          Said plainly, because it is the question somebody actually has. A
-          passkey that replaced the code would be a passkey that locks you out
-          of your own photographs from a borrowed laptop.
-        */}
-        <p className="muted">
-          You can still sign in with a code whenever you need to — this is an
-          extra, not a replacement.
-        </p>
-        <div className="row" style={{ marginTop: 16 }}>
-          <button type="button" onClick={keepPasskey} disabled={busy}>
-            {busy ? 'Working…' : 'Add a passkey'}
-          </button>
-          <button type="button" className="secondary" onClick={() => void onSignedIn({ created: true })} disabled={busy}>
-            Not now
-          </button>
-        </div>
-        {error && <p className="muted">{error}</p>}
       </section>
     );
   }

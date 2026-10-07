@@ -87,7 +87,7 @@ import { BlockedCard } from './Blocked';
 import { DevicesCard } from './Devices';
 import { birthFieldsNeeded, birthValue } from './birth';
 import { passkeysSupported } from './passkeys';
-import { addPasskey, signInWithPasskey, SUSPENDED_NOTE } from './signin';
+import { signInWithPasskey, SUSPENDED_NOTE } from './signin';
 import { Waiting } from './Waiting';
 
 export type TabTheme = GroupTheme;
@@ -3294,15 +3294,6 @@ export function AccountCard({
     setCanPasskey(passkeysSupported());
   }, []);
   /**
-   * Standing between a finished sign-in and telling the caller about it.
-   *
-   * Set only on the sign-in that created the account, and only when there is no
-   * passkey on it yet. `onSignedIn` is deliberately not called while this is
-   * true: the caller replaces this card when it hears, and a card that has just
-   * been replaced cannot ask anybody anything.
-   */
-  const [offer, setOffer] = useState(false);
-  /**
    * A first account asks for a date of birth once the code is proved — see
    * `@/age` on the server. The proof lets the date go back without a second
    * code; `refused` is the answer for somebody who may not make one.
@@ -3430,12 +3421,6 @@ export function AccountCard({
           'This phone has joined your account. Everything you added here is now part of it.',
         );
       }
-
-      if (result.created && !result.hasPasskey && canPasskey) {
-        setOffer(true);
-        return;
-      }
-
       onSignedIn();
     },
     [onSignedIn],
@@ -3567,32 +3552,6 @@ export function AccountCard({
       setBusy(false);
     }
   }, [api, onSignedIn]);
-
-  /**
-   * Taking the offer, or declining it. Either way the caller is told.
-   *
-   * A passkey that could not be made is not a failed sign-in — they are signed
-   * in and the account exists — so a failure is said and the hand-off still
-   * runs. Leaving somebody on this card with an error would turn a declined
-   * extra into a dead end.
-   */
-  const keepPasskey = useCallback(async () => {
-    setBusy(true);
-    setError(null);
-    try {
-      const outcome = await addPasskey(api);
-      if (!outcome.ok && outcome.note) Alert.alert('Not added', outcome.note);
-    } finally {
-      setBusy(false);
-      setOffer(false);
-      onSignedIn();
-    }
-  }, [api, onSignedIn]);
-
-  const declinePasskey = useCallback(() => {
-    setOffer(false);
-    onSignedIn();
-  }, [onSignedIn]);
 
   /**
    * Signing out, with the cost said out loud first.
@@ -3900,43 +3859,6 @@ export function AccountCard({
           primary
         />
         {error && <Text style={[styles.small, { color: t.dim }]}>{error}</Text>}
-      </View>
-    );
-  }
-
-  if (offer) {
-    return (
-      <View style={[styles.card, { backgroundColor: t.card, borderColor: t.line }]}>
-        <Text style={[styles.label, { color: t.fg }]}>
-          Next time, sign in with Face ID
-        </Text>
-        {/*
-          Two sentences, because there are two moments and only one of them is
-          fast. See the note on the web's offer card: the phone asks where to
-          keep the key, and that prompt lands straight after a line promising no
-          further steps. Naming the cost first is what keeps the payoff from
-          reading as a promise that was not kept.
-        */}
-        <Text style={[styles.small, { color: t.dim }]}>
-          Setting one up takes a moment — your phone will ask where to keep it.
-          After that, signing in is Face ID and nothing else, with no code to
-          fetch from your email.
-        </Text>
-        {/* Said plainly, because it is the question somebody actually has. A
-            passkey that replaced the code would lock you out of your own
-            photographs from a borrowed laptop. */}
-        <Text style={[styles.small, { color: t.dim }]}>
-          A code to your email still works whenever you need it. This is an
-          extra, not a replacement.
-        </Text>
-        <Button
-          label={busy ? 'Working…' : 'Add a passkey'}
-          onPress={keepPasskey}
-          disabled={busy}
-          t={t}
-          primary
-        />
-        <Button label="Not now" onPress={declinePasskey} disabled={busy} t={t} />
       </View>
     );
   }
