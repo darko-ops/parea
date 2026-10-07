@@ -134,7 +134,7 @@ describe('the sheet of comments over a photograph', () => {
      * second request — `event_message` has carried a `photo_id` since the web
      * let somebody reply to a picture, and a reaction line carries one too.
      */
-    expect(APP).toMatch(/\.filter\(\(m\) => m\.photoId === selected\.id\)/);
+    expect(APP).toMatch(/\.filter\(\(m\) => m\.photoId === selected\.id && !m\.emoji\)/);
     /*
      * And no thumbnail on any of them. `about` is the picture a line is
      * about, and that picture is on the screen behind this sheet — which is
@@ -366,7 +366,7 @@ describe('what is said about one photograph', () => {
      * happens to be about one of its photographs — no second table, no second
      * endpoint, and it appears in the album's Talk tab where it belongs.
      */
-    expect(APP).toMatch(/comments=\{\(feed\?\.messages \?\? \[\]\)\.filter\(\(m\) => m\.photoId === selected\.id\)\}/);
+    expect(APP).toMatch(/comments=\{\(feed\?\.messages \?\? \[\]\)\.filter\(\(m\) => m\.photoId === selected\.id && !m\.emoji\)\}/);
     expect(VIEWER).toMatch(/api\.postMessage\(eventId, body, photo\.id\)/);
   });
 
@@ -792,5 +792,14 @@ describe('the way out of a photograph', () => {
     // It is the first thing in the row and the only one that leaves.
     expect(GESTURE).toMatch(/accessibilityLabel="Close"[\s\S]{0,120}✕/);
     expect(GESTURE).toMatch(/onPress=\{onClose\}/);
+  });
+});
+
+describe('what counts as a comment', () => {
+  it('leaves likes out of a photo\'s comments', () => {
+    // A like on a photo arrives in the roll's feed beside the comments, with
+    // the photo's id and an emoji instead of a body. Counted with them, every
+    // like put a 1 on the comment button as well as on the heart.
+    expect(APP).toMatch(/comments=\{\(feed\?\.messages \?\? \[\]\)\.filter\(\(m\) => m\.photoId === selected\.id && !m\.emoji\)\}/);
   });
 });

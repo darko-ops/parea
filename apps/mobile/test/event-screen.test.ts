@@ -498,7 +498,7 @@ describe('a photograph in a roll', () => {
     // viewer is handed the album's thread filtered to one photograph, which
     // is the same rows read from the other end and needs no tally.
     expect(APP).not.toMatch(/const talk = useMemo\(/);
-    expect(APP).toMatch(/comments=\{\(feed\?\.messages \?\? \[\]\)\.filter\(\(m\) => m\.photoId === selected\.id\)\}/);
+    expect(APP).toMatch(/comments=\{\(feed\?\.messages \?\? \[\]\)\.filter\(\(m\) => m\.photoId === selected\.id && !m\.emoji\)\}/);
   });
 
   it('keeps no corners on a photograph, because it draws no full-width one', () => {

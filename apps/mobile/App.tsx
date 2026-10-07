@@ -5246,7 +5246,12 @@ function EventScreen({
               comment is a line in the album's conversation that happens to be
               about one of its photographs.
             */
-            comments={(feed?.messages ?? []).filter((m) => m.photoId === selected.id)}
+            /*
+              What was said about this photo, and nothing else. A like on it
+              arrives in the same feed, carrying the photo's id and an emoji in
+              place of a body — counted here it made every like a comment too.
+            */
+            comments={(feed?.messages ?? []).filter((m) => m.photoId === selected.id && !m.emoji)}
             t={t}
             canReact={feed?.canPost ?? false}
             canPost={feed?.canPost ?? false}
