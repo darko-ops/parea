@@ -12,6 +12,10 @@
     {
       "path": "/api/cron/derive-backlog",
       "schedule": "*/5 * * * *"
+    },
+    {
+      "path": "/api/cron/requeue-stranded",
+      "schedule": "50 * * * *"
     }
   ]
 }

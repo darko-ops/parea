@@ -223,6 +223,14 @@ describe('the routes that do not authorize, and why', () => {
     expect(source).toMatch(/await deriveBacklog\(db, now\)/);
   });
 
+  it('the stranded-photo resend handles ids, through src, and returns counts', async () => {
+    // It sends photo ids back to the deriver and answers how many — nothing
+    // about any photograph reaches whoever calls it, and only the scheduler can.
+    const source = await readCode(join(API, 'cron/requeue-stranded/route.ts'));
+    expect(readsEventData(source)).toBe(false);
+    expect(source).toMatch(/await strandedPhotos\(db, now\)/);
+  });
+
   it('group search returns groups, and groups are the only findable thing', async () => {
     // Groups may be findable; photos and events never are. If this route ever
     // returns an event, it is no longer a public search.

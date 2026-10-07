@@ -61,8 +61,8 @@ export const DERIVE_PARALLELISM = 4;
  * every upload, and so there is one place to put the rule and one test to
  * hold it.
  */
-export function deduplicationKey(photoId: string): string {
-  return `derive-${photoId}`.replace(/[^A-Za-z0-9_-]/g, '-');
+export function deduplicationKey(photoId: string, resend?: string): string {
+  return `derive-${photoId}${resend ? `-resend-${resend}` : ''}`.replace(/[^A-Za-z0-9_-]/g, '-');
 }
 
 let client: Client | null = null;
@@ -99,7 +99,13 @@ export function __setQueueForTests(fake: Client | null): void {
  * `not-configured` when there is no queue at all, which is a different thing
  * and is left for the caller to decide about.
  */
-export async function publishDerive(photoId: string): Promise<PublishResult> {
+/**
+ * `resend` names a deliberate second delivery — see `/api/cron/requeue-stranded`.
+ * QStash drops a message whose deduplication id it has seen in the last ten
+ * minutes, so a resend carries its own; the stranded photo it is for has, by
+ * definition, been waiting far longer than that.
+ */
+export async function publishDerive(photoId: string, resend?: string): Promise<PublishResult> {
   const client = queue();
   if (!client) return 'not-configured';
 
@@ -144,7 +150,7 @@ export async function publishDerive(photoId: string): Promise<PublishResult> {
      * again: the rule is in one function with a test against it, rather than
      * in a template literal nobody can see is wrong.
      */
-    deduplicationId: deduplicationKey(photoId),
+    deduplicationId: deduplicationKey(photoId, resend),
     /*
      * One at a time, held by QStash rather than refused by Fly.
      *
