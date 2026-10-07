@@ -293,14 +293,22 @@ describe('build profiles', () => {
 });
 
 describe('submit credentials', () => {
-  it('are referenced, never written down', () => {
-    // A Team ID committed here is not a secret, but an Apple ID is, and the
-    // habit is the point: nothing in this file is a value.
-    const raw = JSON.stringify(eas.submit);
-    expect(raw).not.toMatch(/@|\.json"/);
-    for (const value of Object.values(eas.submit.production.ios as Record<string, string>)) {
-      expect(value).toMatch(/^\$\{secrets\.[A-Z_]+\}$/);
-    }
+  it('hold public identifiers only, never a credential', () => {
+    /*
+     * These were `${secrets.NAME}` placeholders, which EAS does not substitute —
+     * it would have sent the text itself as the App Store app id. The Team ID
+     * and the App Store Connect app id are public (the Team ID is in the AASA
+     * file anyone can fetch), so they are written here. What is never written:
+     * an Apple ID (an email — EAS reads `EXPO_APPLE_ID`, or asks) and API key
+     * files, which live in EAS credentials.
+     */
+    const ios = eas.submit.production.ios as Record<string, string>;
+    // iOS only: Android's key path is still a `${secrets.…}` placeholder, and
+    // has to become a real path (or EAS credentials) before an Android submit.
+    expect(JSON.stringify(ios)).not.toMatch(/@|\.p8|\.json"|\$\{/);
+    expect(ios.appleTeamId).toBe('W276447S6T');
+    expect(ios.appleId).toBeUndefined();
+    if (ios.ascAppId !== undefined) expect(ios.ascAppId).toMatch(/^\d+$/);
   });
 
   it('submits Android to a closed track, not straight to production', () => {

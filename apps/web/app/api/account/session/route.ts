@@ -23,6 +23,7 @@ import { eq } from 'drizzle-orm';
 import { NextResponse } from 'next/server';
 
 import { accountExists, accountFor, consumeCode, signIn } from '@/accounts';
+import { isReviewSignIn } from '@/review';
 import { MINIMUM_AGE, ageOn, ageProof, checkAgeProof } from '@/age';
 import { getDb } from '@/db';
 import { isSuspended } from '@/suspension';
@@ -324,6 +325,10 @@ async function provenByCode(
       response: NextResponse.json({ error: 'too_many_requests' }, { status: 429 }),
     };
   }
+
+  // App Review's account: one address, a fixed code, after the limits above.
+  // See `@/review`.
+  if (isReviewSignIn(email, code)) return { ok: true, email };
 
   const check = await consumeCode(db, secret, email, code);
   if (!check.ok) {
