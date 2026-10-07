@@ -10,7 +10,7 @@ import { NextResponse } from 'next/server';
 
 import { getDb } from '@/db';
 import { notifyGroupHanded } from '@/notify';
-import { currentActorId } from '@/session';
+import { currentAccountActorId } from '@/session';
 import { handOverGroup } from '@/succession';
 
 export const runtime = 'nodejs';
@@ -29,7 +29,7 @@ export async function POST(
     return NextResponse.json({ error: 'invalid' }, { status: 400 });
   }
 
-  const actorId = await currentActorId();
+  const actorId = await currentAccountActorId();
   if (!actorId) return NextResponse.json({ error: 'no_actor' }, { status: 403 });
 
   const outcome = await handOverGroup(getDb(), id, actorId, body.actorId);

@@ -241,6 +241,17 @@ export function authorize(
   // denials can say why without becoming an oracle.
 
   // Private albums. The link is not a way in — it is a way to ask.
+  /*
+   * Nothing without an account, public or private (6 October 2026).
+   *
+   * A public roll used to open for anybody holding its link, account or not.
+   * Every roll now needs somebody signed in. Asked after the credential check,
+   * so a refusal still says nothing about whether a roll exists to somebody
+   * without its link — the ones who hold one are told to sign in, and the
+   * share link carries them through sign-in and back to the roll.
+   */
+  if (!signedIn) return deny('sign_in_required');
+
   if (event.accessPolicy === PRIVATE) {
     // Asked first, because "sign in" is the step in front of "ask", and
     // telling someone to wait for approval when they have not yet said who

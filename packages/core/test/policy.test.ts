@@ -50,19 +50,25 @@ type Case = {
 };
 
 const CASES: Case[] = [
-  // --- public: anyone can see it ---------------------------------------------
-  // The link is how somebody finds a public album, not what unlocks it. All
-  // four of these were `no_credential` when the policy was called `link_open`.
-  { name: 'a stranger with nothing at all can view a public album', actor: null,
+  // --- public: anyone signed in can see it ----------------------------------
+  // Since 6 October 2026 nothing opens without an account, public or not. The
+  // link is still how somebody finds a public album, not what unlocks it —
+  // for somebody signed in. Somebody signed out is told to sign in.
+  { name: 'a stranger signed out cannot view a public album', actor: null,
+    capability: 'view', expect: 'sign_in_required' },
+  { name: 'nor download from it', actor: GUEST, capability: 'download', expect: 'sign_in_required' },
+  { name: 'nor view it holding the link', actor: null, capability: 'view',
+    presented: { linkToken: LINK }, expect: 'sign_in_required' },
+  { name: 'anybody signed in can view a public album', actor: GUEST, signedIn: true,
     capability: 'view', expect: true },
-  { name: 'and can download from it', actor: GUEST, capability: 'download', expect: true },
-  { name: 'a wrong link is no worse than no link on a public album', actor: GUEST,
+  { name: 'and download from it', actor: GUEST, signedIn: true, capability: 'download', expect: true },
+  { name: 'a wrong link is no worse than no link on a public album', actor: GUEST, signedIn: true,
     capability: 'view', presented: { linkToken: WRONG_LINK }, expect: true },
-  { name: 'rotating the link does not shut anyone out of a public album', actor: GUEST,
+  { name: 'rotating the link does not shut anyone out of a public album', actor: GUEST, signedIn: true,
     capability: 'view', event: { capEpoch: 2 },
     presented: { isParticipant: true, capEpoch: 1 }, expect: true },
-  { name: 'stranger with the link can view', actor: null, capability: 'view',
-    presented: { linkToken: LINK }, expect: true },
+  { name: 'signed in with the link can view', actor: GUEST, signedIn: true,
+    capability: 'view', presented: { linkToken: LINK }, expect: true },
   { name: 'the link plus an account can contribute', actor: GUEST, signedIn: true,
     capability: 'contribute', presented: { linkToken: LINK }, expect: true },
   { name: 'the link alone can no longer contribute', actor: GUEST, capability: 'contribute',
@@ -134,15 +140,15 @@ const CASES: Case[] = [
     presented: { isParticipant: true, admitted: true }, expect: 'sign_in_required' },
 
   // --- switch: joins ---------------------------------------------------------
-  { name: 'joins closed refuses a new person holding the link', actor: GUEST, capability: 'view',
+  { name: 'joins closed refuses a new person holding the link', actor: GUEST, signedIn: true, capability: 'view',
     event: { joinsOpen: false }, presented: { linkToken: LINK }, expect: 'joins_closed' },
-  { name: 'joins closed refuses a new person on a public album too', actor: GUEST,
+  { name: 'joins closed refuses a new person on a public album too', actor: GUEST, signedIn: true,
     capability: 'view', event: { joinsOpen: false }, expect: 'joins_closed' },
-  { name: 'joins closed keeps existing participants in', actor: GUEST, capability: 'view',
+  { name: 'joins closed keeps existing participants in', actor: GUEST, signedIn: true, capability: 'view',
     event: { joinsOpen: false }, presented: { isParticipant: true, capEpoch: 1 }, expect: true },
-  { name: 'joins closed keeps group members in', actor: GUEST, capability: 'download',
+  { name: 'joins closed keeps group members in', actor: GUEST, signedIn: true, capability: 'download',
     event: { joinsOpen: false, groupId: 'g1' }, presented: { isGroupMember: true }, expect: true },
-  { name: 'joins closed never locks out the creator', actor: CREATOR, capability: 'view',
+  { name: 'joins closed never locks out the creator', actor: CREATOR, signedIn: true, capability: 'view',
     event: { joinsOpen: false }, expect: true },
 
   // --- switch: who may add ---------------------------------------------------
@@ -153,7 +159,7 @@ const CASES: Case[] = [
   { name: 'nobody blocks contribution', actor: GUEST, signedIn: true,
     capability: 'upload', event: { contributePolicy: 'nobody' },
     presented: { linkToken: LINK }, expect: 'uploads_closed' },
-  { name: 'nobody leaves viewing alone', actor: GUEST, capability: 'view',
+  { name: 'nobody leaves viewing alone', actor: GUEST, signedIn: true, capability: 'view',
     event: { contributePolicy: 'nobody' }, presented: { linkToken: LINK }, expect: true },
   /*
    * And leaves the conversation alone, which it did not before.
@@ -170,7 +176,7 @@ const CASES: Case[] = [
   { name: 'host leaves the conversation alone', actor: GUEST, signedIn: true,
     capability: 'contribute', event: { contributePolicy: 'host' },
     presented: { linkToken: LINK }, expect: true },
-  { name: 'nobody leaves downloading alone', actor: GUEST, capability: 'download',
+  { name: 'nobody leaves downloading alone', actor: GUEST, signedIn: true, capability: 'download',
     event: { contributePolicy: 'nobody' }, presented: { linkToken: LINK }, expect: true },
   { name: 'nobody applies to the creator too', actor: CREATOR, signedIn: true,
     capability: 'upload', event: { contributePolicy: 'nobody' }, expect: 'uploads_closed' },
@@ -203,7 +209,7 @@ const CASES: Case[] = [
   { name: 'host denies a plain group member', actor: GUEST, signedIn: true,
     capability: 'upload', event: { contributePolicy: 'host', groupId: 'g1' },
     presented: { isGroupMember: true }, expect: 'host_only' },
-  { name: 'host leaves viewing alone', actor: GUEST, capability: 'view',
+  { name: 'host leaves viewing alone', actor: GUEST, signedIn: true, capability: 'view',
     event: { contributePolicy: 'host' }, presented: { linkToken: LINK }, expect: true },
   /*
    * Fail closed on a value nobody has taught this function about — the rule
@@ -213,7 +219,7 @@ const CASES: Case[] = [
   { name: 'an unknown contribute policy closes the album', actor: CREATOR, signedIn: true,
     capability: 'upload', event: { contributePolicy: 'paid_only' },
     expect: 'uploads_closed' },
-  { name: 'an unknown contribute policy leaves viewing alone', actor: GUEST,
+  { name: 'an unknown contribute policy leaves viewing alone', actor: GUEST, signedIn: true,
     capability: 'view', event: { contributePolicy: 'paid_only' },
     presented: { linkToken: LINK }, expect: true },
 

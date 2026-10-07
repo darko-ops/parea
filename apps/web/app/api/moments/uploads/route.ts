@@ -18,7 +18,7 @@ import { NextResponse } from 'next/server';
 import { getDb } from '@/db';
 import { MOMENT_MAX_BYTES, incomingPrefix } from '@/moments';
 import { MOMENT_LIMIT, withinLimit } from '@/ratelimit';
-import { currentActorId } from '@/session';
+import { currentAccountActorId } from '@/session';
 import { getStorage } from '@/storage';
 
 export const runtime = 'nodejs';
@@ -27,7 +27,7 @@ export const runtime = 'nodejs';
 const TYPES = new Set(['image/jpeg', 'image/png', 'image/webp', 'image/heic', 'image/avif']);
 
 export async function POST(request: Request) {
-  const actorId = await currentActorId();
+  const actorId = await currentAccountActorId();
   if (!actorId) return NextResponse.json({ error: 'no_actor' }, { status: 403 });
 
   const body = (await request.json().catch(() => ({}))) as {

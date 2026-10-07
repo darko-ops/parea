@@ -4,7 +4,7 @@ import { NextResponse } from 'next/server';
 
 import { getDb } from '@/db';
 import { removeMomentComment } from '@/moments';
-import { currentActorId } from '@/session';
+import { currentAccountActorId } from '@/session';
 
 export const runtime = 'nodejs';
 
@@ -13,7 +13,7 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string; commentId: string }> },
 ) {
   const { commentId } = await params;
-  const actorId = await currentActorId();
+  const actorId = await currentAccountActorId();
   if (!actorId) return NextResponse.json({ error: 'no_actor' }, { status: 403 });
   if (!/^[0-9a-f-]{36}$/i.test(commentId)) {
     return NextResponse.json({ error: 'not_found' }, { status: 404 });

@@ -19,14 +19,14 @@ import {
 } from '@/contentReports';
 import { getDb } from '@/db';
 import { REPORT_LIMIT, withinLimit, withinLimitFor } from '@/ratelimit';
-import { currentActorId } from '@/session';
+import { currentAccountActorId } from '@/session';
 
 export const runtime = 'nodejs';
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 export async function POST(request: Request) {
-  const reporter = await currentActorId();
+  const reporter = await currentAccountActorId();
   if (!reporter) return NextResponse.json({ error: 'sign_in_required' }, { status: 401 });
 
   const body = (await request.json().catch(() => ({}))) as {

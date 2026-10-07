@@ -31,7 +31,7 @@ import { mayListMembers, membersOf, visibleMembers } from '@/members';
 import { messagesFor } from '@/messages';
 import { viewerContext } from '@/moderation';
 import { reactionsForPhotos } from '@/photoReactions';
-import { currentAccountActorId, currentActorId, requesterFor } from '@/session';
+import { currentAccountActorId, requesterFor } from '@/session';
 import { PhotoView } from '@/../app/components/PhotoView';
 import { Shell } from '@/../app/components/Shell';
 
@@ -105,7 +105,7 @@ export default async function PhotoPage({
   // test whether a photograph exists.
   if (!decision.allow) notFound();
 
-  const viewerId = await currentActorId();
+  const viewerId = await currentAccountActorId();
 
   /*
    * The event's order, which is the order the gallery is in.

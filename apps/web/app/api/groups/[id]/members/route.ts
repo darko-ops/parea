@@ -23,7 +23,7 @@ import {
   removeMember,
 } from '@/groups';
 import { notifyGroupHanded } from '@/notify';
-import { currentActorId } from '@/session';
+import { currentAccountActorId } from '@/session';
 
 export const runtime = 'nodejs';
 
@@ -32,7 +32,7 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> },
 ) {
   const { id } = await params;
-  const actorId = await currentActorId();
+  const actorId = await currentAccountActorId();
   if (!actorId) return NextResponse.json({ error: 'no_actor' }, { status: 403 });
 
   const db = getDb();
@@ -55,7 +55,7 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> },
 ) {
   const { id } = await params;
-  const actorId = await currentActorId();
+  const actorId = await currentAccountActorId();
   if (!actorId) return NextResponse.json({ error: 'no_actor' }, { status: 403 });
 
   const db = getDb();

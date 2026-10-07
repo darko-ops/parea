@@ -25,7 +25,7 @@ import {
   titleOf,
 } from '@/groups';
 import { invitesSeenAtFor } from '@/invites';
-import { currentActorId } from '@/session';
+import { currentAccountActorId } from '@/session';
 
 export const runtime = 'nodejs';
 
@@ -38,7 +38,11 @@ export async function GET(
   const group = await findGroup(db, id);
   if (!group) return NextResponse.json({ error: 'not_found' }, { status: 404 });
 
-  const actorId = await currentActorId();
+  const actorId = await currentAccountActorId();
+  // Nothing about a group for somebody signed out — not even the door to a
+  // findable one. Asked after the lookup above only so a missing group and a
+  // signed-out caller do not answer differently to someone probing ids.
+  if (!actorId) return NextResponse.json({ error: 'not_found' }, { status: 404 });
   const membership = await membershipOf(db, group.id, actorId);
 
   if (!membership) {
@@ -199,7 +203,7 @@ export async function PATCH(
   const group = await findGroup(db, id);
   if (!group) return NextResponse.json({ error: 'not_found' }, { status: 404 });
 
-  const actorId = await currentActorId();
+  const actorId = await currentAccountActorId();
   const membership = await membershipOf(db, group.id, actorId);
   if (!membership) return NextResponse.json({ error: 'not_found' }, { status: 404 });
   if (membership.role !== 'admin') {

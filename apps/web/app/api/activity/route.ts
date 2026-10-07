@@ -45,14 +45,14 @@ import { activityFor } from '@/activity';
 import { getDb } from '@/db';
 import { invitesSeenAtFor, markInvitesSeen } from '@/invites';
 import { pendingRequestsFor } from '@/requests';
-import { currentActorId } from '@/session';
+import { currentAccountActorId } from '@/session';
 import { agoShort, bucketFor } from '@/when';
 
 export const runtime = 'nodejs';
 
 export async function GET() {
   const db = getDb();
-  const actorId = await currentActorId();
+  const actorId = await currentAccountActorId();
 
   const [items, waiting, seenAt] = await Promise.all([
     activityFor(db, actorId),

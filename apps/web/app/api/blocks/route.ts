@@ -20,7 +20,7 @@ import { avatarUrl } from '@/accounts';
 import { resolveTarget as resolveContent, type TargetKind } from '@/contentReports';
 import { getDb } from '@/db';
 import { findPhotoWithEvent } from '@/moderation';
-import { currentActorId } from '@/session';
+import { currentAccountActorId } from '@/session';
 
 export const runtime = 'nodejs';
 
@@ -92,7 +92,7 @@ export async function POST(request: Request) {
     momentCommentId?: unknown;
     actorId?: unknown;
   };
-  const actorId = await currentActorId();
+  const actorId = await currentAccountActorId();
   if (!actorId) return NextResponse.json({ error: 'no_actor' }, { status: 403 });
 
   const db = getDb();
@@ -118,7 +118,7 @@ export async function POST(request: Request) {
  * a list of who has blocked you would announce every one.
  */
 export async function GET() {
-  const actorId = await currentActorId();
+  const actorId = await currentAccountActorId();
   if (!actorId) return NextResponse.json({ blocked: [] });
 
   const rows = await getDb()
@@ -152,7 +152,7 @@ export async function DELETE(request: Request) {
     momentId?: unknown;
     actorId?: unknown;
   };
-  const actorId = await currentActorId();
+  const actorId = await currentAccountActorId();
   if (!actorId) return NextResponse.json({ error: 'no_actor' }, { status: 403 });
 
   const db = getDb();

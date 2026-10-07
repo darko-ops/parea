@@ -8,7 +8,7 @@ import { NextResponse } from 'next/server';
 
 import { getDb } from '@/db';
 import { markSeen } from '@/moments';
-import { currentActorId } from '@/session';
+import { currentAccountActorId } from '@/session';
 
 export const runtime = 'nodejs';
 
@@ -17,7 +17,7 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> },
 ) {
   const { id } = await params;
-  const actorId = await currentActorId();
+  const actorId = await currentAccountActorId();
   if (!actorId) return NextResponse.json({ error: 'no_actor' }, { status: 403 });
   if (/^[0-9a-f-]{36}$/i.test(id)) {
     // A moment that has gone fails the foreign key; that is the same answer.

@@ -1041,7 +1041,10 @@ export default function App() {
          */
         setJoinError(
           err instanceof ApiError && err.code === 'sign_in_required'
-            ? 'Codes work once you have an account. Open You and sign in, then try the code again.'
+            ? input.code
+              ? 'Codes work once you have an account. Open You and sign in, then try the code again.'
+              : // Every roll needs an account now, public or not.
+                'Rolls open once you have an account. Sign in, then tap the link again.'
             : err instanceof ApiError && err.code === 'too_many_requests'
               ? 'That is a lot of codes in a short time. Wait a while and try again.'
               : "Couldn't find that. Check the link or the code and try again.",
@@ -6109,7 +6112,7 @@ function HostSheet({
                 <Text style={[styles.small, { color: t.dim }]}>
                   {visible === 'private'
                     ? 'Only the people in it. Anyone else with the link can ask, and you answer — everyone already here stays in.'
-                    : 'Anyone can see it, no account needed. Adding photos always needs one.'}
+                    : 'Anyone signed in with the link can see it.'}
                 </Text>
                 {(feed?.event.waiting ?? 0) > 0 && (
                   <Text style={[styles.small, { color: t.accent }]}>

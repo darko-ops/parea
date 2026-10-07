@@ -27,7 +27,7 @@ import {
 } from '@/groupMessages';
 import { findGroup, membershipOf } from '@/groups';
 import { authorOf, canSeeMoment } from '@/moments';
-import { currentAccountActorId, currentActorId, requesterFor } from '@/session';
+import { currentAccountActorId, requesterFor } from '@/session';
 
 export const runtime = 'nodejs';
 
@@ -41,7 +41,7 @@ export async function GET(
   const group = await findGroup(db, id);
   if (!group) return NextResponse.json({ error: 'not_found' }, { status: 404 });
 
-  const viewerId = await currentActorId();
+  const viewerId = await currentAccountActorId();
   const membership = await membershipOf(db, group.id, viewerId);
   // Not 403. See the note at the top.
   if (!membership) return NextResponse.json({ error: 'not_found' }, { status: 404 });

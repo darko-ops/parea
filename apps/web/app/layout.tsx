@@ -1,5 +1,13 @@
 import type { Metadata } from 'next';
 
+import { headers } from 'next/headers';
+import { redirect } from 'next/navigation';
+
+import { SignInPage } from '@/../app/components/SignInPage';
+import { isSignedIn } from '@/access';
+import { getDb } from '@/db';
+import { isPublicPage, PATH_HEADER, signInFor } from '@/gate';
+import { currentActorId } from '@/session';
 import { SITE } from '@/site';
 import { THEME_COOKIE } from '@/theme';
 import './globals.css';
@@ -102,14 +110,33 @@ const STRUCTURED = JSON.stringify({
   ],
 }).replace(/</g, '\\u003c');
 
-export default function RootLayout({ children }: { children: React.ReactNode }) {
+/**
+ * Whether this page may be drawn for whoever is asking — the real check behind
+ * `proxy.ts`'s optimistic one. A cookie is not an account (a guest has one), so
+ * the database is asked. See `@/gate`.
+ */
+async function gate(): Promise<'show' | 'sign-in'> {
+  const path = (await headers()).get(PATH_HEADER);
+  // No path means the proxy did not run for this request (a file, the
+  // framework's own routes): nothing to gate.
+  if (!path) return 'show';
+  const pathname = path.split('?')[0]!;
+  if (isPublicPage(pathname)) return 'show';
+  const actorId = await currentActorId().catch(() => null);
+  if (actorId && (await isSignedIn(getDb(), actorId).catch(() => false))) return 'show';
+  if (pathname === '/') return 'sign-in';
+  redirect(signInFor(path));
+}
+
+export default async function RootLayout({ children }: { children: React.ReactNode }) {
+  const shown = await gate();
   return (
     <html lang="en" data-theme="dark" suppressHydrationWarning>
       <head>
         <script dangerouslySetInnerHTML={{ __html: CHOOSE }} />
         <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: STRUCTURED }} />
       </head>
-      <body>{children}</body>
+      <body>{shown === 'show' ? children : <SignInPage />}</body>
     </html>
   );
 }

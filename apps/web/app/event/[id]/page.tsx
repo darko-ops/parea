@@ -15,7 +15,7 @@ import { mayListMembers, membersOf, rosterFor, visibleMembers } from '@/members'
 import type { EventTab } from '@/../app/components/EventView';
 import { hasDerivatives, imageSources, imageSrc, imageSrcSet, photosWithCard } from '@/images';
 import { viewerContext } from '@/moderation';
-import { currentAccountActorId, currentActorId, requesterFor } from '@/session';
+import { currentAccountActorId, requesterFor } from '@/session';
 import { Shell } from '@/../app/components/Shell';
 
 export const dynamic = 'force-dynamic';
@@ -107,7 +107,7 @@ export default async function EventPage({
       .from(schema.photos)
       // One shared predicate for deleted / removed / hidden / blocked — see
       // @parea/core's visibility module for why those are four states.
-      .where(visiblePhotos(event.id, await viewerContext(db, await currentActorId())))
+      .where(visiblePhotos(event.id, await viewerContext(db, await currentAccountActorId())))
       // A stack: the latest addition first, and within it the last one picked.
       // See `addedSeq`.
       .orderBy(desc(schema.photos.addedSeq)),
@@ -115,7 +115,7 @@ export default async function EventPage({
     event.coverPhotoId,
   );
 
-  const viewerId = await currentActorId();
+  const viewerId = await currentAccountActorId();
 
   // Asked once for the page rather than per row — see `photosWithCard`.
   const hasCard = await photosWithCard(db, rows.map((row) => row.id));

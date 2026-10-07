@@ -26,13 +26,13 @@ import { NextResponse } from 'next/server';
 
 import { getDb } from '@/db';
 import { recurringClusters, sharedOnceWith } from '@/groups';
-import { currentActorId } from '@/session';
+import { currentAccountActorId } from '@/session';
 
 export const runtime = 'nodejs';
 
 export async function GET() {
   const db = getDb();
-  const actorId = await currentActorId();
+  const actorId = await currentAccountActorId();
   if (!actorId) return NextResponse.json({ clusters: [], also: [] });
 
   const clusters = await recurringClusters(db, actorId);

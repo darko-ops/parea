@@ -34,6 +34,9 @@
 
 import { NextResponse, type NextRequest } from 'next/server';
 
+import { ACTOR_COOKIE } from '@/auth/cookies';
+import { isPublicPage, PATH_HEADER, signInFor } from '@/gate';
+
 /** Hosts a browser may be on when it asks the API to change something. */
 const OURS = new Set([
   'https://parea.photos',
@@ -64,10 +67,31 @@ export function allowedSource(request: {
 }
 
 export function proxy(request: NextRequest) {
-  if (allowedSource(request)) return NextResponse.next();
-  return NextResponse.json({ error: 'cross_site' }, { status: 403 });
+  const { pathname, search } = request.nextUrl;
+
+  if (pathname.startsWith('/api/')) {
+    if (allowedSource(request)) return NextResponse.next();
+    return NextResponse.json({ error: 'cross_site' }, { status: 403 });
+  }
+
+  /*
+   * Pages. Nothing but the public ones without an account — see `@/gate`.
+   *
+   * Optimistic, as this layer should be: no session cookie at all goes
+   * straight to sign-in, before anything renders. A cookie is not an account
+   * (guests have one), so the root layout makes the real check — and it needs
+   * to know which page it is drawing, which a layout cannot otherwise ask.
+   */
+  if (!isPublicPage(pathname) && pathname !== '/' && !request.cookies.has(ACTOR_COOKIE)) {
+    return NextResponse.redirect(new URL(signInFor(pathname + search), request.url));
+  }
+  const headers = new Headers(request.headers);
+  headers.set(PATH_HEADER, pathname + search);
+  return NextResponse.next({ request: { headers } });
 }
 
 export const config = {
-  matcher: '/api/:path*',
+  // Every page and the API. Not the framework's own files, nor anything with a
+  // file extension — icons, robots.txt, the sitemap, the .well-known files.
+  matcher: ['/api/:path*', '/((?!_next/|.*\\..*).*)'],
 };

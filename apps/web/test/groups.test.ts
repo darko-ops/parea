@@ -291,7 +291,7 @@ describe('what membership buys', () => {
   it('survives a link rotation, unlike a capability cookie', async () => {
     const house = await group('The Flat');
     const host = await actor();
-    const member = await actor();
+    const member = await signedInActor();
     await addMember(db, house.id, member);
     const event = await eventIn(house.id, host);
 

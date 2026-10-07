@@ -76,9 +76,14 @@ beforeEach(async () => {
 });
 
 async function person(handle: string) {
+  // An account, since nothing answers a guest any more.
+  const [account] = await db
+    .insert(schema.accounts)
+    .values({ email: `${crypto.randomUUID()}@example.test` })
+    .returning();
   const [row] = await db
     .insert(schema.actors)
-    .values({ kind: 'user', handle })
+    .values({ kind: 'user', handle, accountId: account!.id })
     .returning();
   return row!.id;
 }

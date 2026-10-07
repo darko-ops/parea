@@ -276,7 +276,8 @@ describe('the route the phone reads', () => {
      * event or photo here to guard, which is why `access-chokepoint` does not
      * reach it either.
      */
-    expect(ROUTE).toMatch(/const actorId = await currentActorId\(\)/);
+    // An account's, not any actor's: a guest is answered as signed out.
+    expect(ROUTE).toMatch(/const actorId = await currentAccountActorId\(\)/);
     expect(ROUTE).not.toMatch(/schema\.(photos|events)\b/);
   });
 });

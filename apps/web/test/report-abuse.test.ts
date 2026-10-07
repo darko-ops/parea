@@ -106,10 +106,12 @@ const post = (handler: typeof removal.POST, photoId: string, body: unknown = {})
 describe('asking for a photo to come down', () => {
   it('needs an account', async () => {
     const [photo] = await album(1);
+    // Refused by the policy now, before the route's own check: a roll is
+    // closed to anybody without an account (403, `sign_in_required`).
     as(await person(false));
-    expect((await post(removal.POST, photo!)).status).toBe(401);
+    expect((await post(removal.POST, photo!)).status).toBe(403);
     as(null);
-    expect((await post(removal.POST, photo!)).status).toBe(401);
+    expect((await post(removal.POST, photo!)).status).toBe(403);
     expect(await db.select().from(schema.reports)).toHaveLength(0);
 
     as(await person());
@@ -155,10 +157,17 @@ describe('reporting a child being abused', () => {
     expect(await db.select().from(schema.safetyIncidents)).toHaveLength(1);
   });
 
-  it('is still open to somebody who is not signed in', async () => {
-    // A report of a child being abused should cost nothing to make.
+  it('costs nothing more than the account everybody needs to see a photo at all', async () => {
+    /*
+     * It used to be open to somebody signed out, because a report of a child
+     * being abused should cost nothing to make. Since 6 October 2026 nobody
+     * signed out can see a photo to report, so the signed-out case is refused
+     * with everything else — and anybody signed in reports in one tap.
+     */
     const [photo] = await album(1);
     as(await person(false));
+    expect((await post(report.POST, photo!, { kind: 'child_safety' })).status).toBe(403);
+    as(await person());
     expect((await post(report.POST, photo!, { kind: 'child_safety' })).status).toBe(200);
     const [row] = await db.select().from(schema.photos);
     expect(row!.status).toBe('quarantined');

@@ -36,7 +36,7 @@ import { eventsFor } from '@/events';
 import { greetingFor, partOfDay } from '@/greeting';
 import { momentsResponse } from '@/moments';
 import { searchable } from '@/search';
-import { currentActorId } from '@/session';
+import { currentAccountActorId } from '@/session';
 import { readerZone } from '@/zone';
 
 export const dynamic = 'force-dynamic';
@@ -48,7 +48,7 @@ export const metadata = {
 
 export default async function EventsPage() {
   const db = getDb();
-  const actorId = await currentActorId();
+  const actorId = await currentAccountActorId();
   const [listings, account, moments] = await Promise.all([
     eventsFor(db, actorId),
     // For the greeting only. Null for a browser that has never signed in,

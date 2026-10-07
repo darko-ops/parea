@@ -22,7 +22,7 @@ import { NextResponse } from 'next/server';
 import { deleteAccount, deleteEverything } from '@/accounts';
 import { getDb } from '@/db';
 import { isSignedIn } from '@/access';
-import { currentActorId, currentSessionId } from '@/session';
+import { currentAccountActorId, currentSessionId } from '@/session';
 import { signedInRecently, STALE_SIGN_IN } from '@/sessions';
 
 export const runtime = 'nodejs';
@@ -40,7 +40,7 @@ export const runtime = 'nodejs';
  * has been; a rename that cannot be undone is not a rename.
  */
 export async function PATCH(request: Request) {
-  const actorId = await currentActorId();
+  const actorId = await currentAccountActorId();
   if (!actorId) return NextResponse.json({ error: 'no_actor' }, { status: 403 });
 
   const body = (await request.json().catch(() => ({}))) as {
@@ -210,7 +210,7 @@ export async function PATCH(request: Request) {
 }
 
 export async function DELETE(request: Request) {
-  const actorId = await currentActorId();
+  const actorId = await currentAccountActorId();
   if (!actorId) return NextResponse.json({ error: 'no_actor' }, { status: 403 });
 
   const db = getDb();

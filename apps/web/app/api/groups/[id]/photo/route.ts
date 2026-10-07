@@ -28,7 +28,7 @@ import { findGroup, memberCount, membershipOf } from '@/groups';
 import { admit, decode } from '@/imaging';
 import { AVATAR_LIMIT, withinLimit } from '@/ratelimit';
 import { screenUpload } from '@/safety';
-import { currentActorId } from '@/session';
+import { currentAccountActorId } from '@/session';
 import { getStorage } from '@/storage';
 
 export const runtime = 'nodejs';
@@ -46,7 +46,7 @@ async function editable(id: string) {
   const db = getDb();
   const group = await findGroup(db, id);
   if (!group) return { error: NextResponse.json({ error: 'not_found' }, { status: 404 }) };
-  const actorId = await currentActorId();
+  const actorId = await currentAccountActorId();
   if (!actorId) return { error: NextResponse.json({ error: 'no_actor' }, { status: 403 }) };
   const membership = await membershipOf(db, group.id, actorId);
   if (!membership) {

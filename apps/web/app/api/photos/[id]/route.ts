@@ -17,7 +17,7 @@ import { NextResponse } from 'next/server';
 
 import { getDb } from '@/db';
 import { revokePhotoLinks } from '@/revoke';
-import { currentActorId } from '@/session';
+import { currentAccountActorId } from '@/session';
 
 export const runtime = 'nodejs';
 
@@ -26,7 +26,7 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> },
 ) {
   const { id } = await params;
-  const actorId = await currentActorId();
+  const actorId = await currentAccountActorId();
   if (!actorId) return NextResponse.json({ error: 'not_found' }, { status: 404 });
 
   const db = getDb();

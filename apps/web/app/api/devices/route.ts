@@ -15,7 +15,7 @@ import { and, eq, ne } from 'drizzle-orm';
 import { NextResponse } from 'next/server';
 
 import { getDb } from '@/db';
-import { currentActorId, currentSessionId } from '@/session';
+import { currentAccountActorId, currentSessionId } from '@/session';
 
 export const runtime = 'nodejs';
 
@@ -25,7 +25,7 @@ export async function POST(request: Request) {
     platform?: unknown;
   };
 
-  const actorId = await currentActorId();
+  const actorId = await currentAccountActorId();
   if (!actorId) return NextResponse.json({ error: 'no_actor' }, { status: 403 });
 
   const pushToken = typeof body.pushToken === 'string' ? body.pushToken : '';
@@ -80,7 +80,7 @@ export async function POST(request: Request) {
 /** Turning notifications off, or signing out of a device. */
 export async function DELETE(request: Request) {
   const body = (await request.json().catch(() => ({}))) as { pushToken?: unknown };
-  const actorId = await currentActorId();
+  const actorId = await currentAccountActorId();
   if (!actorId) return NextResponse.json({ error: 'no_actor' }, { status: 403 });
   if (typeof body.pushToken !== 'string') {
     return NextResponse.json({ error: 'invalid_token' }, { status: 400 });

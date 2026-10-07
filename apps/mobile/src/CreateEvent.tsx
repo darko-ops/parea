@@ -466,7 +466,7 @@ export function CreateEvent({
           <Text style={[styles.small, { color: t.dim }]}>
             {isPrivate
               ? 'Only people you invite. A forwarded link opens nothing.'
-              : 'Anyone with the link can see it, no account needed.'}
+              : 'Anyone signed in with the link can see it.'}
           </Text>
         </View>
 

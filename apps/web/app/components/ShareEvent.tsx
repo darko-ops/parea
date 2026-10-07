@@ -50,7 +50,7 @@ export function promise(accessPolicy: string | undefined, joinsOpen: boolean): s
   if (accessPolicy === PRIVATE) {
     return 'Whoever you send this to can ask to come in. You let them in, under Members.';
   }
-  return 'Anybody with this can open the roll and add their photos.';
+  return 'Whoever you send this to signs in, then can open the roll and add their photos.';
 }
 
 export function ShareEvent({

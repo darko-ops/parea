@@ -91,13 +91,22 @@ async function makeEvent(overrides: Partial<typeof schema.events.$inferInsert> =
 }
 
 describe('resolving credentials from the database', () => {
-  it('admits a stranger holding the link', async () => {
+  it('sends a stranger holding the link to sign in', async () => {
+    // Since 6 October 2026 nothing opens without an account, public or not.
     const event = await makeEvent();
     const decision = await decide(db, event, 'view', {
       actorId: null,
       linkToken: event.linkToken,
     });
-    expect(decision).toEqual({ allow: true });
+    expect(decision).toEqual({ allow: false, reason: 'sign_in_required' });
+  });
+
+  it('and admits them once they are signed in', async () => {
+    const event = await makeEvent();
+    const actorId = await makeSignedInActor();
+    expect(await decide(db, event, 'view', { actorId, linkToken: event.linkToken })).toEqual({
+      allow: true,
+    });
   });
 
   it('refuses the same stranger without it, on a private roll', async () => {
@@ -114,7 +123,7 @@ describe('resolving credentials from the database', () => {
 
   it('reads participation from event_participant, so joins_open is enforceable', async () => {
     const event = await makeEvent({ joinsOpen: false });
-    const actorId = await makeActor();
+    const actorId = await makeSignedInActor();
 
     // Not yet in: the link no longer admits them.
     expect(await decide(db, event, 'view', { actorId, linkToken: event.linkToken }))
@@ -153,7 +162,7 @@ describe('resolving credentials from the database', () => {
 
   it('and works the moment the exchange records who came in', async () => {
     const event = await makeEvent();
-    const stranger = await makeActor();
+    const stranger = await makeSignedInActor();
 
     await recordParticipant(db, event.id, stranger);
 
@@ -260,8 +269,8 @@ describe('resolving credentials from the database', () => {
       .values({ name: 'House', slug: 'house' })
       .returning();
     const event = await makeEvent({ groupId: group!.id });
-    const member = await makeActor();
-    const admin = await makeActor();
+    const member = await makeSignedInActor();
+    const admin = await makeSignedInActor();
     await db.insert(schema.groupMembers).values([
       { groupId: group!.id, actorId: member!, role: 'member' },
       { groupId: group!.id, actorId: admin!, role: 'admin' },

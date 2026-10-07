@@ -22,7 +22,7 @@ import { NextResponse } from 'next/server';
 
 import { recordParticipant } from '@/access';
 import { getDb } from '@/db';
-import { currentActorId, grantCapability } from '@/session';
+import { currentAccountActorId, grantCapability } from '@/session';
 
 export const runtime = 'nodejs';
 
@@ -33,7 +33,7 @@ export async function PATCH(
   const { id } = await params;
   const db = getDb();
 
-  const actorId = await currentActorId();
+  const actorId = await currentAccountActorId();
   if (!actorId) return NextResponse.json({ error: 'not_found' }, { status: 404 });
 
   const body = (await request.json().catch(() => ({}))) as { action?: unknown };

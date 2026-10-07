@@ -25,7 +25,7 @@ import { GroupChatScreen } from '@/../app/components/GroupChatScreen';
 import { Shell } from '@/../app/components/Shell';
 import { getDb } from '@/db';
 import { findGroup, groupEvents, lensFor, memberCount, membershipOf, roomOf } from '@/groups';
-import { currentActorId } from '@/session';
+import { currentAccountActorId } from '@/session';
 
 export const dynamic = 'force-dynamic';
 
@@ -43,7 +43,7 @@ export default async function GroupChatPage({
   const group = await findGroup(db, id);
   if (!group) notFound();
 
-  const actorId = await currentActorId();
+  const actorId = await currentAccountActorId();
   const membership = await membershipOf(db, group.id, actorId);
   if (!membership) notFound();
 

@@ -19,7 +19,7 @@ import { schema } from '@parea/core';
 import { NextResponse } from 'next/server';
 
 import { getDb } from '@/db';
-import { currentActorId } from '@/session';
+import { currentAccountActorId } from '@/session';
 
 export const runtime = 'nodejs';
 
@@ -27,7 +27,7 @@ export const runtime = 'nodejs';
 const MAX_KEY = 200;
 
 export async function POST(request: Request) {
-  const actorId = await currentActorId();
+  const actorId = await currentAccountActorId();
   // Nothing to hide for a browser with no identity, and nothing to say about
   // it either: the page it would be hiding from is empty for them.
   if (!actorId) return new NextResponse(null, { status: 204 });

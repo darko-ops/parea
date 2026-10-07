@@ -32,7 +32,7 @@ import {
 } from '@/groups';
 import { notifyGroupAdded, notifyGroupInvite } from '@/notify';
 import { CREATE_GROUP_LIMIT, withinLimitFor } from '@/ratelimit';
-import { currentActorId, requesterFor } from '@/session';
+import { currentAccountActorId, requesterFor } from '@/session';
 
 export const runtime = 'nodejs';
 
@@ -58,7 +58,7 @@ export const runtime = 'nodejs';
  */
 export async function GET(request: Request) {
   const db = getDb();
-  const actorId = await currentActorId();
+  const actorId = await currentAccountActorId();
   const detail = new URL(request.url).searchParams.get('detail') === '1';
 
   if (!detail) {
@@ -154,7 +154,7 @@ async function fromPeople(
   memberIds: string[],
 ): Promise<Response> {
   const db = getDb();
-  const actorId = await currentActorId();
+  const actorId = await currentAccountActorId();
   // Signed in, not merely present: a group belongs to an account, and a guest
   // device making one would be a room that disappears with a browser.
   if (!actorId || !(await isSignedIn(db, actorId))) {
@@ -420,7 +420,7 @@ export async function POST(request: Request) {
     return toResponse(err);
   }
 
-  const actorId = (await currentActorId())!;
+  const actorId = (await currentAccountActorId())!;
 
   const [group] = await db
     .insert(schema.groups)

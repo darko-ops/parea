@@ -40,7 +40,7 @@ import {
 } from '@/groups';
 import { leadImage } from '@/cards';
 import { searchable } from '@/search';
-import { currentActorId } from '@/session';
+import { currentAccountActorId } from '@/session';
 import { readerZone } from '@/zone';
 
 export const dynamic = 'force-dynamic';
@@ -59,7 +59,7 @@ export default async function FindPage({
   // the default, never an error — it is a link people can edit.
   const scope = (await searchParams).scope === 'people' ? 'people' : 'all';
   const db = getDb();
-  const actorId = await currentActorId();
+  const actorId = await currentAccountActorId();
   const [listings, friends, suggested, groups, offered, account, clusters] =
     await Promise.all([
       eventsFor(db, actorId),

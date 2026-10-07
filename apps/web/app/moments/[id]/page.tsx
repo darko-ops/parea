@@ -20,7 +20,7 @@ import { MomentView } from '@/../app/components/MomentView';
 import { Shell } from '@/../app/components/Shell';
 import { getDb } from '@/db';
 import { markSeen, momentsResponse } from '@/moments';
-import { currentActorId } from '@/session';
+import { currentAccountActorId } from '@/session';
 import { ago } from '@/when';
 import { readerZone } from '@/zone';
 
@@ -40,7 +40,7 @@ export default async function MomentPage({
 }) {
   const { id } = await params;
   const { by, at } = await searchParams;
-  const actorId = await currentActorId();
+  const actorId = await currentAccountActorId();
   if (!actorId) notFound();
 
   let author: string | undefined;

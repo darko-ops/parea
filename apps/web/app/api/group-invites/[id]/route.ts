@@ -20,7 +20,7 @@ import { NextResponse } from 'next/server';
 
 import { getDb } from '@/db';
 import { answerGroupInvite } from '@/groups';
-import { currentActorId } from '@/session';
+import { currentAccountActorId } from '@/session';
 
 export const runtime = 'nodejs';
 
@@ -31,7 +31,7 @@ export async function PATCH(
   const { id } = await params;
   const db = getDb();
 
-  const actorId = await currentActorId();
+  const actorId = await currentAccountActorId();
   if (!actorId) return NextResponse.json({ error: 'not_found' }, { status: 404 });
 
   const body = (await request.json().catch(() => ({}))) as { action?: unknown };

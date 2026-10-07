@@ -33,7 +33,7 @@ export const ACCESS_OPTIONS: {
   {
     value: PUBLIC,
     label: 'Public',
-    help: 'Anyone can see it — whoever holds the link, and anyone they pass it on to. No account needed to look; adding photos always needs one.',
+    help: 'Anyone signed in can see it — whoever holds the link, and anyone they pass it on to.',
   },
   {
     value: PRIVATE,

@@ -660,18 +660,18 @@ describe('what a revoked credential can still reach', () => {
     });
   });
 
-  it('can still open a public roll, which is the policy and not the cookie', () => {
+  it('cannot open a public roll either, now that every roll needs an account', () => {
     /*
-     * Here rather than left unsaid, because anybody reading the four refusals
-     * above will ask about the public case. A public album needs no credential
-     * by design, so holding the link is enough whoever you are — and rotating
-     * the link would not change it either; see `isPublic` in `policy.ts`.
-     *
-     * The second assertion is the one that makes the point: nothing carried
-     * over from the old session is involved at all.
+     * This used to be the exception: a public album needed no credential, so a
+     * signed-out device holding the link could still look. Since 6 October
+     * 2026 nothing opens without an account — whatever the old session left
+     * behind, and with nothing at all.
      */
-    expect(authorize(null, 'view', { event: albumWith(PUBLIC) }, stillHolds).allow).toBe(true);
-    expect(authorize(null, 'view', { event: albumWith(PUBLIC) }, {}).allow).toBe(true);
+    expect(authorize(null, 'view', { event: albumWith(PUBLIC) }, stillHolds)).toEqual({
+      allow: false,
+      reason: 'sign_in_required',
+    });
+    expect(authorize(null, 'view', { event: albumWith(PUBLIC) }, {}).allow).toBe(false);
   });
 });
 

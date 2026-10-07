@@ -42,8 +42,8 @@ export default function PrivacyPage() {
           <p className="muted">
             There is no advertising, no tracking and no third-party analytics,
             and nothing is sold or shared for anyone else&rsquo;s purposes.
-            Looking at a roll you were sent needs no account. Adding photos,
-            writing, reacting, and making rolls or groups do. An account holds
+            Everything on Parea needs an account, looking at a roll you were
+            sent included. An account holds
             your email address, a handle, and whatever name and picture you
             choose to add.
           </p>

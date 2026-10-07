@@ -21,7 +21,7 @@ import { NextResponse } from 'next/server';
 import { getDb } from '@/db';
 import { findGroup, inviteToGroup, invitedTo, membershipOf } from '@/groups';
 import { notifyGroupInvite } from '@/notify';
-import { currentActorId } from '@/session';
+import { currentAccountActorId } from '@/session';
 
 export const runtime = 'nodejs';
 
@@ -38,7 +38,7 @@ export async function POST(
   const group = await findGroup(db, id);
   if (!group) return NextResponse.json({ error: 'not_found' }, { status: 404 });
 
-  const actorId = await currentActorId();
+  const actorId = await currentAccountActorId();
   const membership = actorId ? await membershipOf(db, group.id, actorId) : null;
   /*
    * 404 rather than 403, matching every other group read: whether a group
@@ -93,7 +93,7 @@ export async function GET(
   const group = await findGroup(db, id);
   if (!group) return NextResponse.json({ error: 'not_found' }, { status: 404 });
 
-  const actorId = await currentActorId();
+  const actorId = await currentAccountActorId();
   const membership = actorId ? await membershipOf(db, group.id, actorId) : null;
   if (!actorId || membership?.role !== 'admin') {
     return NextResponse.json({ error: 'not_found' }, { status: 404 });

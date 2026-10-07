@@ -118,7 +118,8 @@ describe('what the share panel promises the person receiving the link', () => {
    * reading it is deciding, on the strength of it, who to send it to.
    */
   it('is the plain truth for a public event', () => {
-    expect(promise(PUBLIC, true)).toMatch(/Anybody with this can open the roll/);
+    // Everybody signs in first now, public roll or not.
+    expect(promise(PUBLIC, true)).toMatch(/Whoever you send this to signs in, then can open the roll/);
   });
 
   it('does not promise entry when entry has to be granted', () => {
@@ -151,7 +152,7 @@ describe('what the share panel promises the person receiving the link', () => {
   it('falls back to the public wording when the field is missing', () => {
     // An older cached payload, or a caller not yet updated. `undefined` means
     // the field was not sent, which only happens on a public-by-default path.
-    expect(promise(undefined, true)).toMatch(/Anybody with this/);
+    expect(promise(undefined, true)).toMatch(/Whoever you send this to signs in/);
   });
 });
 

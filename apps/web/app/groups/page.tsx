@@ -51,7 +51,7 @@ import { getDb } from '@/db';
 import { greetingFor, partOfDay } from '@/greeting';
 import { lensFor, myGroupsDetailed } from '@/groups';
 import { invitesSeenAtFor } from '@/invites';
-import { currentActorId } from '@/session';
+import { currentAccountActorId } from '@/session';
 import { readerZone } from '@/zone';
 import { ChatView } from '@/../app/components/ChatView';
 import { type ChatRow } from '@/../app/components/GroupChats';
@@ -90,7 +90,7 @@ function ago(iso: string, now: Date): string {
 
 export default async function GroupsPage() {
   const db = getDb();
-  const actorId = await currentActorId();
+  const actorId = await currentAccountActorId();
   // Read before anything uses it. Null means never looked, which has to mean
   // everything is new rather than nothing.
   const since = (await invitesSeenAtFor(db, actorId)) ?? new Date(0);

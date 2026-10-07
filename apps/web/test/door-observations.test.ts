@@ -48,8 +48,14 @@ beforeEach(async () => {
   headerBag.clear();
 });
 
-async function person() {
-  const [row] = await db.insert(schema.actors).values({ kind: 'guest' }).returning();
+async function person(signedIn = false) {
+  const [account] = signedIn
+    ? await db.insert(schema.accounts).values({ email: `${crypto.randomUUID()}@example.test` }).returning()
+    : [null];
+  const [row] = await db
+    .insert(schema.actors)
+    .values({ kind: signedIn ? 'user' : 'guest', accountId: account?.id ?? null })
+    .returning();
   return row!.id;
 }
 
@@ -90,22 +96,23 @@ const observed = async () =>
   (await db.select().from(schema.observations)).map((o) => `${o.kind}:${o.client}${o.reason ? `:${o.reason}` : ''}`).sort();
 
 describe('the doors', () => {
-  it('record a web arrival and its join, which used to go unrecorded', async () => {
+  it('record a signed-out web arrival, and that it was sent to sign in', async () => {
+    // Every roll needs an account now: the link goes to sign-in and back.
     const a = await album();
     expect(await openOnWeb(a.linkToken)).toBe('redirect');
-    expect(await observed()).toEqual(['joined:web', 'link_opened:web']);
+    expect(await observed()).toEqual(['join_refused:web:sign_in_required', 'link_opened:web']);
   });
 
-  it('record why the web door said no', async () => {
+  it('say sign in before anything else, even on a closed roll', async () => {
     const a = await album({ joinsOpen: false });
     await openOnWeb(a.linkToken);
-    expect(await observed()).toEqual(['join_refused:web:joins_closed', 'link_opened:web']);
+    expect(await observed()).toEqual(['join_refused:web:sign_in_required', 'link_opened:web']);
   });
 
   it('record an arrival in the app, and a refusal with its reason', async () => {
     const open = await album();
     const closed = await album({ joinsOpen: false });
-    const me = await person();
+    const me = await person(true);
     await openInApp(open.linkToken, me);
     await openInApp(closed.linkToken, me, 'android');
     expect(await observed()).toEqual([

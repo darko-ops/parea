@@ -16,7 +16,7 @@ import { avatarUrl } from '@/accounts';
 import { getDb } from '@/db';
 import { friendsSeenBy } from '@/friends';
 import { profileFor } from '@/people';
-import { currentActorId } from '@/session';
+import { currentAccountActorId } from '@/session';
 
 export const dynamic = 'force-dynamic';
 
@@ -35,7 +35,7 @@ export default async function PersonFriendsPage({
 }) {
   const { handle } = await params;
   const db = getDb();
-  const actorId = await currentActorId();
+  const actorId = await currentAccountActorId();
 
   if (!actorId || !(await isSignedIn(db, actorId))) notFound();
 

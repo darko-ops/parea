@@ -65,13 +65,13 @@ import { getDb } from '@/db';
 import { unreadChats } from '@/groupMessages';
 import { invitesSeenAtFor, invitesWaiting } from '@/invites';
 import { otherRequestsWaiting } from '@/requests';
-import { currentActorId } from '@/session';
+import { currentAccountActorId } from '@/session';
 
 export const runtime = 'nodejs';
 
 export async function GET() {
   const db = getDb();
-  const actorId = await currentActorId();
+  const actorId = await currentAccountActorId();
   // Four sources for three answers: two halves of the Activity page — what is
   // waiting on an answer, and what is new — and the state of Chats.
   const [news, unanswered, items, seenAt, chats] = await Promise.all([

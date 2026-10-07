@@ -3,9 +3,13 @@
  * another site — the defence against forced sign-in. See `proxy.ts`.
  */
 
+import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 
 import { allowedSource, config } from '../proxy';
+
+const PROXY = readFileSync(fileURLToPath(new URL('../proxy.ts', import.meta.url)), 'utf8');
 
 const request = (method: string, headers: Record<string, string> = {}) => ({
   method,
@@ -42,7 +46,10 @@ describe('which requests may change something', () => {
     expect(allowedSource(request('GET', { 'sec-fetch-site': 'cross-site' }))).toBe(true);
   });
 
-  it('runs on the API and nothing else', () => {
-    expect(config.matcher).toBe('/api/:path*');
+  it('runs on the API, and on pages only for the sign-in gate', () => {
+    // The cross-site check is for the API; pages pass through the proxy so it
+    // can send a visitor with no session to sign in — see `@/gate`.
+    expect(config.matcher).toContain('/api/:path*');
+    expect(PROXY).toMatch(/if \(pathname\.startsWith\('\/api\/'\)\) \{\s*if \(allowedSource\(request\)\)/);
   });
 });

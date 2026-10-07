@@ -14,7 +14,7 @@ import {
   titleOf,
 } from '@/groups';
 import { invitesSeenAtFor } from '@/invites';
-import { currentActorId } from '@/session';
+import { currentAccountActorId } from '@/session';
 import { Shell } from '@/../app/components/Shell';
 
 export const dynamic = 'force-dynamic';
@@ -66,7 +66,7 @@ export default async function GroupPage({
   const group = await findGroup(db, id);
   if (!group) notFound();
 
-  const actorId = await currentActorId();
+  const actorId = await currentAccountActorId();
   const membership = await membershipOf(db, group.id, actorId);
   if (!membership && !group.findable) notFound();
 

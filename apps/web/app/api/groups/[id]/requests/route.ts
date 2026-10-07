@@ -18,7 +18,7 @@ import {
   openJoinRequests,
   participatedInGroup,
 } from '@/groups';
-import { currentActorId } from '@/session';
+import { currentAccountActorId } from '@/session';
 
 export const runtime = 'nodejs';
 
@@ -29,7 +29,7 @@ export async function GET(
 ) {
   const { id } = await params;
   const db = getDb();
-  const actorId = await currentActorId();
+  const actorId = await currentAccountActorId();
   const membership = await membershipOf(db, id, actorId);
   if (membership?.role !== 'admin') {
     return NextResponse.json({ error: 'not_found' }, { status: 404 });
@@ -58,7 +58,7 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> },
 ) {
   const { id } = await params;
-  const actorId = await currentActorId();
+  const actorId = await currentAccountActorId();
   if (!actorId) return NextResponse.json({ error: 'no_actor' }, { status: 403 });
 
   const db = getDb();
@@ -101,7 +101,7 @@ export async function PATCH(
   }
 
   const db = getDb();
-  const actorId = await currentActorId();
+  const actorId = await currentAccountActorId();
   const membership = await membershipOf(db, id, actorId);
   if (membership?.role !== 'admin') {
     return NextResponse.json({ error: 'not_found' }, { status: 404 });

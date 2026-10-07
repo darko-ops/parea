@@ -27,7 +27,7 @@ import { NextResponse } from 'next/server';
 
 import { getDb } from '@/db';
 import { leaveEvent } from '@/events';
-import { currentActorId } from '@/session';
+import { currentAccountActorId } from '@/session';
 
 export const runtime = 'nodejs';
 
@@ -37,7 +37,7 @@ export async function DELETE(
 ) {
   const { id } = await params;
 
-  const actorId = await currentActorId();
+  const actorId = await currentAccountActorId();
   // No session, no membership to end. A 404 rather than a 401 for the same
   // reason every other event route gives one: whether an id exists is not a
   // question this product answers to somebody who is not signed in.

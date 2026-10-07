@@ -30,7 +30,7 @@ import { findGroup, membershipOf } from '@/groups';
 import { notifyGroupEvent } from '@/notify';
 import { asDateString, parseWindow } from '@/eventwindow';
 import { CREATE_EVENT_LIMIT, withinLimit } from '@/ratelimit';
-import { currentActorId, ensureActor, grantCapability } from '@/session';
+import { currentAccountActorId, ensureActor, grantCapability } from '@/session';
 
 export const runtime = 'nodejs';
 
@@ -73,7 +73,7 @@ type Body = {
  */
 export async function GET() {
   const db = getDb();
-  const actorId = await currentActorId();
+  const actorId = await currentAccountActorId();
   const listings = await eventsFor(db, actorId);
 
   /*
@@ -278,7 +278,7 @@ export async function POST(request: Request) {
   // than minting one: `ensureActor` would hand a signed-out visitor a fresh
   // anonymous identity and the check below would then reject it, which is a
   // row in the actor table for every refused attempt.
-  const actorId = await currentActorId();
+  const actorId = await currentAccountActorId();
   if (!actorId || !(await isSignedIn(db, actorId))) {
     return NextResponse.json({ error: 'sign_in_required' }, { status: 403 });
   }

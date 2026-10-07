@@ -28,7 +28,7 @@ import { eventCover } from '@/groups';
 import { getDb } from '@/db';
 import { momentsResponse } from '@/moments';
 import { albumsBy, eventsWithBoth, profileFor } from '@/people';
-import { currentActorId } from '@/session';
+import { currentAccountActorId } from '@/session';
 
 export const dynamic = 'force-dynamic';
 
@@ -60,7 +60,7 @@ export default async function PersonPage({
 }) {
   const { handle } = await params;
   const db = getDb();
-  const actorId = await currentActorId();
+  const actorId = await currentAccountActorId();
 
   /*
    * A guest with a link to one event is not somebody who gets to look people

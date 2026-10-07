@@ -11,7 +11,7 @@ import { NextResponse } from 'next/server';
 import { getDb } from '@/db';
 import { COMMENT_MAX, canSeeMoment, commentOnMoment, replyInChat } from '@/moments';
 import { nameOf, notifyMomentComment } from '@/notify';
-import { currentActorId } from '@/session';
+import { currentAccountActorId } from '@/session';
 
 export const runtime = 'nodejs';
 
@@ -20,7 +20,7 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> },
 ) {
   const { id } = await params;
-  const actorId = await currentActorId();
+  const actorId = await currentAccountActorId();
   if (!actorId) return NextResponse.json({ error: 'no_actor' }, { status: 403 });
   if (!/^[0-9a-f-]{36}$/i.test(id)) {
     return NextResponse.json({ error: 'not_found' }, { status: 404 });

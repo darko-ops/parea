@@ -26,7 +26,7 @@ import { getDb } from '@/db';
 import { greetingFor, partOfDay } from '@/greeting';
 import { askedToJoin, invitesSeenAtFor, markInvitesSeen } from '@/invites';
 import { pendingRequestsFor } from '@/requests';
-import { currentActorId } from '@/session';
+import { currentAccountActorId } from '@/session';
 import { readerZone } from '@/zone';
 import { agoShort, bucketFor } from '@/when';
 
@@ -39,7 +39,7 @@ export const metadata = {
 
 export default async function ActivityPage() {
   const db = getDb();
-  const actorId = await currentActorId();
+  const actorId = await currentAccountActorId();
   const [items, asked, requests, seenAt, account] = await Promise.all([
     activityFor(db, actorId),
     askedToJoin(db, actorId),

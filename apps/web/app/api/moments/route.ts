@@ -25,7 +25,7 @@ import { admit, decode } from '@/imaging';
 import { MOMENT_MAX_BYTES, incomingPrefix, momentsResponse } from '@/moments';
 import { MOMENT_LIMIT, withinLimit } from '@/ratelimit';
 import { screenUpload } from '@/safety';
-import { currentActorId, requesterFor } from '@/session';
+import { currentAccountActorId, requesterFor } from '@/session';
 import { getStorage } from '@/storage';
 
 export const runtime = 'nodejs';
@@ -41,7 +41,7 @@ const THUMB_EDGE = 360;
  * is what their page draws. Either way only what this viewer may see.
  */
 export async function GET(request: Request) {
-  const actorId = await currentActorId();
+  const actorId = await currentAccountActorId();
   const handle = new URL(request.url).searchParams.get('by');
   if (handle === null) return NextResponse.json(await momentsResponse(actorId));
 
@@ -72,7 +72,7 @@ export async function GET(request: Request) {
  * picture, read once, the same bytes the raw-body path already carried.
  */
 export async function POST(request: Request) {
-  const actorId = await currentActorId();
+  const actorId = await currentAccountActorId();
   if (!actorId) return NextResponse.json({ error: 'no_actor' }, { status: 403 });
 
   const json = (request.headers.get('content-type') ?? '').includes('application/json');

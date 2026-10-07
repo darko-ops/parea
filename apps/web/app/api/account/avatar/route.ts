@@ -29,7 +29,7 @@ import { getDb } from '@/db';
 import { admit, decode } from '@/imaging';
 import { AVATAR_LIMIT, withinLimit } from '@/ratelimit';
 import { screenUpload } from '@/safety';
-import { currentActorId } from '@/session';
+import { currentAccountActorId } from '@/session';
 import { getStorage } from '@/storage';
 
 export const runtime = 'nodejs';
@@ -47,7 +47,7 @@ const EDGE = 512;
 const MAX_BYTES = 12 * 1024 * 1024;
 
 export async function POST(request: Request) {
-  const actorId = await currentActorId();
+  const actorId = await currentAccountActorId();
   if (!actorId) return NextResponse.json({ error: 'no_actor' }, { status: 403 });
 
   /*
@@ -116,7 +116,7 @@ export async function POST(request: Request) {
 
 /** Remove it. The object goes too — an unreferenced one is never read again. */
 export async function DELETE() {
-  const actorId = await currentActorId();
+  const actorId = await currentAccountActorId();
   if (!actorId) return NextResponse.json({ error: 'no_actor' }, { status: 403 });
 
   const db = getDb();

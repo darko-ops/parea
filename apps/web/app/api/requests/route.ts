@@ -24,11 +24,11 @@ import { NextResponse } from 'next/server';
 
 import { getDb } from '@/db';
 import { pendingRequestsFor } from '@/requests';
-import { currentActorId } from '@/session';
+import { currentAccountActorId } from '@/session';
 
 export const runtime = 'nodejs';
 
 export async function GET() {
-  const requests = await pendingRequestsFor(getDb(), await currentActorId());
+  const requests = await pendingRequestsFor(getDb(), await currentAccountActorId());
   return NextResponse.json({ requests });
 }

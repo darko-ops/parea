@@ -1866,11 +1866,11 @@ function contributeNote(contributePolicy: string): string {
 function linkPromise(contributePolicy: string): string {
   switch (contributePolicy) {
     case CONTRIBUTE_CREATOR:
-      return 'Anyone with the link can see it — no account needed. You are the only one who adds photos.';
+      return 'Anyone signed in with the link can see it. You are the only one who adds photos.';
     case CONTRIBUTE_HOST:
-      return 'Anyone with the link can see it — no account needed. Only the hosts add photos.';
+      return 'Anyone signed in with the link can see it. Only the hosts add photos.';
     default:
-      return 'Anyone with the link can add photos — no account needed to look.';
+      return 'Anyone signed in with the link can see it and add photos.';
   }
 }
 
