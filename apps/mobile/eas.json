@@ -58,7 +58,8 @@
   "submit": {
     "production": {
       "ios": {
-        "appleTeamId": "W276447S6T"
+        "appleTeamId": "W276447S6T",
+        "ascAppId": "6819904142"
       },
       "android": {
         "serviceAccountKeyPath": "${secrets.GOOGLE_SERVICE_ACCOUNT_KEY_PATH}",
