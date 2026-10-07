@@ -55,17 +55,27 @@ describe('the picker', () => {
   it('scrolls the frame away with the grid, and pins what was tapped', () => {
     /*
      * The frame is the grid's first row, so swiping it up or scrolling the grid
-     * moves it with the phone's own scrolling. It used to be a separate view
-     * folded by a gesture of its own, which lost the touch to the grid. Once it
-     * has gone, a strip pins the photograph last touched; tapping it goes back
-     * up.
+     * moves it with the phone's own scrolling. Once it has gone, a strip pins
+     * the photograph last touched — and tapping it opens the photograph big
+     * where the grid is, rather than scrolling back to the top and losing the
+     * place. Tapping the big one folds it back to the strip.
      */
     const pick = code(PICK);
     expect(pick).toMatch(/ListHeaderComponent=\{frame\}/);
     expect(pick).not.toMatch(/fold\(|frameGesture|collapsed/);
-    expect(pick).toMatch(/setPinned\(y > width - PEEK\)/);
-    expect(pick).toMatch(/\{pinned && showing && \(/);
-    expect(pick).toMatch(/scrollToOffset\(\{ offset: 0, animated: true \}\)/);
+    expect(pick).toMatch(/setPinned\(past\)/);
+    expect(pick).toMatch(/\{pinned && showing && !expanded && \(\s*<Pressable\s*onPress=\{\(\) => setExpanded\(true\)\}/);
+    expect(pick).toMatch(/\{pinned && showing && expanded && \(\s*<Pressable\s*onPress=\{\(\) => setExpanded\(false\)\}/);
+    expect(pick).not.toMatch(/scrollToOffset\(\{ offset: 0/);
+  });
+
+  it('loads what is on screen first, and holds the place with a grey square', () => {
+    const pick = code(PICK);
+    // Only a cell on screen asks for its thumbnail; one that arrived stays.
+    expect(pick).toMatch(/\{\(onScreen\.has\(item\.id\) \|\| loaded\.has\(item\.id\)\) && \(/);
+    expect(pick).toMatch(/onViewableItemsChanged=\{onViewable\}/);
+    expect(pick).toMatch(/onLoad=\{\(\) => markLoaded\(item\.id\)\}/);
+    expect(pick).toMatch(/tile: \{ backgroundColor: '#1f1f22' \}/);
   });
 
   it('knows the whole library up front where ids can be drawn, and pages properly elsewhere', () => {

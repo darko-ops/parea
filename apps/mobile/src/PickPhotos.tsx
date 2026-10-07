@@ -138,6 +138,38 @@ export function PickPhotos({
    * the strip goes back up to the big one.
    */
   const [pinned, setPinned] = useState(false);
+  /*
+   * The strip, opened up where the grid is, rather than by scrolling back to
+   * the top: somebody who has scrolled a year down wants a bigger look at the
+   * photograph, not to lose their place. Tapping the big one folds it back.
+   */
+  const [expanded, setExpanded] = useState(false);
+
+  /*
+   * What is on screen loads first.
+   *
+   * The grid keeps a few screens of cells mounted either side of what is
+   * showing, and each mounted image asks Photos for its thumbnail in the order
+   * it mounted — so after a jump down the scrubber, the photographs passed on
+   * the way queued ahead of the ones somebody had stopped on. Now only a cell
+   * that is actually on screen asks; one scrolled past before its photograph
+   * arrived drops the request. A grey square holds the place meanwhile, and a
+   * photograph that has arrived stays drawn.
+   */
+  const [onScreen, setOnScreen] = useState<ReadonlySet<string>>(new Set());
+  const [loaded, setLoaded] = useState<ReadonlySet<string>>(new Set());
+  const viewability = useRef({ itemVisiblePercentThreshold: 1, minimumViewTime: 0 }).current;
+  const onViewable = useRef(({ viewableItems }: { viewableItems: { key: string }[] }) => {
+    setOnScreen(new Set(viewableItems.map((v) => v.key)));
+  }).current;
+  const markLoaded = useCallback((id: string) => {
+    setLoaded((was) => {
+      if (was.has(id)) return was;
+      const next = new Set(was);
+      next.add(id);
+      return next;
+    });
+  }, []);
 
   /*
    * The scrubber: a handle on the right edge, and the date where it is.
@@ -192,8 +224,11 @@ export function PickPhotos({
       offset.current = y;
       if (!dragging) thumbTop.setValue(Math.min(travel, Math.max(0, (y / scrollable) * travel)));
       setLabel(labelAt(y));
-      // The strip pins once the big frame has all but gone.
-      setPinned(y > width - PEEK);
+      // The strip pins once the big frame has all but gone; back at the top,
+      // the big frame is the big look again.
+      const past = y > width - PEEK;
+      setPinned(past);
+      if (!past) setExpanded(false);
     },
     [dragging, labelAt, scrollable, thumbTop, travel, width],
   );
@@ -389,8 +424,11 @@ export function PickPhotos({
         getItemLayout={(_, index) => ({ length: rowHeight, offset: header + rowHeight * index, index })}
         initialNumToRender={COLUMNS * 8}
         maxToRenderPerBatch={COLUMNS * 8}
-        windowSize={7}
+        windowSize={5}
         removeClippedSubviews
+        onViewableItemsChanged={onViewable}
+        viewabilityConfig={viewability}
+        extraData={{ onScreen, loaded, chosen }}
         keyExtractor={(photo) => photo.id}
         numColumns={COLUMNS}
         columnWrapperStyle={{ gap: GAP }}
@@ -410,19 +448,22 @@ export function PickPhotos({
               onPress={() => toggle(item)}
               accessibilityRole="checkbox"
               accessibilityState={{ checked: on }}
-              style={{ width: tile, height: tile }}
+              style={[styles.tile, { width: tile, height: tile }]}
             >
-              <ExpoImage
-                source={{ uri: item.uri }}
-                // A recycled cell keeps its image view, so the key stops one
-                // photograph showing in another's place for a frame.
-                recyclingKey={item.id}
-                style={StyleSheet.absoluteFill}
-                contentFit="cover"
-                // No transition: a grid of sixty fading in on scroll is a grid
-                // that looks like it is struggling.
-                transition={0}
-              />
+              {(onScreen.has(item.id) || loaded.has(item.id)) && (
+                <ExpoImage
+                  source={{ uri: item.uri }}
+                  // A recycled cell keeps its image view, so the key stops one
+                  // photograph showing in another's place for a frame.
+                  recyclingKey={item.id}
+                  onLoad={() => markLoaded(item.id)}
+                  style={StyleSheet.absoluteFill}
+                  contentFit="cover"
+                  // No transition: a grid of sixty fading in on scroll is a grid
+                  // that looks like it is struggling.
+                  transition={0}
+                />
+              )}
               {/*
                 The number, not a tick.
 
@@ -446,9 +487,22 @@ export function PickPhotos({
         The photograph last touched, pinned in a strip once the big frame has
         scrolled away. Tapping it goes back up to the big one.
       */}
-      {pinned && showing && (
+      {pinned && showing && expanded && (
         <Pressable
-          onPress={() => list.current?.scrollToOffset({ offset: 0, animated: true })}
+          onPress={() => setExpanded(false)}
+          style={[styles.bigLook, { height: width }]}
+          accessibilityRole="button"
+          accessibilityLabel="Make the photo smaller"
+        >
+          <ExpoImage source={{ uri: showing.uri }} style={StyleSheet.absoluteFill} contentFit="contain" transition={120} />
+          <View style={styles.bigLookHint} pointerEvents="none">
+            <Text style={styles.bigLookHintText}>Tap to make it smaller</Text>
+          </View>
+        </Pressable>
+      )}
+      {pinned && showing && !expanded && (
+        <Pressable
+          onPress={() => setExpanded(true)}
           style={styles.strip}
           accessibilityRole="button"
           accessibilityLabel="Show the photo bigger"
@@ -532,6 +586,21 @@ const styles = StyleSheet.create({
   },
   stripImage: { width: PEEK - 16, height: PEEK - 16, borderRadius: 8 },
   stripText: { color: '#fff', fontSize: 14, fontWeight: '600', flex: 1 },
+  /* The strip opened up: the photograph big, over the top of the grid. */
+  bigLook: { position: 'absolute', top: 0, left: 0, right: 0, backgroundColor: '#000' },
+  bigLookHint: {
+    position: 'absolute',
+    bottom: 10,
+    alignSelf: 'center',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 12,
+    backgroundColor: 'rgba(0,0,0,0.6)',
+  },
+  bigLookHintText: { color: '#fff', fontSize: 13, fontWeight: '600' },
+  /* A grey square where a photograph has not arrived yet, so the grid's shape
+     is there at once and nobody wonders whether anything is coming. */
+  tile: { backgroundColor: '#1f1f22' },
   gridWrap: { flex: 1 },
   /* A column down the right edge, as tall as the grid; the handle moves in it. */
   scrubber: { position: 'absolute', top: 0, bottom: 0, right: 0, width: 160 },
