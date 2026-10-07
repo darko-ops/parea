@@ -100,7 +100,7 @@ import {
   isLibraryAsset,
   libraryAccess,
   releaseCopies,
-  resolveForUpload,
+  resolveInOrder,
   sweepOutbox,
   type LibraryAccess,
   type LibraryPhoto,
@@ -625,6 +625,29 @@ export default function App() {
    * photographs, opening an album, returning to the app, and the timer below.
    */
   const running = useRef(false);
+  /*
+   * The queue a run is working through, while one is.
+   *
+   * A run loads the queue once and saves its own copy as it goes, so anything
+   * written to disk behind its back was overwritten at its next save. Adding
+   * photographs while one ran — which a new roll now does a photograph at a
+   * time, as each is copied out of the library — goes into this object
+   * instead, and `more` sends the run round again for them.
+   */
+  const live = useRef<UploadQueue | null>(null);
+  const more = useRef(false);
+  /*
+   * Every read-modify-write of the queue, one after another: two adds, or an
+   * add and a run starting, each loading the queue and saving it back would
+   * keep whichever saved last.
+   */
+  const queueLock = useRef<Promise<unknown>>(Promise.resolve());
+  const serial = useCallback(<T,>(work: () => Promise<T>): Promise<T> => {
+    const next = queueLock.current.then(work);
+    queueLock.current = next.catch(() => {});
+    return next;
+  }, []);
+
   const runUploads = useCallback(async () => {
     if (running.current) return;
     running.current = true;
@@ -635,24 +658,74 @@ export default function App() {
         await nameOwedCovers(state);
       };
       const token = (eventId: string) => linkTokens.current.get(eventId) ?? '';
-      const queue = new UploadQueue(
-        {
-          presign: (eventId, files) => api.presign(eventId, token(eventId), files),
-          upload: uploadItem,
-          complete: (photoId, eventId) => api.complete(photoId, token(eventId)),
-          save,
-        },
-        await loadQueue(),
-      );
-      // Unscoped: every album's work, which is the whole point of the token
-      // lookup above. Nothing here knows or cares which one is on screen.
-      await queue.run();
-      queue.prune();
-      await save(queue.state);
+      const queue = await serial(async () => {
+        const opened = new UploadQueue(
+          {
+            presign: (eventId, files) => api.presign(eventId, token(eventId), files),
+            upload: uploadItem,
+            complete: (photoId, eventId) => api.complete(photoId, token(eventId)),
+            save,
+          },
+          await loadQueue(),
+        );
+        live.current = opened;
+        return opened;
+      });
+      try {
+        // Unscoped: every album's work, which is the whole point of the token
+        // lookup above. Nothing here knows or cares which one is on screen.
+        for (;;) {
+          more.current = false;
+          await queue.run();
+          queue.prune();
+          await save(queue.state);
+          if (!more.current) break;
+        }
+      } finally {
+        live.current = null;
+      }
     } finally {
       running.current = false;
     }
-  }, [api, nameOwedCovers]);
+  }, [api, nameOwedCovers, serial]);
+
+  /**
+   * Photographs into the queue, whether or not a run is going. Does not start
+   * one; the caller runs after.
+   */
+  const addUploads = useCallback(
+    (
+      eventId: string,
+      linkToken: string,
+      files: { id: string; source: string; name: string; size: number; mime: string }[],
+    ) =>
+      serial(async () => {
+        if (files.length === 0) return;
+        linkTokens.current.set(eventId, linkToken);
+        const running = live.current;
+        if (running) {
+          running.add(eventId, files);
+          more.current = true;
+          await saveQueue(running.state);
+          setUploads({ items: [...running.state.items] });
+          return;
+        }
+        const state = await loadQueue();
+        const queue = new UploadQueue(
+          {
+            presign: async () => [],
+            upload: async () => {},
+            complete: async () => {},
+            save: async () => {},
+          },
+          state,
+        );
+        queue.add(eventId, files);
+        await saveQueue(queue.state);
+        setUploads({ items: [...queue.state.items] });
+      }),
+    [serial],
+  );
 
   /**
    * The one album whose cover was given up on, until somebody has been told.
@@ -1536,6 +1609,7 @@ export default function App() {
             onCoverTroubleSeen={coverTroubleSeen}
             uploads={uploads}
             onRunUploads={runUploads}
+            onAddUploads={addUploads}
             previews={previews[route.event.id] ?? NO_PREVIEWS}
             onFeedSeen={feedSeen}
             webBase={API_BASE}
@@ -2381,6 +2455,7 @@ function EventScreen({
   onCoverTroubleSeen,
   uploads,
   onRunUploads,
+  onAddUploads,
   previews,
   onFeedSeen,
   webBase,
@@ -2442,6 +2517,12 @@ function EventScreen({
    */
   uploads: QueueState;
   onRunUploads: () => Promise<void>;
+  /** Into the queue, safely beside a run already going. See `addUploads`. */
+  onAddUploads: (
+    eventId: string,
+    linkToken: string,
+    files: { id: string; source: string; name: string; size: number; mime: string }[],
+  ) => Promise<void>;
   /**
    * This roll's stand-ins, and where to say what its feed holds.
    *
@@ -2921,42 +3002,35 @@ function EventScreen({
    * work and outlives every screen. See the note there.
    */
 
+  /*
+   * Now there is something worth being told about: a reminder if this event
+   * goes quiet, and an answer if someone asks about one of these photos. Never
+   * on first launch — design §12.
+   */
+  const askForPush = useCallback(async () => {
+    if (await pushAlreadyAsked()) return;
+    const token = await registerForPush();
+    if (token) {
+      await api
+        .registerDevice(token, RNPlatform.OS === 'android' ? 'android' : 'ios')
+        .catch(() => {});
+    }
+  }, [api]);
+
   const enqueue = useCallback(
     async (files: { id: string; source: string; name: string; size: number; mime: string }[]) => {
       if (files.length === 0) return;
       if (!(await loadActorToken())) {
         await saveActorToken(await api.startSession());
       }
-      const state = await loadQueue();
-      const queue = new UploadQueue(
-        {
-          presign: (eventId, batch) => api.presign(eventId, event.linkToken, batch),
-          upload: uploadItem,
-          complete: (photoId) => api.complete(photoId, event.linkToken),
-          save: saveQueue,
-        },
-        state,
-      );
-      queue.add(event.id, files);
-      await saveQueue(queue.state);
-      // Saved first, then run. The runner loads from disk, so the write is
-      // what hands the work over — and it is safe for the run to be somebody
-      // else's, which is the point.
+      // Into the queue — the running one if there is a run — then run. See
+      // `addUploads`: a run already going picks these up rather than saving
+      // over them.
+      await onAddUploads(event.id, event.linkToken, files);
       await runQueue();
-
-      // Now there is something worth being told about: a reminder if this
-      // event goes quiet, and an answer if someone asks about one of these
-      // photos. Never on first launch — design §12.
-      if (!(await pushAlreadyAsked())) {
-        const token = await registerForPush();
-        if (token) {
-          await api
-            .registerDevice(token, RNPlatform.OS === 'android' ? 'android' : 'ios')
-            .catch(() => {});
-        }
-      }
+      await askForPush();
     },
-    [api, event, runQueue],
+    [askForPush, event, onAddUploads, runQueue],
   );
 
   /**
@@ -3642,8 +3716,35 @@ function EventScreen({
     setPreparing(initialUpload);
     void (async () => {
       try {
-        await enqueue(await resolveForUpload(initialUpload));
+        /*
+         * And queued as each copy lands, not once all of them have.
+         *
+         * Uploading waited for the slowest copy too. Now the first photograph
+         * is on its way while the rest are still coming out of the library;
+         * each run of finished copies goes in in the order they were tapped,
+         * so the roll still stacks them that way. Into the queue the safe way
+         * — beside a run already going — and the run kicked, not awaited, so
+         * the next copy is not held behind the whole upload.
+         */
+        if (!(await loadActorToken())) {
+          await saveActorToken(await api.startSession());
+        }
+        let first = true;
+        const { unreadable } = await resolveInOrder(initialUpload, (files) => {
+          void onAddUploads(event.id, event.linkToken, files).then(() => {
+            void runQueue();
+            if (first) {
+              first = false;
+              void askForPush();
+            }
+          });
+        });
         setPreparing([]);
+        if (unreadable > 0) {
+          setQueueStatus(
+            `${unreadable} could not be read from your library — add ${unreadable === 1 ? 'it' : 'them'} again`,
+          );
+        }
       } catch {
         setPreparing([]);
         // The album exists and the photographs are still on the phone. Add
@@ -3652,7 +3753,7 @@ function EventScreen({
         setQueueStatus('Could not start those uploads — use Add photos.');
       }
     })();
-  }, [enqueue, initialUpload]);
+  }, [api, askForPush, event, initialUpload, onAddUploads, runQueue]);
 
   /*
    * A cover still on its way is the third reason to keep looking.

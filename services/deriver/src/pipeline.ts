@@ -721,6 +721,32 @@ const AVIF_KINDS = DERIVATIVES.map((d) => d.kind).filter((kind) =>
  * Ready photos with a JPEG size whose AVIF version has not been made yet,
  * oldest first. Ingest makes JPEG only; these are what `backfillAvif` is for.
  */
+/**
+ * Whether any photograph is uploaded and still waiting to be made ready.
+ *
+ * The AVIF backfill runs only when this is false. It used to run whenever no
+ * delivery was in hand, which on a batch is between every photograph — and
+ * the next delivery then shared the one core with an AVIF encode of the last,
+ * so every photo took about twice as long to appear. A photo still pending
+ * after fifteen minutes is left out: its delivery has gone astray, the hourly
+ * job will deal with it, and it must not hold the backfill off for good.
+ */
+export async function photosArriving(db: any): Promise<boolean> {
+  const rows = await db
+    .select({ id: schema.photos.id })
+    .from(schema.photos)
+    .where(
+      and(
+        eq(schema.photos.status, 'pending'),
+        isNull(schema.photos.deletedAt),
+        isNotNull(schema.photos.bytesAt),
+        sql`${schema.photos.bytesAt} > now() - interval '15 minutes'`,
+      ),
+    )
+    .limit(1);
+  return rows.length > 0;
+}
+
 export async function photosMissingAvif(db: any, limit = 20): Promise<string[]> {
   const kinds = sql.join(AVIF_KINDS.map((k) => sql`${k}`), sql`, `);
   const rows = await db

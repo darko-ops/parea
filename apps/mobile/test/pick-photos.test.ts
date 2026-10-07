@@ -585,7 +585,8 @@ describe('what happens to the photographs', () => {
      * from a phrase; wrong now that it comes from a selection.
      */
     expect(APP).toMatch(/initialUpload/);
-    expect(APP).toMatch(/await enqueue\(await resolveForUpload\(initialUpload\)\)/);
+    // Each run of finished copies goes into the queue as it lands.
+    expect(APP).toMatch(/await resolveInOrder\(initialUpload, \(files\) => \{\s*void onAddUploads\(event\.id, event\.linkToken, files\)/);
     // The form's list, not the picker's: the row under the cover has a ⊗ on
     // every tile, so what arrives is not always what was chosen.
     expect(APP).toMatch(/photos\.map\(\(photo\) => photo\.id\)/);

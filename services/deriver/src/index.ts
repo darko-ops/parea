@@ -55,6 +55,7 @@ import { type CsamScanner, scannerFromEnv } from './safety';
 import {
   backfillAvif,
   backfillDerivative,
+  photosArriving,
   photosMissingAvif,
   readyPhotosAfter,
   restripOriginal,
@@ -408,7 +409,7 @@ async function main(): Promise<void> {
     const deps = ingest();
     /*
      * AVIF versions, made while nothing is waiting. Ingest makes JPEG only so a
-     * photo appears sooner; this catches up between deliveries. A photo whose
+     * photo appears sooner; this catches up once a batch has landed. A photo whose
      * AVIF fails is skipped for the rest of this process rather than retried in
      * a loop — the hourly job has another go.
      */
@@ -416,6 +417,10 @@ async function main(): Promise<void> {
     const handle = createHandler(deps, {
       concurrency,
       idle: async () => {
+        // Not while a photograph is still coming: it would share the core
+        // with this encode and take twice as long to appear. See
+        // `photosArriving`; the next delivery's finish calls idle again.
+        if (await photosArriving(deps.db)) return false;
         const ids = (await photosMissingAvif(deps.db, 10)).filter((id) => !avifFailed.has(id));
         const [next] = ids;
         if (!next) return false;

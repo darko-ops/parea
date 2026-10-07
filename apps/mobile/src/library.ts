@@ -373,9 +373,48 @@ export function sweepOutbox(queued: readonly string[], now: number = Date.now())
   return swept;
 }
 
-export async function resolveForUpload(
+export type UploadFile = { id: string; source: string; name: string; size: number; mime: string };
+
+/**
+ * Library ids into files the queue can send, handed over as they become ready.
+ *
+ * `ready` is called with each run of copies that are finished *in order* — the
+ * first photograph tapped, then the next — so the queue can start on them
+ * while the rest are still copying, and the roll still stacks them in the
+ * order they were chosen. One that cannot be copied (deleted, or in iCloud
+ * with no way to fetch it) is skipped and counted rather than failing the
+ * whole selection; the count comes back as `unreadable`.
+ */
+export async function resolveInOrder(
   ids: string[],
-): Promise<{ id: string; source: string; name: string; size: number; mime: string }[]> {
+  ready: (files: UploadFile[]) => void,
+): Promise<{ unreadable: number }> {
+  const done: (UploadFile | null | undefined)[] = new Array(ids.length);
+  let flushed = 0;
+  let unreadable = 0;
+  const flush = () => {
+    const batch: UploadFile[] = [];
+    while (flushed < ids.length && done[flushed] !== undefined) {
+      const file = done[flushed++];
+      if (file) batch.push(file);
+    }
+    if (batch.length > 0) ready(batch);
+  };
+  const index = new Map(ids.map((id, i) => [id, i]));
+  await pooled(ids, CONCURRENCY, async (id) => {
+    const i = index.get(id)!;
+    try {
+      [done[i]] = await resolveForUpload([id]);
+    } catch {
+      done[i] = null;
+      unreadable += 1;
+    }
+    flush();
+  });
+  return { unreadable };
+}
+
+export async function resolveForUpload(ids: string[]): Promise<UploadFile[]> {
   return pooled(ids, CONCURRENCY, async (id) => {
     const copy = await sandboxCopy(id);
 

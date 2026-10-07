@@ -341,9 +341,34 @@ describe('a new roll\'s photographs', () => {
     // screen. The library draws them at once; the copies follow.
     const SOURCE = readFileSync(fileURLToPath(new URL('../App.tsx', import.meta.url)), 'utf8');
     const show = SOURCE.indexOf('setPreparing(initialUpload);');
-    const copy = SOURCE.indexOf('await enqueue(await resolveForUpload(initialUpload));');
+    const copy = SOURCE.indexOf('await resolveInOrder(initialUpload,');
     expect(show).toBeGreaterThan(-1);
     expect(copy).toBeGreaterThan(show);
     expect(SOURCE).toMatch(/\.filter\(\(id\) => !queued\.has\(id\) && isLibraryAsset\(id\)\)/);
+  });
+});
+
+describe('adding while a run is going', () => {
+  const SOURCE = readFileSync(fileURLToPath(new URL('../App.tsx', import.meta.url)), 'utf8');
+
+  it('goes into the running queue, which goes round again for it', () => {
+    // A run loads the queue once and saves its own copy; anything written to
+    // disk behind it was overwritten at its next save.
+    expect(SOURCE).toMatch(/const running = live\.current;\s*if \(running\) \{\s*running\.add\(eventId, files\);\s*more\.current = true;/);
+    expect(SOURCE).toMatch(/for \(;;\) \{\s*more\.current = false;\s*await queue\.run\(\);[\s\S]{0,80}if \(!more\.current\) break;/);
+  });
+
+  it('takes its turn with every other change to the queue', () => {
+    expect(SOURCE).toMatch(/const queue = await serial\(async \(\) => \{/);
+    expect(SOURCE).toMatch(/serial\(async \(\) => \{\s*if \(files\.length === 0\) return;/);
+  });
+});
+
+describe('copies out of the library', () => {
+  const LIBRARY = readFileSync(fileURLToPath(new URL('../src/library.ts', import.meta.url)), 'utf8');
+
+  it('are handed over in tapped order, and one bad copy does not sink the rest', () => {
+    expect(LIBRARY).toMatch(/while \(flushed < ids\.length && done\[flushed\] !== undefined\)/);
+    expect(LIBRARY).toMatch(/done\[i\] = null;\s*unreadable \+= 1;/);
   });
 });
