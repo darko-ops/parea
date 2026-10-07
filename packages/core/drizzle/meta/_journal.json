@@ -449,6 +449,13 @@
       "when": 1790963979445,
       "tag": "0063_chat_photo",
       "breakpoints": true
+    },
+    {
+      "idx": 64,
+      "version": "7",
+      "when": 1791392943398,
+      "tag": "0064_suggestion_dismissal",
+      "breakpoints": true
     }
   ]
 }

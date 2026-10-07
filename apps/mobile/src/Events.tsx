@@ -2215,6 +2215,20 @@ export function SearchTab({
     [api],
   );
 
+  /*
+   * The × on a card. Gone from the row at once, and told to the server after:
+   * somebody who pressed it does not want to watch the face wait. If the
+   * server does not hear, the person is back on the next load — which is the
+   * honest way for a failed dismissal to look.
+   */
+  const dismiss = useCallback(
+    (actorId: string) => {
+      setSuggested((was) => was?.filter((person) => person.actorId !== actorId) ?? was);
+      void api.dismissSuggestion(actorId).catch(() => {});
+    },
+    [api],
+  );
+
   // On arrival, and on every return to the tab. Not on the switches away.
   useEffect(() => {
     if (active) void loadMine();
@@ -2739,6 +2753,19 @@ export function SearchTab({
                       >
                         {standing === 'asked' ? 'Asked' : standing ? '…' : 'Add'}
                       </Text>
+                    </Pressable>
+
+                    {/* Last, so it sits over the face rather than under it. */}
+                    <Pressable
+                      onPress={() => dismiss(person.actorId)}
+                      accessibilityRole="button"
+                      accessibilityLabel={`Remove ${name} from suggestions`}
+                      // The glyph is small and the card is a scroll target; the
+                      // slop is what makes it pressable without hunting for it.
+                      hitSlop={10}
+                      style={({ pressed }) => [styles.suggestDismiss, { opacity: pressed ? 0.5 : 1 }]}
+                    >
+                      <Text style={[styles.suggestDismissText, { color: t.dim }]}>✕</Text>
                     </Pressable>
                   </View>
                 );
@@ -4449,6 +4476,8 @@ const styles = StyleSheet.create({
   suggestWhy: { fontSize: 12 },
   suggestAdd: { borderWidth: 1, borderRadius: 999, paddingVertical: 7, paddingHorizontal: 18 },
   suggestAddText: { fontSize: 13.5, fontWeight: '600' },
+  suggestDismiss: { position: 'absolute', top: 6, right: 6, padding: 4 },
+  suggestDismissText: { fontSize: 13, lineHeight: 14 },
   /*
    * An empty page, on the two tabs that can be one.
    *

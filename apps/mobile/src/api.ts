@@ -2513,6 +2513,11 @@ export class Api {
     return people ?? [];
   }
 
+  /** The × on a suggestion: this person is not suggested again. */
+  dismissSuggestion(actorId: string): Promise<unknown> {
+    return this.call(`/api/people/suggestions/${actorId}`, { method: 'DELETE' });
+  }
+
   /**
    * The Find Friends screen: whether a number is proved, and who may know you.
    *

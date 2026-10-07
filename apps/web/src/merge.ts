@@ -121,6 +121,8 @@ const OWNED: {
   { table: 'moderation_flag', column: 'resolved_by' },
   { table: 'block', column: 'blocker_actor_id', uniqueWith: ['blocked_actor_id'] },
   { table: 'block', column: 'blocked_actor_id', uniqueWith: ['blocker_actor_id'] },
+  { table: 'suggestion_dismissal', column: 'actor_id', uniqueWith: ['dismissed_actor_id'] },
+  { table: 'suggestion_dismissal', column: 'dismissed_actor_id', uniqueWith: ['actor_id'] },
   { table: 'observation', column: 'actor_id' },
   { table: 'friend_request', column: 'from_actor_id', uniqueWith: ['to_actor_id'] },
   { table: 'friend_request', column: 'to_actor_id', uniqueWith: ['from_actor_id'] },
@@ -314,6 +316,9 @@ export async function mergeActor(
     await tx
       .delete(schema.friendRequests)
       .where(eq(schema.friendRequests.fromActorId, schema.friendRequests.toActorId));
+    await tx
+      .delete(schema.suggestionDismissals)
+      .where(eq(schema.suggestionDismissals.actorId, schema.suggestionDismissals.dismissedActorId));
 
     /*
      * The number comes across, if the survivor has none.

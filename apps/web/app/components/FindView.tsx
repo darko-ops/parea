@@ -288,7 +288,7 @@ export function FindView({
   greeting,
   events,
   friends,
-  suggested,
+  suggested: initialSuggested,
   suggestedGroups,
   groups: mine,
   clusters,
@@ -330,6 +330,16 @@ export function FindView({
 }) {
   const [query, setQuery] = useState('');
   const [scope, setScope] = useState<Scope>(initialScope);
+  /*
+   * The suggestions as this page has left them. The × takes a card off at once
+   * and tells the server after; a dismissal that does not land comes back on
+   * the next load, which is the honest way for it to fail.
+   */
+  const [suggested, setSuggested] = useState(initialSuggested);
+  const dismiss = useCallback((actorId: string) => {
+    setSuggested((was) => was.filter((person) => person.actorId !== actorId));
+    void fetch(`/api/people/suggestions/${actorId}`, { method: 'DELETE' }).catch(() => {});
+  }, []);
   const [doors, setDoors] = useState<Door[]>([]);
   const [people, setPeople] = useState<Person[]>([]);
   const [searching, setSearching] = useState(false);
@@ -875,7 +885,11 @@ export function FindView({
           */}
           <div className="faces-row">
             {suggested.map((person) => (
-              <PersonCard key={person.actorId} person={person} />
+              <PersonCard
+                key={person.actorId}
+                person={person}
+                onDismiss={() => dismiss(person.actorId)}
+              />
             ))}
           </div>
         </section>
@@ -1134,43 +1148,57 @@ function mutualLine(group: SuggestedGroup): string {
  * knows this person, which is a fact about those two that neither was asked
  * about.
  */
-function PersonCard({ person }: { person: Suggestion }) {
+function PersonCard({ person, onDismiss }: { person: Suggestion; onDismiss: () => void }) {
   /* Bare, like the row below and like the top of the page this leads to. The
      `@` marks a string as the thing you can type at a search box; in the slot
      where a card says who somebody is, it is punctuation in front of a name. */
   const name = person.displayName?.trim() || person.handle || 'Someone';
   const href = person.handle ? `/u/${encodeURIComponent(person.handle)}` : '/friends';
   const tint = tintFor(person.actorId);
+  /*
+   * The × sits beside the link rather than in it — a button inside an anchor is
+   * a control inside a control, and a click on it would also follow the link.
+   */
   return (
-    <a href={href} className="face-card">
-      {/*
-        The picture where there is one, and the tinted letter where there is
-        not — a suggestion is a stranger, so being able to recognise the face
-        is most of what makes it answerable. The tint stays as the fallback
-        rather than being replaced by a grey circle: it is assigned from the
-        id, so a person keeps the same colour as this list changes around them.
-      */}
-      <Face
-        src={person.avatar}
-        // 48, matching `.face-card-mark`: `Face` writes the size inline, so a
-        // different number here would quietly win over the stylesheet.
-        size={48}
-        className="face-card-mark"
-        fallback={
-          <span
-            className="face-card-letter"
-            style={{ background: tint.fill, color: tint.ink }}
-            aria-hidden="true"
-          >
-            {initial(name)}
-          </span>
-        }
-      />
-      <span className="face-card-name">{name}</span>
-      <span className="face-card-note">
-        {person.mutuals} {person.mutuals === 1 ? 'mutual friend' : 'mutual friends'}
-      </span>
-    </a>
+    <div className="face-card-wrap">
+      <a href={href} className="face-card">
+        {/*
+          The picture where there is one, and the tinted letter where there is
+          not — a suggestion is a stranger, so being able to recognise the face
+          is most of what makes it answerable. The tint stays as the fallback
+          rather than being replaced by a grey circle: it is assigned from the
+          id, so a person keeps the same colour as this list changes around them.
+        */}
+        <Face
+          src={person.avatar}
+          // 48, matching `.face-card-mark`: `Face` writes the size inline, so a
+          // different number here would quietly win over the stylesheet.
+          size={48}
+          className="face-card-mark"
+          fallback={
+            <span
+              className="face-card-letter"
+              style={{ background: tint.fill, color: tint.ink }}
+              aria-hidden="true"
+            >
+              {initial(name)}
+            </span>
+          }
+        />
+        <span className="face-card-name">{name}</span>
+        <span className="face-card-note">
+          {person.mutuals} {person.mutuals === 1 ? 'mutual friend' : 'mutual friends'}
+        </span>
+      </a>
+      <button
+        type="button"
+        className="face-card-dismiss"
+        onClick={onDismiss}
+        aria-label={`Remove ${name} from suggestions`}
+      >
+        ×
+      </button>
+    </div>
   );
 }
 

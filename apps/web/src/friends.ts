@@ -257,7 +257,8 @@ export async function friendsSeenBy(
  * direction, because asking twice is not a feature. And anybody either of you
  * has blocked — a block hides two people from each other everywhere, and a
  * suggestion screen is exactly where a missed exclusion becomes a person
- * reappearing in front of somebody who cut them off.
+ * reappearing in front of somebody who cut them off. And anybody you took off
+ * the list with the × — see `suggestionDismissals`.
  */
 export type Suggestion = Person & { mutuals: number };
 
@@ -307,6 +308,12 @@ export async function suggestionsFor(
         select 1 from "block" b
         where (b.blocker_actor_id = ${actorId} and b.blocked_actor_id = a.id)
            or (b.blocker_actor_id = a.id and b.blocked_actor_id = ${actorId})
+      )
+      -- Taken off this list with the ×. One way only: dismissing somebody says
+      -- nothing about whether they should be suggested to you.
+      and not exists (
+        select 1 from "suggestion_dismissal" d
+        where d.actor_id = ${actorId} and d.dismissed_actor_id = a.id
       )
     group by a.id, a.handle, a.display_name
     -- Most mutual friends first: the strongest suggestion is the one the most
@@ -784,4 +791,18 @@ export async function invitable(
     );
 
   return row != null;
+}
+
+/**
+ * Takes somebody off your "People you may know", for good.
+ *
+ * Quiet and one-way, like the × it answers: nothing is sent, and nothing else
+ * between the two of you changes. Dismissing somebody who was never suggested
+ * is allowed and harmless — the row only ever narrows this one list.
+ */
+export async function dismissSuggestion(db: Db, actorId: string, dismissedActorId: string): Promise<void> {
+  await db
+    .insert(schema.suggestionDismissals)
+    .values({ actorId, dismissedActorId })
+    .onConflictDoNothing();
 }

@@ -2069,6 +2069,17 @@ fieldset.field > legend { padding: 0; margin-bottom: 8px; }
   max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
 .face-card-note { font-size: 12px; color: var(--dim-soft); }
+/* The × in the corner: off this list, and nothing else. */
+.face-card-wrap { position: relative; flex: none; }
+.face-card-dismiss {
+  position: absolute; top: 4px; right: 4px;
+  width: 24px; height: 24px; padding: 0; border: 0; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  background: transparent; color: var(--dim-soft);
+  font-size: 16px; line-height: 1; cursor: pointer;
+}
+.face-card-dismiss:hover { background: var(--hairline); color: inherit; }
+.face-card-dismiss:focus-visible { outline: 3px solid var(--accent); outline-offset: 1px; }
 
 /* The groups you are already in. Chips, because they are places you go rather
    than things to consider — drawn at a suggestion's size they were the

@@ -1586,6 +1586,28 @@ export const blocks = pgTable(
 );
 
 /**
+ * Somebody taken off "People you may know" with the × on their card.
+ *
+ * Not a block, and nothing like one: the dismissed person is never told, and
+ * nothing else changes between the two of you — search still finds them, their
+ * profile still opens, either of you can still ask. It only stops this product
+ * from suggesting them again, which is all the × promises.
+ */
+export const suggestionDismissals = pgTable(
+  'suggestion_dismissal',
+  {
+    actorId: uuid('actor_id')
+      .notNull()
+      .references(() => actors.id, { onDelete: 'cascade' }),
+    dismissedActorId: uuid('dismissed_actor_id')
+      .notNull()
+      .references(() => actors.id, { onDelete: 'cascade' }),
+    createdAt: createdAt(),
+  },
+  (t) => [primaryKey({ columns: [t.actorId, t.dismissedActorId] })],
+);
+
+/**
  * Somebody asking to be somebody else's friend.
  *
  * The same shape as the two other requests in this product — group and event —

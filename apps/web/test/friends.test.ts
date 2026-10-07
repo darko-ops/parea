@@ -19,6 +19,7 @@ import type { Db } from '@/db';
 import {
   areFriends,
   befriend,
+  dismissSuggestion,
   findPeople,
   friendsOf,
   friendsSeenBy,
@@ -455,6 +456,24 @@ describe('people you may know', () => {
     await befriend(db, ana, device);
 
     expect(await suggestionsFor(db, me)).toEqual([]);
+  });
+
+  it('leaves out somebody taken off with the ×, for the one who took them off', async () => {
+    const me = await person('me');
+    const ana = await person('ana');
+    const gone = await person('gone');
+    const kept = await person('kept');
+    await befriend(db, me, ana);
+    await befriend(db, ana, gone);
+    await befriend(db, ana, kept);
+
+    await dismissSuggestion(db, me, gone);
+    // Twice is the same as once.
+    await dismissSuggestion(db, me, gone);
+    expect((await suggestionsFor(db, me)).map((p) => p.handle)).toEqual(['kept']);
+
+    // One way only: `gone` still has me suggested through ana.
+    expect((await suggestionsFor(db, gone)).map((p) => p.handle)).toContain('me');
   });
 
   it('answers nothing for somebody with no friends, rather than failing', async () => {

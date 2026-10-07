@@ -311,7 +311,9 @@ export default function PrivacyPage() {
             else you know. There is no public directory. The Find Friends page
             does suggest people, drawn only from rolls you have both been in,
             groups you are both in and friends you have in common, and it shows
-            each person the same way a search would.
+            each person the same way a search would. If you take somebody off
+            your suggestions, we keep that you did, so they are not suggested
+            to you again. They are not told.
           </p>
 
           <h3>What you did here</h3>
