@@ -75,7 +75,7 @@ describe('the picker', () => {
     expect(pick).toMatch(/\{\(onScreen\.has\(item\.id\) \|\| loaded\.has\(item\.id\)\) && \(/);
     expect(pick).toMatch(/onViewableItemsChanged=\{onViewable\}/);
     expect(pick).toMatch(/onLoad=\{\(\) => markLoaded\(item\.id\)\}/);
-    expect(pick).toMatch(/tile: \{ backgroundColor: '#1f1f22' \}/);
+    expect(pick).toMatch(/tile: \{ backgroundColor: '#2c2c2e' \}/);
   });
 
   it('knows the whole library up front where ids can be drawn, and pages properly elsewhere', () => {

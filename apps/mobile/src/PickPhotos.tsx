@@ -600,7 +600,7 @@ const styles = StyleSheet.create({
   bigLookHintText: { color: '#fff', fontSize: 13, fontWeight: '600' },
   /* A grey square where a photograph has not arrived yet, so the grid's shape
      is there at once and nobody wonders whether anything is coming. */
-  tile: { backgroundColor: '#1f1f22' },
+  tile: { backgroundColor: '#2c2c2e' },
   gridWrap: { flex: 1 },
   /* A column down the right edge, as tall as the grid; the handle moves in it. */
   scrubber: { position: 'absolute', top: 0, bottom: 0, right: 0, width: 160 },
