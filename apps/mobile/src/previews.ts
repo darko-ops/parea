@@ -60,15 +60,30 @@ export type Preview = {
 };
 
 /**
- * How long a stand-in may wait for the deriver before it stops waiting.
+ * How long a stand-in may wait for the deriver when nothing says otherwise.
  *
- * Deliveries to the deriver are paced one at a time, so twenty photographs
- * really can take a minute or two to all appear. Past five, the server has
- * decided something this phone was not told — a file it could not decode, a
- * photograph taken down — and a dimmed tile that says "Processing" for ever is
- * a promise nobody is keeping. It goes; the feed is the truth.
+ * A backstop, not the rule. It was the rule, at five minutes, and that was
+ * wrong: the deriver works one photograph at a time on one small machine, may
+ * have to wake first, and an iPhone photograph can take minutes — so ten of
+ * them sat at "Processing" and then vanished while the server was still
+ * working through them, and the person who added them thought they were lost.
+ *
+ * The rule is the roll's own feed (`ARRIVED_GRACE_MS`). This only clears a
+ * stand-in for a roll that is not open, where no feed is coming to say so.
  */
-export const PROCESSING_GIVE_UP_MS = 5 * 60 * 1000;
+export const PROCESSING_GIVE_UP_MS = 60 * 60 * 1000;
+
+/**
+ * How long a stand-in outlives the server saying nothing is arriving.
+ *
+ * The feed counts photographs still being processed (`arriving`). While that
+ * is above zero, every stand-in waits — the server is still working, however
+ * long it takes. Once it is zero and this photograph is not in the feed, the
+ * server has decided something this phone was not told — a file it could not
+ * decode, a photograph taken down — and the tile goes. The grace is one feed
+ * that may have been fetched just before the photograph landed.
+ */
+export const ARRIVED_GRACE_MS = 30 * 1000;
 
 /** The queue's stage, drawn as a length. */
 const STAGE: Record<'pending' | 'presigned' | 'uploaded', number> = {
@@ -116,6 +131,8 @@ export function nextPreviews(
   inFeed: ReadonlySet<string>,
   now: number,
   uriOf: (item: QueueItem) => string,
+  /** The feed's count of photographs still processing; undefined if unseen. */
+  arriving?: number,
 ): Preview[] {
   const queued = new Map<string, QueueItem>();
   for (const item of items) {
@@ -173,7 +190,8 @@ export function nextPreviews(
       !(
         preview.state === 'processing' &&
         preview.processingSince !== undefined &&
-        now - preview.processingSince > PROCESSING_GIVE_UP_MS
+        (now - preview.processingSince > PROCESSING_GIVE_UP_MS ||
+          (arriving === 0 && now - preview.processingSince > ARRIVED_GRACE_MS))
       ),
   );
   /*
@@ -232,6 +250,7 @@ export function nextPreviewsByEvent(
   feeds: ReadonlyMap<string, ReadonlySet<string>>,
   now: number,
   uriOf: (item: QueueItem) => string,
+  arriving: ReadonlyMap<string, number> = new Map(),
 ): PreviewsByEvent {
   const events = new Set([...Object.keys(was), ...items.map((item) => item.eventId)]);
   const next: Record<string, readonly Preview[]> = {};
@@ -245,6 +264,7 @@ export function nextPreviewsByEvent(
       feeds.get(eventId) ?? NOTHING_IN_FEED,
       now,
       uriOf,
+      arriving.get(eventId),
     );
     if (after !== before) moved = true;
     if (after.length > 0) next[eventId] = after;

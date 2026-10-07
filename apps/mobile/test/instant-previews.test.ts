@@ -18,6 +18,7 @@ import type { QueueItem, QueueItemStatus } from '@parea/upload';
 import { describe, expect, it } from 'vitest';
 
 import {
+  ARRIVED_GRACE_MS,
   PROCESSING_GIVE_UP_MS,
   heldCopies,
   nextPreviews,
@@ -112,6 +113,21 @@ describe('the deriver’s half of the wait', () => {
   it('is given up on rather than kept for ever', () => {
     const late = 1000 + PROCESSING_GIVE_UP_MS + 1;
     expect(nextPreviews(uploaded(), [], EVENT, none, late, uri)).toEqual([]);
+  });
+
+  it('waits as long as the server says photographs are still arriving', () => {
+    // Ten iPhone photographs on one deriver took longer than the five minutes
+    // this used to allow, and they vanished from the roll while still coming.
+    const tenMinutes = 1000 + 10 * 60 * 1000;
+    expect(nextPreviews(uploaded(), [], EVENT, none, tenMinutes, uri, 4)).toEqual([
+      expect.objectContaining({ id: 'a', state: 'processing' }),
+    ]);
+  });
+
+  it('goes once the server says nothing is arriving and it never came', () => {
+    // A grace first, for a feed fetched just before the photograph landed.
+    expect(nextPreviews(uploaded(), [], EVENT, none, 1000 + 5000, uri, 0)).toHaveLength(1);
+    expect(nextPreviews(uploaded(), [], EVENT, none, 1000 + ARRIVED_GRACE_MS + 1, uri, 0)).toEqual([]);
   });
 
   it('keeps the uri it was first drawn from', () => {
@@ -276,11 +292,11 @@ describe('leaving a roll and coming back', () => {
 
   it('moves them on every queue save, whichever roll is open', () => {
     expect(APP).toMatch(/useEffect\(\(\) => lookAtPreviews\(\), \[uploads, lookAtPreviews\]\);/);
-    expect(APP).toMatch(/nextPreviewsByEvent\(was, uploadsNow\.current\.items, feedsSeen\.current/);
+    expect(APP).toMatch(/nextPreviewsByEvent\(\s*was,\s*uploadsNow\.current\.items,\s*feedsSeen\.current,[\s\S]{0,80}arrivingSeen\.current,/);
   });
 
   it('hands each feed up, which is what retires a stand-in', () => {
-    expect(screen).toMatch(/if \(feed\) onFeedSeen\(event\.id, feedIds\);/);
+    expect(screen).toMatch(/if \(feed\) onFeedSeen\(event\.id, feedIds, feed\.arriving \?\? 0\);/);
   });
 
   it('looks again while one is coming, so a roll nobody has open still gives up', () => {

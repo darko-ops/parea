@@ -834,17 +834,27 @@ export default function App() {
    */
   const [previews, setPreviews] = useState<PreviewsByEvent>({});
   const feedsSeen = useRef(new Map<string, ReadonlySet<string>>());
+  /** Each roll's last-seen count of photographs still processing. */
+  const arrivingSeen = useRef(new Map<string, number>());
   const uploadsNow = useRef(uploads);
   uploadsNow.current = uploads;
   const lookAtPreviews = useCallback(() => {
     setPreviews((was) =>
-      nextPreviewsByEvent(was, uploadsNow.current.items, feedsSeen.current, Date.now(), previewUri),
+      nextPreviewsByEvent(
+        was,
+        uploadsNow.current.items,
+        feedsSeen.current,
+        Date.now(),
+        previewUri,
+        arrivingSeen.current,
+      ),
     );
   }, []);
   useEffect(() => lookAtPreviews(), [uploads, lookAtPreviews]);
   const feedSeen = useCallback(
-    (eventId: string, ids: ReadonlySet<string>) => {
+    (eventId: string, ids: ReadonlySet<string>, arriving: number) => {
       feedsSeen.current.set(eventId, ids);
+      arrivingSeen.current.set(eventId, arriving);
       lookAtPreviews();
     },
     [lookAtPreviews],
@@ -2440,7 +2450,8 @@ function EventScreen({
    * fetches it, so it is handed up each time it lands.
    */
   previews: readonly Preview[];
-  onFeedSeen: (eventId: string, ids: ReadonlySet<string>) => void;
+  /** The feed's photos, and how many are still processing. */
+  onFeedSeen: (eventId: string, ids: ReadonlySet<string>, arriving: number) => void;
   /** Where links live, for the one this screen hands to the share sheet. */
   webBase: string;
   t: Theme;
@@ -2813,7 +2824,7 @@ function EventScreen({
    */
   const feedIds = useMemo(() => new Set((feed?.photos ?? []).map((p) => p.id)), [feed]);
   useEffect(() => {
-    if (feed) onFeedSeen(event.id, feedIds);
+    if (feed) onFeedSeen(event.id, feedIds, feed.arriving ?? 0);
   }, [feed, feedIds, event.id, onFeedSeen]);
   /*
    * And filtered again here, at render, against the feed in hand.
