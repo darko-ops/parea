@@ -839,9 +839,8 @@ export async function activityFor(
       kind: 'reaction' as const,
       at: r.at.toISOString(),
       who: r.who,
-      // A no-break space after the emoji. Several of these are wide glyphs
-      // that sit hard against the next word, and "🔥to" reads as a typo.
-      what: `reacted ${r.emoji}\u00a0 to something you wrote`,
+      // Every reaction is a like now — see `LIKE` in `./reactions`.
+      what: 'liked something you wrote',
       href: `/event/${r.eventId}`,
       image: await avatarUrl(r.avatarKey),
       images: [],
@@ -853,9 +852,7 @@ export async function activityFor(
       kind: 'photo_reaction' as const,
       at: r.at.toISOString(),
       who: r.who,
-      // The no-break space for the same reason the message one has it: several
-      // of these are wide glyphs and "🔥to" reads as a typo.
-      what: `reacted ${r.emoji}\u00a0 to your photo in ${r.eventName}`,
+      what: `liked your photo in ${r.eventName}`,
       href: `/event/${r.eventId}`,
       image: await avatarUrl(r.avatarKey),
       /*

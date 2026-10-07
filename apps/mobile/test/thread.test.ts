@@ -216,8 +216,6 @@ describe('the rules carried over from the web', () => {
        dim is a sibling under the panel rather than its parent, so nothing
        above can claim a touch before the panel's own controls get it. */
     expect(THREAD).toMatch(/heldShell: \{ flex: 1, justifyContent: 'flex-end', backgroundColor: '#000b' \}/);
-    const EMOJI = read('src/Emoji.tsx');
-    expect(EMOJI).toMatch(/shell: \{ flex: 1, justifyContent: 'flex-end', backgroundColor: '#000b' \}/);
     expect(THREAD).toMatch(/const open = useCallback\(\(\) => setHeld\(true\), \[\]\);/);
     // `remove` deletes rather than asking again, which is what made the old
     // chain of two alerts.
@@ -244,8 +242,8 @@ describe('the rules carried over from the web', () => {
      * screen reader and impossible for some people to perform; the actions
      * rotor is where iOS puts the alternative.
      */
-    expect(THREAD).toMatch(/label: mine\s*\? 'React, edit or delete'/);
-    expect(THREAD).toMatch(/'React or report'/);
+    expect(THREAD).toMatch(/label: mine\s*\? 'Like, edit or delete'/);
+    expect(THREAD).toMatch(/'Like or report'/);
     expect(THREAD).toMatch(/actionName === 'longpress'\) open\(\)/);
     /*
      * The consequence sits beside the button rather than in a second panel
@@ -255,24 +253,17 @@ describe('the rules carried over from the web', () => {
     expect(THREAD).toMatch(/deleteNote="It leaves a gap saying it was deleted\."/);
   });
 
-  it('puts the six and a `+` in that sheet, and the `+` nowhere else', () => {
+  it('puts one heart in that sheet, and no emoji anywhere', () => {
+    // Reactions became likes: the sheet offers Like, or Unlike once you have.
+    expect(THREAD).toMatch(/accessibilityLabel=\{liked \? 'Unlike' : 'Like'\}/);
+    expect(THREAD).toMatch(/onReact\('❤️'\)/);
+    expect(THREAD).not.toMatch(/REACTIONS|EmojiPicker|More emoji/);
     /*
-     * The six are the ones people react to photographs with, and the `+` is
-     * the full grid — ours rather than the system's, because there is no way
-     * to ask a phone for its emoji panel specifically. It sits at the end of
-     * the six where it used to sit at the end of the pills: the same promise,
-     * in the place it is now useful.
+     * And under a comment, a heart and a count only where somebody has liked
+     * it — filled when one of them is you — never an empty invitation.
      */
-    expect(THREAD).toMatch(/\{REACTIONS\.map\(\(emoji\) => \(/);
-    expect(THREAD).toMatch(/accessibilityLabel="More emoji"/);
-    expect(THREAD).toMatch(/import \{ EmojiPicker \} from '\.\/Emoji';/);
-    expect(THREAD).toMatch(/<EmojiPicker\b/);
-    /*
-     * And the pills are somebody's answer and nothing else: a row of them
-     * exists only where there are reactions, never as an empty invitation.
-     */
-    expect(THREAD).toMatch(/\{message\.reactions\.length > 0 && \(/);
-    expect(THREAD).not.toMatch(/accessibilityLabel="Add a reaction"/);
+    expect(THREAD).toMatch(/\{likes > 0 && \(/);
+    expect(THREAD).toMatch(/<Glyph name="heart" size=\{13\} weight=\{2\.2\} color=\{liked \? LIKED : t\.dim\} filled=\{liked\} \/>/);
   });
 
   it('lets somebody take back their own reaction from the line', () => {
@@ -284,7 +275,7 @@ describe('the rules carried over from the web', () => {
      */
     expect(THREAD).toMatch(/unreact\?: \(photoId: string, emoji: string\) => Promise<unknown>;/);
     expect(THREAD).toMatch(/onUnreact\?: \(\) => void;/);
-    expect(THREAD).toMatch(/deleteLabel="Remove my reaction"/);
+    expect(THREAD).toMatch(/deleteLabel="Remove my like"/);
     // Only your own, only with a photograph behind it, only where the caller
     // can reach it.
     expect(THREAD).toMatch(
@@ -292,8 +283,8 @@ describe('the rules carried over from the web', () => {
     );
     expect(APP).toMatch(/unreact: \(photoId: string, emoji: string\) => api\.reactToPhoto\(photoId, emoji\)/);
     // And nothing to react to on one: a row of emoji over a reaction would
-    // offer to react to a reaction.
-    expect(THREAD).toMatch(/reactions=\{false\}/);
+    // offer to like a like.
+    expect(THREAD).toMatch(/like=\{false\}/);
   });
 
   it('keeps the draft when a post fails', () => {
@@ -578,7 +569,7 @@ describe('a reaction is a line, not a message', () => {
      */
     expect(VIEWER).toMatch(/if \(message\.emoji\) \{/);
     expect(VIEWER).toMatch(
-      /const said = `\$\{mine \? 'You' : message\.author\.name\} reacted \$\{message\.emoji\}`;/,
+      /const said = `\$\{mine \? 'You' : message\.author\.name\} liked this`;/,
     );
     expect(VIEWER).toMatch(/reacted: \{ textAlign: 'center'/);
   });

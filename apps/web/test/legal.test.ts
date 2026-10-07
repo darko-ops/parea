@@ -127,8 +127,8 @@ describe('the closed list of what is collected', () => {
     expect(PRIVACY, 'group_added').toMatch(/put you in a group they made/);
     expect(PRIVACY, 'photo_comment').toMatch(/commented on a photograph you added/);
     // Both moment kinds in one phrase: to its author, about their moment.
-    expect(PROSE, 'moment_comment').toMatch(/commented on or reacted to a moment you shared/);
-    expect(PROSE, 'moment_reaction').toMatch(/commented on or reacted to a moment you shared/);
+    expect(PROSE, 'moment_comment').toMatch(/commented on or liked a moment you shared/);
+    expect(PROSE, 'moment_reaction').toMatch(/commented on or liked a moment you shared/);
     // Both handover kinds in one phrase, which names both ways it happens.
     expect(PROSE, 'roll_handed').toMatch(/you now run\s+a roll or a group/);
     expect(PROSE, 'group_handed').toMatch(/you now run\s+a roll or a group/);
@@ -229,8 +229,8 @@ describe('the closed list of what is collected', () => {
       photo: /Photos and videos you upload/,
       moment: /A moment is one photo you share on its own/,
       moment_view: /Which moments you have opened is recorded/,
-      moment_comment: /Comments and reactions left on a moment are kept with it/,
-      moment_reaction: /Comments and reactions left on a moment are kept with it/,
+      moment_comment: /Comments and likes left on a moment are kept with it/,
+      moment_reaction: /Comments and likes left on a moment are kept with it/,
       observation: /[Ee]ight facts/,
       event: /That you made a roll/,
       event_participant: /records that you are in that roll/,
@@ -257,10 +257,10 @@ describe('the closed list of what is collected', () => {
       event_invite: /somebody invited you into a roll/,
       group_invite: /invited you into a roll, or\s+into a group/,
       event_message: /anything you post in it/,
-      message_reaction: /reactions you leave on other people/,
+      message_reaction: /likes you leave on other people/,
       // Which emoji, on which picture — and, since the viewer names people,
       // who left it.
-      photo_reaction: /react to a photograph itself, without saying anything/,
+      photo_reaction: /like a photograph itself, without saying anything/,
       // Which picture, and that it was you. The disclosure has to carry the
       // part that makes it different in kind from a reaction: it is shown to
       // nobody, and not counted anywhere either.
@@ -268,7 +268,7 @@ describe('the closed list of what is collected', () => {
       group_message: /what you say in a group is kept with that\s+group/,
       // The same disclosure the album's thread makes, in the other room: a
       // reaction there is shown under your name to the people in it.
-      group_message_reaction: /reactions you leave on what other members say/,
+      group_message_reaction: /likes you leave on what other members say/,
       // One time per thread per person, and never shown to anybody else.
       event_thread_read: /the moment you last read it/,
       group_thread_read: /the moment you last read it/,

@@ -454,7 +454,7 @@ function EventCard({
   const reactions = event.reactionCount;
   const counted = [
     comments === 0 ? null : plural(comments, 'comment'),
-    reactions === 0 ? null : plural(reactions, 'reaction'),
+    reactions === 0 ? null : plural(reactions, 'like'),
   ]
     .filter(Boolean)
     .join(' · ');
@@ -858,8 +858,7 @@ function EventCard({
 
               So the nouns are glyphs and the numbers stay. Not a new pair of
               drawings: the bubble is what this product already draws for an
-              album's comments, and the face is the button that opens the
-              emoji picker — the two pictures somebody has already met on the
+              album's comments, and the heart is the like button — the two pictures somebody has already met on the
               screen this line opens. Sized to the type rather than to the
               family — 13 against 10.5pt numerals, so the row reads as a line
               of text with two marks in it rather than as a toolbar — and at
@@ -889,7 +888,7 @@ function EventCard({
               )}
               {reactions > 0 && (
                 <View style={styles.tally}>
-                  <Glyph name="face" size={13} weight={2} color={t.dim} />
+                  <Glyph name="heart" size={13} weight={2} color={t.dim} />
                   <Text style={[styles.tallyText, { color: t.dim }]}>{reactions}</Text>
                 </View>
               )}

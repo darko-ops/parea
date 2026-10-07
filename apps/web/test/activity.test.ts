@@ -616,9 +616,8 @@ describe('a photograph of yours, and one you are in', () => {
 
     const line = (await did(db, me)).find((i) => i.kind === 'photo_reaction');
     expect(line).toBeDefined();
-    // The emoji, because the line is about which one: "reacted to your photo"
-    // is a sentence whose content was left out of it.
-    expect(line!.what).toContain('🔥');
+    // Every reaction is a like now, so the line says so rather than which one.
+    expect(line!.what).toContain('liked your photo');
     // And the evening, because every other kind here locates itself.
     expect(line!.what).toContain('Dinner');
     // And the picture. A claim about one of your photographs is one nobody can

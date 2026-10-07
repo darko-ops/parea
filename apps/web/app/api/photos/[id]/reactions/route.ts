@@ -23,18 +23,14 @@ import { NextResponse } from 'next/server';
 import { findEventById, guard, toResponse } from '@/access';
 import { getDb } from '@/db';
 import { viewerContext } from '@/moderation';
-import {
-  MAX_PER_PHOTO,
-  reactionCountFor,
-  togglePhotoReaction,
-} from '@/photoReactions';
-import { isEmoji } from '@/reactions';
+import { togglePhotoReaction } from '@/photoReactions';
+import { LIKE } from '@/reactions';
 import { currentAccountActorId, currentActorId, requesterFor } from '@/session';
 
 export const runtime = 'nodejs';
 
 export async function POST(
-  request: Request,
+  _request: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
   const { id } = await params;
@@ -83,44 +79,8 @@ export async function POST(
   const actorId = await currentAccountActorId();
   if (!actorId) return NextResponse.json({ error: 'sign_in_required' }, { status: 401 });
 
-  const body = (await request.json().catch(() => ({}))) as { emoji?: unknown };
-  /*
-   * Any emoji, not one of six.
-   *
-   * The picker offered a closed set and this checked against it, so the list
-   * was both the vocabulary and the validation. The app can reach the system
-   * keyboard now, which means the set is open and the question changes from
-   * "which emoji do we like" to "is this an emoji at all" — `isEmoji` answers
-   * that, and the rule doing the real work is that it must be a single
-   * grapheme. Without that, the column under a photograph is an unmoderated
-   * text channel reached through a box labelled "pick an emoji".
-   */
-  if (!isEmoji(body.emoji)) {
-    return NextResponse.json({ error: 'not_an_emoji' }, { status: 400 });
-  }
-
-  /*
-   * The ceiling is checked before adding and never before removing.
-   *
-   * Somebody at the limit must still be able to take one back, and a check
-   * that ran on both would leave them stuck with six they cannot undo.
-   */
-  const already = await reactionCountFor(db, photo.id, actorId);
-  if (already >= MAX_PER_PHOTO) {
-    const state = await togglePhotoReaction(db, photo.id, actorId, body.emoji);
-    if (state === 'added') {
-      // It was not one of theirs, so the toggle just added a seventh. Put it
-      // back and refuse — cheaper than a read to find out first, and the race
-      // between the two is a reaction nobody loses.
-      await togglePhotoReaction(db, photo.id, actorId, body.emoji);
-      return NextResponse.json(
-        { error: 'too_many', max: MAX_PER_PHOTO },
-        { status: 409 },
-      );
-    }
-    return NextResponse.json({ state });
-  }
-
-  const state = await togglePhotoReaction(db, photo.id, actorId, body.emoji);
+  // A like, whatever was asked for. See `LIKE`.
+  const emoji = LIKE;
+  const state = await togglePhotoReaction(db, photo.id, actorId, emoji);
   return NextResponse.json({ state });
 }

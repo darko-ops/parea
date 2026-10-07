@@ -29,7 +29,7 @@ describe('moments', () => {
     expect(MOMENTS).toMatch(/api\.deleteMomentComment\(momentId, commentId\)/);
     expect(MOMENTS).toMatch(/api\.reactToMoment\(momentId, emoji\)/);
     expect(VIEWER).toMatch(/if \(talk\) await talk\.post\(photo\.id, body\);/);
-    expect(VIEWER).toMatch(/if \(talk\) await talk\.react\(photo\.id, emoji\);/);
+    expect(VIEWER).toMatch(/if \(talk\) await talk\.react\(photo\.id, '❤️'\);/);
     // What a moment does not have: the star, editing a comment, reacting to one.
     // No star on a moment; on a photo, only where it may be kept (a chat's photo from a roll you can't see may not).
     expect(VIEWER).toMatch(/\{!moment && canKeep && \(\s*<Pressable\s+onPress=\{\(\) => void keep/);
@@ -198,7 +198,7 @@ describe('moments', () => {
     expect(MOMENTS).toMatch(/progress\.setValue\(0\);\s*\}, \[progress, showing\]\);/);
     // Held, too, while the moment is being sent into a chat.
     expect(MOMENTS).toMatch(/if \(!showing \|\| options \|\| engaged \|\| sendingMoment\) \{\s*progress\.stopAnimation\(\);/);
-    expect(VIEWER).toMatch(/onEngaged\?\.\(talking \|\| picking\);/);
+    expect(VIEWER).toMatch(/onEngaged\?\.\(talking\);/);
     // At the foot: the tiles, then the line, then the reaction and comment bar.
     expect(VIEWER).toMatch(/tiles: \{ position: 'absolute', bottom: TILES_BOTTOM, left: 0, right: 0 \}/);
     expect(VIEWER).toMatch(/const TILES_BOTTOM = 34 \+ 44 \+ 12;/);

@@ -810,7 +810,7 @@ export function MomentsViewer({
     Math.max(0, moments.findIndex((m) => m.id === start)),
   );
   const [options, setOptions] = useState(false);
-  /** The comment sheet or the emoji picker is open. See `onEngaged`. */
+  /** The comment sheet is open. See `onEngaged`. */
   const [engaged, setEngaged] = useState(false);
   const [confirming, setConfirming] = useState(false);
 
@@ -869,7 +869,7 @@ export function MomentsViewer({
    *
    * A new moment — swiped to, tapped in the strip, or arrived at — starts its
    * own clock from empty. The clock holds while the ⋯ sheet, the comment
-   * sheet or the emoji picker is open — somebody deciding what to do about a
+   * sheet is open — somebody deciding what to do about a
    * picture, or saying something about it, should not have it taken away
    * mid-sentence — and carries on from where it was when they shut.
    */

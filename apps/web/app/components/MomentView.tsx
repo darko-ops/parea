@@ -138,8 +138,8 @@ export function MomentView({
    * fills as the time goes.
    *
    * Counted in frames rather than set as one timer, so the clock can hold:
-   * while somebody is doing something about the picture — the ⋯ menu, the
-   * reaction picker, a comment half-written — and while the tab is not being
+   * while somebody is doing something about the picture — the ⋯ menu or a
+   * comment half-written — and while the tab is not being
    * looked at, which is time nobody spent on this moment.
    */
   const [elapsed, setElapsed] = useState(0);
@@ -149,7 +149,7 @@ export function MomentView({
     let frame = 0;
     const tick = (now: number) => {
       // Held while somebody is doing something about this moment: the ⋯ menu
-      // open, the reaction picker open, or a comment being written.
+      // open, or a comment being written.
       const held =
         document.hidden || document.querySelector('[role="menu"], [data-holding]') !== null;
       if (!held) spent += now - last;
@@ -257,7 +257,7 @@ export function MomentView({
             reactions={moment.reactions}
             canReact
             endpoint={`/api/moments/${moment.id}/reactions`}
-            label="React to this moment"
+            what="this moment"
           />
           <span className="photo-verbs-do">
             {/* Send it into a chat: the app's paper plane, before Download. */}

@@ -19,6 +19,17 @@
  * *accepted* is "is this one emoji", which is the question `isEmoji` answers
  * and the only one that stays true when a picker changes.
  */
+/**
+ * The one reaction there is: a like, drawn as a heart.
+ *
+ * Every reaction route stores this whatever the request names. The emoji
+ * pickers are gone from both clients, and an older app still sending 😂
+ * should get the like it was reaching for rather than an error. The four
+ * reaction tables keep their `emoji` column — migration 0066 folded every
+ * existing reaction into one of these — so nothing about the shape changed.
+ */
+export const LIKE = '❤️';
+
 export const REACTIONS = ['❤️', '😂', '🔥', '👏', '😮', '🙏'] as const;
 export type Reaction = (typeof REACTIONS)[number];
 

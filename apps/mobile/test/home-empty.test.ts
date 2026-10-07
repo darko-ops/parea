@@ -753,7 +753,7 @@ describe('the line under the strip', () => {
      */
     expect(EVENTS).toMatch(/const comments = event\.messageCount;/);
     expect(EVENTS).toMatch(/comments === 0 \? null : plural\(comments, 'comment'\)/);
-    expect(EVENTS).toMatch(/reactions === 0 \? null : plural\(reactions, 'reaction'\)/);
+    expect(EVENTS).toMatch(/reactions === 0 \? null : plural\(reactions, 'like'\)/);
     expect(EVENTS).toMatch(/\.join\(' · '\)/);
     expect(EVENTS).not.toMatch(/event\.messageCount - \(event\.lastMessage \? 1 : 0\)/);
     expect(EVENTS).not.toMatch(/\+ \$\{parts\.join/);
@@ -800,7 +800,7 @@ describe('the line under the strip', () => {
      */
     const LEDGER = EVENTS.slice(EVENTS.indexOf('<View\n              style={styles.ledger}'), EVENTS.indexOf('function emptyLine'));
     expect(LEDGER).toMatch(/<Glyph name="bubble" size=\{13\} weight=\{2\} color=\{t\.dim\} \/>/);
-    expect(LEDGER).toMatch(/<Glyph name="face" size=\{13\} weight=\{2\} color=\{t\.dim\} \/>/);
+    expect(LEDGER).toMatch(/<Glyph name="heart" size=\{13\} weight=\{2\} color=\{t\.dim\} \/>/);
     /* Each half draws only when it has something to say: one comment and no
        reactions is one glyph and one number, not a zero. */
     expect(LEDGER).toMatch(/\{comments > 0 && \(/);

@@ -253,7 +253,9 @@ export function render(notification: Notification): { title: string; body: strin
     case 'moment_reaction':
       return {
         title: 'Your moment',
-        body: `${notification.who} reacted ${notification.emoji}`,
+        // Every reaction is a like now; the emoji is still carried, and is
+        // always a heart, so the words say what it means.
+        body: `${notification.who} liked your moment`,
       };
     case 'photo_tagged':
       return {

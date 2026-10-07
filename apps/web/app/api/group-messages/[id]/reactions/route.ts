@@ -24,19 +24,15 @@
 import { NextResponse } from 'next/server';
 
 import { getDb } from '@/db';
-import {
-  groupOfMessage,
-  groupReactionCountFor,
-  toggleGroupReaction,
-} from '@/groupMessages';
+import { groupOfMessage, toggleGroupReaction } from '@/groupMessages';
 import { membershipOf } from '@/groups';
-import { MAX_PER_MESSAGE, isEmoji } from '@/reactions';
+import { LIKE } from '@/reactions';
 import { currentAccountActorId } from '@/session';
 
 export const runtime = 'nodejs';
 
 export async function POST(
-  request: Request,
+  _request: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
   const { id } = await params;
@@ -60,41 +56,8 @@ export async function POST(
   // Not 403. See the note at the top.
   if (!membership) return NextResponse.json({ error: 'not_found' }, { status: 404 });
 
-  const body = (await request.json().catch(() => ({}))) as { emoji?: unknown };
-  /*
-   * Any emoji, not one of six.
-   *
-   * `isEmoji` rather than `isReaction`, which is the same answer the photo
-   * route reached and for the same reason: the picker can produce anything
-   * the phone can, so the question is "is this an emoji at all" rather than
-   * "is it one of the ones we like". The rule doing the real work in there is
-   * that it must be a single grapheme — without it, a row of pills under a
-   * message is an unmoderated text channel reached through a box labelled
-   * "pick an emoji".
-   */
-  if (!isEmoji(body.emoji)) {
-    return NextResponse.json({ error: 'not_an_emoji' }, { status: 400 });
-  }
-
-  /*
-   * The ceiling is checked before adding and never before removing.
-   *
-   * Somebody at the limit must still be able to take one back, and a check
-   * that ran on both would leave them stuck with six they cannot undo. The
-   * toggle-and-put-back below is the photo route's trick: it costs one write
-   * in the rare case instead of a read in every case, and the race between
-   * the two is a reaction nobody loses.
-   */
-  const already = await groupReactionCountFor(db, id, actorId);
-  if (already >= MAX_PER_MESSAGE) {
-    const state = await toggleGroupReaction(db, id, actorId, body.emoji);
-    if (state === 'added') {
-      await toggleGroupReaction(db, id, actorId, body.emoji);
-      return NextResponse.json({ error: 'too_many', max: MAX_PER_MESSAGE }, { status: 409 });
-    }
-    return NextResponse.json({ state });
-  }
-
-  const state = await toggleGroupReaction(db, id, actorId, body.emoji);
+  // A like, whatever was asked for. See `LIKE`.
+  const emoji = LIKE;
+  const state = await toggleGroupReaction(db, id, actorId, emoji);
   return NextResponse.json({ state });
 }

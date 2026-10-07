@@ -92,8 +92,8 @@ import {
 
 import { ago } from '@parea/cards';
 
-import { ApiError, REACTIONS, type Message, type Roster } from './api';
-import { EmojiPicker } from './Emoji';
+import { ApiError, type Message, type Roster } from './api';
+import { Glyph, LIKED } from './Glyph';
 import type { GroupTheme } from './Groups';
 import { useKeyboardUp } from './keyboard';
 import { initialOf, lensFor } from './lens';
@@ -747,7 +747,6 @@ export function ThreadRow({
   onOpenSentPhoto?: (photo: NonNullable<Message['photo']>) => void;
 }) {
   const [held, setHeld] = useState(false);
-  const [more, setMore] = useState(false);
   const [editing, setEditing] = useState<string | null>(null);
 
   const mine = message.author.mine;
@@ -778,6 +777,12 @@ export function ThreadRow({
   const report = !mine ? onReport : undefined;
   const block = !mine ? onBlock : undefined;
   const holdable = mine || (canPost && canReact) || report != null || block != null;
+  /*
+   * Likes are the only reaction now. Counted from whatever the server hands
+   * over, so a row from before the switch still reads as likes.
+   */
+  const likes = message.reactions.reduce((sum, r) => sum + r.count, 0);
+  const liked = message.reactions.some((r) => r.mine);
   const lens = lensFor(message.author.key);
 
   /**
@@ -858,7 +863,7 @@ export function ThreadRow({
      * a `photoOf` has pictures for these lines to be about.
      */
     const takeBack = mine && onUnreact ? onUnreact : undefined;
-    const said = `${mine ? 'You' : message.author.name} reacted ${message.emoji}`;
+    const said = `${mine ? 'You' : message.author.name} liked this`;
     return (
       <>
         <Pressable
@@ -897,14 +902,12 @@ export function ThreadRow({
                 <Text style={[styles.metaName, { color: t.fg }]}>
                   {mine ? 'You' : message.author.name}
                 </Text>
-                {' reacted '}
-                {message.emoji}
+                {' liked this'}
               </Text>
             </View>
           ) : (
             <Text style={[styles.reacted, { color: t.dim }]} numberOfLines={1}>
-              {said}
-              {message.photoId ? ' to a photo' : ''}
+              {message.photoId ? said.replace(/this$/, 'a photo') : said}
             </Text>
           )}
         </Pressable>
@@ -912,17 +915,15 @@ export function ThreadRow({
         {held && (
           <HeldSheet
             t={t}
-            /* Nothing to react to: a reaction is not a turn somebody can
-               answer, and a row of emoji over one would offer to react to a
-               reaction. */
-            reactions={false}
-            onReact={() => {}}
-            onMore={() => {}}
+            /* Nothing to like: a like is not a turn somebody can answer. */
+            like={false}
+            liked={false}
+            onLike={() => {}}
             onEdit={null}
             onDelete={takeBack ?? null}
             onReport={null}
             onBlock={null}
-            deleteLabel="Remove my reaction"
+            deleteLabel="Remove my like"
             deleteNote="The line goes with it."
             onClose={() => setHeld(false)}
           />
@@ -1024,13 +1025,13 @@ export function ThreadRow({
                     {
                       name: 'longpress',
                       label: mine
-                        ? 'React, edit or delete'
+                        ? 'Like, edit or delete'
                         : canPost && canReact
                           ? report
                             ? block
-                              ? 'React, report or block'
-                              : 'React or report'
-                            : 'React'
+                              ? 'Like, report or block'
+                              : 'Like or report'
+                            : 'Like'
                           : block
                             ? 'Report or block'
                             : 'Report',
@@ -1157,28 +1158,23 @@ export function ThreadRow({
           reactions, tappable to join or leave one. A room that cannot have
           them simply never has any.
         */}
-        {message.reactions.length > 0 && (
+        {likes > 0 && (
           <View style={[styles.chips, sided && styles.chipsMine]}>
-            {message.reactions.map((reaction) => (
-              <Pressable
-                key={reaction.emoji}
-                disabled={!canPost}
-                onPress={() => onReact(reaction.emoji)}
-                accessibilityRole="button"
-                accessibilityState={{ selected: reaction.mine }}
-                style={[
-                  styles.chip,
-                  {
-                    backgroundColor: t.card,
-                    borderColor: reaction.mine ? t.accent : t.line,
-                  },
-                ]}
-              >
-                <Text style={[styles.chipText, { color: t.fg }]}>
-                  {reaction.emoji} {reaction.count}
-                </Text>
-              </Pressable>
-            ))}
+            <Pressable
+              disabled={!canPost || !canReact}
+              onPress={() => onReact('❤️')}
+              accessibilityRole="button"
+              accessibilityState={{ selected: liked }}
+              accessibilityLabel={`${liked ? 'Unlike' : 'Like'}, ${likes} ${likes === 1 ? 'like' : 'likes'}`}
+              style={[
+                styles.chip,
+                styles.likeChip,
+                { backgroundColor: t.card, borderColor: liked ? LIKED : t.line },
+              ]}
+            >
+              <Glyph name="heart" size={13} weight={2.2} color={liked ? LIKED : t.dim} filled={liked} />
+              <Text style={[styles.chipText, { color: t.fg }]}>{likes}</Text>
+            </Pressable>
           </View>
         )}
       </View>
@@ -1190,14 +1186,11 @@ export function ThreadRow({
              may — a row of emoji that does nothing is worse than no row.
              Both rooms have message reactions now; what still answers no
              here is a reader who cannot post. */
-          reactions={canPost && canReact}
-          onReact={(emoji) => {
+          like={canPost && canReact}
+          liked={liked}
+          onLike={() => {
             setHeld(false);
-            onReact(emoji);
-          }}
-          onMore={() => {
-            setHeld(false);
-            setMore(true);
+            onReact('❤️');
           }}
           onEdit={mine && onEdit ? () => setEditing(message.body) : null}
           onDelete={mine ? onDelete : null}
@@ -1209,23 +1202,6 @@ export function ThreadRow({
         />
       )}
 
-      {/*
-        And the rest of them, which is the picker the photo viewer opens.
-
-        Ours rather than the system's, for the reason that file gives at
-        length: there is no way to ask a phone for its emoji panel
-        specifically, and a grid of our own can only produce emoji.
-      */}
-      {more && (
-        <EmojiPicker
-          t={t}
-          onClose={() => setMore(false)}
-          onPick={(emoji) => {
-            setMore(false);
-            onReact(emoji);
-          }}
-        />
-      )}
     </View>
   );
 }
@@ -1250,9 +1226,9 @@ export function ThreadRow({
  */
 function HeldSheet({
   t,
-  reactions,
-  onReact,
-  onMore,
+  like,
+  liked,
+  onLike,
   onEdit,
   onDelete,
   onReport,
@@ -1262,11 +1238,11 @@ function HeldSheet({
   onClose,
 }: {
   t: GroupTheme;
-  /** Whether to offer the emoji at all. */
-  reactions: boolean;
-  onReact: (emoji: string) => void;
-  /** The full picker, for the ones the row of six does not have. */
-  onMore: () => void;
+  /** Whether to offer a like at all. */
+  like: boolean;
+  /** Whether this reader has already liked it, which turns the offer round. */
+  liked: boolean;
+  onLike: () => void;
   /** Null where there is nothing to edit — somebody else's, or a reaction. */
   onEdit: (() => void) | null;
   /** Null where it is not yours to remove. */
@@ -1299,37 +1275,19 @@ function HeldSheet({
 
         <View style={[styles.heldSheet, { backgroundColor: t.bg }]}>
           <View style={styles.heldGrip} />
-          {reactions && (
-            <View style={styles.heldEmoji}>
-              {REACTIONS.map((emoji) => (
-                <Pressable
-                  key={emoji}
-                  onPress={() => onReact(emoji)}
-                  accessibilityRole="button"
-                  accessibilityLabel={`React ${emoji}`}
-                  style={({ pressed }) => [styles.heldEmojiOne, pressed && { opacity: 0.5 }]}
-                >
-                  <Text style={styles.heldEmojiText}>{emoji}</Text>
-                </Pressable>
-              ))}
-              {/* The `+` at the end of the six, where it was at the end of the
-                  pills: the same promise in the place it is now useful. */}
-              <Pressable
-                onPress={onMore}
-                accessibilityRole="button"
-                accessibilityLabel="More emoji"
-                style={({ pressed }) => [
-                  styles.heldMore,
-                  { borderColor: t.line },
-                  pressed && { opacity: 0.5 },
-                ]}
-              >
-                <Text style={[styles.heldMoreText, { color: t.dim }]}>+</Text>
-              </Pressable>
-            </View>
+          {like && (
+            <Pressable
+              onPress={onLike}
+              accessibilityRole="button"
+              accessibilityLabel={liked ? 'Unlike' : 'Like'}
+              style={({ pressed }) => [styles.heldLike, pressed && { opacity: 0.5 }]}
+            >
+              <Glyph name="heart" size={24} color={liked ? LIKED : t.fg} filled={liked} />
+              <Text style={[styles.heldDoText, { color: t.fg }]}>{liked ? 'Unlike' : 'Like'}</Text>
+            </Pressable>
           )}
 
-          {reactions && (onEdit || onDelete || onReport || onBlock) && (
+          {like && (onEdit || onDelete || onReport || onBlock) && (
             <View style={[styles.heldRule, { backgroundColor: t.line }]} />
           )}
 
@@ -1714,6 +1672,7 @@ const styles = StyleSheet.create({
   chipsMine: { justifyContent: 'flex-end' },
   chip: { borderWidth: 1, borderRadius: 999, paddingVertical: 3, paddingHorizontal: 9 },
   chipText: { fontSize: 13 },
+  likeChip: { flexDirection: 'row', alignItems: 'center', gap: 5 },
   /*
    * What a held row opens: a sheet at the foot of the screen.
    *
@@ -1733,23 +1692,7 @@ const styles = StyleSheet.create({
     marginBottom: 8,
     backgroundColor: 'rgba(128,128,128,0.45)',
   },
-  /* The six, spread across the width rather than bunched at one end: the row
-     is a set of equal choices and reads as one when it is spaced as one. */
-  heldEmoji: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 18,
-    paddingBottom: 4,
-  },
-  heldEmojiOne: { paddingVertical: 6, paddingHorizontal: 4 },
-  /* Large, because this is a target on a sheet rather than a label on a pill
-     — and an emoji at 26 is still the thing you are pressing. */
-  heldEmojiText: { fontSize: 26 },
-  /* The `+` as an outline beside them: it is the one item in the row that is
-     not itself an answer, so it is drawn as a control and not as an emoji. */
-  heldMore: { borderWidth: 1, borderRadius: 999, width: 34, height: 34, alignItems: 'center', justifyContent: 'center' },
-  heldMoreText: { fontSize: 19, fontWeight: '600', lineHeight: 22 },
+  heldLike: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 10, paddingHorizontal: 18 },
   heldRule: { height: 1, marginTop: 10, marginBottom: 2 },
   heldDo: { paddingVertical: 12, paddingHorizontal: 18, gap: 2 },
   heldDoText: { fontSize: 16, fontWeight: '600' },

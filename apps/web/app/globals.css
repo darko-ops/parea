@@ -3182,7 +3182,6 @@ button.small { padding: 7px 11px; font-size: 13px; border-radius: 8px; }
    anyway; this is the pair of them agreeing. */
 .message-mine .message-meta { justify-content: flex-end; }
 .message-mine .message-about { margin-left: auto; }
-.message-mine .reactions { justify-content: flex-end; }
 /* And the lines do not turn round with the block.
 
    No `text-align: right`, which is what the bubble had. A short comment
@@ -3192,14 +3191,6 @@ button.small { padding: 7px 11px; font-size: 13px; border-radius: 8px; }
    time while the eye hunts for where each one begins. Three words in a bubble
    can take that and a paragraph cannot — so the edit box, which is a form and
    never wanted it either, needs no exception any more. */
-/* The way to add a reaction is on hover and on focus, like the `···` beside
-   it. A
-   quiet thread was a column of `+` buttons, one under every bubble, each
-   offering to react to a sentence nobody had reacted to. Reactions that exist
-   stay visible always — they are what somebody said. */
-.reactions .picker { opacity: 0; transition: opacity 120ms; }
-.message:hover .picker, .message:focus-within .picker { opacity: 1; }
-@media (hover: none) { .reactions .picker { opacity: 1; } }
 /* Beside the time rather than pushed to the far edge of the column. `auto`
    put it at the opposite end of an 820px row from the message it belongs to. */
 .message-meta .dots { margin-left: 6px; }
@@ -3447,33 +3438,30 @@ button.small { padding: 7px 11px; font-size: 13px; border-radius: 8px; }
    rule beats two — `@ana` reads the same in a comment as it does anywhere
    else in the product. */
 .mention { font-weight: 600; color: var(--accent); }
-/* Reactions, on a message and now on a photograph.
-
-   This said "never on photographs: a photograph of somebody's evening that
-   can be scored is a post, and this is not a feed", which stopped being true
-   the day the app shipped `photo_reaction` — and what was left was a site that
-   could not show a reaction somebody had left on a phone. The argument is
-   answered rather than waived: a pill here names the people in it, so what a
-   photograph carries is who said something about it rather than a number it
-   scored. See `PhotoReactions`. */
-.reactions { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 8px; }
-.reaction {
-  padding: 4px 9px; border-radius: 999px; border: 1px solid var(--line);
-  background: var(--card); font-size: 13px; cursor: pointer;
+/* Likes, on a message, a photograph and a moment — one heart, `LikeButton`.
+   They were emoji reactions with a picker; reactions became likes. */
+.message-like { display: flex; margin-top: 6px; }
+.message-mine .message-like { justify-content: flex-end; }
+/* An empty heart under a line nobody has liked shows on hover and on focus,
+   like the `···` beside it — a quiet thread is not a column of hearts. A heart
+   somebody has filled, or that carries a count, stays. */
+.message-like .like:not(.like-on):not(:has(.like-count)) { opacity: 0; transition: opacity 120ms; }
+.message:hover .message-like .like, .message:focus-within .message-like .like { opacity: 1; }
+@media (hover: none) { .message-like .like:not(.like-on) { opacity: 1; } }
+/* The heart: outlined in the quiet ink, filled in the heart's own red once
+   liked. `currentColor` carries both the stroke and the fill. */
+.like {
+  display: inline-flex; align-items: center; gap: 5px;
+  padding: 4px 8px; border: 0; border-radius: 999px; background: none;
+  color: var(--dim-soft); font-size: 13px; line-height: 1; cursor: pointer;
 }
-.reaction-on { border-color: var(--accent); background: var(--accent-soft); }
-.reaction-add {
-  /* Smaller than a reaction and lighter than one. It was the same pill as an
-     emoji somebody had actually chosen, which gave an empty offer the same
-     weight as a real answer — and put a bordered button under every message.
-     Now it is a small disc that grows a little when reached for. */
-  width: 22px; height: 22px; padding: 0; border-radius: 50%;
-  display: inline-flex; align-items: center; justify-content: center;
-  border-color: transparent; background: none;
-  color: var(--dim-soft); font-size: 15px; line-height: 1;
-}
-.reaction-add:hover { background: var(--track); color: var(--fg); }
-.reactions:has(.reaction) .reaction-add { align-self: center; }
+.like:hover:not(:disabled) { background: var(--track); color: var(--fg); }
+.like:disabled { cursor: default; }
+.like-on, .like-on:hover:not(:disabled) { color: #e5484d; }
+.like-count { color: var(--fg); font-variant-numeric: tabular-nums; }
+.like svg { display: block; flex: none; }
+/* Was the reaction picker's, and still overrides the earlier `.picker` the
+   landing page's upload row uses — kept so that row draws as it always has. */
 .picker {
   position: relative; display: inline-flex; gap: 6px; flex-wrap: wrap;
 }
@@ -3590,7 +3578,7 @@ button.small { padding: 7px 11px; font-size: 13px; border-radius: 8px; }
 .photo-verbs-do { display: flex; align-items: center; gap: 6px; flex: none; }
 /* No top margin, unlike a message's: this row *is* the row rather than
    something under one. */
-.photo-reactions { margin-top: 0; }
+.photo-like { display: flex; align-items: center; }
 /* A square disc for a glyph, at the size the pills beside it stand. Download
    was a bordered word — `Download`, 14px, 9 by 14 — which read as the loudest
    thing under the photograph. */

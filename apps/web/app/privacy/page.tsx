@@ -106,7 +106,7 @@ export default function PrivacyPage() {
             time.
           </p>
           <p className="muted">
-            Comments and reactions left on a moment are kept with it, seen by
+            Comments and likes left on a moment are kept with it, seen by
             the same people, and deleted when it is. You can delete your own
             comments whenever you like.
           </p>
@@ -261,7 +261,7 @@ export default function PrivacyPage() {
             has asked you into a roll, that somebody has asked you into a
             group, that somebody has put you in a group they made, that somebody
             has commented on a photograph you added, that somebody has
-            commented on or reacted to a moment you shared, that you now run
+            commented on or liked a moment you shared, that you now run
             a roll or a group &mdash; because somebody handed it to you, or
             because whoever ran it left &mdash; and that somebody has said
             you are in a photograph. The last of those is the only one that
@@ -352,7 +352,7 @@ export default function PrivacyPage() {
             Every roll has a thread, and anything you post in it &mdash;
             including a comment on one photograph &mdash; is kept with that
             roll and shown, under your name, to everybody who can see it. So
-            are the reactions you leave on other people&rsquo;s messages. It is
+            are the likes you leave on other people&rsquo;s messages. It is
             not private, it is not a direct message, and there is no version of
             it that only one person sees.
           </p>
@@ -365,13 +365,13 @@ export default function PrivacyPage() {
             photographs are hidden from each other.
           </p>
           <p className="muted">
-            You can also react to a photograph itself, without saying anything.
-            What is kept is which emoji you chose and which picture you chose it
-            on. Everybody who can see the photograph sees the reaction{' '}
+            You can also like a photograph itself, without saying anything.
+            What is kept is that you liked it and which picture it was.
+            Everybody who can see the photograph sees the like{' '}
             <em>and who left it</em>: your handle is shown beside it, in the
             same way your name appears on anything you post. Tapping it again
             takes it back and removes the record. Somebody you have blocked
-            does not appear in the reactions you see, exactly as their messages
+            does not appear in the likes you see, exactly as their messages
             and their photographs do not.
           </p>
           <p className="muted">
@@ -380,7 +380,7 @@ export default function PrivacyPage() {
             nothing else, and it is shown to nobody. Nobody in the roll is told
             what you kept, no count of it appears anywhere, and the person who
             added the photograph cannot see that you did. It is stored apart
-            from reactions for that reason rather than as one more kind of
+            from likes for that reason rather than as one more kind of
             them. Tapping the star again removes the record.
           </p>
           <p className="muted">
@@ -401,7 +401,7 @@ export default function PrivacyPage() {
             A group has a thread of its own, separate from the threads on the
             rolls inside it, and what you say in a group is kept with that
             group and shown under your name to its members. So are the
-            reactions you leave on what other members say there. Membership is
+            likes you leave on what other members say there. Membership is
             the whole of the rule: there is no link that opens a
             group&rsquo;s conversation, and somebody who can see the
             photographs in one of its rolls cannot read it. Editing, deleting

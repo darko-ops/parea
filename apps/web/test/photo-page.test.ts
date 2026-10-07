@@ -36,6 +36,7 @@ const VIEW = await read('../app/components/PhotoView.tsx');
 const TILE = await read('../app/components/PhotoTile.tsx');
 const EVENT = await read('../app/components/EventView.tsx');
 const REACT = await read('../app/components/PhotoReactions.tsx');
+const LIKE = await read('../app/components/LikeButton.tsx');
 const ROUTE_EVENT = await read('../app/event/[id]/page.tsx');
 const STAR = await read('../app/components/Star.tsx');
 const CSS = await readFile(
@@ -154,7 +155,7 @@ describe('the two verbs under the photograph', () => {
     expect(VIEW.match(/download\b/g)?.filter((_, i) => i >= 0).length).toBeGreaterThan(0);
   });
 
-  it('lets somebody react to a photograph at all, which it could not', () => {
+  it('lets somebody like a photograph, with one heart', () => {
     /*
      * `photo_reaction`, its route and the app's control have existed for a
      * while and this page never grew one — so a reaction left on a phone was
@@ -164,28 +165,24 @@ describe('the two verbs under the photograph', () => {
     expect(ROUTE).toMatch(/reactionsForPhotos\(db, \[photo\.id\], viewerId\)/);
     expect(VIEW).toMatch(/reactions=\{reactions\}/);
     /*
-     * A row of people rather than a score. Each row the server sends is one
-     * person and one emoji, so a pill can say who as well as how many — which
-     * is the whole of what separates a reaction from a like, and the reason
-     * the CSS no longer claims reactions never go on photographs.
+     * One heart rather than a picker. Reactions became likes: the control is
+     * `LikeButton`, outlined until the viewer likes the picture and filled once
+     * they have, with how many beside it — and it says which in its name.
      */
-    expect(REACT).toMatch(/aria-label=\{`\$\{emoji\} from \$\{row\.names\.join\(', '\)\}`\}/);
-    /* The rule that said otherwise is gone as a rule. It survives in the
-       note that says why, which is where a reversed decision belongs. */
-    expect(CSS).toMatch(/Reactions, on a message and now on a photograph\./);
-    // The picker is the thread's, down to the six it opens with.
-    expect(REACT).toMatch(/import \{ useDismiss \} from '\.\/Thread';/);
-    expect(REACT).toMatch(/REACTIONS\.map\(\(emoji\) => \(/);
+    expect(REACT).toMatch(/import \{ LikeButton \} from '\.\/LikeButton';/);
+    expect(REACT).not.toMatch(/REACTIONS|useDismiss/);
+    expect(LIKE).toMatch(/aria-pressed=\{liked\}/);
+    expect(LIKE).toMatch(/fill=\{liked \? 'currentColor' : 'none'\}/);
     /*
      * Optimistic, and silent when it fails: the page is server-rendered and a
-     * reaction that only appeared after a round trip would feel like a tap
-     * that missed, while an alert over somebody's photograph for a tap that
-     * did not land is worse than the tap not landing.
+     * heart that only filled after a round trip would feel like a tap that
+     * missed, while an alert over somebody's photograph for a tap that did not
+     * land is worse than the tap not landing.
      */
     expect(REACT).toMatch(/if \(!res\?\.ok\) setList\(was\);/);
-    // And nothing at all for a reader who cannot react and has nothing to
+    // And nothing at all for a reader who cannot like it and has nothing to
     // read: an empty affordance that would refuse them is worse than no row.
-    expect(REACT).toMatch(/if \(!canReact && tally\.length === 0\) return null;/);
+    expect(REACT).toMatch(/if \(!canReact && count === 0\) return null;/);
   });
 });
 

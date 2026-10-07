@@ -32,7 +32,6 @@ const { __setDbForTests } = await import('@/db');
 const { sign } = await import('@/auth/cookies');
 const { postGroupMessage, groupMessagesFor } = await import('@/groupMessages');
 const { addMember } = await import('@/groups');
-const { MAX_PER_MESSAGE } = await import('@/reactions');
 const { POST } = await import('../app/api/group-messages/[id]/reactions/route');
 
 const MIGRATIONS = fileURLToPath(new URL('../../../packages/core/drizzle', import.meta.url));
@@ -168,78 +167,26 @@ describe('who may react in a group', () => {
   });
 });
 
-describe('what may be sent', () => {
-  it('takes any emoji, not one of six', async () => {
+describe('what is stored', () => {
+  /*
+   * A like, whatever the request names. The pickers are gone, and an older app
+   * still sending 🦑 gets the like it was reaching for rather than an error.
+   * One per person per message, so there is no ceiling left to enforce.
+   */
+  it('is a heart, whatever was sent, and one per person', async () => {
     const me = await person('Demetri');
     const room = await group();
     await addMember(db, room, me);
     const said = await postGroupMessage(db, room, me, 'Sunday?');
 
     as(me);
-    for (const emoji of ['🦑', '🇬🇷', '1️⃣']) {
-      expect((await react(said, emoji)).status, emoji).toBe(200);
-    }
-  });
+    expect(await (await react(said, '🦑')).json()).toEqual({ state: 'added' });
+    let [message] = await groupMessagesFor(db, room, me);
+    expect(message!.reactions.map((r) => r.emoji)).toEqual(['❤️']);
 
-  it('refuses anything that is not one emoji', async () => {
-    /*
-     * The rule doing the work is that it is a single grapheme. Without it a
-     * row of pills under a message is an unmoderated text channel reached
-     * through a box labelled "pick an emoji".
-     */
-    const me = await person('Demetri');
-    const room = await group();
-    await addMember(db, room, me);
-    const said = await postGroupMessage(db, room, me, 'Sunday?');
-
-    as(me);
-    for (const bad of ['not an emoji, a sentence', '❤️🔥', '', 'a', 42, null]) {
-      const refused = await react(said, bad);
-      expect(refused.status, String(bad)).toBe(400);
-      expect(await refused.json()).toEqual({ error: 'not_an_emoji' });
-    }
-  });
-
-  it('stops one person at six, and still lets them take one back', async () => {
-    /*
-     * The bound that stops one account turning somebody's sentence into a
-     * wall of pills. Checked before adding and never before removing:
-     * somebody at the limit who could not undo one would be stuck with six.
-     */
-    const me = await person('Demetri');
-    const room = await group();
-    await addMember(db, room, me);
-    const said = await postGroupMessage(db, room, me, 'Sunday?');
-
-    as(me);
-    const six = ['❤️', '😂', '🔥', '👏', '😮', '🙏'];
-    expect(six).toHaveLength(MAX_PER_MESSAGE);
-    for (const emoji of six) expect((await react(said, emoji)).status).toBe(200);
-
-    const seventh = await react(said, '🦑');
-    expect(seventh.status).toBe(409);
-    expect(await seventh.json()).toEqual({ error: 'too_many', max: MAX_PER_MESSAGE });
-
-    // The seventh was not kept, and the six are still six.
-    const [message] = await groupMessagesFor(db, room, me);
-    expect(message!.reactions.map((r) => r.emoji).sort()).toEqual([...six].sort());
-
-    // And one of the six comes off, from the same state that refused a new one.
-    expect(await (await react(said, '❤️')).json()).toEqual({ state: 'removed' });
-  });
-
-  it('counts each person’s own six, not the message’s', async () => {
-    const me = await person('Demetri');
-    const them = await person('Ana');
-    const room = await group();
-    await addMember(db, room, me);
-    await addMember(db, room, them);
-    const said = await postGroupMessage(db, room, me, 'Sunday?');
-
-    as(me);
-    for (const emoji of ['❤️', '😂', '🔥', '👏', '😮', '🙏']) await react(said, emoji);
-    // Somebody else is nowhere near the limit, whatever the message carries.
-    as(them);
-    expect((await react(said, '🦑')).status).toBe(200);
+    // A second tap, with anything, takes the like back.
+    expect(await (await react(said, 'not an emoji')).json()).toEqual({ state: 'removed' });
+    [message] = await groupMessagesFor(db, room, me);
+    expect(message!.reactions).toEqual([]);
   });
 });

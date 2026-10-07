@@ -199,10 +199,10 @@ describe('reacting to a photograph', () => {
      * at the end of it.
      */
     expect(GESTURE).toMatch(/styles\.said\b/);
-    expect(GESTURE).toMatch(/ordered\.map\(\(r, i\) =>/);
-    // One face, and the whole keyboard behind it. `disc` rather than `smiley`
-    // now that the same shape holds two verbs — see the test below.
-    expect(GESTURE).toMatch(/accessibilityLabel="React to this photo"/);
+    expect(GESTURE).toMatch(/ordered\.map\(\(name, i\) =>/);
+    // One heart. `disc` rather than `smiley` now that the same shape holds two
+    // verbs — see the test below.
+    expect(GESTURE).toMatch(/onPress=\{\(\) => void toggleLike\(\)\}/);
     expect(GESTURE).toMatch(/styles\.disc\b/);
   });
 
@@ -215,7 +215,7 @@ describe('reacting to a photograph', () => {
     expect(GESTURE).not.toMatch(/styles\.smiley/);
     expect(GESTURE).not.toMatch(/composerHint/);
     const bar = GESTURE.slice(GESTURE.indexOf('styles.bar'), GESTURE.indexOf('{talking &&'));
-    const order = ['React to this photo', "'Add a comment'", 'Share this photo as a moment', 'Save this photo'];
+    const order = ["liked ? 'Unlike' : 'Like'", "'Add a comment'", 'Share this photo as a moment', 'Save this photo'];
     const at = order.map((label) => bar.indexOf(label));
     expect(at.every((i) => i > -1)).toBe(true);
     expect([...at].sort((a, b) => a - b)).toEqual(at);
@@ -240,7 +240,7 @@ describe('reacting to a photograph', () => {
     // The handle is a byline here, not a mention — and the client does not
     // add a sigil the server did not send.
     expect(API).toMatch(/reactions: \{ emoji: string; name: string; mine: boolean \}\[\]/);
-    expect(GESTURE).toMatch(/\{r\.mine \? 'You' : r\.name\}/);
+    expect(GESTURE).toMatch(/\.map\(\(r\) => r\.name\)/);
     expect(GESTURE).not.toMatch(/`@\$\{/);
     expect(GESTURE).not.toMatch(/actorId/);
     /*
@@ -271,8 +271,7 @@ describe('reacting to a photograph', () => {
      * which is what the album's own conversation does and what everything else
      * in the product does.
      */
-    expect(GESTURE).toMatch(/const ordered = reactions;/);
-    expect(GESTURE).not.toMatch(/\[\.\.\.reactions\]\.reverse\(\)/);
+    expect(GESTURE).toMatch(/const ordered = useMemo\(\(\) => \[\.\.\.\(liked \? \['You'\] : \[\]\), \.\.\.likers\]/);
     // No longer anchored to a corner, so nothing pins it to an edge.
     expect(GESTURE).not.toMatch(/justifyContent: 'flex-end'/);
     expect(GESTURE).toMatch(/said: \{ position: 'absolute', left: 16, right: 16, bottom: 88 \}/);
@@ -301,7 +300,7 @@ describe('reacting to a photograph', () => {
     // The ids come out of two tables, and a route that has to guess which one
     // it was handed is a route that can guess wrong.
     expect(API).toMatch(/\/api\/photos\/\$\{photoId\}\/reactions/);
-    expect(GESTURE).toMatch(/api\.reactToPhoto\(photo\.id, emoji\)/);
+    expect(GESTURE).toMatch(/api\.reactToPhoto\(photo\.id, '❤️'\)/);
   });
 
   it('says why rather than offering a control that will be refused', () => {
@@ -310,46 +309,24 @@ describe('reacting to a photograph', () => {
     expect(APP).toMatch(/canReact=\{feed\?\.canPost \?\? false\}/);
   });
 
-  it('puts an optimistic reaction where the server would have put it', () => {
-    /*
-     * A `Map` iterates in insertion order and this list reads newest first.
-     *
-     * With one reaction in flight that makes no difference, which is why it was
-     * wrong and looked fine. Leave two — react, then react again before the
-     * first has come back — and the pair went in oldest-above-newest while the
-     * server was about to answer newest-above-oldest, so the second landed
-     * below the first and swapped places a moment later. That reads as the app
-     * changing its mind about what you just did.
-     */
-    expect(GESTURE).toMatch(/\.reverse\(\)\s*\.map\(\(\[emoji\]\) => \(\{ emoji, name: 'You', mine: true \}\)\)/);
-    expect(GESTURE).toMatch(/return \[\.\.\.added, \.\.\.kept\]/);
+  it('is one heart that turns red once you have liked it', () => {
+    // Reactions became likes: no emoji, one toggle, and the button says which
+    // way round you are.
+    expect(GESTURE).toMatch(/<Glyph name="heart" size=\{22\} color=\{liked \? LIKED : '#fff'\} filled=\{liked\} \/>/);
+    expect(GESTURE).toMatch(/const liked = pendingLike \?\? photo\.reactions\.some\(\(r\) => r\.mine\);/);
+    // Anybody's row counts once, so a photograph from before still reads right.
+    expect(GESTURE).toMatch(/new Set\(photo\.reactions\.filter\(\(r\) => !r\.mine\)\.map\(\(r\) => r\.name\)\)/);
+    expect(GESTURE).toMatch(/const likeCount = likers\.length \+ \(liked \? 1 : 0\);/);
   });
 
-  it('draws the answer before the server has given one', () => {
-    /*
-     * A reaction used to wait on a POST *and* a refresh of the entire album
-     * feed, because that feed is where the counts live. Against a database in
-     * another region that is most of a second with nothing on screen changing,
-     * and the pill was disabled throughout.
-     */
-    expect(GESTURE).toMatch(/const \[pending, setPending\] = useState<Map<string, boolean>>/);
+  it('draws the answer before the server has given one, and goes back if it fails', () => {
+    expect(GESTURE).toMatch(/const \[pendingLike, setPendingLike\] = useState<boolean \| null>\(null\);/);
     // Set before the request, not after it.
-    expect(GESTURE).toMatch(/setPending\(\(was\) => new Map\(was\)\.set\(emoji, on\)\);\s*try \{/);
-    // And nothing in the picker is disabled while it is in flight.
+    expect(GESTURE).toMatch(/setPendingLike\(on\);\s*try \{/);
+    // Cleared either way: on success the refreshed feed agrees with it, and on
+    // failure the heart returns to what the server last said.
+    expect(GESTURE).toMatch(/} catch \{[\s\S]{0,120}}\s*setPendingLike\(null\);/);
     expect(GESTURE).not.toMatch(/disabled=\{busy/);
-  });
-
-  it('only ever overlays your own rows', () => {
-    // You cannot react for somebody else, so everybody else's stand
-    // untouched underneath the overlay.
-    expect(GESTURE).toMatch(/r\.mine && pending\.get\(r\.emoji\) === false/);
-  });
-
-  it('fails quietly, and lets the refresh be the correction', () => {
-    // An alert over a photograph for a tap that did not land is worse than the
-    // tap not landing. No hand-rolled rollback: the feed arriving is what puts
-    // a refused tap back.
-    expect(GESTURE).toMatch(/} catch \{\s*}\s*await onChanged\(\);/);
   });
 });
 
@@ -414,70 +391,11 @@ describe('what is said about one photograph', () => {
   });
 });
 
-describe('reacting with anything', () => {
-  it('offers one face rather than a column of guesses', () => {
-    /*
-     * Six emoji were offered because a reaction should be one tap and a grid of
-     * two thousand is not one tap. The flaw in that is which six: they are the
-     * set we guessed, and the seventh emoji somebody reaches for is the one
-     * they actually mean — so the column spent the right-hand side of a
-     * photograph to save a press that only sometimes landed.
-     *
-     * One control now, and the picker behind it is the one on their own phone,
-     * with their own recents at the front of it. The frequent emoji are still
-     * one tap away; they are theirs rather than ours.
-     */
-    expect(code(VIEWER)).not.toMatch(/\bREACTIONS\b/);
-    expect(VIEWER).toMatch(/accessibilityLabel="React to this photo"/);
-    expect(VIEWER).toMatch(/setPicking\(true\)/);
-  });
-
-  it('draws the control as a glyph, not as a particular emoji', () => {
-    /*
-     * A 🙂 in the button is *an* emoji sitting where a control should be: it
-     * reads as "react with this one" rather than "choose one", and it changes
-     * shape between platforms and font versions while every other control in
-     * this app is a 24-unit stroke that does not.
-     */
-    expect(VIEWER).toMatch(/<Glyph name="face" size=\{22\} color="#fff" \/>/);
-    expect(code(VIEWER)).not.toMatch(/🙂/);
-  });
-
-  it('shows emoji and only emoji', () => {
-    /*
-     * This focused an invisible `TextInput` so the phone would open its emoji
-     * keyboard. It works, and it opens *a* keyboard — the last panel somebody
-     * used, which is usually but not always the emoji one. There is no
-     * `keyboardType` for emoji on iOS and no public way to ask for that panel.
-     *
-     * So the choice was a keyboard that is sometimes letters, or a grid of our
-     * own. A grid can only produce emoji, which is the requirement, and it
-     * never puts a text field over somebody's photograph.
-     */
-    expect(VIEWER).toMatch(/<EmojiPicker/);
-    /*
-     * The viewer still has a `TextInput` — it is the comment box, which is a
-     * text field on purpose. What is gone is the invisible one that existed
-     * only to summon a keyboard.
-     */
-    expect(code(VIEWER)).not.toMatch(/pickInput|Type an emoji/);
-
-    const PICKER = readFileSync(
-      fileURLToPath(new URL('../src/Emoji.tsx', import.meta.url).href),
-      'utf8',
-    );
-    expect(code(PICKER)).not.toMatch(/TextInput|keyboardType/);
-    /*
-     * The six that used to be offered outright are still the first thing in it.
-     * They were chosen because they are what people react to photographs with,
-     * so the common case stays one scroll-free tap — which is the only thing
-     * worth keeping from the column they replaced.
-     */
-    expect(PICKER).toMatch(/name: 'Reactions'/);
-    const first = PICKER.slice(PICKER.indexOf("name: 'Reactions'"), PICKER.indexOf("name: 'Faces'"));
-    for (const emoji of ['❤️', '😂', '🔥', '👏', '😮', '🙏']) {
-      expect(first, `${emoji} should still lead`).toContain(emoji);
-    }
+describe('liking it', () => {
+  it('offers one heart and no emoji at all', () => {
+    expect(code(VIEWER)).not.toMatch(/\bREACTIONS\b|EmojiPicker|setPicking/);
+    expect(VIEWER).toMatch(/<Glyph name="heart"/);
+    expect(VIEWER).toMatch(/to like/);
   });
 });
 
@@ -658,71 +576,6 @@ describe('the photo options', () => {
     expect(APP).toMatch(/feed\?\.photos\.find\(\(p\) => p\.id === actionsFor\.id\) \?\? actionsFor/);
   });
 });
-
-/**
- * The emoji sheet's own two problems.
- *
- * Both are about a grid inside a sheet, which is a shape with two gestures and
- * one finger: the grid wants every downward drag and the sheet wants some of
- * them.
- */
-describe('the emoji sheet', () => {
-  const PICKER = readFileSync(
-    fileURLToPath(new URL('../src/Emoji.tsx', import.meta.url).href),
-    'utf8',
-  );
-
-  it('draws every section pill the same size', () => {
-    /*
-     * Sized to its own word, "Food" was two-thirds the width of "Reactions", so
-     * the row read as a ragged set of unrelated things — and the selected pill
-     * changed width as the selection moved, so the row reflowed under a thumb.
-     *
-     * One constant, so a section named something longer is a change to a number
-     * rather than a row that quietly starts clipping.
-     */
-    expect(PICKER).toMatch(/const TAB = \d+;/);
-    expect(PICKER).toMatch(/tab: \{\s*width: TAB,\s*height: 32,/);
-    expect(PICKER).toMatch(/alignItems: 'center',\s*justifyContent: 'center',/);
-  });
-
-  it('never lets a label wrap or clip', () => {
-    // A label on two lines inside a 32pt pill is a label with its second half
-    // cut off.
-    expect(PICKER).toMatch(/numberOfLines=\{1\}/);
-    expect(PICKER).toMatch(/tabText: \{[^}]*textAlign: 'center'/);
-  });
-
-  it('closes on a downward swipe, but only when the grid has nothing to scroll', () => {
-    /*
-     * The whole of the problem: a downward drag inside the grid is a scroll, so
-     * a sheet that took every one would make the grid unscrollable. A drag at
-     * the top of an already-at-the-top grid has nothing to scroll, which is
-     * exactly when somebody means "put this away".
-     */
-    expect(PICKER).toMatch(/onMoveShouldSetPanResponderCapture: \(_evt, g\) =>\s*atTop\.current && g\.dy > 6 && g\.dy > Math\.abs\(g\.dx\)/);
-    expect(PICKER).toMatch(/if \(g\.dy > SWIPE \|\| g\.vy > FLING\) onClose\(\)/);
-    // Read from the scroll view rather than guessed.
-    expect(PICKER).toMatch(/atTop\.current = e\.nativeEvent\.contentOffset\.y <= 0/);
-  });
-
-  it('never claims a tap or a sideways drag', () => {
-    // Sideways is the section row; a tap is an emoji.
-    expect(PICKER).toMatch(/onStartShouldSetPanResponderCapture: \(\) => false/);
-  });
-
-  it('resets the flag when the section changes', () => {
-    // A new section starts at the top. Without this, switching after scrolling
-    // leaves the sheet refusing to close until somebody scrolls again.
-    expect(PICKER).toMatch(/atTop\.current = true;\s*setSection\(i\)/);
-  });
-
-  it('keeps the flag out of state', () => {
-    // As state it would rebuild the responder on every scroll frame.
-    expect(PICKER).toMatch(/const atTop = useRef\(true\)/);
-  });
-});
-
 
 describe('whose photograph it is', () => {
   it('is a square in the middle of the chrome', () => {

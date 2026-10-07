@@ -521,14 +521,6 @@ export type Message = {
   };
 };
 
-/**
- * What a message can be reacted with — the web's set, and the same six.
- *
- * A row of reaction pills is a row and not a keyboard: the point is to say
- * something in one tap, and a picker with two hundred faces in it is a second
- * decision to make about a photograph of a dinner.
- */
-export const REACTIONS = ['❤️', '😂', '🔥', '👏', '😮', '🙏'] as const;
 
 /**
  * One event as it appears in a list: enough to draw a card, and no more.

@@ -80,11 +80,8 @@ export function PhotoView({
   strip: { id: string; src: string }[];
   messages: Message[];
   /**
-   * What has been left on this photograph, newest first.
-   *
-   * Not a score and not a count: each row is one person and one emoji, so the
-   * control below can say who as well as how many — which is the whole of
-   * what makes a reaction different from a like.
+   * Who likes this photograph: a row per person, the viewer's own marked.
+   * The heart below fills for the viewer's and counts the rest.
    */
   reactions: PhotoReaction[];
   people: { key: string; name: string; photoCount: number; mine: boolean }[];

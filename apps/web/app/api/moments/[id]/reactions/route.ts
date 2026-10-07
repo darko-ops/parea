@@ -9,13 +9,13 @@ import { NextResponse } from 'next/server';
 import { getDb } from '@/db';
 import { canSeeMoment, replyInChat, toggleMomentReaction } from '@/moments';
 import { nameOf, notifyMomentReaction } from '@/notify';
-import { isEmoji } from '@/reactions';
+import { LIKE } from '@/reactions';
 import { currentAccountActorId } from '@/session';
 
 export const runtime = 'nodejs';
 
 export async function POST(
-  request: Request,
+  _request: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
   const { id } = await params;
@@ -25,16 +25,12 @@ export async function POST(
     return NextResponse.json({ error: 'not_found' }, { status: 404 });
   }
 
-  const body = (await request.json().catch(() => ({}))) as { emoji?: unknown };
-  if (!isEmoji(body.emoji)) {
-    return NextResponse.json({ error: 'not_an_emoji' }, { status: 400 });
-  }
-
   const db = getDb();
   if (!(await canSeeMoment(db, actorId, id))) {
     return NextResponse.json({ error: 'not_found' }, { status: 404 });
   }
-  const emoji = body.emoji;
+  // A like, whatever was asked for. See `LIKE`.
+  const emoji = LIKE;
   const state = await toggleMomentReaction(db, actorId, id, emoji);
 
   /*

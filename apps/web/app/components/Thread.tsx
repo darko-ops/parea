@@ -26,13 +26,10 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import type { Member } from '@/members';
 import type { Message } from '@/messages';
-// From `reactions.ts`, not `messages.ts`: this is a client component, and that
-// module reads the database.
-import { REACTIONS } from '@/reactions';
-
 import { ChatPhotoViewer } from './ChatPhotoViewer';
 import { Face } from './Faces';
 import { IconGlyph } from './IconGlyph';
+import { LikeButton } from './LikeButton';
 import { Menu } from './Menu';
 import { blockAsk, blockName, blockPerson, blockSaid, reportContent, reportSaid } from './report';
 import { SignIn, useSession } from './SignIn';
@@ -201,14 +198,16 @@ export function Thread({
     }
   }, [draft, posting, postTo, onChanged]);
 
-  const react = useCallback(
-    async (id: string, emoji: string) => {
-      await fetch(`${messageAt(id)}/reactions`, {
+  /** Liking a line, or taking the like back. Says whether the server took it. */
+  const like = useCallback(
+    async (id: string): Promise<boolean> => {
+      const res = await fetch(`${messageAt(id)}/reactions`, {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ emoji }),
-      }).catch(() => {});
-      await onChanged();
+        body: JSON.stringify({ emoji: '❤️' }),
+      }).catch(() => null);
+      if (res?.ok) await onChanged();
+      return Boolean(res?.ok);
     },
     [onChanged],
   );
@@ -312,7 +311,7 @@ export function Thread({
             onCancelEdit={() => setEditing(null)}
             onSave={(body) => save(message.id, body)}
             onDelete={() => remove(message.id)}
-            onReact={(emoji) => react(message.id, emoji)}
+            onLike={() => like(message.id)}
             onBlock={() => block(message.id)}
             reportAs={room.kind === 'group' ? 'group_message' : 'event_message'}
             about={aboutOf(message.photoId)}
@@ -450,41 +449,6 @@ function Composer({
   );
 }
 
-/**
- * Closes the reaction picker on a click away or Escape.
- *
- * The same three rules `Menu` applies to its panel, and for the same reason —
- * a picker whose only exit is choosing something is a picker that makes you
- * react to get rid of it. Not shared with `Menu` itself because the picker is
- * not a popover: its buttons sit in the row of reactions rather than in a
- * panel over them, so there is nothing to hand a `children` function.
- *
- * Exported for the photograph's own picker, which is this control in another
- * place: a second copy of "dismiss this" is a second chance to forget the
- * Escape half of it.
- */
-export function useDismiss(open: boolean, close: () => void) {
-  const ref = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    if (!open) return;
-    const away = (e: MouseEvent) => {
-      if (!ref.current?.contains(e.target as Node)) close();
-    };
-    const escape = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') close();
-    };
-    document.addEventListener('mousedown', away);
-    document.addEventListener('keydown', escape);
-    return () => {
-      document.removeEventListener('mousedown', away);
-      document.removeEventListener('keydown', escape);
-    };
-  }, [open, close]);
-
-  return ref;
-}
-
 function Row({
   message,
   canPost,
@@ -493,7 +457,7 @@ function Row({
   onCancelEdit,
   onSave,
   onDelete,
-  onReact,
+  onLike,
   onBlock,
   reportAs,
   about,
@@ -505,7 +469,8 @@ function Row({
   onCancelEdit: () => void;
   onSave: (body: string) => void;
   onDelete: () => void;
-  onReact: (emoji: string) => void;
+  /** Toggles the viewer's like. Resolves false when the server refused it. */
+  onLike: () => Promise<boolean>;
   /** Blocks whoever wrote this line. Says how it went at the thread's foot. */
   onBlock: () => Promise<void>;
   /** Which table the line is in, which is what `/api/reports` is told. */
@@ -514,9 +479,24 @@ function Row({
   about?: { src: string; href: string } | null;
 }) {
   const [body, setBody] = useState(message.body);
-  const [picking, setPicking] = useState(false);
   const [said, setSaid] = useState<string | null>(null);
-  const pickerRef = useDismiss(picking, useCallback(() => setPicking(false), []));
+  /*
+   * The like as the tap left it, until the refetched message says otherwise.
+   * The heart fills on the tap rather than a round trip later, and goes back
+   * if the server would not take it.
+   */
+  const [pending, setPending] = useState<{ liked: boolean; count: number } | null>(null);
+  useEffect(() => setPending(null), [message.reactions]);
+  const likedNow = message.reactions.some((reaction) => reaction.mine);
+  const countNow = message.reactions.reduce((sum, reaction) => sum + reaction.count, 0);
+  const liked = pending?.liked ?? likedNow;
+  const likes = pending?.count ?? countNow;
+  const toggleLike = () => {
+    setPending({ liked: !liked, count: Math.max(0, likes + (liked ? -1 : 1)) });
+    void onLike().then((ok) => {
+      if (!ok) setPending(null);
+    });
+  };
   /*
    * The thumbnail's failure path, which this page needs like every other.
    *
@@ -565,7 +545,7 @@ function Row({
           </a>
         )}
         <span>
-          <strong>{who}</strong> reacted {message.emoji}
+          <strong>{who}</strong> liked this photo
         </span>
       </p>
     );
@@ -716,44 +696,15 @@ function Row({
 
         {said && <p className="photo-said">{said}</p>}
 
-        {(message.reactions.length > 0 || canPost) && (
-          <div className="reactions">
-            {message.reactions.map((reaction) => (
-              <button
-                key={reaction.emoji}
-                className="reaction"
-                aria-pressed={reaction.mine}
-                disabled={!canPost}
-                onClick={() => onReact(reaction.emoji)}
-              >
-                {reaction.emoji} {reaction.count}
-              </button>
-            ))}
-            {canPost && (
-              <div className="picker" ref={pickerRef}>
-                <button
-                  className="reaction reaction-add"
-                  aria-label={picking ? 'Close the reactions' : 'Add a reaction'}
-                  aria-expanded={picking}
-                  onClick={() => setPicking(!picking)}
-                >
-                  {picking ? '\u00d7' : '+'}
-                </button>
-                {picking &&
-                  REACTIONS.map((emoji) => (
-                    <button
-                      key={emoji}
-                      className="reaction"
-                      onClick={() => {
-                        setPicking(false);
-                        onReact(emoji);
-                      }}
-                    >
-                      {emoji}
-                    </button>
-                  ))}
-              </div>
-            )}
+        {(likes > 0 || canPost) && (
+          <div className="message-like">
+            <LikeButton
+              liked={liked}
+              count={likes}
+              disabled={!canPost}
+              what="this message"
+              onToggle={toggleLike}
+            />
           </div>
         )}
       </div>

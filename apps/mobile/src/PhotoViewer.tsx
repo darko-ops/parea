@@ -49,8 +49,7 @@ import type { NativeScrollEvent, NativeSyntheticEvent } from 'react-native';
 
 import type { Api, FeedPhoto, Message } from './api';
 import { blockAuthor } from './block';
-import { EmojiPicker } from './Emoji';
-import { Glyph } from './Glyph';
+import { Glyph, LIKED } from './Glyph';
 import type { GroupTheme } from './Groups';
 import { useKeyboardUp } from './keyboard';
 import { reportContent } from './report';
@@ -614,7 +613,7 @@ export function PhotoViewer({
    */
   talk?: MomentTalk;
   /**
-   * The comment sheet or the emoji picker opened, or closed. A moment's clock
+   * The comment sheet opened, or closed. A moment's clock
    * holds while somebody is saying something about it.
    */
   onEngaged?: (engaged: boolean) => void;
@@ -659,12 +658,10 @@ export function PhotoViewer({
   const typing = useKeyboardUp();
   const [draft, setDraft] = useState('');
   const [sending, setSending] = useState(false);
-  /** The full picker, over the row of six. */
-  const [picking, setPicking] = useState(false);
   const moment = talk != null;
   useEffect(() => {
-    onEngaged?.(talking || picking);
-  }, [onEngaged, picking, talking]);
+    onEngaged?.(talking);
+  }, [onEngaged, talking]);
   /*
    * How tall the caller's strip is, so the reactions list sits above it
    * rather than under it. A moment's tiles and clock are at the foot of the
@@ -723,7 +720,8 @@ export function PhotoViewer({
     [height, onClose, width],
   );
 
-  const [pending, setPending] = useState<Map<string, boolean>>(new Map());
+  /** This device's like or unlike, before the server has answered. */
+  const [pendingLike, setPendingLike] = useState<boolean | null>(null);
 
   /**
    * The star this device has pressed, before the server has been asked.
@@ -769,54 +767,20 @@ export function PhotoViewer({
   );
 
   /*
-   * The server's answer with this device's unconfirmed taps folded in.
+   * Likes, the only reaction there is: whether you have, and who else has.
    *
-   * Yours are the only rows a tap can add or remove — you cannot react for
-   * somebody else — so the overlay only ever touches rows marked `mine`, and
-   * everybody else's stand untouched underneath it.
+   * One row per person from the server — a row of anybody's counts once, so a
+   * photograph from before reactions became likes still reads right — with
+   * this device's unconfirmed tap folded in on top.
    */
-  const reactions = useMemo(() => {
-    if (pending.size === 0) return photo.reactions;
-    const kept = photo.reactions.filter(
-      (r) => !(r.mine && pending.get(r.emoji) === false),
-    );
-    const added = [...pending]
-      .filter(([emoji, on]) => on && !photo.reactions.some((r) => r.mine && r.emoji === emoji))
-      /*
-       * Reversed, because a `Map` iterates in insertion order and this list
-       * reads newest first.
-       *
-       * With one reaction in flight it makes no difference, which is why this
-       * was wrong and looked fine. Leave two — react, react again before the
-       * first has come back — and the pair went in oldest-above-newest while
-       * the server was about to answer newest-above-oldest. So the second
-       * landed *below* the first and then swapped places a moment later, which
-       * reads as the app changing its mind about what you just did.
-       *
-       * The rule is that an optimistic row goes exactly where the server would
-       * have put it. Anywhere else is a correction somebody watches happen.
-       */
-      .reverse()
-      .map(([emoji]) => ({ emoji, name: 'You', mine: true }));
-    return [...added, ...kept];
-  }, [pending, photo.reactions]);
-
-  const mine = useMemo(
-    () => new Set(reactions.filter((r) => r.mine).map((r) => r.emoji)),
-    [reactions],
+  const liked = pendingLike ?? photo.reactions.some((r) => r.mine);
+  const likers = useMemo(
+    () => [...new Set(photo.reactions.filter((r) => !r.mine).map((r) => r.name))],
+    [photo.reactions],
   );
-
-  /*
-   * Newest first, which is the order the server already sends.
-   *
-   * This was reversed, so the column grew upward out of the corner with the
-   * most recent line closest to it. That was right while the list sat in the
-   * bottom-left of the glass and had a corner to grow out of; above the comment
-   * bar it is an ordinary list in an ordinary place, and an ordinary list reads
-   * downward from the newest — the same way the album's own conversation does,
-   * and everything else in the product.
-   */
-  const ordered = reactions;
+  const likeCount = likers.length + (liked ? 1 : 0);
+  /* Newest first, as the server sends them; you at the top once you have. */
+  const ordered = useMemo(() => [...(liked ? ['You'] : []), ...likers], [liked, likers]);
 
   /**
    * Say something about this photograph.
@@ -873,34 +837,21 @@ export function PhotoViewer({
     [api, onChanged, photo.id, talk],
   );
 
-  const react = useCallback(
-    async (emoji: string) => {
-      const on = !mine.has(emoji);
-      // Drawn now. Nothing below this line is waited on by the interface.
-      setPending((was) => new Map(was).set(emoji, on));
-      try {
-        if (talk) await talk.react(photo.id, emoji);
-        else await api.reactToPhoto(photo.id, emoji);
-      } catch {
-        // Silent, and deliberately without a rollback: the refresh below is
-        // the correction, and an alert over a photograph for a tap that did
-        // not land is worse than the tap not landing.
-      }
-      /*
-       * The feed, and only then the overlay comes off.
-       *
-       * Dropped in the same tick that the fresh counts arrive, so the pill
-       * never flickers through the old answer on its way to the new one.
-       */
+  const toggleLike = useCallback(async () => {
+    const on = !liked;
+    // Drawn now. Nothing below this line is waited on by the interface.
+    setPendingLike(on);
+    try {
+      if (talk) await talk.react(photo.id, '❤️');
+      else await api.reactToPhoto(photo.id, '❤️');
+      // The feed, and only then the overlay comes off — in the same tick the
+      // fresh answer arrives, so the heart never flickers back on its way.
       await onChanged();
-      setPending((was) => {
-        const next = new Map(was);
-        next.delete(emoji);
-        return next;
-      });
-    },
-    [api, mine, onChanged, photo.id, talk],
-  );
+    } catch {
+      // Didn't land: the heart goes back to what the server last said.
+    }
+    setPendingLike(null);
+  }, [api, liked, onChanged, photo.id, talk]);
 
   return (
     <View style={styles.root}>
@@ -1091,32 +1042,9 @@ export function PhotoViewer({
           )}
 
           {/*
-            Who said something, bottom left. What you could say, bottom right.
-
-            The two are different kinds of thing and they were one row of pills
-            that conflated them: a pill reading "❤️ 3" was both a fact about
-            other people and a control that changed your own answer, and the
-            only way to tell which of the three was you was a border.
-
-            Left is now a list of people — a handle and the emoji they left,
-            newest at the bottom so the most recent sits closest to the corner
-            and the column grows upward out of it. Right is the picker, and
-            nothing else: every emoji in the set, in a column you scroll.
-          */}
-          {/*
-            Newest at the bottom, older above it, and scrollable past four.
-
-            This was the four newest shown oldest-first with "and N more"
-            underneath — which put the overflow *below* the newest line, where it
-            read as "there are newer ones I am not showing you", and made the
-            whole column shift up a row every time somebody reacted. The window
-            moved, so the names moved.
-
-            Now the list is every reaction in order and the view is clamped to
-            four rows: the most recent sits against the corner, anything older is
-            above it, and the rest is up there to be scrolled to rather than
-            summarised. Nothing moves when a reaction arrives except the list
-            growing by one at the bottom.
+            Who liked it, newest first, above the bar — a heart and a name per
+            person, scrollable past four. The heart in the bar is what changes
+            your own answer; this list is everybody's.
           */}
           <View
             style={[styles.said, strip ? { bottom: TILES_BOTTOM + stripHeight + 8 } : null]}
@@ -1127,11 +1055,11 @@ export function PhotoViewer({
               contentContainerStyle={styles.saidInner}
               showsVerticalScrollIndicator={false}
             >
-              {ordered.map((r, i) => (
-                <View key={`${r.name}-${r.emoji}-${i}`} style={styles.saidRow}>
-                  <Text style={styles.saidEmoji}>{r.emoji}</Text>
-                  <Text style={[styles.saidWho, r.mine && styles.saidMine]} numberOfLines={1}>
-                    {r.mine ? 'You' : r.name}
+              {ordered.map((name, i) => (
+                <View key={`${name}-${i}`} style={styles.saidRow}>
+                  <Glyph name="heart" size={13} color={LIKED} filled />
+                  <Text style={[styles.saidWho, i === 0 && liked && styles.saidMine]} numberOfLines={1}>
+                    {name}
                   </Text>
                 </View>
               ))}
@@ -1147,26 +1075,29 @@ export function PhotoViewer({
           {!talking && (
             <View style={styles.bar} pointerEvents="box-none">
               {/*
-                One face, and the whole keyboard behind it.
-
-                This was a column of six emoji with a `⋯` under them, offered
-                because a reaction should be one tap. The trouble is that six is
-                not the set anybody wants: it is the set we guessed, and the
-                seventh emoji somebody reaches for is the one they actually
-                mean. So: one control, always the same shape, and the picker
-                behind it has their own recents at the front of it.
+                The like: one heart, outlined until you have liked the
+                photograph and filled once you have, with the count on its
+                corner the way the comment bubble carries its own.
               */}
               {bare ? null : canReact ? (
                 <Pressable
-                  onPress={() => setPicking(true)}
+                  onPress={() => void toggleLike()}
                   accessibilityRole="button"
-                  accessibilityLabel="React to this photo"
+                  accessibilityState={{ selected: liked }}
+                  accessibilityLabel={`${liked ? 'Unlike' : 'Like'}${
+                    likeCount > 0 ? `, ${likeCount} ${likeCount === 1 ? 'like' : 'likes'}` : ''
+                  }`}
                   style={({ pressed }) => [styles.disc, { opacity: pressed ? 0.55 : 1 }]}
                 >
-                  <Glyph name="face" size={22} color="#fff" />
+                  <Glyph name="heart" size={22} color={liked ? LIKED : '#fff'} filled={liked} />
+                  {likeCount > 0 && (
+                    <View style={styles.count} pointerEvents="none">
+                      <Text style={styles.countText}>{likeCount > 99 ? '99+' : likeCount}</Text>
+                    </View>
+                  )}
                 </Pressable>
               ) : (
-                <Text style={styles.why}>Sign in{'\n'}to react</Text>
+                <Text style={styles.why}>Sign in{'\n'}to like</Text>
               )}
 
               {/*
@@ -1405,27 +1336,6 @@ export function PhotoViewer({
         </KeyboardAvoidingView>
       )}
 
-      {/*
-        The picker, which is ours rather than the system's.
-
-        The first version of this focused an invisible `TextInput` so the phone
-        would open its emoji keyboard. It works and it opens *a* keyboard — the
-        last panel somebody used, which is usually but not always the emoji one,
-        and there is no public way to ask for that panel specifically. A grid of
-        our own can only produce emoji, which is the requirement, and never puts
-        a text field over somebody's photograph. See `Emoji.tsx` for what that
-        costs.
-      */}
-      {picking && (
-        <EmojiPicker
-          t={t}
-          onClose={() => setPicking(false)}
-          onPick={(emoji) => {
-            setPicking(false);
-            void react(emoji);
-          }}
-        />
-      )}
 
     </View>
   );
@@ -1627,7 +1537,6 @@ const styles = StyleSheet.create({
   /* "You" rather than your own handle read back at you — the same call every
      card in this product makes. */
   saidMine: { color: 'rgba(255,255,255,0.85)' },
-  saidEmoji: { fontSize: 15 },
 
   /*
    * The two verbs at the ends of the bar: react on the left, save on the

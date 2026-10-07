@@ -401,17 +401,11 @@ describe('who is allowed to say anything at all', () => {
     }
   });
 
-  it('every reaction route asks whether it is an emoji, not whether we like it', () => {
+  it('every reaction route stores a like, whatever it is sent', () => {
     /*
-     * `isReaction` was the offered set doing double duty as the validation,
-     * and it stopped working the day a client grew a `+` beside the six:
-     * anything from the grid came back 400 `unknown_reaction`, which the
-     * client swallows, so a chosen emoji looked like a tap that did nothing.
-     *
-     * Every reaction route now asks `isEmoji` instead — one grapheme, no word
-     * characters, a picture — and the set being offered went back to being a
-     * decision about a picker. The three are checked together because the day
-     * they disagree is the day one client can do something another cannot.
+     * Reactions became likes: one heart, one per person. The routes no longer
+     * validate an emoji at all — they write `LIKE` — so there is no open set to
+     * police and no ceiling to keep. See `likes.test.ts` for the migration.
      */
     for (const path of [
       '../app/api/messages/[id]/reactions/route.ts',
@@ -419,27 +413,8 @@ describe('who is allowed to say anything at all', () => {
       '../app/api/photos/[id]/reactions/route.ts',
     ]) {
       const source = read(path);
-      expect(source, `${path} does not accept an open set`).toMatch(/isEmoji\(body\.emoji\)/);
-      expect(source, `${path} still checks the offered six`).not.toMatch(/isReaction\(/);
-    }
-  });
-
-  it('caps how many one person can put on one message', () => {
-    /*
-     * Unreachable while six were offered and six enforced; a real limit now.
-     * Both message routes check before adding and never before removing —
-     * somebody at the limit must still be able to take one back, and a check
-     * that ran on both would leave them stuck with six they cannot undo.
-     */
-    for (const path of [
-      '../app/api/messages/[id]/reactions/route.ts',
-      '../app/api/group-messages/[id]/reactions/route.ts',
-    ]) {
-      const source = read(path);
-      expect(source, `${path} has no ceiling`).toMatch(/>= MAX_PER_MESSAGE/);
-      expect(source, `${path} refuses without saying so`).toMatch(
-        /error: 'too_many', max: MAX_PER_MESSAGE/,
-      );
+      expect(source, path).toMatch(/const emoji = LIKE;/);
+      expect(source, path).not.toMatch(/isEmoji\(|MAX_PER_MESSAGE|MAX_PER_PHOTO/);
     }
   });
 

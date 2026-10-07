@@ -52,6 +52,8 @@ export type GlyphName =
   | 'grid'
   | 'portrait'
   | 'star'
+  /** A like. Outlined until you have liked it, then `filled`. */
+  | 'heart'
   | 'ripple'
   | 'bird-flying'
   | 'bird-perched'
@@ -97,6 +99,9 @@ const STAR = (() => {
   }
   return `M ${points.join(' L ')} Z`;
 })();
+
+/** The colour a heart turns once you have liked something. iOS's own pink-red. */
+export const LIKED = '#FF375F';
 
 export function Glyph({
   name,
@@ -422,6 +427,14 @@ function paths(name: GlyphName, weight: number) {
      */
     case 'star':
       return <Path d={STAR} />;
+    /*
+     * A like — the one reaction there is. Outlined is "you have not", filled
+     * is "you have", which is what `filled` exists for.
+     */
+    case 'heart':
+      return (
+        <Path d="M12 20.5s-7.5-4.6-9.2-9.4C1.6 7.7 3.8 4.5 7.1 4.5c2 0 3.5 1.1 4.9 2.9 1.4-1.8 2.9-2.9 4.9-2.9 3.3 0 5.5 3.2 4.3 6.6-1.7 4.8-9.2 9.4-9.2 9.4z" />
+      );
     /*
      * A ripple: a drop and the rings it sends out.
      *
