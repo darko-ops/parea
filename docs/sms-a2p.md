@@ -6,7 +6,7 @@ transport. This is the state of the actual Twilio account and campaign, the
 wording that was accepted or refused and why, and the things still open — so that
 coming back to it in three weeks does not mean re-deriving any of it.
 
-**Last touched 26 September 2026.** Update the state table below when you move it.
+**Last touched 7 October 2026.** Update the state table below when you move it.
 
 ## State
 
@@ -21,7 +21,7 @@ coming back to it in three weeks does not mean re-deriving any of it.
 | Twilio compliance profile | Submitted under DAED LLC, in review |
 | Phone number | Not bought. `+13374694577`, Carencro LA, local, SMS+MMS+Voice, $1.15/mo — instant once the profile clears |
 | A2P brand | Submitted |
-| A2P campaign | Resubmitted after two rounds of refusals, in review |
+| A2P campaign | Fifth submission, 7 October, in review — after the third refusal ("CTA verification: no proof shared") added the checkbox and the screenshots on /texts |
 | Delivery ever tested | **No.** Nothing has sent a real text yet |
 
 Until `SMS_FROM` is set, `texterFromEnv` returns an `UnconfiguredTexter`, and
