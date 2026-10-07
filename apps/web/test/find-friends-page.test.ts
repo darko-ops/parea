@@ -98,7 +98,7 @@ describe('the page', () => {
   });
 
   it('asks with the whole page, the country code as its own control', () => {
-    expect(VIEW).toContain('Let people who have your number find you');
+    expect(VIEW).toContain('Find contacts');
     expect(VIEW).toMatch(/<RailIcon glyph="add-person" \/>/);
     expect(VIEW).toMatch(/JSON\.stringify\(\{ phone: fullNumber\(country\.code, phone\) \}\)/);
     expect(VIEW).toContain('<a href="/find?scope=people">Search on Find</a>');

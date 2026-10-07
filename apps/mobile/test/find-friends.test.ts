@@ -197,7 +197,7 @@ describe('what the screen will not draw', () => {
   });
 
   it('asks with the whole page, the country code as its own control', () => {
-    expect(SCREEN).toContain('Let people who have your number find you');
+    expect(SCREEN).toContain('Find contacts');
     expect(SCREEN).toMatch(/<Glyph name="add-person" size=\{34\}/);
     expect(SCREEN).toMatch(/api\.startPhone\(fullNumber\(country, phone\)\)/);
     expect(SCREEN).toMatch(/disabled=\{busy \|\| !smsAgreed \|\| nationalDigits < 6\}/);

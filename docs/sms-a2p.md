@@ -67,8 +67,14 @@ Keep these. Two rounds were lost to re-deriving them badly.
 | Privacy policy | `https://www.parea.photos/privacy` |
 | Terms | `https://www.parea.photos/terms` |
 | Public opt-in link | `https://www.parea.photos/texts` |
-| Opt-in keywords | **Blank.** Text opt-in is not supported |
-| Opt-in message | **Blank** |
+| Opt-in keywords | `START,YES,UNSTOP` — Twilio's re-subscribe defaults, which it fills in regardless. The consent description says outright they are not an opt-in path |
+| Opt-in message | `Parea: You will receive verification codes again, one per request you make. Not a subscription. Msg & data rates may apply. Reply STOP to opt out. Help: safety@parea.photos` |
+| Opt-out message | `Parea: You are unsubscribed and will receive no more messages from this number. Reply START to resubscribe.` |
+| Help message | `Parea: Help with your verification code: safety@parea.photos. One message per request. Msg & data rates may apply. Reply STOP to opt out.` |
+
+The three messages above are only true if the Messaging Service sends them:
+**Advanced Opt-Out** on `MGfe4456…` must carry the same text, or Twilio sends
+its own defaults and the form describes replies nobody receives.
 | Content attributes | None of the four. No links, no phone numbers, nothing age-gated or financial in the body |
 
 Use the `www` host in every URL. The bare domain 308-redirects, and some reviewer

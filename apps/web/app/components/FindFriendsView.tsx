@@ -340,10 +340,11 @@ export function FindFriendsView() {
                 <span className="ff-disc" aria-hidden="true">
                   <RailIcon glyph="add-person" />
                 </span>
-                <h2>Let people who have your number find you</h2>
+                <h2>Find contacts</h2>
                 <p className="muted">
-                  That is all it does. We never read your contacts, and the number
-                  is never shown to anybody.
+                  Add your number so people who already have it can find you
+                  here. We never read your contacts, and the number is never
+                  shown to anybody.
                 </p>
               </div>
 

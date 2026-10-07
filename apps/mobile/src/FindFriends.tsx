@@ -386,11 +386,12 @@ export function FindFriends({
                       <Glyph name="add-person" size={34} color={t.fg} />
                     </View>
                     <Text style={[styles.headline, { color: t.fg }]}>
-                      Let people who have your number find you
+                      Find contacts
                     </Text>
                     <Text style={[styles.body, { color: t.dim }]}>
-                      That is all it does. We never read your contacts, and the
-                      number is never shown to anybody.
+                      Add your number so people who already have it can find you
+                      here. We never read your contacts, and the number is never
+                      shown to anybody.
                     </Text>
                   </View>
 
