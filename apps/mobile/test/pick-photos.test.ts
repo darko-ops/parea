@@ -46,26 +46,26 @@ describe('the picker', () => {
      */
     expect(code(PICK)).toMatch(/numColumns=\{COLUMNS\}/);
     expect(code(PICK)).toMatch(/styles\.frame/);
-    // `contain` in the frame: cropping the thing being judged defeats it. Only
-    // the folded strip fills its space, being a glimpse rather than a judgement.
-    expect(code(PICK)).toMatch(/contentFit=\{collapsed \? 'cover' : 'contain'\}/);
+    // `contain` in the frame: cropping the thing being judged defeats it.
+    expect(code(PICK)).toMatch(/contentFit="contain"/);
     // `cover` in the tiles, where the crop is the point.
     expect(code(PICK)).toMatch(/contentFit="cover"/);
   });
 
-  it('folds the frame away, and brings it back', () => {
+  it('scrolls the frame away with the grid, and pins what was tapped', () => {
     /*
-     * A square the width of the phone leaves two rows of grid on a small
-     * screen. It folds to a strip — swiped up, or by scrolling the grid down —
-     * and opens when pulled down, tapped, the grid is pulled past its top, or a
-     * photograph is tapped.
+     * The frame is the grid's first row, so swiping it up or scrolling the grid
+     * moves it with the phone's own scrolling. It used to be a separate view
+     * folded by a gesture of its own, which lost the touch to the grid. Once it
+     * has gone, a strip pins the photograph last touched; tapping it goes back
+     * up.
      */
     const pick = code(PICK);
-    expect(pick).toMatch(/if \(g\.dy < -24\) fold\(true\);\s*else if \(g\.dy > 24\) fold\(false\);/);
-    expect(pick).toMatch(/if \(!collapsed && y > lastOffset\.current \+ 12 && y > 24\) fold\(true\);/);
-    expect(pick).toMatch(/else if \(collapsed && y < -48\) fold\(false\);/);
-    expect(pick).toMatch(/if \(collapsed\) fold\(false\);/);
-    expect(pick).toMatch(/toValue: shut \? PEEK : width/);
+    expect(pick).toMatch(/ListHeaderComponent=\{frame\}/);
+    expect(pick).not.toMatch(/fold\(|frameGesture|collapsed/);
+    expect(pick).toMatch(/setPinned\(y > width - PEEK\)/);
+    expect(pick).toMatch(/\{pinned && showing && \(/);
+    expect(pick).toMatch(/scrollToOffset\(\{ offset: 0, animated: true \}\)/);
   });
 
   it('has a scrubber that moves the grid and says the date', () => {

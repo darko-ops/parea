@@ -53,7 +53,7 @@ describe('choosing for a new roll', () => {
 
   it('stops adding at the limit and says so', () => {
     expect(PICK).toMatch(/import \{ MAX_PER_SELECTION \} from '@parea\/upload'/);
-    const toggle = between(pick, 'const toggle = useCallback(', '}, [collapsed, fold]);');
+    const toggle = between(pick, 'const toggle = useCallback(', '}, []);');
     expect(toggle).toMatch(/was\.length >= MAX_PER_SELECTION\) return was/);
     expect(pick).toMatch(/Up to \{MAX_PER_SELECTION\} at a time\. Add the rest after these are in\./);
   });

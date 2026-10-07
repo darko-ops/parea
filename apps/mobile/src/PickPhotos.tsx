@@ -60,7 +60,7 @@ const GAP = 2;
 /** How many to fetch at a time. A screenful and a bit. */
 const PAGE = 60;
 
-/** The frame, collapsed: a strip with the photograph in it and a handle. */
+/** The strip that pins to the top once the big frame has scrolled away. */
 const PEEK = 64;
 
 /** The scrubber's handle, and how long it stays after the scrolling stops. */
@@ -119,41 +119,21 @@ export function PickPhotos({
   const [showing, setShowing] = useState<LibraryPhoto | null>(null);
 
   /*
-   * The frame folds away.
+   * The frame scrolls away with the grid — it is the grid's first row.
    *
    * It is a square the width of the phone, which leaves a grid two rows tall
-   * on a small screen — fine for judging one photograph, hopeless for finding
-   * the next. So it collapses to a strip: swipe it up, or simply scroll the
-   * grid down, the way every photo picker on the phone behaves. It comes back
-   * when it is pulled down, tapped, the grid is pulled past its top, or a
-   * photograph is tapped — that last one because tapping a tile is asking to
-   * see it.
+   * on a small screen: fine for judging one photograph, hopeless for finding
+   * the next. So it is part of what scrolls. Swipe it up, or scroll the grid,
+   * and it goes the way everything else does; scroll back to the top and it is
+   * there. This used to be a separate view folded by a gesture of its own,
+   * which competed with the grid's scrolling for the same touch and lost —
+   * the phone's own scrolling cannot lose to itself.
+   *
+   * Once it has gone, a strip pins to the top with the photograph last
+   * touched, so tapping along the grid still shows what was tapped; tapping
+   * the strip goes back up to the big one.
    */
-  const [collapsed, setCollapsed] = useState(false);
-  const frameHeight = useRef(new Animated.Value(width)).current;
-  const fold = useCallback(
-    (shut: boolean) => {
-      setCollapsed(shut);
-      Animated.spring(frameHeight, {
-        toValue: shut ? PEEK : width,
-        useNativeDriver: false,
-        bounciness: 0,
-        speed: 18,
-      }).start();
-    },
-    [frameHeight, width],
-  );
-  const frameGesture = useMemo(
-    () =>
-      PanResponder.create({
-        onMoveShouldSetPanResponder: (_, g) => Math.abs(g.dy) > 8 && Math.abs(g.dy) > Math.abs(g.dx),
-        onPanResponderRelease: (_, g) => {
-          if (g.dy < -24) fold(true);
-          else if (g.dy > 24) fold(false);
-        },
-      }),
-    [fold],
-  );
+  const [pinned, setPinned] = useState(false);
 
   /*
    * The scrubber: a handle on the right edge, and the date where it is.
@@ -167,13 +147,14 @@ export function PickPhotos({
   const [viewport, setViewport] = useState(0);
   const [contentHeight, setContentHeight] = useState(0);
   const offset = useRef(0);
-  const lastOffset = useRef(0);
   const thumbTop = useRef(new Animated.Value(0)).current;
   const scrubberOpacity = useRef(new Animated.Value(0)).current;
   const [label, setLabel] = useState('');
   const [dragging, setDragging] = useState(false);
   const hideTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const rowHeight = tile + GAP;
+  /** The frame's height: everything above the first row of the grid. */
+  const header = width + GAP;
   const travel = Math.max(1, viewport - THUMB);
   const scrollable = Math.max(1, contentHeight - viewport);
 
@@ -194,11 +175,11 @@ export function PickPhotos({
   /** The date of the row at the top of the grid, for `y` scrolled. */
   const labelAt = useCallback(
     (y: number) => {
-      const row = Math.max(0, Math.floor(y / rowHeight));
+      const row = Math.max(0, Math.floor((y - header) / rowHeight));
       const photo = photos?.[Math.min(row * COLUMNS, (photos?.length ?? 1) - 1)];
       return scrubLabel(photo?.takenAt ?? null);
     },
-    [photos, rowHeight],
+    [header, photos, rowHeight],
   );
 
   const onScroll = useCallback(
@@ -207,13 +188,10 @@ export function PickPhotos({
       offset.current = y;
       if (!dragging) thumbTop.setValue(Math.min(travel, Math.max(0, (y / scrollable) * travel)));
       setLabel(labelAt(y));
-      // Scrolling down into the grid folds the frame; pulling past the top of
-      // the grid opens it again.
-      if (!collapsed && y > lastOffset.current + 12 && y > 24) fold(true);
-      else if (collapsed && y < -48) fold(false);
-      lastOffset.current = y;
+      // The strip pins once the big frame has all but gone.
+      setPinned(y > width - PEEK);
     },
-    [collapsed, dragging, fold, labelAt, scrollable, thumbTop, travel],
+    [dragging, labelAt, scrollable, thumbTop, travel, width],
   );
 
   const scrubGesture = useMemo(() => {
@@ -278,8 +256,6 @@ export function PickPhotos({
 
   const toggle = useCallback((photo: LibraryPhoto) => {
     setShowing(photo);
-    // Tapping a tile is asking to see it: the frame opens if it was folded.
-    if (collapsed) fold(false);
     setChosen((was) => {
       if (was.some((p) => p.id === photo.id)) return was.filter((p) => p.id !== photo.id);
       // Full is full — see `MAX_PER_SELECTION`. The tap still puts the
@@ -287,7 +263,29 @@ export function PickPhotos({
       if (was.length >= MAX_PER_SELECTION) return was;
       return [...was, photo];
     });
-  }, [collapsed, fold]);
+  }, []);
+
+  /*
+    The one you last touched, big — the first thing in the grid's scroll.
+
+    Square, and `contain` rather than `cover`: the frame is for judging a
+    photograph, and cropping the thing being judged defeats it. A portrait shot
+    gets bars either side, which is the honest rendering.
+  */
+  const frame = (
+    <View style={[styles.frame, { height: width }]}>
+      {showing ? (
+        <ExpoImage
+          source={{ uri: showing.uri }}
+          style={StyleSheet.absoluteFill}
+          contentFit="contain"
+          transition={120}
+        />
+      ) : (
+        <Text style={styles.whySmall}>Nothing on this phone to choose from.</Text>
+      )}
+    </View>
+  );
 
   if (photos === null) {
     return (
@@ -356,39 +354,6 @@ export function PickPhotos({
         </Text>
       )}
 
-      {/*
-        The one you last touched, big.
-
-        Square, and `contain` rather than `cover`: the frame is for judging a
-        photograph, and cropping the thing being judged defeats it. A portrait
-        shot gets bars either side, which is the honest rendering.
-      */}
-      <Animated.View style={[styles.frame, { height: frameHeight }]} {...frameGesture.panHandlers}>
-        <Pressable
-          style={StyleSheet.absoluteFill}
-          onPress={collapsed ? () => fold(false) : undefined}
-          disabled={!collapsed}
-          accessibilityRole="button"
-          accessibilityLabel={collapsed ? 'Show the photo bigger' : undefined}
-        >
-          {showing ? (
-            <ExpoImage
-              source={{ uri: showing.uri }}
-              style={StyleSheet.absoluteFill}
-              // Folded, the strip is a glimpse rather than a judgement, so it
-              // fills the strip; open, `contain`, for the reason above.
-              contentFit={collapsed ? 'cover' : 'contain'}
-              transition={120}
-            />
-          ) : (
-            <Text style={styles.whySmall}>Nothing on this phone to choose from.</Text>
-          )}
-        </Pressable>
-        {/* The handle says the frame moves; it is where a thumb goes to fold it. */}
-        <View style={styles.handleWrap} pointerEvents="none">
-          <View style={styles.handle} />
-        </View>
-      </Animated.View>
 
       <View style={styles.gridWrap} onLayout={(e) => setViewport(e.nativeEvent.layout.height)}>
       <FlatList
@@ -401,6 +366,7 @@ export function PickPhotos({
         onMomentumScrollEnd={lingerScrubber}
         onContentSizeChange={(_, h) => setContentHeight(h)}
         showsVerticalScrollIndicator={false}
+        ListHeaderComponent={frame}
         keyExtractor={(photo) => photo.id}
         numColumns={COLUMNS}
         columnWrapperStyle={{ gap: GAP }}
@@ -449,6 +415,23 @@ export function PickPhotos({
           );
         }}
       />
+      {/*
+        The photograph last touched, pinned in a strip once the big frame has
+        scrolled away. Tapping it goes back up to the big one.
+      */}
+      {pinned && showing && (
+        <Pressable
+          onPress={() => list.current?.scrollToOffset({ offset: 0, animated: true })}
+          style={styles.strip}
+          accessibilityRole="button"
+          accessibilityLabel="Show the photo bigger"
+        >
+          <ExpoImage source={{ uri: showing.uri }} style={styles.stripImage} contentFit="cover" transition={0} />
+          <Text style={styles.stripText} numberOfLines={1}>
+            {chosen.length > 0 ? `${chosen.length} chosen · tap to see it bigger` : 'Tap to see it bigger'}
+          </Text>
+        </Pressable>
+      )}
       {/*
         The scrubber, over the grid's right edge. Only once there is more than
         a screenful to move through.
@@ -508,8 +491,20 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     overflow: 'hidden',
   },
-  handleWrap: { position: 'absolute', left: 0, right: 0, bottom: 6, alignItems: 'center' },
-  handle: { width: 40, height: 5, borderRadius: 3, backgroundColor: 'rgba(255,255,255,0.6)' },
+  strip: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    height: PEEK,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    paddingHorizontal: 12,
+    backgroundColor: 'rgba(0,0,0,0.88)',
+  },
+  stripImage: { width: PEEK - 16, height: PEEK - 16, borderRadius: 8 },
+  stripText: { color: '#fff', fontSize: 14, fontWeight: '600', flex: 1 },
   gridWrap: { flex: 1 },
   /* A column down the right edge, as tall as the grid; the handle moves in it. */
   scrubber: { position: 'absolute', top: 0, bottom: 0, right: 0, width: 160 },
