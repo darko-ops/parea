@@ -29,6 +29,9 @@ primary_region = "iad"
   # request: behind Fly's proxy the app sees plain HTTP and a rewritten host,
   # so rebuilding it here would reject every genuine delivery.
   DERIVER_PUBLIC_URL = "https://parea-deriver.fly.dev/jobs/photo"
+  # Four photographs at once, one per core. Matches `hard_limit` below and
+  # DERIVE_PARALLELISM in apps/web/src/queue.ts; the three move together.
+  DERIVER_CONCURRENCY = "4"
 
 [processes]
   # `serve` re-runs the boot probe, and additionally refuses to start without
@@ -53,14 +56,16 @@ primary_region = "iad"
 
   # A delivery is answered only once its photo is derived, so a request in
   # flight *is* work in progress — which is exactly what stops Fly stopping the
-  # machine mid-job. One at a time, for the same reason DEFAULT_CONCURRENCY is
-  # one: a single core.
+  # machine mid-job. Four at a time, one per core — see `[[vm]]`. It was one,
+  # on one core, which is about 360 photographs an hour for everybody at once.
+  # More machines, rather than more cores, needs a claim on each photo first:
+  # see the note on `inFlight` in serve.ts.
   [http_service.concurrency]
     type = "requests"
     # Matched by QStash flow control (DERIVE_PARALLELISM in apps/web/src/queue.ts),
     # which hands over the next photo only as this one finishes. Change both together.
-    hard_limit = 1
-    soft_limit = 1
+    hard_limit = 4
+    soft_limit = 4
 
   # Liveness only. Deliberately not a readiness check that opens a database
   # connection: a machine kept awake answering health checks is the poll loop
@@ -94,14 +99,17 @@ primary_region = "iad"
   # merely generating a raster that size, which is how the first attempt at
   # measuring this produced a crash and nearly reported it as a derive failure.
   # Shrinking this wants a real HEIC from a real phone first.
-  memory = "2gb"
+  #
+  # 8GB now, for four at once: 2GB each, the same headroom one photo had. It
+  # is also the least a four-core dedicated machine comes with.
+  memory = "8gb"
   # Dedicated, not shared. A shared core is throttled once its burst runs out,
   # and HEIC decoding plus AVIF encoding run it out fast: on 7 October ten
   # iPhone photographs went from twenty seconds each to three or four minutes,
   # and the app gave up on them while they were still coming. The machine stops
   # when idle, so a dedicated core costs only while it is working.
   cpu_kind = "performance"
-  cpus = 1
+  cpus = 4
 
 # Exactly one. Scaling this out needs claim-based work distribution first —
 # the in-process guard in serve.ts stops two deliveries of the same photo

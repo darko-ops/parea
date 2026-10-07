@@ -95,7 +95,7 @@ describe('what publishDerive sends', () => {
 
     await publishDerive('0f870694-9e30-4f18-9201-8854445556b6');
     const sent = publishJSON.mock.calls[0]![0] as { flowControl?: { key: string; parallelism: number } };
-    expect(sent.flowControl).toEqual({ key: 'deriver', parallelism: 1 });
+    expect(sent.flowControl).toEqual({ key: 'deriver', parallelism: DERIVE_PARALLELISM });
   });
 
   it('keeps the pace equal to the deriver\'s own limit', () => {
@@ -105,6 +105,10 @@ describe('what publishDerive sends', () => {
     );
     const hard = Number(/hard_limit = (\d+)/.exec(toml)?.[1]);
     expect(hard).toBe(DERIVE_PARALLELISM);
+    // And the deriver's own count, so it takes as many as it is handed.
+    expect(Number(/DERIVER_CONCURRENCY = "(\d+)"/.exec(toml)?.[1])).toBe(DERIVE_PARALLELISM);
+    // One core each.
+    expect(Number(/^\s*cpus = (\d+)/m.exec(toml)?.[1])).toBe(DERIVE_PARALLELISM);
   });
 
   it('lets a refusal through rather than swallowing it', async () => {

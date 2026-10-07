@@ -215,6 +215,14 @@ describe('the routes that do not authorize, and why', () => {
     expect(readsEventData(source)).toBe(false);
   });
 
+  it('the photo queue alarm reads a count and an age, through src, and nothing else', async () => {
+    // A number for the operator about the whole queue — no photograph, event
+    // or person leaves it. If it ever starts returning rows, it needs a gate.
+    const source = await readCode(join(API, 'cron/derive-backlog/route.ts'));
+    expect(readsEventData(source)).toBe(false);
+    expect(source).toMatch(/await deriveBacklog\(db, now\)/);
+  });
+
   it('group search returns groups, and groups are the only findable thing', async () => {
     // Groups may be findable; photos and events never are. If this route ever
     // returns an event, it is no longer a public search.

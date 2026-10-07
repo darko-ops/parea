@@ -40,8 +40,11 @@ export type PublishResult = 'published' | 'not-configured';
 
 /** QStash flow-control key for deriver deliveries — see `publishDerive`. */
 export const DERIVE_FLOW_KEY = 'deriver';
-/** How many deliveries the deriver takes at once: its fly.toml `hard_limit`. */
-export const DERIVE_PARALLELISM = 1;
+/**
+ * How many deliveries the deriver takes at once: its fly.toml `hard_limit`,
+ * and its `DERIVER_CONCURRENCY`. Four, one per core on a four-core machine.
+ */
+export const DERIVE_PARALLELISM = 4;
 
 /**
  * What QStash will accept as a deduplication id.
