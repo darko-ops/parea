@@ -46,10 +46,34 @@ describe('the picker', () => {
      */
     expect(code(PICK)).toMatch(/numColumns=\{COLUMNS\}/);
     expect(code(PICK)).toMatch(/styles\.frame/);
-    // `contain` in the frame: cropping the thing being judged defeats it.
-    expect(code(PICK)).toMatch(/contentFit="contain"/);
+    // `contain` in the frame: cropping the thing being judged defeats it. Only
+    // the folded strip fills its space, being a glimpse rather than a judgement.
+    expect(code(PICK)).toMatch(/contentFit=\{collapsed \? 'cover' : 'contain'\}/);
     // `cover` in the tiles, where the crop is the point.
     expect(code(PICK)).toMatch(/contentFit="cover"/);
+  });
+
+  it('folds the frame away, and brings it back', () => {
+    /*
+     * A square the width of the phone leaves two rows of grid on a small
+     * screen. It folds to a strip — swiped up, or by scrolling the grid down —
+     * and opens when pulled down, tapped, the grid is pulled past its top, or a
+     * photograph is tapped.
+     */
+    const pick = code(PICK);
+    expect(pick).toMatch(/if \(g\.dy < -24\) fold\(true\);\s*else if \(g\.dy > 24\) fold\(false\);/);
+    expect(pick).toMatch(/if \(!collapsed && y > lastOffset\.current \+ 12 && y > 24\) fold\(true\);/);
+    expect(pick).toMatch(/else if \(collapsed && y < -48\) fold\(false\);/);
+    expect(pick).toMatch(/if \(collapsed\) fold\(false\);/);
+    expect(pick).toMatch(/toValue: shut \? PEEK : width/);
+  });
+
+  it('has a scrubber that moves the grid and says the date', () => {
+    const pick = code(PICK);
+    expect(pick).toMatch(/list\.current\?\.scrollToOffset\(\{ offset: y, animated: false \}\)/);
+    expect(pick).toMatch(/setLabel\(labelAt\(y\)\)/);
+    // Only when there is something to scrub through.
+    expect(pick).toMatch(/contentHeight > viewport \* 1\.5 &&/);
   });
 
   it('numbers the selection rather than ticking it', () => {
