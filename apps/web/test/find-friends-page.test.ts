@@ -142,8 +142,8 @@ describe('the page', () => {
       ['page', TEXTS],
     ] as const) {
       const said = flat(source);
-      expect(said, name).toMatch(/you agree to receive one text/);
-      expect(said, name).toMatch(/Send me a code/);
+      expect(said, name).toMatch(/I agree to receive one text/);
+      expect(said, name).toMatch(/each time I tap \S*Send me a code/);
       // And never the old phrasing, which passed review nowhere.
       expect(said, name).not.toMatch(/Tapping this sends you one text/);
     }
@@ -177,32 +177,26 @@ describe('the page', () => {
     }
   });
 
-  it('places it the same way in both clients', () => {
+  it('is a box to tick, unticked, that the button waits for', () => {
     /*
-     * Directly under the control in each, which is where the eye already is when
-     * reaching for it. The assertion is the *agreement* rather than the side:
-     * one A2P campaign covers both clients, the screenshot submitted as evidence
-     * is of one of them, and a carrier reviewing it has no way to know the other
-     * puts the disclosure somewhere else.
+     * The third refusal: the reviewer asked to see "the checkbox area". Being
+     * told a text is coming under a button was not enough — an opt-in has to be
+     * an act, off until the person does it. So in both clients the consent is a
+     * checkbox, it starts unticked, it sits between the number and the button,
+     * and the button is disabled until it is ticked.
      */
-    for (const [name, source, control] of [
-      ['web', VIEW, 'Send me a code'],
-      ['app', APP_SCREEN, 'label="Send me a code"'],
+    for (const [name, source, control, box, gate] of [
+      ['web', VIEW, 'className="ff-send"', 'type="checkbox"', /disabled=\{busy \|\| !smsAgreed/],
+      ['app', APP_SCREEN, 'label="Send me a code"', 'accessibilityRole="checkbox"', /disabled=\{busy \|\| !smsAgreed/],
     ] as const) {
-      /*
-       * Positions are taken in the flattened source, because JSX wraps the
-       * consent sentence across lines and "you agree to receive one text" spans
-       * a newline in the web's copy of it.
-       *
-       * The control marker is found first in both files even though the consent
-       * sentence now quotes the button's own label: the button itself precedes
-       * the paragraph, so the earliest match is the one being ordered against.
-       */
       const said = flat(source);
-      const consent = said.indexOf('you agree to receive one text');
-      expect(consent, name).toBeGreaterThan(-1);
-      expect(said.indexOf(control), name).toBeGreaterThan(-1);
-      expect(consent, name).toBeGreaterThan(said.indexOf(control));
+      expect(source, name).toMatch(/const \[smsAgreed, setSmsAgreed\] = useState\(false\)/);
+      expect(source, name).toMatch(gate);
+      const tick = said.indexOf(box);
+      const consent = said.indexOf('I agree to receive one text');
+      expect(tick, name).toBeGreaterThan(-1);
+      expect(consent, name).toBeGreaterThan(tick);
+      expect(said.indexOf(control), name).toBeGreaterThan(consent);
     }
   });
 
@@ -211,7 +205,7 @@ describe('the page', () => {
     // has to be on screen at the moment it is given, and the rest of this page
     // does not exist yet for somebody who has no number on file.
     const card = VIEW.slice(VIEW.indexOf('{asking && ('), VIEW.indexOf('{!verified && !asking && ('));
-    expect(flat(card)).toMatch(/you agree to receive one text/);
+    expect(flat(card)).toMatch(/I agree to receive one text/);
   });
 
   it('never asks the server for the number back', () => {
@@ -321,7 +315,7 @@ describe('the public page a reviewer can actually open', () => {
      * together.
      */
     const words = flat(TEXTS).replace(/[“”]/g, '"');
-    expect(words).toMatch(/By tapping "Send me a code" you agree to receive one text message from Parea/);
+    expect(words).toMatch(/I agree to receive one text message from Parea containing a verification code each time I tap "Send me a code"/);
     expect(words).toMatch(/Message and data rates may apply/);
   });
 

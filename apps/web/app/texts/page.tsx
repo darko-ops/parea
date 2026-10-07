@@ -47,8 +47,8 @@ const CONTACT = process.env.SAFETY_CONTACT_EMAIL ?? 'safety@example.com';
  * inaccurately — which is the thing they are checking for.
  */
 export const CONSENT =
-  'By tapping “Send me a code” you agree to receive one text message from ' +
-  'Parea containing a verification code. One message per request, not a ' +
+  'I agree to receive one text message from Parea containing a verification ' +
+  'code each time I tap “Send me a code”. One message per request, not a ' +
   'subscription. Message and data rates may apply. See our Terms and Privacy.';
 
 export default function TextsPage() {
@@ -77,8 +77,8 @@ export default function TextsPage() {
           <p className="muted">
             In the Parea app, or at <strong>parea.photos</strong>, on the Find
             Friends screen &mdash; reached from the button in the corner of Find.
-            You type your own number into a field and press a button. Directly
-            beneath that button, these words:
+            You type your own number into a field. Beneath it is a checkbox,
+            unticked when the screen opens, with these words beside it:
           </p>
           {/*
             Drawn as the screen draws it, rather than quoted in a sentence.
@@ -89,11 +89,47 @@ export default function TextsPage() {
           */}
           <blockquote className="sms-quote">{CONSENT}</blockquote>
           <p className="muted">
+            The &ldquo;Send me a code&rdquo; button stays switched off until the
+            box is ticked. Ticking it is the agreement; tapping the button then
+            sends one message to the number typed, and nothing else is ever sent.
+          </p>
+          <p className="muted">
             You have to have an account and be signed in to reach that screen,
             which is why this page exists: the screen itself cannot be shown to
             somebody who is not signed in, and the words on it should be readable
-            by anybody.
+            by anybody. Here it is, as it appears in the iPhone app:
           </p>
+          {/*
+            The screenshots a carrier reviewer asked for by name — "a hosted
+            link to a screenshot showing the clear opt-in flow and checkbox
+            area". Real captures of the real screen, not mock-ups: the reviewer
+            is checking the product, and a drawing of it is a claim about it.
+            Served from /public, which the sign-in gate never sees.
+          */}
+          <div className="sms-shots">
+            <figure>
+              <img
+                src="/texts/opt-in-unticked.png"
+                alt="Parea's Find Friends screen: a phone number field, an unticked checkbox with the consent wording above, and a greyed-out Send me a code button."
+                width={552}
+                height={1200}
+              />
+              <figcaption className="muted">
+                1. As it opens: the box unticked, the button off.
+              </figcaption>
+            </figure>
+            <figure>
+              <img
+                src="/texts/opt-in-ticked.png"
+                alt="The same screen with a number typed, the consent box ticked, and the Send me a code button switched on."
+                width={552}
+                height={1200}
+              />
+              <figcaption className="muted">
+                2. Number typed and box ticked: only now can the code be sent.
+              </figcaption>
+            </figure>
+          </div>
         </section>
 
         <section className="panel">

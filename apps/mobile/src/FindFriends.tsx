@@ -183,6 +183,8 @@ export function FindFriends({
    */
   const [sentTo, setSentTo] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  /** The consent box under the number. Unticked on every visit; see below. */
+  const [smsAgreed, setSmsAgreed] = useState(false);
 
   /**
    * Who has been asked from here, locally.
@@ -429,66 +431,63 @@ export function FindFriends({
                     />
                   </View>
 
-                  <Button
-                    label="Send me a code"
-                    t={t}
-                    primary
-                    disabled={busy || nationalDigits < 6}
-                    onPress={() => void sendCode()}
-                  />
                   {/*
-                    What pressing the button does, under the button.
-
-                    Five things have to be here and each is a sentence rather
-                    than a clause of boilerplate: who texts you, what
-                    arrives, how often, who pays, and where the rules are. It
-                    reads as ordinary honesty and it is also, precisely, what
-                    US carriers check when they ask for proof of consent — a
-                    verification campaign is approved or refused on whether
-                    the screen asking for the number tells somebody they are
-                    about to be texted.
-
-                    Under the control rather than over it, which is where the
-                    eye already is when reaching for it — and the same place
-                    the web's card puts it. Two clients wording one consent
-                    two ways is bad enough; two clients *placing* it
-                    differently is a screenshot of one that does not evidence
-                    the other, and one campaign covers both.
-
-                    It *asks* rather than describes, which is a correction a
-                    carrier made for us. "Tapping this sends you one text…"
-                    states a fact about the button; consent has to be somebody
-                    agreeing to receive messages, not being told some will
-                    arrive. Naming the button inside the sentence is what ties
-                    the agreement to the act.
+                    Consent, as a box somebody ticks, between the number and
+                    the button that sends to it — the same sentence, in the
+                    same place, as the web's. See the note there: a carrier
+                    refused the campaign until there was something to tick, so
+                    the button stays off until it is.
 
                     The two links open a browser, the way Settings opens the
                     safety page: these are the product's own published
                     documents and there is no version of them in the app.
                   */}
-                  {/* Word for word as reviewed. A shorter version was drawn
-                      with this layout and waits on the A2P campaign, since web
-                      and app have to say the same thing. */}
-                  <Text style={[styles.hint, styles.centred, { color: t.dim }]}>
-                    By tapping “Send me a code” you agree to receive one text
-                    message from Parea containing a verification code. One
-                    message per request, not a subscription. Message and data
-                    rates may apply. See our{' '}
-                    <Text
-                      style={[styles.link, { color: t.accent }]}
-                      onPress={() => void Linking.openURL('https://parea.photos/terms')}
+                  <Pressable
+                    onPress={() => setSmsAgreed(!smsAgreed)}
+                    accessibilityRole="checkbox"
+                    accessibilityState={{ checked: smsAgreed }}
+                    style={styles.agreeRow}
+                  >
+                    <View
+                      style={[
+                        styles.agreeBox,
+                        {
+                          borderColor: smsAgreed ? t.accent : t.line,
+                          backgroundColor: smsAgreed ? t.accent : 'transparent',
+                        },
+                      ]}
                     >
-                      Terms
+                      {smsAgreed && <Text style={[styles.agreeTick, { color: t.bg }]}>✓</Text>}
+                    </View>
+                    <Text style={[styles.hint, { color: t.dim, flex: 1 }]}>
+                      I agree to receive one text message from Parea containing
+                      a verification code each time I tap “Send me a code”. One
+                      message per request, not a subscription. Message and data
+                      rates may apply. See our{' '}
+                      <Text
+                        style={[styles.link, { color: t.accent }]}
+                        onPress={() => void Linking.openURL('https://parea.photos/terms')}
+                      >
+                        Terms
+                      </Text>
+                      {' '}and{' '}
+                      <Text
+                        style={[styles.link, { color: t.accent }]}
+                        onPress={() => void Linking.openURL('https://parea.photos/privacy')}
+                      >
+                        Privacy
+                      </Text>
+                      .
                     </Text>
-                    {' '}and{' '}
-                    <Text
-                      style={[styles.link, { color: t.accent }]}
-                      onPress={() => void Linking.openURL('https://parea.photos/privacy')}
-                    >
-                      Privacy
-                    </Text>
-                    .
-                  </Text>
+                  </Pressable>
+
+                  <Button
+                    label="Send me a code"
+                    t={t}
+                    primary
+                    disabled={busy || !smsAgreed || nationalDigits < 6}
+                    onPress={() => void sendCode()}
+                  />
                   {busy && <Waiting size={20} />}
                   {error && <Text style={[styles.error, { color: t.fg }]}>{error}</Text>}
 
@@ -712,7 +711,6 @@ const styles = StyleSheet.create({
      visible without counting. */
   code: { textAlign: 'center', letterSpacing: 6, fontSize: 20, fontVariant: ['tabular-nums'] },
   hint: { fontSize: 12.5, lineHeight: 18 },
-  centred: { textAlign: 'center' },
 
   /* The first state, with no card: the promise centred under the title. */
   hero: { alignItems: 'center', gap: 14, paddingTop: 44, paddingHorizontal: 8, paddingBottom: 8 },
@@ -753,6 +751,16 @@ const styles = StyleSheet.create({
      cannot see the difference, and these two are the only pressable words in a
      paragraph rather than a row of their own. */
   link: { textDecorationLine: 'underline' },
+  agreeRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 10 },
+  agreeBox: {
+    width: 22,
+    height: 22,
+    borderRadius: 6,
+    borderWidth: 1.5,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  agreeTick: { fontSize: 14, fontWeight: '700', lineHeight: 16 },
   small: { fontSize: 13, lineHeight: 18 },
   error: { fontSize: 13, lineHeight: 19 },
   standing: { fontSize: 12.5, lineHeight: 18 },

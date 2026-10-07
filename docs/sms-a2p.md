@@ -101,21 +101,21 @@ app only.
 
 A signed-in user opens the Find Friends screen — at
 https://www.parea.photos/find/friends or the equivalent screen in the Parea
-iOS/Android app — types their own mobile number into a field, and taps a button
-labelled "Send me a code". Directly beneath that button, before it is tapped, the
-screen reads:
+iOS/Android app — and types their own mobile number into a field. Beneath it is
+a checkbox, unticked by default, beside these words:
 
-"By tapping 'Send me a code' you agree to receive one text message from Parea
-containing a verification code. One message per request, not a subscription.
+"I agree to receive one text message from Parea containing a verification code
+each time I tap 'Send me a code'. One message per request, not a subscription.
 Message and data rates may apply. See our Terms and Privacy."
 
-Tapping the button is the consent. One message is then sent, immediately, to the
+The "Send me a code" button is disabled until the box is ticked. Ticking it is
+the consent; tapping the button then sends one message. One message is then sent, immediately, to the
 number that person typed. No message is ever sent to a number entered by anyone
 other than its holder, no message is sent unless requested, and no marketing is
 sent.
 
-This call-to-action and consent wording are published publicly at
-https://www.parea.photos/texts
+This call-to-action, the consent wording, and screenshots of the screen (box
+unticked, then ticked) are published publicly at https://www.parea.photos/texts
 ```
 
 ## What was refused, and why
@@ -148,6 +148,13 @@ true statement about what a button does, and not consent. The reviewer was right
 and the distinction is not pedantry: being *told* a message is coming is not
 *agreeing to receive* one. Hence "you agree to receive", with the button named
 inside the sentence to tie the agreement to the act.
+
+**"CTA verification issue: no proof shared"** (third round, 7 October). The
+screen is behind sign-in and `/texts` only described it in words; the reviewer
+wanted "a hosted link to a screenshot showing the clear opt-in flow and checkbox
+area". Two fixes: the consent became an unticked checkbox that gates the button,
+on both clients, and `/texts` now carries real simulator captures of it
+(`apps/web/public/texts/`). Retake those if the screen changes.
 
 **Both of those last two came back a second time** for a dull reason: the form
 field still held the old wording. Changing the product does not change what is

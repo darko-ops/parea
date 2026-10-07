@@ -142,6 +142,8 @@ export function FindFriendsView() {
 
   /** The national number; the country code is `region`'s, its own control. */
   const [phone, setPhone] = useState('');
+  /** The consent box under the number. Unticked on every visit; see below. */
+  const [smsAgreed, setSmsAgreed] = useState(false);
   /*
    * Starts on the first entry and moves to the browser's region after mount:
    * read during render, the server's guess and the browser's would disagree
@@ -373,7 +375,7 @@ export function FindFriendsView() {
                   value={phone}
                   onChange={(e) => typeNumber(e.target.value)}
                   onKeyDown={(e) => {
-                    if (e.key === 'Enter' && !busy && phone.replace(/\D/g, '').length >= 6) {
+                    if (e.key === 'Enter' && !busy && smsAgreed && phone.replace(/\D/g, '').length >= 6) {
                       void sendCode();
                     }
                   }}
@@ -381,50 +383,46 @@ export function FindFriendsView() {
                 />
               </div>
 
+              {/*
+                Consent, as a box somebody ticks, between the number and the
+                button that sends to it.
+
+                Five things are in the sentence — who texts you, what arrives,
+                how often, who pays, and where the rules are — which is what US
+                carriers check before approving the campaign. It was a sentence
+                under the button, and a reviewer refused it twice: once because
+                it described what the button did rather than asking for
+                agreement, and again because there was nothing to *tick*. An
+                opt-in has to be an act, unticked until the person does it, so
+                the button stays off until they have.
+
+                Word for word the same as the app's and as `CONSENT` on /texts,
+                which is the public copy a reviewer reads; a test holds the
+                three together.
+              */}
+              <label className="auth-agree ff-agree">
+                <input
+                  type="checkbox"
+                  checked={smsAgreed}
+                  onChange={(e) => setSmsAgreed(e.target.checked)}
+                />
+                <span className="muted">
+                  I agree to receive one text message from Parea containing a
+                  verification code each time I tap &ldquo;Send me a code&rdquo;.
+                  One message per request, not a subscription. Message and data
+                  rates may apply. See our <a href="/terms">Terms</a> and{' '}
+                  <a href="/privacy">Privacy</a>.
+                </span>
+              </label>
+
               <button
                 className="ff-send"
-                disabled={busy || phone.replace(/\D/g, '').length < 6}
+                disabled={busy || !smsAgreed || phone.replace(/\D/g, '').length < 6}
                 onClick={() => void sendCode()}
               >
                 {busy ? 'Sending…' : 'Send me a code'}
               </button>
 
-              {/*
-                What pressing the button does, under the button.
-
-                Five things have to be here and each is a sentence rather
-                than a clause of boilerplate: who texts you, what arrives,
-                how often, who pays, and where the rules are. It reads as
-                ordinary honesty and it is also, precisely, what US carriers
-                check when they ask for proof of consent — a verification
-                campaign is approved or refused on whether the screen that
-                asks for the number tells somebody they are about to be
-                texted.
-
-                Under the control rather than over it: that is where the eye
-                already is when reaching for it. The app places it identically —
-                one campaign covers both clients, and a screenshot of one is
-                submitted as evidence for the other.
-
-                It *asks* rather than describes, and that is a correction. It
-                used to open "Tapping this sends you one text…", which states
-                a fact about what the button does — true, and not consent. A
-                carrier reviewing it said so: the opt-in has to show somebody
-                agreeing to receive text messages rather than merely being
-                told that some will arrive. "You agree to receive" is the
-                difference, and naming the button in the sentence is what ties
-                the agreement to the act.
-
-                Word for word as reviewed. A shorter version was drawn with this
-                layout and waits on the A2P campaign.
-              */}
-              <p className="muted ff-consent">
-                By tapping &ldquo;Send me a code&rdquo; you agree to receive
-                one text message from Parea containing a verification code.
-                One message per request, not a subscription. Message and data
-                rates may apply. See our <a href="/terms">Terms</a> and{' '}
-                <a href="/privacy">Privacy</a>.
-              </p>
               {error && <p className="muted ff-error">{error}</p>}
 
               <p className="ff-handle">

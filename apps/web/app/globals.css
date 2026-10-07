@@ -4942,8 +4942,8 @@ img.you-face { object-fit: cover; }
   outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft);
 }
 .ff-send { width: 100%; padding: 14px; font-size: 16px; border-radius: 12px; }
-.ff-consent { margin: 0; text-align: center; font-size: 12.5px; line-height: 18px; }
-.ff-consent a { color: var(--accent); text-decoration: underline; }
+.ff-agree { margin: 0; font-size: 12.5px; line-height: 18px; text-align: left; }
+.ff-agree a { color: var(--accent); text-decoration: underline; }
 .ff-error { margin: 0; text-align: center; }
 /* Set apart under the rest rather than pinned to the foot of the page: on a
    laptop the foot is below the fold, and a way out nobody sees is not one. */
@@ -4971,6 +4971,13 @@ img.you-face { object-fit: cover; }
    carrier reviewer comparing it against a screenshot of the real screen, who
    wants to match strings rather than interpret prose. Monospace would overdo it
    — these are sentences somebody receives on a phone, not code. */
+.sms-shots { display: flex; flex-wrap: wrap; gap: 16px; margin-top: 12px; }
+.sms-shots figure { margin: 0; flex: 1 1 220px; max-width: 300px; }
+.sms-shots img {
+  display: block; width: 100%; height: auto;
+  border: 1px solid var(--hairline); border-radius: 18px;
+}
+.sms-shots figcaption { margin-top: 8px; font-size: 13px; }
 .sms-quote {
   margin: 12px 0 0; padding: 12px 14px;
   background: var(--card); border: 1px solid var(--line); border-radius: 12px;
