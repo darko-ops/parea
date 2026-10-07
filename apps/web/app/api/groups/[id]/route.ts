@@ -13,6 +13,7 @@ import { NextResponse } from 'next/server';
 import { getDb } from '@/db';
 import {
   attendedEvery,
+  ensureAdmin,
   findGroup,
   groupArchive,
   groupPeople,
@@ -25,6 +26,7 @@ import {
   titleOf,
 } from '@/groups';
 import { invitesSeenAtFor } from '@/invites';
+import { notifyGroupHanded } from '@/notify';
 import { currentAccountActorId } from '@/session';
 
 export const runtime = 'nodejs';
@@ -43,7 +45,23 @@ export async function GET(
   // findable one. Asked after the lookup above only so a missing group and a
   // signed-out caller do not answer differently to someone probing ids.
   if (!actorId) return NextResponse.json({ error: 'not_found' }, { status: 404 });
-  const membership = await membershipOf(db, group.id, actorId);
+  let membership = await membershipOf(db, group.id, actorId);
+
+  /*
+   * A group nobody can run, mended on sight.
+   *
+   * Leaving and closing an account both hand the group on, but a group
+   * orphaned before they did — or by a path nobody has thought of yet — would
+   * otherwise stay that way for good. A member opening it is the moment to
+   * notice: one indexed lookup when there is an admin, which is nearly always.
+   */
+  if (membership && membership.role !== 'admin') {
+    const heir = await ensureAdmin(db, group.id);
+    if (heir) {
+      await notifyGroupHanded(db, [{ id: group.id, actorId: heir }]);
+      if (heir === actorId) membership = { ...membership, role: 'admin' };
+    }
+  }
 
   if (!membership) {
     // Unfindable groups are indistinguishable from nonexistent ones to a

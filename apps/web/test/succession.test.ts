@@ -37,6 +37,7 @@ const { deleteAccount } = await import('@/accounts');
 const { DELETE: leaveRoute } = await import('../app/api/groups/[id]/members/route');
 const { POST: rollHandover } = await import('../app/api/events/[id]/handover/route');
 const { POST: groupHandover } = await import('../app/api/groups/[id]/handover/route');
+const { GET: groupRoute } = await import('../app/api/groups/[id]/route');
 
 const MIGRATIONS = fileURLToPath(new URL('../../../packages/core/drizzle', import.meta.url));
 
@@ -263,6 +264,72 @@ describe('a group whose last admin goes', () => {
     );
     expect(res.status).toBe(200);
     expect(await membershipOf(db, g, tom)).toEqual({ role: 'admin' });
+  });
+});
+
+describe('a group left with nobody to run it', () => {
+  /*
+   * The way it happened: two people, the admin leaves, and the one left behind
+   * cannot rename the group or do anything an admin does. These are the three
+   * ways out of that state, each of which has to hold on its own.
+   */
+  async function orphan() {
+    const [ada, sam, tom] = [await person('Ada'), await person('Sam'), await person('Tom')];
+    const g = await group([sam, 'member'], [tom, 'member']);
+    const e = await roll(ada, g);
+    await join(e, tom);
+    await photos(e, tom, 1);
+    return { g, sam, tom };
+  }
+
+  it('is mended by migration 0065, by the rule `crownGroups` uses', async () => {
+    const { g, tom } = await orphan();
+    const kept = await group([await person('Kim'), 'admin'], [await person('Lee'), 'member']);
+    const before = await db.select().from(schema.groupMembers).where(eq(schema.groupMembers.groupId, kept));
+
+    const migration = readFileSync(`${MIGRATIONS}/0065_group_succession.sql`, 'utf8');
+    await db.execute(sql.raw(migration));
+    expect(await membershipOf(db, g, tom)).toEqual({ role: 'admin' });
+    // A group with an admin is not re-elected.
+    expect(await db.select().from(schema.groupMembers).where(eq(schema.groupMembers.groupId, kept))).toEqual(before);
+  });
+
+  it('is mended when a member opens it, and the one who opened it can run it', async () => {
+    const { g, sam } = await orphan();
+    // Sam has added nothing; the photos are Tom's. Opening still mends it,
+    // for whoever the rule picks, and says so to whoever opened it.
+    const lone = await group([sam, 'member']);
+    as(sam);
+    const res = await groupRoute(new Request(`https://parea.test/api/groups/${lone}`), {
+      params: Promise.resolve({ id: lone }),
+    });
+    expect(((await res.json()) as { role: string }).role).toBe('admin');
+    expect(await membershipOf(db, lone, sam)).toEqual({ role: 'admin' });
+
+    await groupRoute(new Request(`https://parea.test/api/groups/${g}`), {
+      params: Promise.resolve({ id: g }),
+    });
+    expect(
+      (await db.select().from(schema.groupMembers).where(eq(schema.groupMembers.groupId, g))).filter(
+        (m) => m.role === 'admin',
+      ),
+    ).toHaveLength(1);
+  });
+
+  it('is not left behind by a leave whose hand-off fails', async () => {
+    const [ada, sam] = [await person('Ada'), await person('Sam')];
+    const g = await group([ada, 'admin'], [sam, 'member']);
+    const succession = await import('@/succession');
+    const spy = vi.spyOn(succession, 'crownGroups').mockRejectedValueOnce(new Error('boom'));
+    as(ada);
+    await expect(
+      leaveRoute(new Request(`https://parea.test/api/groups/${g}/members`, { method: 'DELETE' }), {
+        params: Promise.resolve({ id: g }),
+      }),
+    ).rejects.toThrow('boom');
+    spy.mockRestore();
+    // Still in, still admin: the leave did not happen without its hand-off.
+    expect(await membershipOf(db, g, ada)).toEqual({ role: 'admin' });
   });
 });
 

@@ -9,15 +9,13 @@
  * Anyone else has to ask (see ./requests).
  */
 
-import { schema } from '@parea/core';
-import { and, eq } from 'drizzle-orm';
 import { NextResponse } from 'next/server';
 
 import { getDb } from '@/db';
 import {
   addMember,
-  ensureAdmin,
   findGroup,
+  leaveGroup,
   membershipOf,
   participatedInGroup,
   removeMember,
@@ -74,17 +72,9 @@ export async function DELETE(
   }
 
   // Leaving is unconditional and needs no permission. Membership that cannot
-  // be given up is not membership.
-  await db
-    .delete(schema.groupMembers)
-    .where(
-      and(
-        eq(schema.groupMembers.groupId, id),
-        eq(schema.groupMembers.actorId, actorId),
-      ),
-    );
-  // If that was the last admin, somebody still in it becomes one.
-  const heir = await ensureAdmin(db, id);
+  // be given up is not membership. If that was the last admin, somebody still
+  // in it becomes one, in the same transaction — see `leaveGroup`.
+  const heir = await leaveGroup(db, id, actorId);
   if (heir) await notifyGroupHanded(db, [{ id, actorId: heir }]);
   return NextResponse.json({ member: false });
 }

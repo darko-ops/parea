@@ -4977,6 +4977,7 @@ img.you-face { object-fit: cover; }
   display: block; width: 100%; height: auto;
   border: 1px solid var(--hairline); border-radius: 18px;
 }
+.sms-shot-missing { border: 1px dashed var(--hairline); border-radius: 18px; padding: 16px; }
 .sms-shots figcaption { margin-top: 8px; font-size: 13px; }
 .sms-quote {
   margin: 12px 0 0; padding: 12px 14px;

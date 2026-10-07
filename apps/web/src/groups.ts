@@ -210,6 +210,27 @@ export async function ensureAdmin(db: Db, groupId: string): Promise<string | nul
 }
 
 /**
+ * Somebody leaves a group, and if they were its last admin, somebody else
+ * becomes one — as one act.
+ *
+ * They were two statements, and a failure between them left the leaving done
+ * and the crowning not: the clients ignore an error from leaving, so nobody
+ * saw it, and the group carried on with nobody able to rename it, approve a
+ * request or invite anybody. In a transaction, either both happen or the
+ * person is still in the group and can try again.
+ *
+ * Returns who was made admin, if anybody, for the caller to tell.
+ */
+export async function leaveGroup(db: Db, groupId: string, actorId: string): Promise<string | null> {
+  return db.transaction(async (tx) => {
+    await tx
+      .delete(schema.groupMembers)
+      .where(and(eq(schema.groupMembers.groupId, groupId), eq(schema.groupMembers.actorId, actorId)));
+    return ensureAdmin(tx as unknown as Db, groupId);
+  });
+}
+
+/**
  * The group's events, newest first.
  *
  * Members only — this is the room, not the door. Note it returns events, never

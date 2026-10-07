@@ -3,6 +3,7 @@ import { notFound } from 'next/navigation';
 import { GroupView, type GroupTab } from '@/../app/components/GroupView';
 import { getDb } from '@/db';
 import {
+  ensureAdmin,
   findGroup,
   groupArchive,
   groupPeople,
@@ -14,6 +15,7 @@ import {
   titleOf,
 } from '@/groups';
 import { invitesSeenAtFor } from '@/invites';
+import { notifyGroupHanded } from '@/notify';
 import { currentAccountActorId } from '@/session';
 import { Shell } from '@/../app/components/Shell';
 
@@ -67,8 +69,17 @@ export default async function GroupPage({
   if (!group) notFound();
 
   const actorId = await currentAccountActorId();
-  const membership = await membershipOf(db, group.id, actorId);
+  let membership = await membershipOf(db, group.id, actorId);
   if (!membership && !group.findable) notFound();
+  // A group nobody can run, mended on sight — see the same lines in
+  // `/api/groups/[id]`, which the app opens instead of this page.
+  if (membership && membership.role !== 'admin') {
+    const heir = await ensureAdmin(db, group.id);
+    if (heir) {
+      await notifyGroupHanded(db, [{ id: group.id, actorId: heir }]);
+      if (heir === actorId) membership = { ...membership, role: 'admin' };
+    }
+  }
 
   /*
    * Nothing from inside is fetched for somebody who is not in the group.

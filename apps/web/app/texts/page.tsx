@@ -26,6 +26,7 @@
  * `next.config.ts`. Adding it to either would defeat the only reason it exists.
  */
 
+import { Screenshot } from '@/../app/components/Screenshot';
 import { Shell } from '@/../app/components/Shell';
 
 export const metadata = {
@@ -108,7 +109,7 @@ export default function TextsPage() {
           */}
           <div className="sms-shots">
             <figure>
-              <img
+              <Screenshot
                 src="/texts/opt-in-unticked.png"
                 alt="Parea's Find Friends screen: a phone number field, an unticked checkbox with the consent wording above, and a greyed-out Send me a code button."
                 width={552}
@@ -119,7 +120,7 @@ export default function TextsPage() {
               </figcaption>
             </figure>
             <figure>
-              <img
+              <Screenshot
                 src="/texts/opt-in-ticked.png"
                 alt="The same screen with a number typed, the consent box ticked, and the Send me a code button switched on."
                 width={552}
