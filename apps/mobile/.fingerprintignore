@@ -1,0 +1,6 @@
+# eas.json says how a build is made and where it is submitted (the App Store
+# app id, the team) — not what is inside the binary. Counting it meant adding
+# `ascAppId` after build 5 cut that build off from every later update, though
+# its native code had not changed. Build env vars here only matter at build
+# time; `eas update` takes its env from the command.
+eas.json
