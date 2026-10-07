@@ -2833,10 +2833,29 @@ function EventScreen({
    * would draw one frame with the photograph twice — the real one at the top of
    * the server's list and its stand-in still above it.
    */
-  const pendingTiles = useMemo(
-    () => previews.filter((p) => !(p.photoId && feedIds.has(p.photoId))),
-    [previews, feedIds],
-  );
+  /*
+   * Photographs chosen for a new roll that are still being copied out of the
+   * library, drawn the moment they are chosen. See `preparing` below.
+   */
+  const [preparing, setPreparing] = useState<string[]>([]);
+  const pendingTiles = useMemo(() => {
+    const queued = new Set(previews.map((p) => p.id));
+    // Newest on top, as the queue's own stand-ins are: the last tapped first.
+    const early: Preview[] =
+      RNPlatform.OS === 'ios'
+        ? [...preparing]
+            .reverse()
+            .filter((id) => !queued.has(id) && isLibraryAsset(id))
+            .map((id) => ({
+              id,
+              uri: id.startsWith('ph://') ? id : `ph://${id}`,
+              copy: '',
+              state: 'uploading' as const,
+              progress: 0.05,
+            }))
+        : [];
+    return [...early, ...previews.filter((p) => !(p.photoId && feedIds.has(p.photoId)))];
+  }, [preparing, previews, feedIds]);
 
   /**
    * The way out of a line that used to have none.
@@ -3610,10 +3629,23 @@ function EventScreen({
   useEffect(() => {
     if (sent.current || !initialUpload?.length) return;
     sent.current = true;
+    /*
+     * Drawn first, copied second.
+     *
+     * Each photograph has to be copied out of the library before it can be
+     * queued — the queue needs its size to reserve it on the server — and a
+     * photograph kept in iCloud downloads in full first. The stand-ins used to
+     * wait for every copy, so fifteen photographs sat behind the slowest one
+     * with nothing on screen. The library can draw them straight away, so it
+     * does, and each becomes the queue's own stand-in once it is queued.
+     */
+    setPreparing(initialUpload);
     void (async () => {
       try {
         await enqueue(await resolveForUpload(initialUpload));
+        setPreparing([]);
       } catch {
+        setPreparing([]);
         // The album exists and the photographs are still on the phone. Add
         // photos is the way back to them, which is the same recovery as any
         // other upload that did not start.

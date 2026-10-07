@@ -333,3 +333,17 @@ describe('the file a stand-in draws from', () => {
     expect(sweep).toMatch(/now - at < OUTBOX_STRAY_MS/);
   });
 });
+
+describe('a new roll\'s photographs', () => {
+  it('are drawn before they are copied, not after', () => {
+    // Fifteen photographs used to wait behind the slowest copy out of the
+    // library — an iCloud original downloading in full — with nothing on
+    // screen. The library draws them at once; the copies follow.
+    const SOURCE = readFileSync(fileURLToPath(new URL('../App.tsx', import.meta.url)), 'utf8');
+    const show = SOURCE.indexOf('setPreparing(initialUpload);');
+    const copy = SOURCE.indexOf('await enqueue(await resolveForUpload(initialUpload));');
+    expect(show).toBeGreaterThan(-1);
+    expect(copy).toBeGreaterThan(show);
+    expect(SOURCE).toMatch(/\.filter\(\(id\) => !queued\.has\(id\) && isLibraryAsset\(id\)\)/);
+  });
+});
