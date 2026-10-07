@@ -67,7 +67,9 @@ export async function POST(
   if ('error' in found) return found.error;
   const { db, group, actorId } = found;
 
-  if ((await memberCount(db, group.id)) < 3) {
+  // A conversation with one person has no picture of its own; a named group
+  // does, at any size — see the same rule on renaming.
+  if (group.name === null && (await memberCount(db, group.id)) < 3) {
     return NextResponse.json({ error: 'chat_not_nameable' }, { status: 409 });
   }
   if (!(await withinLimit(db, AVATAR_LIMIT, process.env.SESSION_SECRET))) {

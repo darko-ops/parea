@@ -2698,6 +2698,25 @@ export class Api {
     );
   }
 
+  /**
+   * Who is already in a group or already asked, so the picker can leave them
+   * out. Admins only; anybody else is answered 404.
+   */
+  groupInvitees(groupId: string): Promise<{ members: string[]; invited: string[] }> {
+    return this.call(`/api/groups/${encodeURIComponent(groupId)}/invites`);
+  }
+
+  /**
+   * An admin asking people into a group. Each of them is invited, and is in
+   * once they accept. Answers how many were asked, never which — see the route.
+   */
+  inviteToGroup(groupId: string, actorIds: string[]): Promise<{ invited: number }> {
+    return this.call(`/api/groups/${encodeURIComponent(groupId)}/invites`, {
+      method: 'POST',
+      body: JSON.stringify({ actorIds }),
+    });
+  }
+
   async joinRequests(id: string): Promise<JoinRequest[]> {
     const { requests } = await this.call<{ requests: JoinRequest[] }>(
       `/api/groups/${id}/requests`,

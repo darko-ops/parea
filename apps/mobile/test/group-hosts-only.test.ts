@@ -33,7 +33,7 @@ const between = (source: string, from: string, to: string): string => {
 describe('the sheet', () => {
   it('offers naming and the picture only to an admin', () => {
     const call = between(GROUPS, '<GroupMore', '/>\n      )}');
-    expect(call).toMatch(/nameable=\{group\.role === 'admin' && group\.memberCount > 2\}/);
+    expect(call).toMatch(/nameable=\{group\.role === 'admin' && \(group\.memberCount > 2 \|\| group\.named !== null\)\}/);
   });
 
   it('keeps every name and photo control behind that one flag', () => {

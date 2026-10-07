@@ -27,7 +27,7 @@
  */
 
 import { useRouter } from 'next/navigation';
-import { useCallback, useState } from 'react';
+import { useCallback, useRef, useState } from 'react';
 
 import type { GroupEvent, GroupPerson, JoinRequest } from '@/groups';
 
@@ -128,6 +128,17 @@ export function GroupView({ group, tab }: { group: GroupData; tab: GroupTab }) {
   const [creating, setCreating] = useState(false);
   /** The invite panel, and who is picked in it. Admins only — see the route. */
   const [inviting, setInviting] = useState(false);
+  /*
+   * Naming the room and giving it a picture — its admins', like inviting.
+   *
+   * An unnamed room of two is a conversation and is offered neither; a named
+   * room is a group at any size. The server holds to the same rule.
+   */
+  const nameable = group.role === 'admin' && (group.memberCount > 2 || group.named !== null);
+  const [renaming, setRenaming] = useState(false);
+  const [draftName, setDraftName] = useState(group.named ?? '');
+  const [saidEdit, setSaidEdit] = useState<string | null>(null);
+  const photoInput = useRef<HTMLInputElement>(null);
   const [picked, setPicked] = useState<Person[]>([]);
   const [asked, setAsked] = useState<number | null>(null);
   /** What a report came back as. See `reportSaid`. */
@@ -236,6 +247,45 @@ export function GroupView({ group, tab }: { group: GroupData; tab: GroupTab }) {
    * them there would be the screen asserting a membership the server has
    * deliberately not written.
    */
+  const rename = useCallback(async () => {
+    setBusy(true);
+    setSaidEdit(null);
+    try {
+      const res = await fetch(`/api/groups/${group.id}`, {
+        method: 'PATCH',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ name: draftName.trim() }),
+      });
+      if (!res.ok) throw new Error();
+      setRenaming(false);
+      router.refresh();
+    } catch {
+      setSaidEdit('Could not change the name. Try again in a moment.');
+    } finally {
+      setBusy(false);
+    }
+  }, [draftName, group.id, router]);
+
+  const setPicture = useCallback(
+    async (file: File) => {
+      setBusy(true);
+      setSaidEdit(null);
+      try {
+        // The file as the body, as the phone sends it; the server squares and
+        // re-encodes it.
+        const res = await fetch(`/api/groups/${group.id}/photo`, { method: 'POST', body: file });
+        if (!res.ok) throw new Error();
+        setSaidEdit('Group picture changed.');
+        router.refresh();
+      } catch {
+        setSaidEdit('Could not use that picture. Try another, or again in a moment.');
+      } finally {
+        setBusy(false);
+      }
+    },
+    [group.id, router],
+  );
+
   const invite = useCallback(async () => {
     setBusy(true);
     setError(null);
@@ -452,6 +502,27 @@ export function GroupView({ group, tab }: { group: GroupData; tab: GroupTab }) {
           <Menu label="More about this group" glyph="···" tone="round">
             {(close) => (
               <>
+                {nameable && (
+                  <>
+                    <button
+                      onClick={() => {
+                        close();
+                        setDraftName(group.named ?? '');
+                        setRenaming(true);
+                      }}
+                    >
+                      {group.named === null ? 'Name this group' : 'Rename group'}
+                    </button>
+                    <button
+                      onClick={() => {
+                        close();
+                        photoInput.current?.click();
+                      }}
+                    >
+                      Change group picture
+                    </button>
+                  </>
+                )}
                 {/* The room itself — its name and its picture. A message in it
                     is reported from the message. */}
                 <button
@@ -577,6 +648,54 @@ export function GroupView({ group, tab }: { group: GroupData; tab: GroupTab }) {
       )}
 
       {error && <p className="group-error">{error}</p>}
+
+      {nameable && (
+        <input
+          ref={photoInput}
+          type="file"
+          accept="image/*"
+          hidden
+          onChange={(e) => {
+            const file = e.target.files?.[0];
+            e.target.value = '';
+            if (file) void setPicture(file);
+          }}
+        />
+      )}
+      {renaming && nameable && (
+        <form
+          className="group-invite"
+          onSubmit={(e) => {
+            e.preventDefault();
+            void rename();
+          }}
+        >
+          <label htmlFor="group-name">Group name</label>
+          <input
+            id="group-name"
+            value={draftName}
+            maxLength={80}
+            onChange={(e) => setDraftName(e.target.value)}
+            placeholder="Name this group"
+            autoFocus
+          />
+          <span className="group-invite-note">
+            Clear it to go back to being called after the people in it.
+          </span>
+          <div className="group-invite-go">
+            <button
+              type="submit"
+              disabled={busy || draftName.trim() === (group.named ?? '').trim()}
+            >
+              {busy ? 'Saving…' : 'Save'}
+            </button>
+            <button type="button" className="secondary" disabled={busy} onClick={() => setRenaming(false)}>
+              Cancel
+            </button>
+          </div>
+        </form>
+      )}
+      {saidEdit && <p className="photo-said strip-said">{saidEdit}</p>}
 
       {/*
         The premise, said once, where the count used to be. A group exists

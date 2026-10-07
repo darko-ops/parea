@@ -199,6 +199,38 @@ describe("a group's name and picture, and who may change them", () => {
     expect(await res!.json()).toEqual({ ok: true });
   });
 
+  /** Just the creator and the first person they asked, and maybe a name. */
+  async function pair(name: string | null) {
+    const host = await person('Demetri');
+    const other = await person('Parea');
+    const [group] = await db
+      .insert(schema.groups)
+      .values(name ? { name, slug: name.toLowerCase().replace(/\s+/g, '-') } : { name: null, slug: null })
+      .returning();
+    await addMember(db, group!.id, host, 'admin');
+    await addMember(db, group!.id, other);
+    return { id: group!.id, host };
+  }
+
+  it('lets the admin of a named group of two rename it', async () => {
+    // A group somebody made and named is a group from the start, while it is
+    // still just them and the first person they asked.
+    const { id, host } = await pair('Book club');
+    as(host);
+    const res = await rename(id, 'Reading club');
+    expect(res.status).toBe(200);
+    expect(await nameOf(id)).toBe('Reading club');
+  });
+
+  it('still will not name a conversation between two people', async () => {
+    const { id, host } = await pair(null);
+    as(host);
+    const res = await rename(id, 'Us');
+    expect(res.status).toBe(409);
+    expect(await res.json()).toEqual({ error: 'chat_not_nameable' });
+    expect(await nameOf(id)).toBeNull();
+  });
+
   it('still hides the group from somebody who is not in it', async () => {
     // Not in it is not found, not "admins only" — the second would confirm it exists.
     const { id } = await room();

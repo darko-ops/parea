@@ -65,11 +65,20 @@ import {
 import * as ImagePicker from 'expo-image-picker';
 import { Image as ExpoImage } from 'expo-image';
 
-import { ApiError, type Api, type GroupAlbum, type GroupPerson, type GroupView, type JoinRequest } from './api';
+import {
+  ApiError,
+  type Api,
+  type GroupAlbum,
+  type GroupPerson,
+  type GroupView,
+  type InvitablePerson,
+  type JoinRequest,
+} from './api';
 import { RoomMark } from './Events';
 import { uploadCover } from './platform';
 import { Glyph, type GlyphName } from './Glyph';
 import { GroupChat } from './GroupThread';
+import { InvitePicker } from './InvitePeople';
 import { initialOf, lensFor } from './lens';
 import { More, RoundButton } from './RoundButton';
 import { reportContent } from './report';
@@ -173,6 +182,8 @@ export function GroupScreen({
   const [pane, setPane] = useState<GroupPane>('albums');
   /** Everything else about the room, which is still one thing: leaving. */
   const [more, setMore] = useState(false);
+  /** The add-people sheet, an admin's. */
+  const [adding, setAdding] = useState(false);
 
   /**
    * Opening one, with what the album screen needs to present a credential.
@@ -756,6 +767,17 @@ export function GroupScreen({
                   : plural(group.memberCount, 'person', 'people')}
               </Text>
 
+              {/*
+                Asking somebody in, for whoever runs the room. Above the list
+                rather than at its foot, because a group's list is long and the
+                one thing an admin comes here to do should not be a scroll away.
+              */}
+              {group.role === 'admin' && (
+                <View style={styles.gutter}>
+                  <Button label="Add people" onPress={() => setAdding(true)} t={t} />
+                </View>
+              )}
+
               <View style={styles.gutter}>
                 {group.people.map((person) => {
                   const own = lensFor(person.actorId);
@@ -838,10 +860,11 @@ export function GroupScreen({
           t={t}
           Button={Button}
           named={group.named}
-          // Two people is a conversation, not a room; and a room's name and
-          // picture are its hosts' to change, which the server holds to as
-          // well. A member sees both and is offered neither. See `GroupMore`.
-          nameable={group.role === 'admin' && group.memberCount > 2}
+          // An unnamed room of two is a conversation, not a group; a named one
+          // is a group at any size. A room's name and picture are its hosts'
+          // to change, which the server holds to as well. A member sees both
+          // and is offered neither. See `GroupMore`.
+          nameable={group.role === 'admin' && (group.memberCount > 2 || group.named !== null)}
           onName={rename}
           photoUrl={group.photoUrl}
           onChoosePhoto={choosePhoto}
@@ -854,7 +877,115 @@ export function GroupScreen({
           onClose={() => setMore(false)}
         />
       )}
+
+      {adding && group.member && group.role === 'admin' && (
+        <AddPeople
+          api={api}
+          t={t}
+          Button={Button}
+          groupId={groupId}
+          onDone={(asked) => {
+            setAdding(false);
+            if (asked > 0) {
+              Alert.alert(
+                asked === 1 ? 'Invitation sent' : 'Invitations sent',
+                asked === 1
+                  ? 'They are in the group once they accept.'
+                  : `${asked} people are in the group once they accept.`,
+              );
+            }
+            void load();
+          }}
+        />
+      )}
     </View>
+  );
+}
+
+/**
+ * An admin asking people into the room.
+ *
+ * The same picker a roll's host uses — friends first, then a search — so
+ * finding a person works one way everywhere. Picking asks rather than adds:
+ * each person is invited and is in once they say yes, which is what the
+ * server does with an admin's invitation (`inviteToGroup`). Whoever is already
+ * in, or already asked, is left off the list.
+ */
+function AddPeople({
+  api,
+  t,
+  Button,
+  groupId,
+  onDone,
+}: {
+  api: Api;
+  t: GroupTheme;
+  Button: (props: {
+    label: string;
+    onPress: () => void;
+    t: GroupTheme;
+    primary?: boolean;
+    disabled?: boolean;
+  }) => React.ReactElement;
+  groupId: string;
+  /** How many were asked; 0 when the sheet was closed without asking. */
+  onDone: (asked: number) => void;
+}) {
+  const [picked, setPicked] = useState<InvitablePerson[]>([]);
+  const [already, setAlready] = useState<Set<string>>(new Set());
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    void api
+      .groupInvitees(groupId)
+      .then(({ members, invited }) => setAlready(new Set([...members, ...invited])))
+      .catch(() => {});
+  }, [api, groupId]);
+
+  const send = useCallback(async () => {
+    setBusy(true);
+    setError(null);
+    try {
+      const { invited } = await api.inviteToGroup(
+        groupId,
+        picked.map((person) => person.actorId),
+      );
+      onDone(invited);
+    } catch {
+      setError('Could not send the invitations. Try again in a moment.');
+      setBusy(false);
+    }
+  }, [api, groupId, onDone, picked]);
+
+  return (
+    <Modal visible animationType="slide" transparent onRequestClose={() => onDone(0)}>
+      <View style={styles.sheetShell}>
+        <Pressable style={StyleSheet.absoluteFill} onPress={() => onDone(0)} />
+        <View style={[styles.sheet, { backgroundColor: t.card }]}>
+          <Text style={[styles.label, { color: t.fg }]}>Add people</Text>
+          <Text style={[styles.small, { color: t.dim }]}>
+            Each person you pick gets an invitation, and is in once they accept.
+          </Text>
+          <InvitePicker api={api} t={t} picked={picked} onChange={setPicked} exclude={already} />
+          {error && <Text style={[styles.small, { color: t.dim }]}>{error}</Text>}
+          <Button
+            label={
+              busy
+                ? 'Sending…'
+                : picked.length === 0
+                  ? 'Pick somebody to invite'
+                  : `Invite ${plural(picked.length, 'person', 'people')}`
+            }
+            onPress={() => void send()}
+            t={t}
+            primary
+            disabled={busy || picked.length === 0}
+          />
+          <Button label="Cancel" onPress={() => onDone(0)} t={t} disabled={busy} />
+        </View>
+      </View>
+    </Modal>
   );
 }
 

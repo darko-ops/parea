@@ -395,7 +395,7 @@ describe('a room with no name', () => {
     // Clearing it writes null and not '', which is what puts the room back to
     // being called after its people.
     expect(ROUTE).toMatch(/\{ name: null, slug: null, findable: false \}/);
-    expect(read('src/Groups.tsx')).toMatch(/nameable=\{group\.role === 'admin' && group\.memberCount > 2\}/);
+    expect(read('src/Groups.tsx')).toMatch(/nameable=\{group\.role === 'admin' && \(group\.memberCount > 2 \|\| group\.named !== null\)\}/);
   });
 });
 

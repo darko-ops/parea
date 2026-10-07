@@ -187,7 +187,7 @@ export async function GET(
  * the conversation has turned out to be a standing thing, which is the moment
  * a name is worth typing.
  *
- * ## Only a host or co-host, and only a room with more than two people in it
+ * ## Only a host or co-host, and never a conversation with one person
  *
  * The first is a decision (security review L13): a group's name is its
  * identity, and any member could change it — to anything, under everybody
@@ -198,7 +198,8 @@ export async function GET(
  * it, so there is nothing here to name — naming it would turn a chat into a
  * group behind the other person's back, and put it on the Find shelf where
  * they never asked for it to be. A pair that wants to be a group adds
- * somebody.
+ * somebody. A room that already has a name is a group however few are in it,
+ * so it can be renamed at any size.
  *
  * ## Clearing it is allowed, and goes back to the derived title
  *
@@ -234,7 +235,12 @@ export async function PATCH(
     return NextResponse.json({ error: 'name_too_long' }, { status: 400 });
   }
 
-  if (name && (await memberCount(db, group.id)) < 3) {
+  /*
+   * Only an *unnamed* room of two is a conversation. A group somebody made and
+   * named is a group from the start, even while it is just them and the first
+   * person they asked — and its admin has to be able to rename it then too.
+   */
+  if (name && group.name === null && (await memberCount(db, group.id)) < 3) {
     return NextResponse.json({ error: 'chat_not_nameable' }, { status: 409 });
   }
 
