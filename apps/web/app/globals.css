@@ -5530,3 +5530,23 @@ button.link {
 .chat-photo-ask { display: inline-flex; align-items: center; gap: 8px; font-size: 14px; }
 /* Sending it on from the viewer: that dialog opens over the viewer, not behind it. */
 .chat-photo ~ .dialog-scrim { z-index: 70; }
+
+/* The slow-page spinner — see `Spinner.tsx`.
+   Nothing for 400ms, so a fast load never flashes it; then the theme's
+   drawing, or the still mark for somebody who has asked for less motion. */
+.page-loading {
+  min-height: 50vh; display: flex; align-items: center; justify-content: center;
+}
+.spinner {
+  display: inline-block; opacity: 0;
+  animation: spinner-in 160ms ease 400ms forwards;
+}
+.spinner svg { display: block; width: 100%; height: 100%; overflow: visible; }
+@keyframes spinner-in { to { opacity: 1; } }
+.spinner-light, .spinner-still { display: none !important; }
+:root:not([data-theme="dark"]) .spinner-light { display: block !important; }
+:root:not([data-theme="dark"]) .spinner-dark { display: none !important; }
+@media (prefers-reduced-motion: reduce) {
+  .spinner .spinner-moving { display: none !important; }
+  .spinner .spinner-still { display: block !important; color: var(--fg); }
+}

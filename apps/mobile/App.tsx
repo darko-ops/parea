@@ -68,6 +68,8 @@ import { initialOf, lensFor } from './src/lens';
 import { People, Thread } from './src/Thread';
 import { AccountCard, ChatsTab, HomeTab, SearchTab } from './src/Events';
 import { FindFriends } from './src/FindFriends';
+import { Launch } from './src/Launch';
+import { FIELD_BASE } from './src/MarkField';
 import { ContributeChoice } from './src/ContributeChoice';
 import { CoverFramer, type CoverFraming } from './src/CoverFramer';
 import { CreateEvent } from './src/CreateEvent';
@@ -388,6 +390,8 @@ export default function App() {
   );
 
   const [ready, setReady] = useState(false);
+  /** The launch has finished and faded. See `Launch`. */
+  const [launched, setLaunched] = useState(false);
   const [remembered, setRemembered] = useState<SavedEvent[]>([]);
   const [groups, setGroups] = useState<MyGroup[]>([]);
   const [route, setRoute] = useState<Route>({ screen: 'tabs' });
@@ -1491,17 +1495,21 @@ export default function App() {
     };
   }, [api, arrive, follow, refreshAccount, refreshEvents, refreshGroups, refreshWaiting]);
 
-  if (!ready) {
-    return (
-      <View style={[styles.center, { backgroundColor: t.bg }]}>
-        <Waiting size={40} />
-      </View>
-    );
-  }
-
+  /*
+   * The launch sits over everything until the app is ready and the mark has
+   * settled, then fades — see `Launch`. It is the second child of a fragment
+   * whose first is either nothing or the app, so becoming ready does not
+   * remount it and restart its animation.
+   */
   return (
+    <>
+    {!ready ? (
+      <View style={[styles.root, { backgroundColor: FIELD_BASE }]}>
+        <StatusBar style="light" />
+      </View>
+    ) : (
     <View style={[styles.root, { backgroundColor: t.bg }]}>
-      <StatusBar style={dark ? 'light' : 'dark'} />
+      <StatusBar style={launched ? (dark ? 'light' : 'dark') : 'light'} />
       {route.screen === 'event' && (
         <SwipeBack onBack={leaveEvent}>
           <EventScreen
@@ -2130,6 +2138,9 @@ export default function App() {
         </View>
       )}
     </View>
+    )}
+    {!launched && <Launch ready={ready} onDone={() => setLaunched(true)} />}
+    </>
   );
 }
 

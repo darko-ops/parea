@@ -29,9 +29,26 @@ const code = (source: string) =>
 const SPINNER = code(WAITING);
 
 describe('the spinner', () => {
-  it('turns the mark rather than a ring', () => {
-    expect(SPINNER).toMatch(/import \{ Mark \} from '\.\/Mark'/);
+  it('turns the mark rather than a ring, breathing as it goes', () => {
+    // The design package's slow-page spinner: a turn every 2.4s, and the
+    // circles out to 1.75× their spacing and back every 1.6s.
+    expect(SPINNER).toMatch(/import \{ markPath, SPIN_TURN, spinnerFrame \} from '\.\/markMotion'/);
     expect(SPINNER).toMatch(/outputRange: \['0deg', '360deg'\]/);
+    const MOTION = code(read('src/markMotion.ts'));
+    expect(MOTION).toMatch(/export const SPIN_TURN = 2\.4;/);
+    expect(MOTION).toMatch(/export const SPIN_BREATH = 1\.6;/);
+    expect(MOTION).toMatch(/spread: 1 \+ 0\.75 \* breath/);
+  });
+
+  it('shows nothing for the first 400ms, holding its space', () => {
+    expect(SPINNER).toMatch(/const DELAY_MS = 400;/);
+    expect(SPINNER).toMatch(/\{shown && <Turning size=\{size\} \/>\}/);
+    expect(SPINNER).toMatch(/minHeight: size, minWidth: size/);
+  });
+
+  it('lets the field show through the mark on light, and cuts it out in white on dark', () => {
+    expect(SPINNER).toMatch(/<G mask=\{`url\(#\$\{id\}-mark\)`\}>/);
+    expect(SPINNER).toMatch(/<Path fill="#fff" fillRule="evenodd" d=\{d\} \/>/);
   });
 
   it('animates on the native thread', () => {
@@ -116,9 +133,14 @@ describe('somebody who has asked for less motion', () => {
   it('is asked, and listened to afterwards', () => {
     // A spinner on screen for four seconds is long enough for somebody to go
     // and change the setting while looking at it.
-    expect(SPINNER).toMatch(/AccessibilityInfo\.isReduceMotionEnabled\(\)/);
-    expect(SPINNER).toMatch(/addEventListener\('reduceMotionChanged'/);
-    expect(SPINNER).toMatch(/listener\.remove\(\)/);
+    // Asked in the clock both loading animations share.
+    const CLOCK = code(read('src/useMotionClock.ts'));
+    expect(SPINNER).toMatch(/const \{ t, still \} = useMotionClock\(\);/);
+    expect(CLOCK).toMatch(/AccessibilityInfo\.isReduceMotionEnabled\(\)/);
+    expect(CLOCK).toMatch(/addEventListener\('reduceMotionChanged'/);
+    expect(CLOCK).toMatch(/listener\.remove\(\)/);
+    // And the clock stops with the component.
+    expect(CLOCK).toMatch(/return \(\) => cancelAnimationFrame\(frame\)/);
   });
 
   it('gets no rotation at all', () => {
@@ -222,25 +244,18 @@ describe('the mark it turns', () => {
 describe('the spinner is one colour', () => {
   const MARK = read('src/Mark.tsx');
 
-  it('draws the mark in one colour', () => {
-    expect(read('src/Waiting.tsx')).toMatch(/<Mark size=\{size\} tint=/);
-    // A colour rather than a flag, because the right one depends on what is
-    // behind it — see the test below.
-    expect(MARK).toMatch(/const mono = tint !== undefined;/);
-  });
-
-  it('takes the theme’s own ink, so it is there in both', () => {
+  it('is the design package\'s spinner, not a tinted brand mark', () => {
     /*
-     * White was the first answer and it is half of one: the light theme's
-     * background is `#f7f8fa`, where a white mark is not there at all. Dark
-     * is the `fg` of that palette in `App.tsx`; light is the grey the web
-     * draws its glyph in, so the mark is one colour on both clients.
+     * The one-colour mark turning was the spinner before the loading design.
+     * Its problem was that three circles on an equilateral arrangement look
+     * the same after a third of a turn, so a flat mark turning barely reads as
+     * moving. The breath solves that directly — the shape itself changes — so
+     * the spinner draws its own path rather than the tinted logo.
      */
     const WAITING = read('src/Waiting.tsx');
+    expect(WAITING).not.toMatch(/<Mark /);
     expect(WAITING).toMatch(/const dark = useAppearance\(\) === 'dark';/);
-    expect(WAITING).toMatch(/tint=\{dark \? '#f2f4f7' : '#3d424a'\}/);
-    expect(read('App.tsx')).toMatch(/fg: '#f2f4f7'/);
-    expect(read('../web/app/globals.css')).toMatch(/\.brand-glyph \{ color: #3d424a; \}/);
+    expect(WAITING).toMatch(/const d = markPath\(frame\.spread, \[1, 1, 1\]\);/);
   });
 
   it('still tells the seven regions apart, or it would not read as turning', () => {

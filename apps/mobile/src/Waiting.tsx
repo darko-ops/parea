@@ -1,197 +1,164 @@
 /**
- * What a screen shows while it is waiting: the mark, turning.
+ * What a screen shows while it is waiting: the mark, turning and breathing.
  *
- * It was `ActivityIndicator` — the system's grey ring — on eleven screens. That
- * is the right control in a button, where it reads as "this press is working",
- * and the wrong one filling a screen, where what somebody is looking at is the
- * product failing to appear. The mark turning is the same information and says
- * whose app is thinking about it.
+ * It was `ActivityIndicator` — the system's grey ring — and then the mark
+ * turning in one grey. This is the design package's slow-page spinner: the
+ * mark turns once every 2.4s while its three circles drift apart to 1.75× their
+ * spacing and back every 1.6s. On the light theme the icon's colour field shows
+ * *through* the moving shape; on dark it is a white cutout.
  *
- * ## Why it is not a GIF or a Lottie file
+ * ## Only after 400ms
  *
- * One rotation of something already drawn. `Animated` runs the transform on the
- * native thread, so it does not stutter while the JavaScript thread is busy
- * parsing the response it is waiting for — which is exactly when this is on
- * screen, and exactly when a JS-driven animation would hitch.
+ * Most waits are shorter than that, and a spinner that appears for a frame and
+ * vanishes reads as a flicker rather than as loading. So nothing is drawn for
+ * the first 400ms — the space is held, so nothing jumps when it does appear.
+ *
+ * ## Two clocks
+ *
+ * On dark the turn is a transform, run by `Animated` on the native thread so it
+ * keeps going while JavaScript is busy with whatever this is waiting for. The
+ * breath changes the shape itself, which no transform can express, so it is
+ * redrawn from `useMotionClock`. On light the turn happens inside the mask, so
+ * the field stays still behind it, and both come from the clock.
  *
  * ## Reduce Motion
  *
- * Somebody who has asked the system to stop animating things gets the mark
- * standing still. A spinner is the one case where that seems to lose
- * information, and it does not: the mark being there *is* the message, and
- * sustained rotation is precisely the kind of movement the setting exists to
- * stop. It fades instead, gently enough to stay under the threshold the
- * setting is about.
+ * The mark, settled and not turning — rotation and spreading are exactly the
+ * movement the setting exists to stop — fading gently in and out, so a long
+ * wait still reads as alive rather than frozen.
  */
 
-import { useEffect, useRef, useState } from 'react';
-import {
-  AccessibilityInfo,
-  Animated,
-  Easing,
-  StyleSheet,
-  View,
-} from 'react-native';
+import { useEffect, useId, useRef, useState } from 'react';
+import { Animated, Easing, StyleSheet, View } from 'react-native';
+import Svg, { G, Mask, Path } from 'react-native-svg';
 
 import { useAppearance } from './appearance';
-import { Mark } from './Mark';
+import { FieldDefs, FieldRects } from './MarkField';
+import { markPath, SPIN_TURN, spinnerFrame } from './markMotion';
+import { useMotionClock } from './useMotionClock';
 
-/**
- * One turn, in milliseconds.
- *
- * Slower than the system ring on purpose. The mark is a shape rather than a
- * smear of grey — three circles and the triangle between them — and above about
- * one revolution a second it stops being a logo and becomes a flicker.
- */
-const TURN_MS = 1400;
+/** How long a wait has to last before it is shown at all. */
+const DELAY_MS = 400;
 
 export function Waiting({
   size = 34,
   /**
    * Take the rest of the screen, and sit in the middle of it.
    *
-   * For the tabs, where this is one child of a scroll view underneath a title.
-   * Padding was the first attempt and it was the wrong tool: a fixed amount of
-   * room below the header puts the mark a fixed distance down the page, which
-   * on a tall phone is nowhere near the middle. `flex: 1` against a content
-   * container that grows means "whatever is left", which is the thing actually
-   * being asked for — and it costs nothing once the list has content, because
-   * there is no room left to take.
-   *
-   * The screens that are *only* this already centre themselves through their
-   * own `styles.center`, and do not need it.
+   * For the tabs, where this is one child of a scroll view underneath a title:
+   * `flex: 1` against a content container that grows means "whatever is
+   * left", which is the middle on any height of phone.
    */
   fill = false,
 }: {
   size?: number;
   fill?: boolean;
 }) {
-  const spin = useRef(new Animated.Value(0)).current;
-  const [still, setStill] = useState(false);
-  /*
-   * The theme, read here rather than passed in.
-   *
-   * `App` derives its own `dark` the same way, and the two agree because they
-   * ask the same question — this is not a second source of truth about the
-   * theme, it is the same one. The alternative is threading a theme through
-   * eleven call sites to colour a spinner.
-   */
-  const dark = useAppearance() === 'dark';
-
+  const [shown, setShown] = useState(false);
   useEffect(() => {
-    let live = true;
-    void AccessibilityInfo.isReduceMotionEnabled().then((on) => {
-      if (live) setStill(on);
-    });
-    // The setting can change while the app is open, and a spinner that is on
-    // screen for four seconds is long enough for somebody to go and change it.
-    const listener = AccessibilityInfo.addEventListener('reduceMotionChanged', setStill);
-    return () => {
-      live = false;
-      listener.remove();
-    };
+    const timer = setTimeout(() => setShown(true), DELAY_MS);
+    return () => clearTimeout(timer);
   }, []);
+
+  return (
+    <View
+      style={[styles.box, { minHeight: size, minWidth: size }, fill && styles.filling]}
+      // The same thing `ActivityIndicator` announces, said out loud, from the
+      // first frame — a screen reader should not wait 400ms to be told.
+      accessibilityRole="progressbar"
+      accessibilityLabel="Loading"
+      accessible
+    >
+      {shown && <Turning size={size} />}
+    </View>
+  );
+}
+
+function Turning({ size }: { size: number }) {
+  // The theme, read here rather than threaded through every call site.
+  const dark = useAppearance() === 'dark';
+  const { t, still } = useMotionClock();
+  const turn = useRef(new Animated.Value(0)).current;
+  const id = useId().replace(/:/g, '');
 
   useEffect(() => {
     if (still) {
       /*
-       * A slow fade rather than nothing at all.
-       *
-       * Two seconds of a completely static logo is indistinguishable from a
-       * screen that has given up. This is under the rate Reduce Motion is
-       * about — it is a change in opacity, not movement across the screen —
-       * and it still says the app is alive.
+       * A slow fade rather than nothing at all: two seconds of a completely
+       * static logo is indistinguishable from a screen that has given up, and
+       * a change in opacity is not the movement the setting is about.
        */
       const pulse = Animated.loop(
         Animated.sequence([
-          Animated.timing(spin, {
-            toValue: 1,
-            duration: 900,
-            easing: Easing.inOut(Easing.quad),
-            useNativeDriver: true,
-          }),
-          Animated.timing(spin, {
-            toValue: 0,
-            duration: 900,
-            easing: Easing.inOut(Easing.quad),
-            useNativeDriver: true,
-          }),
+          Animated.timing(turn, { toValue: 1, duration: 900, easing: Easing.inOut(Easing.quad), useNativeDriver: true }),
+          Animated.timing(turn, { toValue: 0, duration: 900, easing: Easing.inOut(Easing.quad), useNativeDriver: true }),
         ]),
       );
       pulse.start();
       return () => pulse.stop();
     }
-
-    spin.setValue(0);
+    // Light turns inside the mask instead; see below.
+    if (!dark) return;
+    turn.setValue(0);
     const loop = Animated.loop(
-      Animated.timing(spin, {
+      Animated.timing(turn, {
         toValue: 1,
-        duration: TURN_MS,
-        // Linear, because a rotation that eases is a rotation that looks like
-        // it keeps stalling.
+        duration: SPIN_TURN * 1000,
+        // Linear: a rotation that eases looks like it keeps stalling.
         easing: Easing.linear,
         useNativeDriver: true,
       }),
     );
     loop.start();
     return () => loop.stop();
-  }, [spin, still]);
+  }, [dark, still, turn]);
+
+  const frame = still ? { turn: 0, spread: 1 } : spinnerFrame(t);
+  const d = markPath(frame.spread, [1, 1, 1]);
 
   return (
-    <View
-      style={[styles.box, fill && styles.filling]}
-      /*
-       * The same thing `ActivityIndicator` announces, said out loud.
-       *
-       * A rotating picture tells a screen reader nothing on its own, and this
-       * replaced a control that had the meaning built in — so the role and the
-       * label are the part that cannot be dropped in the swap.
-       */
-      accessibilityRole="progressbar"
-      accessibilityLabel="Loading"
-      accessible
+    <Animated.View
+      style={
+        still
+          ? { opacity: turn.interpolate({ inputRange: [0, 1], outputRange: [0.45, 1] }) }
+          : !dark
+          ? undefined
+          : {
+              transform: [
+                { rotate: turn.interpolate({ inputRange: [0, 1], outputRange: ['0deg', '360deg'] }) },
+              ],
+            }
+      }
     >
-      <Animated.View
-        style={
-          still
-            ? { opacity: spin.interpolate({ inputRange: [0, 1], outputRange: [0.45, 1] }) }
-            : {
-                transform: [
-                  {
-                    rotate: spin.interpolate({
-                      inputRange: [0, 1],
-                      outputRange: ['0deg', '360deg'],
-                    }),
-                  },
-                ],
-              }
-        }
-      >
-        {/*
-          One colour, not the three brand ones.
-
-          This is the mark as an instrument rather than as a signature. It
-          turns over the app's own background on eleven screens — and over
-          somebody's photographs on some of them — and three colours revolving
-          in the middle of a picture is the logo competing with the thing it
-          is waiting for.
-
-          Its regions still differ, by how much of that colour they carry: the
-          mark is three circles on an equilateral arrangement, so its
-          silhouette is unchanged by a third of a turn, and a flat one would
-          not read as turning at all. See `MARK_MONO`.
-
-          The theme's own `fg` on dark, taken from the scheme rather than from
-          a prop. White was the first answer and it is half of one — the light
-          theme's background is `#f7f8fa`, where a white mark is not there at
-          all. On light it is the web's glyph grey rather than the page's black
-          ink, so the mark is one colour wherever the product draws it.
-          Reading the scheme here costs one import; a theme threaded through
-          eleven call sites for a spinner would cost eleven.
-        */}
-        <Mark size={size} tint={dark ? '#f2f4f7' : '#3d424a'} />
-      </Animated.View>
-    </View>
+      <Svg width={size} height={size} viewBox="0 0 1024 1024">
+        {dark ? (
+          <Path fill="#fff" fillRule="evenodd" d={d} />
+        ) : (
+          <>
+            <FieldDefs prefix={id} />
+            <Mask id={`${id}-mark`} maskUnits="userSpaceOnUse" x={0} y={0} width={1024} height={1024}>
+              {/*
+                Turned here, not by the view: the field stays put and the
+                mark moves over it, so the colour a circle carries changes as
+                it goes round. Rotating the whole view would turn the field
+                with it and lose that.
+              */}
+              <Path
+                fill="#fff"
+                fillRule="evenodd"
+                d={d}
+                rotation={frame.turn}
+                originX={512}
+                originY={532}
+              />
+            </Mask>
+            <G mask={`url(#${id}-mark)`}>
+              <FieldRects prefix={id} />
+            </G>
+          </>
+        )}
+      </Svg>
+    </Animated.View>
   );
 }
 
