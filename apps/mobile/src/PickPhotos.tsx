@@ -43,7 +43,10 @@ import { StatusBar } from 'expo-status-bar';
 
 import type { GroupTheme } from './Groups';
 import {
+  drawable,
+  IDS_ARE_DRAWABLE,
   libraryAccess,
+  libraryIndex,
   recentPhotos,
   requestLibraryAccess,
   type LibraryAccess,
@@ -105,7 +108,8 @@ export function PickPhotos({
 
   const [access, setAccess] = useState<LibraryAccess>('undetermined');
   const [photos, setPhotos] = useState<LibraryPhoto[] | null>(null);
-  const [next, setNext] = useState<string | null>(null);
+  /** Where the next page starts, where the library is paged (see `IDS_ARE_DRAWABLE`). */
+  const [next, setNext] = useState<number | null>(null);
   const [loadingMore, setLoadingMore] = useState(false);
   /*
    * Chosen, in the order chosen.
@@ -233,7 +237,17 @@ export function PickPhotos({
         setPhotos([]);
         return;
       }
-      const first = await recentPhotos(PAGE);
+      /*
+       * The whole library at once where its ids can be drawn as they are
+       * (iOS — `ph://`): one cheap pass for every id and date, and the grid
+       * loads each thumbnail from Photos as it scrolls into view. So the grid
+       * is its full height from the start, and the scrubber covers the whole
+       * library with the right dates rather than sliding back up every time
+       * another page arrives. Elsewhere, a page at a time.
+       */
+      const first = IDS_ARE_DRAWABLE
+        ? { photos: drawable(await libraryIndex()), next: null }
+        : await recentPhotos(PAGE);
       setPhotos(first.photos);
       setNext(first.next);
       // The newest is in the frame before anybody touches anything: an empty
@@ -243,7 +257,7 @@ export function PickPhotos({
   }, []);
 
   const more = useCallback(async () => {
-    if (!next || loadingMore) return;
+    if (next === null || loadingMore) return;
     setLoadingMore(true);
     try {
       const page = await recentPhotos(PAGE, next);
@@ -367,6 +381,16 @@ export function PickPhotos({
         onContentSizeChange={(_, h) => setContentHeight(h)}
         showsVerticalScrollIndicator={false}
         ListHeaderComponent={frame}
+        /*
+          Every row is the same height, so the list never measures one: it
+          knows where row ten thousand is, and so does the scrubber. Rows, not
+          photos — FlatList calls this per row when it lays out columns.
+        */
+        getItemLayout={(_, index) => ({ length: rowHeight, offset: header + rowHeight * index, index })}
+        initialNumToRender={COLUMNS * 8}
+        maxToRenderPerBatch={COLUMNS * 8}
+        windowSize={7}
+        removeClippedSubviews
         keyExtractor={(photo) => photo.id}
         numColumns={COLUMNS}
         columnWrapperStyle={{ gap: GAP }}
@@ -390,6 +414,9 @@ export function PickPhotos({
             >
               <ExpoImage
                 source={{ uri: item.uri }}
+                // A recycled cell keeps its image view, so the key stops one
+                // photograph showing in another's place for a frame.
+                recyclingKey={item.id}
                 style={StyleSheet.absoluteFill}
                 contentFit="cover"
                 // No transition: a grid of sixty fading in on scroll is a grid

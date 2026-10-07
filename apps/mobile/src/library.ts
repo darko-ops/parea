@@ -18,6 +18,7 @@ import {
   type PermissionResponse,
 } from 'expo-media-library';
 import { Directory, File, Paths } from 'expo-file-system';
+import { Platform } from 'react-native';
 
 /** At most this many library reads in flight at once. */
 const CONCURRENCY = 8;
@@ -76,44 +77,67 @@ export type LibraryPhoto = {
 };
 
 /**
- * The most recent photographs, for somebody choosing by eye.
+ * Every photograph in the library, newest first — ids and times, in one pass.
  *
- * Ids, times and a URI and nothing else — no location lookup, which is the
- * expensive call and which a grid somebody is scrolling needs none of.
- *
- * Paged, with a screenful as the bound: `after` is the id to continue from, so a picker can fetch more as somebody
- * scrolls instead of reading a five-year camera roll to draw twelve tiles.
+ * The metadata pass is the cheap one: no file access, no location. Reading it
+ * once is what lets the picker know the whole library up front — how tall the
+ * grid is, and the date at any point in it — rather than discovering both
+ * sixty at a time while somebody is scrolling.
  */
-export async function recentPhotos(
-  limit: number,
-  after?: string,
-): Promise<{ photos: LibraryPhoto[]; next: string | null }> {
+export async function libraryIndex(): Promise<{ id: string; takenAt: number | null }[]> {
   const metas = await new Query()
     .eq(AssetField.MEDIA_TYPE, MediaType.IMAGE)
     // Newest first: a picker opens on last night, not on 2019.
     .orderBy({ key: AssetField.CREATION_TIME, ascending: false })
     .exeForMetadata();
+  return metas.map((m) => ({ id: m.id, takenAt: m.creationTime ?? null }));
+}
 
-  /*
-   * Paged in JavaScript rather than in the query.
-   *
-   * `Query` has no cursor, so the page has to be cut after the fact. The
-   * metadata pass is the cheap one — no location, no file access — and the
-   * expensive part is the `getUri` below, which is what the slice bounds.
-   */
-  const from = after ? metas.findIndex((m) => m.id === after) + 1 : 0;
-  const page = metas.slice(from, from + limit);
+/**
+ * Whether a library id can be drawn as it is.
+ *
+ * On iOS an asset's id *is* its `ph://` address, which `expo-image` loads
+ * straight from the Photos library at the size it is drawn — so a grid of the
+ * whole library costs nothing up front. Android's ids are not drawable, and
+ * each one needs `getUri`.
+ */
+export const IDS_ARE_DRAWABLE = Platform.OS === 'ios';
 
-  const photos = await pooled(page, CONCURRENCY, async (meta) => ({
-    id: meta.id,
-    uri: await new Asset(meta.id).getUri(),
-    takenAt: meta.creationTime ?? null,
-  }));
+/** Entries from `libraryIndex`, as a picker draws them. iOS only — see `IDS_ARE_DRAWABLE`. */
+export function drawable(entries: { id: string; takenAt: number | null }[]): LibraryPhoto[] {
+  return entries.map((e) => ({ id: e.id, uri: e.id, takenAt: e.takenAt }));
+}
 
-  return {
-    photos,
-    next: from + limit < metas.length ? (page.at(-1)?.id ?? null) : null,
-  };
+/**
+ * The most recent photographs, a page at a time, for somebody choosing by eye
+ * where ids are not drawable (Android — see `IDS_ARE_DRAWABLE`).
+ *
+ * Ids, times and a URI and nothing else — no location lookup, which is the
+ * expensive call and which a grid somebody is scrolling needs none of. Paged in
+ * the query with `offset` and `limit`: this used to read the whole library's
+ * metadata for every page and cut sixty out of it, which on a big library was
+ * most of why the grid filled in slowly.
+ */
+export async function recentPhotos(
+  limit: number,
+  from = 0,
+): Promise<{ photos: LibraryPhoto[]; next: number | null }> {
+  const page = await new Query()
+    .eq(AssetField.MEDIA_TYPE, MediaType.IMAGE)
+    .orderBy({ key: AssetField.CREATION_TIME, ascending: false })
+    .offset(from)
+    .limit(limit)
+    .exeForMetadata();
+
+  const photos = IDS_ARE_DRAWABLE
+    ? drawable(page.map((m) => ({ id: m.id, takenAt: m.creationTime ?? null })))
+    : await pooled(page, CONCURRENCY, async (meta) => ({
+        id: meta.id,
+        uri: await new Asset(meta.id).getUri(),
+        takenAt: meta.creationTime ?? null,
+      }));
+
+  return { photos, next: page.length === limit ? from + limit : null };
 }
 
 /**

@@ -68,6 +68,25 @@ describe('the picker', () => {
     expect(pick).toMatch(/scrollToOffset\(\{ offset: 0, animated: true \}\)/);
   });
 
+  it('knows the whole library up front where ids can be drawn, and pages properly elsewhere', () => {
+    /*
+     * It read the whole library's metadata for every page of sixty and cut the
+     * page out afterwards — slow on a big library, and the grid grew a page at
+     * a time, which sent the scrubber back up each time it did. On iOS an id is
+     * a `ph://` address expo-image draws as it is, so the whole index loads
+     * once and every row has a known place.
+     */
+    const pick = code(PICK);
+    expect(pick).toMatch(/IDS_ARE_DRAWABLE\s*\?\s*\{ photos: drawable\(await libraryIndex\(\)\), next: null \}/);
+    expect(pick).toMatch(/getItemLayout=\{\(_, index\) => \(\{ length: rowHeight, offset: header \+ rowHeight \* index, index \}\)\}/);
+    const lib = code(LIBRARY);
+    expect(lib).toMatch(/export const IDS_ARE_DRAWABLE = Platform\.OS === 'ios';/);
+    expect(lib).toMatch(/\.offset\(from\)\s*\.limit\(limit\)/);
+    // No URI lookup for a drawable id.
+    const recent = lib.slice(lib.indexOf('export async function recentPhotos'));
+    expect(recent).toMatch(/IDS_ARE_DRAWABLE\s*\?\s*drawable\(/);
+  });
+
   it('has a scrubber that moves the grid and says the date', () => {
     const pick = code(PICK);
     expect(pick).toMatch(/list\.current\?\.scrollToOffset\(\{ offset: y, animated: false \}\)/);
