@@ -95,7 +95,12 @@ primary_region = "iad"
   # measuring this produced a crash and nearly reported it as a derive failure.
   # Shrinking this wants a real HEIC from a real phone first.
   memory = "2gb"
-  cpu_kind = "shared"
+  # Dedicated, not shared. A shared core is throttled once its burst runs out,
+  # and HEIC decoding plus AVIF encoding run it out fast: on 7 October ten
+  # iPhone photographs went from twenty seconds each to three or four minutes,
+  # and the app gave up on them while they were still coming. The machine stops
+  # when idle, so a dedicated core costs only while it is working.
+  cpu_kind = "performance"
   cpus = 1
 
 # Exactly one. Scaling this out needs claim-based work distribution first —
