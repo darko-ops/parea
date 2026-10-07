@@ -3445,7 +3445,7 @@ button.small { padding: 7px 11px; font-size: 13px; border-radius: 8px; }
 /* An empty heart under a line nobody has liked shows on hover and on focus,
    like the `···` beside it — a quiet thread is not a column of hearts. A heart
    somebody has filled, or that carries a count, stays. */
-.message-like .like:not(.like-on):not(:has(.like-count)) { opacity: 0; transition: opacity 120ms; }
+.message-like .like:not(.like-on):not(.like-has) { opacity: 0; transition: opacity 120ms; }
 .message:hover .message-like .like, .message:focus-within .message-like .like { opacity: 1; }
 @media (hover: none) { .message-like .like:not(.like-on) { opacity: 1; } }
 /* The heart: outlined in the quiet ink, filled in the heart's own red once

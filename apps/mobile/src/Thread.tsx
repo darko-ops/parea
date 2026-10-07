@@ -1165,15 +1165,18 @@ export function ThreadRow({
               onPress={() => onReact('❤️')}
               accessibilityRole="button"
               accessibilityState={{ selected: liked }}
-              accessibilityLabel={`${liked ? 'Unlike' : 'Like'}, ${likes} ${likes === 1 ? 'like' : 'likes'}`}
+              // That it is liked, never how many times: a comment carries no
+              // count. The heart is red if it is yours, filled in the quiet ink
+              // if only others have liked it.
+              accessibilityLabel={liked ? 'Unlike' : 'Like'}
+              accessibilityHint="Liked by somebody in the thread"
               style={[
                 styles.chip,
                 styles.likeChip,
                 { backgroundColor: t.card, borderColor: liked ? LIKED : t.line },
               ]}
             >
-              <Glyph name="heart" size={13} weight={2.2} color={liked ? LIKED : t.dim} filled={liked} />
-              <Text style={[styles.chipText, { color: t.fg }]}>{likes}</Text>
+              <Glyph name="heart" size={13} weight={2.2} color={liked ? LIKED : t.dim} filled />
             </Pressable>
           </View>
         )}

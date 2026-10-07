@@ -703,6 +703,8 @@ function Row({
               count={likes}
               disabled={!canPost}
               what="this message"
+              // That it is liked, never how many times — see `bare`.
+              bare
               onToggle={toggleLike}
             />
           </div>

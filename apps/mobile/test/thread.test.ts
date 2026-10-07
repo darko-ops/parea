@@ -263,7 +263,10 @@ describe('the rules carried over from the web', () => {
      * it — filled when one of them is you — never an empty invitation.
      */
     expect(THREAD).toMatch(/\{likes > 0 && \(/);
-    expect(THREAD).toMatch(/<Glyph name="heart" size=\{13\} weight=\{2\.2\} color=\{liked \? LIKED : t\.dim\} filled=\{liked\} \/>/);
+    // Filled whenever it shows — it shows only once somebody has liked it —
+    // and with no number beside it: a comment says that, never how many.
+    expect(THREAD).toMatch(/<Glyph name="heart" size=\{13\} weight=\{2\.2\} color=\{liked \? LIKED : t\.dim\} filled \/>/);
+    expect(THREAD).not.toMatch(/\{likes\}<\/Text>/);
   });
 
   it('lets somebody take back their own reaction from the line', () => {

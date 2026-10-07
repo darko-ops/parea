@@ -172,7 +172,10 @@ describe('the two verbs under the photograph', () => {
     expect(REACT).toMatch(/import \{ LikeButton \} from '\.\/LikeButton';/);
     expect(REACT).not.toMatch(/REACTIONS|useDismiss/);
     expect(LIKE).toMatch(/aria-pressed=\{liked\}/);
-    expect(LIKE).toMatch(/fill=\{liked \? 'currentColor' : 'none'\}/);
+    expect(LIKE).toMatch(/const filled = liked \|\| \(bare && count > 0\);/);
+    expect(LIKE).toMatch(/fill=\{filled \? 'currentColor' : 'none'\}/);
+    // A comment's heart carries no number. See `bare`.
+    expect(LIKE).toMatch(/\{!bare && count > 0 && <span className="like-count">/);
     /*
      * Optimistic, and silent when it fails: the page is server-rendered and a
      * heart that only filled after a round trip would feel like a tap that
