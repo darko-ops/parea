@@ -48,8 +48,9 @@ export default function TermsPage() {
           <h2>Who can use it</h2>
           <p className="muted">
             You must be at least 13, and old enough where you live to agree to
-            this on your own. We ask for your date of birth when you make an
-            account, and do not keep it. If you are using Parea on behalf of an
+            this on your own. We ask the year you were born when you make an
+            account (and the month or day only if the year alone cannot tell),
+            and do not keep it. If you are using Parea on behalf of an
             organisation, you are saying you are allowed to agree to it for them.
           </p>
         </section>

@@ -97,7 +97,7 @@ tracking **No**; the linked-to-identity table; crash data not linked.
 
 > Parea signs people in with a one-time code sent by email; there are no passwords. For review we have set up a dedicated account that accepts a fixed code:
 >
-> 1. Open the app and tap Sign in (or Create account — a new account asks for a name and a date of birth; any date making you 13 or older works).
+> 1. Open the app and tap Sign in (or Create account — a new account asks for a name and the year you were born; any year before 2013 works).
 > 2. Enter appreview@parea.photos and tap Send me a code.
 > 3. Enter the code CODE_HERE.
 >

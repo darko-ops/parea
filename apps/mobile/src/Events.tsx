@@ -85,6 +85,7 @@ import {
 } from './platform';
 import { BlockedCard } from './Blocked';
 import { DevicesCard } from './Devices';
+import { birthFieldsNeeded, birthValue } from './birth';
 import { passkeysSupported } from './passkeys';
 import { addPasskey, signInWithPasskey, SUSPENDED_NOTE } from './signin';
 import { Waiting } from './Waiting';
@@ -3440,10 +3441,13 @@ export function AccountCard({
     [onSignedIn],
   );
 
-  const birthDateText = () =>
-    `${year.trim()}-${month.trim().padStart(2, '0')}-${day.trim().padStart(2, '0')}`;
-  const accountReady =
-    name.trim() !== '' && day.trim() !== '' && month.trim() !== '' && year.trim().length === 4 && agreed;
+  /*
+   * The year someone was born, and the month (then the day) only when the
+   * year cannot settle it — see `./birth`. Empty until enough is typed.
+   */
+  const birthDateText = () => birthValue(year.trim(), month.trim(), day.trim());
+  const birthNeeds = birthFieldsNeeded(year.trim(), month.trim());
+  const accountReady = name.trim() !== '' && birthDateText() !== '' && agreed;
 
   const verify = useCallback(async () => {
     setBusy(true);
@@ -3473,7 +3477,15 @@ export function AccountCard({
       if (err instanceof ApiError && err.code === 'invalid_birth_date') {
         setCode('');
         setAgeProof(typeof err.body.proof === 'string' ? err.body.proof : null);
-        setError('That date does not look right. Check it and try again.');
+        setError('That year does not look right. Check it and try again.');
+        return;
+      }
+      // Born exactly thirteen years ago: the month (or day) settles it. The
+      // fields already ask; this is only a clock at the edge of a month.
+      if (err instanceof ApiError && (err.code === 'birth_month_required' || err.code === 'birth_day_required')) {
+        setCode('');
+        setAgeProof(typeof err.body.proof === 'string' ? err.body.proof : null);
+        setError(err.code === 'birth_day_required' ? 'Add the day you were born, too.' : 'Add the month you were born, too.');
         return;
       }
       /*
@@ -3512,7 +3524,10 @@ export function AccountCard({
         setRefused(true);
       } else if (err instanceof ApiError && err.code === 'invalid_birth_date') {
         if (typeof err.body.proof === 'string') setAgeProof(err.body.proof);
-        setError('That date does not look right. Check it and try again.');
+        setError('That year does not look right. Check it and try again.');
+      } else if (err instanceof ApiError && (err.code === 'birth_month_required' || err.code === 'birth_day_required')) {
+        if (typeof err.body.proof === 'string') setAgeProof(err.body.proof);
+        setError(err.code === 'birth_day_required' ? 'Add the day you were born, too.' : 'Add the month you were born, too.');
       } else if (err instanceof ApiError && err.code === 'invalid_code') {
         // The ten minutes the address stays proved have passed.
         setAgeProof(null);
@@ -3689,7 +3704,7 @@ export function AccountCard({
           proof, back to the date; once its ten minutes are up, a new code.
         */}
         <Button
-          label="Change date of birth"
+          label="Change birth year"
           onPress={() => {
             setError(null);
             setRefused(false);
@@ -3793,28 +3808,8 @@ export function AccountCard({
   );
   const accountFields = (
     <>
-      <Text style={[styles.small, { color: t.dim }]}>Date of birth</Text>
+      <Text style={[styles.small, { color: t.dim }]}>Year you were born</Text>
         <View style={{ flexDirection: 'row', gap: 8 }}>
-          <TextInput
-            value={day}
-            onChangeText={setDay}
-            placeholder="Day"
-            placeholderTextColor={t.dim}
-            keyboardType="number-pad"
-            maxLength={2}
-            accessibilityLabel="Day you were born"
-            style={[...field, { flex: 1 }]}
-          />
-          <TextInput
-            value={month}
-            onChangeText={setMonth}
-            placeholder="Month"
-            placeholderTextColor={t.dim}
-            keyboardType="number-pad"
-            maxLength={2}
-            accessibilityLabel="Month you were born, as a number"
-            style={[...field, { flex: 1 }]}
-          />
           <TextInput
             value={year}
             onChangeText={setYear}
@@ -3825,6 +3820,30 @@ export function AccountCard({
             accessibilityLabel="Year you were born"
             style={[...field, { flex: 1.4 }]}
           />
+          {birthNeeds.month && (
+            <TextInput
+              value={month}
+              onChangeText={setMonth}
+              placeholder="Month"
+              placeholderTextColor={t.dim}
+              keyboardType="number-pad"
+              maxLength={2}
+              accessibilityLabel="Month you were born, as a number"
+              style={[...field, { flex: 1 }]}
+            />
+          )}
+          {birthNeeds.day && (
+            <TextInput
+              value={day}
+              onChangeText={setDay}
+              placeholder="Day"
+              placeholderTextColor={t.dim}
+              keyboardType="number-pad"
+              maxLength={2}
+              accessibilityLabel="Day you were born"
+              style={[...field, { flex: 1 }]}
+            />
+          )}
         </View>
       <Text style={[styles.small, { color: t.dim }]}>
         Used to check you can make an account, and not kept.

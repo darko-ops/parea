@@ -807,8 +807,9 @@ export default function PrivacyPage() {
           <p className="muted">
             Parea is not for people under 13, and not for anyone under the age at
             which they can agree to this on their own where they live. When an
-            account is made we ask for a date of birth, and nobody under 13 can
-            make one; the date itself is not kept. We do not knowingly keep
+            account is made we ask the year you were born — and the month or day
+            only if the year alone cannot tell — and nobody under 13 can make
+            one; the answer itself is not kept. We do not knowingly keep
             anything from a child. If you believe a child has uploaded to Parea,
             write to us and we will remove it.
           </p>

@@ -38,7 +38,7 @@ export const SAFETY_CONTACT = placeholder(
  * updated itself would say the terms changed every time anything deployed,
  * and a date that never moved would be a lie the first time they did.
  */
-export const LEGAL_UPDATED = '5 October 2026';
+export const LEGAL_UPDATED = '6 October 2026';
 
 /**
  * Whether this deployment checks images against known child-abuse material.

@@ -37,6 +37,8 @@
 
 import { useCallback, useEffect, useState } from 'react';
 
+import { birthFieldsNeeded, birthValue } from '@/birth';
+
 import {
   addPasskey,
   CANCELLED,
@@ -277,7 +279,7 @@ export function SignIn({
         if (body.proof) {
           setProof(body.proof);
           setStage('age');
-          throw new Error('That date does not look right. Check it and try again.');
+          throw new Error('That year does not look right. Check it and try again.');
         }
       }
       if (res.status === 429) {
@@ -330,7 +332,16 @@ export function SignIn({
       if (res.status === 400) {
         const body = (await res.json()) as { proof?: string };
         if (body.proof) setProof(body.proof);
-        throw new Error('That date does not look right. Check it and try again.');
+        throw new Error('That year does not look right. Check it and try again.');
+      }
+      if (res.status === 428) {
+        // Born exactly thirteen years ago, and the month (or day) is needed.
+        // The fields already ask for it; this is only a clock at the edge.
+        const body = (await res.json().catch(() => ({}))) as { error?: string; proof?: string };
+        if (body.proof) setProof(body.proof);
+        throw new Error(
+          body.error === 'birth_day_required' ? 'Add the day you were born, too.' : 'Add the month you were born, too.',
+        );
       }
       if (res.status === 401) {
         // The ten minutes the address stays proved have passed.
@@ -518,7 +529,7 @@ export function SignIn({
               setStage(proof ? 'age' : 'email');
             }}
           >
-            Change date of birth
+            Change birth year
           </button>
         </div>
       </section>
@@ -774,30 +785,29 @@ function AccountFields({
   setAgreed: (value: boolean) => void;
 }) {
   /*
-   * Day, month and year as three empty boxes, as the app asks, rather than a
-   * date input. A phone's date picker opens on today, and somebody who turns
-   * the day and the month but not the year has told the age check they were
-   * born this year. A year has to be typed.
+   * The year someone was born, and only that — unless the year cannot settle
+   * it. Born exactly thirteen years ago is the one year that can go either
+   * way, so then the month appears, and if that is this month, the day. See
+   * `@/birth` for the rule and why the question never names the cutoff.
    *
-   * The parent holds the date only once all three make one; until then it is
-   * empty, which keeps Create account disabled. Started from the parent's,
-   * because the form can remount between the email and the age stages.
+   * Typed boxes, not a date picker: a picker opens on today, and a year left
+   * there tells the check somebody was born this year. The parent holds a value
+   * only once enough has been typed to answer; until then it is empty, which
+   * keeps Create account disabled. Started from the parent's, because the form
+   * can remount between the email and the age stages.
    */
   const [initialYear = '', initialMonth = '', initialDay = ''] = birthDate ? birthDate.split('-') : [];
   const [day, setDay] = useState(initialDay);
   const [month, setMonth] = useState(initialMonth);
   const [year, setYear] = useState(initialYear);
+  const need = birthFieldsNeeded(year, month);
   const update = (next: { day?: string; month?: string; year?: string }) => {
     const parts = { day, month, year, ...next };
     for (const key of ['day', 'month', 'year'] as const) parts[key] = parts[key].replace(/\D/g, '');
     setDay(parts.day);
     setMonth(parts.month);
     setYear(parts.year);
-    setBirthDate(
-      parts.day && parts.month && parts.year.length === 4
-        ? `${parts.year}-${parts.month.padStart(2, '0')}-${parts.day.padStart(2, '0')}`
-        : '',
-    );
+    setBirthDate(birthValue(parts.year, parts.month, parts.day));
   };
   return (
     <>
@@ -815,32 +825,12 @@ function AccountFields({
           />
         </>
       )}
-      <label htmlFor="account-birth-day" style={{ marginTop: 16 }}>
-        Date of birth
+      <label htmlFor="account-birth-year" style={{ marginTop: 16 }}>
+        Year you were born
       </label>
       <div className="birth-date">
         <input
-          id="account-birth-day"
-          type="text"
-          inputMode="numeric"
-          autoComplete="bday-day"
-          maxLength={2}
-          placeholder="Day"
-          aria-label="Day you were born"
-          value={day}
-          onChange={(e) => update({ day: e.target.value })}
-        />
-        <input
-          type="text"
-          inputMode="numeric"
-          autoComplete="bday-month"
-          maxLength={2}
-          placeholder="Month"
-          aria-label="Month you were born, as a number"
-          value={month}
-          onChange={(e) => update({ month: e.target.value })}
-        />
-        <input
+          id="account-birth-year"
           type="text"
           inputMode="numeric"
           autoComplete="bday-year"
@@ -850,6 +840,30 @@ function AccountFields({
           value={year}
           onChange={(e) => update({ year: e.target.value })}
         />
+        {need.month && (
+          <input
+            type="text"
+            inputMode="numeric"
+            autoComplete="bday-month"
+            maxLength={2}
+            placeholder="Month"
+            aria-label="Month you were born, as a number"
+            value={month}
+            onChange={(e) => update({ month: e.target.value })}
+          />
+        )}
+        {need.day && (
+          <input
+            type="text"
+            inputMode="numeric"
+            autoComplete="bday-day"
+            maxLength={2}
+            placeholder="Day"
+            aria-label="Day you were born"
+            value={day}
+            onChange={(e) => update({ day: e.target.value })}
+          />
+        )}
       </div>
       <p className="muted">Used to check you can make an account, and not kept.</p>
       <label className="auth-agree">

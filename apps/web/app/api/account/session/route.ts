@@ -24,7 +24,8 @@ import { NextResponse } from 'next/server';
 
 import { accountExists, accountFor, consumeCode, signIn } from '@/accounts';
 import { isReviewSignIn } from '@/review';
-import { MINIMUM_AGE, ageOn, ageProof, checkAgeProof } from '@/age';
+import { ageProof, checkAgeProof } from '@/age';
+import { checkBirth } from '@/birth';
 import { getDb } from '@/db';
 import { isSuspended } from '@/suspension';
 import { hasPasskey, passkeyOwnerHasAccount, verifyAuthentication } from '@/passkeys';
@@ -163,8 +164,22 @@ export async function POST(request: Request) {
         { status: 428 },
       );
     }
-    const age = ageOn(body.birthDate);
-    if (age === null) {
+    /*
+     * As much of a birth date as it takes: a year, and the month (then the
+     * day) only for somebody born exactly thirteen years ago — see `@/birth`.
+     * A full date, which older app builds send, is still answered the same.
+     */
+    const birth = checkBirth(body.birthDate);
+    if (!birth.ok && (birth.reason === 'need_month' || birth.reason === 'need_day')) {
+      return NextResponse.json(
+        {
+          error: birth.reason === 'need_month' ? 'birth_month_required' : 'birth_day_required',
+          proof: ageProof(secret, proven.email),
+        },
+        { status: 428 },
+      );
+    }
+    if (!birth.ok && birth.reason === 'invalid') {
       return NextResponse.json(
         { error: 'invalid_birth_date', proof: ageProof(secret, proven.email) },
         { status: 400 },
@@ -176,7 +191,7 @@ export async function POST(request: Request) {
      * is told no and shown the date to fix, and the next date is checked the
      * same way. Nothing is made either time.
      */
-    if (age < MINIMUM_AGE) {
+    if (!birth.ok) {
       return NextResponse.json(
         { error: 'too_young', proof: ageProof(secret, proven.email) },
         { status: 403 },

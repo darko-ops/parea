@@ -39,8 +39,9 @@ One more is **not linked to the person** and **not used for tracking**:
 | Crash data | App info and performance → Crash logs | App functionality | Sent to Sentry when the app crashes or hits an error nothing caught: what failed and where. No user, no device name, no IP, no screenshots; album links, emails and phone numbers are scrubbed on the phone first (`apps/mobile/src/scrub.ts`). Off in any build without `EXPO_PUBLIC_SENTRY_DSN`. |
 
 Not collected: contacts, address book, browsing history, search history,
-health, financial info, audio, performance diagnostics, advertising data. A date of birth is asked for once at
-account creation to check age and is not stored.
+health, financial info, audio, performance diagnostics, advertising data. The year of birth (and
+the month or day only when the year cannot settle it) is asked once at account
+creation to check age and is not stored.
 
 ## Play Data safety, the yes/no questions
 
