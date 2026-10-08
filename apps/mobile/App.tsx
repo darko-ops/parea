@@ -3064,8 +3064,8 @@ function EventScreen({
         // failing silently twenty minutes later.
         mediaTypes: ['images'],
         allowsMultipleSelection: true,
-        // Twenty at a time — see `MAX_PER_SELECTION`. The picker stops at the
-        // limit itself on iOS 14+ and Android, so nobody chooses forty and
+        // Fifty at a time — see `MAX_PER_SELECTION`. The picker stops at the
+        // limit itself on iOS 14+ and Android, so nobody chooses a hundred and
         // finds half of them quietly dropped; the rest go in the next time.
         selectionLimit: MAX_PER_SELECTION,
         // In the order they were tapped, which is the order a roll stacks
@@ -3081,7 +3081,7 @@ function EventScreen({
     }
     if (picked.canceled || picked.assets.length === 0) return;
     // And again here, for a picker that ignores the limit — older iOS, some
-    // Android galleries. The first twenty in the order they were tapped.
+    // Android galleries. The first fifty in the order they were tapped.
     const assets = picked.assets.slice(0, MAX_PER_SELECTION);
 
     // The other half of §18's precision number: a contribution that never got

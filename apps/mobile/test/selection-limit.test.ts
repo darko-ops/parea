@@ -1,8 +1,8 @@
 /**
- * Twenty photographs at a time, wherever somebody chooses them.
+ * Fifty photographs at a time, wherever somebody chooses them.
  *
- * Processing is one photo at a time, so a batch of two hundred takes long
- * enough to look like it failed. `MAX_PER_SELECTION` in `@parea/upload` is the
+ * Processing is four photos at a time, so a batch of two hundred still takes
+ * long enough to look like it failed. `MAX_PER_SELECTION` in `@parea/upload` is the
  * one number for it, shared with the web — read from there, never typed here.
  *
  * Source checks, because there is no renderer in this suite.
@@ -43,7 +43,7 @@ describe('the system picker', () => {
     expect(pick).not.toMatch(/of picked\.assets\.entries\(\)/);
   });
 
-  it('is never a hard-coded twenty', () => {
+  it('is never a hard-coded number', () => {
     expect(pick).not.toMatch(/selectionLimit: \d/);
   });
 });

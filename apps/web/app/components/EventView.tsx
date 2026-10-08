@@ -589,7 +589,7 @@ export function EventView({
       const usable = picked.filter((file) => refuseFile(file) === null);
       setSkipped(picked.length - usable.length);
       // Per pick, not per roll: what is already here or on its way does not
-      // count, so the next pick can add twenty more.
+      // count, so the next pick can add fifty more.
       const { kept, dropped } = capSelection(0, usable, MAX_PER_SELECTION);
       setOverLimit(dropped > 0 ? selectionNote(kept.length, MAX_PER_SELECTION) : null);
 

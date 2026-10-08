@@ -1,5 +1,5 @@
 /**
- * Twenty photos a selection, on both pickers.
+ * Fifty photos a selection, on both pickers.
  *
  * `<input type="file" multiple>` cannot be told how many, so the limit is
  * applied after the pick. The helper is tested as a function; that both
@@ -55,7 +55,7 @@ describe('both pickers apply it', () => {
     expect(read('../app/components/EventView.tsx')).toMatch(/uploads\.add\(kept\)/);
   });
 
-  it('is twenty', () => {
-    expect(MAX_PER_SELECTION).toBe(20);
+  it('is fifty', () => {
+    expect(MAX_PER_SELECTION).toBe(50);
   });
 });

@@ -174,12 +174,15 @@ export const CONCURRENCY = 3;
 /**
  * The most photos one selection adds, on the web and in the app.
  *
- * Processing takes one photo at a time, about ten seconds each, so a big batch
- * takes minutes to appear however fast it uploads. Twenty is a few minutes —
- * long enough that somebody sees their photos arriving, short enough that they
- * do. More is fine; it is added twenty at a time.
+ * Fifty, the same as `MAX_FILES_PER_PRESIGN`. It was twenty while the deriver
+ * made one photograph at a time, about ten seconds each; it makes four at once
+ * now, so fifty appear in a couple of minutes — long enough that somebody sees
+ * their photos arriving, short enough that they do. Much past this the phone's
+ * picker is what slows: it copies every chosen photograph before handing any
+ * back, downloading each from iCloud first when the library is optimised.
+ * More is fine; it is added fifty at a time.
  */
-export const MAX_PER_SELECTION = 20;
+export const MAX_PER_SELECTION = 50;
 /** Beyond this a file is almost certainly not going to succeed on its own. */
 export const MAX_ATTEMPTS = 4;
 /** Re-presign rather than upload if the URL is this close to expiring. */
