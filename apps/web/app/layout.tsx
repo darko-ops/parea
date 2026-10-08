@@ -31,7 +31,7 @@ import './globals.css';
  * large-image card in a 2:1 frame would crop the mark, which is the one thing
  * in there that must survive.
  */
-const TITLE = 'Every photo from everyone who was there';
+const TITLE = 'Life, with your people. Never miss a moment.';
 const DESCRIPTION =
   'Parea collects the photographs from one thing that happened and gives ' +
   'everyone who was there the full set.';
