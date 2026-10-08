@@ -123,6 +123,7 @@ export function Lately({
   onAnswered,
   onOpenEvent,
   onOpenPerson,
+  onOpenGroup,
 }: {
   api: Api;
   t: GroupTheme;
@@ -138,6 +139,7 @@ export function Lately({
   onAnswered: () => void;
   onOpenEvent: (eventId: string) => void;
   onOpenPerson: (handle: string) => void;
+  onOpenGroup: (groupId: string) => void;
 }) {
   const [waiting, setWaiting] = useState<PendingRequest[]>([]);
   const [items, setItems] = useState<ActivityRow[] | null>(null);
@@ -212,8 +214,10 @@ export function Lately({
       if (event) return onOpenEvent(event[1]!);
       const person = row.href?.match(/^\/u\/([^/]+)$/);
       if (person) return onOpenPerson(decodeURIComponent(person[1]!));
+      const group = row.href?.match(/^\/group\/([0-9a-f-]{36})$/i);
+      if (group) return onOpenGroup(group[1]!);
     },
-    [onOpenEvent, onOpenPerson],
+    [onOpenEvent, onOpenPerson, onOpenGroup],
   );
 
   return (

@@ -124,6 +124,15 @@ export type ActivityKind =
   | 'friend_accepted'
   | 'joined_yours'
   /**
+   * Somebody said yes to joining a group you invited them to.
+   *
+   * `joined_yours` for groups. An invitation to a group is answered in the
+   * invitee's tray and nowhere else, so from the side of whoever asked, being
+   * said yes to looked exactly like never being answered — the same hole
+   * `friend_accepted` was made to fill.
+   */
+  | 'group_joined'
+  /**
    * You asked to be let into somebody's private roll.
    *
    * Your own act, in the list at the moment it happened, so the page's history
@@ -294,6 +303,7 @@ export async function activityFor(
     befriended,
     arrivals,
     askedFor,
+    groupJoins,
   ] = await Promise.all([
     db
       .select({ key: schema.hiddenActivity.itemKey })
@@ -788,6 +798,38 @@ export async function activityFor(
       )
       .orderBy(desc(schema.eventAccessRequests.createdAt))
       .limit(LIMIT),
+
+    /*
+     * Somebody accepted your invitation to a group.
+     *
+     * Read off the invitation rather than the membership, because the
+     * invitation is what says *you* asked: a member who arrived by a request
+     * an admin approved was not answering anybody reading this.
+     */
+    db
+      .select({
+        id: schema.groupInvites.id,
+        at: schema.groupInvites.respondedAt,
+        who: NAME,
+        avatarKey: schema.actors.avatarKey,
+        groupId: schema.groups.id,
+        name: schema.groups.name,
+      })
+      .from(schema.groupInvites)
+      .innerJoin(schema.groups, eq(schema.groups.id, schema.groupInvites.groupId))
+      .innerJoin(schema.actors, eq(schema.actors.id, schema.groupInvites.actorId))
+      .where(
+        and(
+          not(blockedBetween(actorId, schema.groupInvites.actorId)),
+          eq(schema.groupInvites.invitedByActorId, actorId),
+          ne(schema.groupInvites.actorId, actorId),
+          eq(schema.groupInvites.status, 'accepted'),
+          isNotNull(schema.groupInvites.respondedAt),
+          isNull(schema.groups.deletedAt),
+        ),
+      )
+      .orderBy(desc(schema.groupInvites.respondedAt))
+      .limit(LIMIT),
   ]);
 
   /*
@@ -956,6 +998,23 @@ export async function activityFor(
       what: `joined ${a.name}`,
       href: `/event/${a.eventId}`,
       image: await avatarUrl(a.avatarKey),
+      images: [],
+    })),
+    ...groupJoins.map(async (g) => ({
+      id: `groupjoin:${g.id}`,
+      kind: 'group_joined' as const,
+      at: g.at!.toISOString(),
+      who: g.who,
+      /*
+       * A named group by its name. An unnamed one is titled from its members
+       * (`titleFor`), which now includes the person this line is about —
+       * "Wren joined Wren, Ana + 2 more" — so it is not named at all.
+       */
+      what: g.name?.trim()
+        ? `joined ${g.name.trim()}`
+        : 'joined the group you invited them to',
+      href: `/group/${g.groupId}`,
+      image: await avatarUrl(g.avatarKey),
       images: [],
     })),
     ...comments.map(async (c) => ({

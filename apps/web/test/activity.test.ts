@@ -56,7 +56,7 @@ beforeEach(async () => {
     truncate "account", "actor", "event", "event_participant",
       "event_access_request", "event_message", "message_reaction",
       "friend_request", "photo", "photo_tag", "photo_reaction",
-      "hidden_activity"
+      "hidden_activity", "groups", "group_invite"
     restart identity cascade
   `);
 });
@@ -465,6 +465,53 @@ describe('being said yes to', () => {
     const no = await actor('no');
     await asks(me, open);
     await asks(me, no, 'declined', new Date());
+
+    expect(await did(db, me)).toEqual([]);
+  });
+});
+
+describe('somebody accepting your invitation to a group', () => {
+  async function invited(by: string, who: string, name: string | null, status: 'open' | 'accepted' | 'declined') {
+    const [group] = await db.insert(schema.groups).values({ name }).returning();
+    await db.insert(schema.groupInvites).values({
+      groupId: group!.id,
+      actorId: who,
+      invitedByActorId: by,
+      status,
+      respondedAt: status === 'open' ? null : new Date(),
+    });
+    return group!;
+  }
+
+  it('tells whoever asked, who otherwise hears nothing back', async () => {
+    const me = await actor('me');
+    const them = await actor('wren');
+    const group = await invited(me, them, 'Book club', 'accepted');
+
+    expect(await did(db, me)).toMatchObject([
+      { kind: 'group_joined', who: '@wren', what: 'joined Book club', href: `/group/${group.id}` },
+    ]);
+  });
+
+  it('does not name a group nobody named', async () => {
+    const me = await actor('me');
+    const them = await actor('wren');
+    await invited(me, them, null, 'accepted');
+
+    expect(await did(db, me)).toMatchObject([
+      { kind: 'group_joined', what: 'joined the group you invited them to' },
+    ]);
+  });
+
+  it('says nothing for an invitation still open or declined, or one somebody else sent', async () => {
+    const me = await actor('me');
+    const other = await actor('other');
+    const a = await actor('a');
+    const b = await actor('b');
+    const c = await actor('c');
+    await invited(me, a, 'Open', 'open');
+    await invited(me, b, 'Declined', 'declined');
+    await invited(other, c, 'Theirs', 'accepted');
 
     expect(await did(db, me)).toEqual([]);
   });

@@ -1866,6 +1866,7 @@ export default function App() {
               if (listing) openListing(listing);
             }}
             onOpenPerson={(handle) => setRoute({ screen: 'person', handle })}
+            onOpenGroup={(id) => setRoute({ screen: 'group', id })}
           />
         </SwipeBack>
       )}
