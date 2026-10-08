@@ -2278,7 +2278,7 @@ function JoinScreen({
         <Text style={[styles.body, { color: t.accent }]}>‹ Back</Text>
       </Pressable>
       <Text style={[styles.h1, { color: t.fg }]}>
-        Every photo from everyone who was there
+        Life, with your people. Never miss a moment.
       </Text>
 
       <View style={[styles.card, { backgroundColor: t.card, borderColor: t.line }]}>
