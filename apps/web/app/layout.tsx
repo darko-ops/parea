@@ -33,8 +33,8 @@ import './globals.css';
  */
 const TITLE = 'Life, with your people. Never miss a moment.';
 const DESCRIPTION =
-  'Parea collects the photographs from one thing that happened and gives ' +
-  'everyone who was there the full set.';
+  "Parea brings together everyone's photos from the moments you share, so " +
+  'nobody misses one.';
 
 export const metadata: Metadata = {
   metadataBase: new URL(SITE),
