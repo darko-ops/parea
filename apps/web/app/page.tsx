@@ -410,8 +410,8 @@ export default function CreatePage() {
               <div>
                 <h1>Create Roll</h1>
                 <p className="muted" style={{ margin: 0 }}>
-                  Everyone who was there puts their photos in one place, and
-                  everyone gets the full set.
+                  Bring together everyone&rsquo;s photos from the moments you
+                  share, so nobody misses one.
                 </p>
               </div>
               <SignIn
@@ -440,7 +440,7 @@ export default function CreatePage() {
               <p className="muted" style={{ margin: 0 }}>
                 {step === 'photos'
                   ? 'Start with the photos. The questions are easier to answer with them on the screen.'
-                  : 'Everyone who was there puts their photos in one place, and everyone gets the full set.'}
+                  : 'Bring together everyone’s photos from the moments you share, so nobody misses one.'}
               </p>
             </div>
 
