@@ -36,6 +36,33 @@ export type Hosting = {
   asked: 'open' | 'approved' | 'declined' | null;
 };
 
+/**
+ * Whether this account is one of the album's hosts: whoever made it, or
+ * somebody it made a co-host.
+ *
+ * The account actor, never the device's — see `hostingFor`. Null is nobody.
+ */
+export async function isHostOf(
+  db: Db,
+  event: { id: string; createdBy: string },
+  accountActorId: string | null,
+): Promise<boolean> {
+  if (!accountActorId) return false;
+  if (accountActorId === event.createdBy) return true;
+
+  const [participant] = await db
+    .select({ role: schema.eventParticipants.role })
+    .from(schema.eventParticipants)
+    .where(
+      and(
+        eq(schema.eventParticipants.eventId, event.id),
+        eq(schema.eventParticipants.actorId, accountActorId),
+      ),
+    )
+    .limit(1);
+  return participant?.role === 'host';
+}
+
 /** Nobody is asking about an album they are not signed in to. */
 const NOT_ASKING: Hosting = { isHost: false, canAsk: false, asked: null };
 
@@ -55,18 +82,7 @@ export async function hostingFor(
 ): Promise<Hosting> {
   if (!accountActorId) return NOT_ASKING;
 
-  const [participant] = await db
-    .select({ role: schema.eventParticipants.role })
-    .from(schema.eventParticipants)
-    .where(
-      and(
-        eq(schema.eventParticipants.eventId, event.id),
-        eq(schema.eventParticipants.actorId, accountActorId),
-      ),
-    )
-    .limit(1);
-
-  const isHost = accountActorId === event.createdBy || participant?.role === 'host';
+  const isHost = await isHostOf(db, event, accountActorId);
 
   /*
    * Their own ask, and only looked up when it could change what is drawn.

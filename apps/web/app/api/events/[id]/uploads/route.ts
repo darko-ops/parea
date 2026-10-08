@@ -12,6 +12,7 @@ import { NextResponse } from 'next/server';
 
 import { findEventById, guard, recordParticipant, toResponse } from '@/access';
 import { getDb } from '@/db';
+import { isHostOf } from '@/hosts';
 import { isBlockedBy } from '@/moderation';
 import { PRESIGN_LIMIT, PRESIGN_NETWORK_LIMIT, withinLimit, withinLimitFor } from '@/ratelimit';
 import { currentAccountActorId, ensureActor, requesterFor } from '@/session';
@@ -129,14 +130,25 @@ export async function POST(
   // Per-request limits alone bound nothing: a thousand requests of fifty files
   // is still a thousand requests. The cap that matters is cumulative.
   const incomingBytes = files.reduce((total, file) => total + file.size, 0);
-  const [mine, total] = await Promise.all([
+  const [mine, total, hosting] = await Promise.all([
     used(db, event.id, actorId),
     used(db, event.id),
+    isHostOf(db, event, account),
   ]);
 
+  /*
+   * Hosts are not held to the per-person bound.
+   *
+   * It is there for a link in the wrong hands, and a host is not one: being
+   * one takes the account that made the album or that account's say-so. The
+   * people it did stop were the honest heavy shooters — a hired photographer,
+   * somebody loading a whole trip into their own album. The per-event bound
+   * below still holds for everybody, hosts included.
+   */
   if (
-    mine.photos + files.length > MAX_PHOTOS_PER_ACTOR_PER_EVENT ||
-    mine.bytes + incomingBytes > MAX_BYTES_PER_ACTOR_PER_EVENT
+    !hosting &&
+    (mine.photos + files.length > MAX_PHOTOS_PER_ACTOR_PER_EVENT ||
+    mine.bytes + incomingBytes > MAX_BYTES_PER_ACTOR_PER_EVENT)
   ) {
     // Worth knowing about: the bound is set far above real use, so hitting it
     // means either abuse or an assumption about real use being wrong.

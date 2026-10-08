@@ -159,3 +159,35 @@ describe('the bounds themselves', () => {
     expect(source).toMatch(/mine\.bytes \+ incomingBytes/);
   });
 });
+
+describe('hosts', () => {
+  it('are whoever made the album, and its co-hosts, and nobody else', async () => {
+    const { isHostOf } = await import('../src/hosts');
+    const { actor, other, event } = await scene();
+    const [guest] = await db.insert(schema.actors).values({ kind: 'guest' }).returning();
+    await db.insert(schema.eventParticipants).values([
+      { eventId: event, actorId: other, role: 'host' },
+      { eventId: event, actorId: guest.id },
+    ]);
+    const album = { id: event, createdBy: actor };
+
+    expect(await isHostOf(db, album, actor)).toBe(true);
+    expect(await isHostOf(db, album, other)).toBe(true);
+    expect(await isHostOf(db, album, guest.id)).toBe(false);
+    expect(await isHostOf(db, album, null)).toBe(false);
+  });
+
+  it('are not held to the per-person bound, and are to the per-event one', async () => {
+    // A hired photographer, or somebody loading a whole trip into their own
+    // album, is not the leaked link the per-person bound is for.
+    const source = await import('node:fs/promises').then((fs) =>
+      fs.readFile(
+        fileURLToPath(new URL('../app/api/events/[id]/uploads/route.ts', import.meta.url)),
+        'utf8',
+      ),
+    );
+    expect(source).toMatch(/isHostOf\(db, event, account\)/);
+    expect(source).toMatch(/!hosting &&\s*\(mine\.photos \+ files\.length > MAX_PHOTOS_PER_ACTOR_PER_EVENT/);
+    expect(source).toMatch(/if \(\s*total\.photos \+ files\.length > MAX_PHOTOS_PER_EVENT/);
+  });
+});
