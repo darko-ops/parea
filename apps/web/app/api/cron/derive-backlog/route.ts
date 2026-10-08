@@ -1,5 +1,9 @@
 /**
- * The alarm on the photo queue — run every five minutes by Vercel's cron.
+ * The alarm on the photo queue — run every fifteen minutes by Vercel's cron.
+ *
+ * Fifteen rather than five because each run wakes the database, and at five
+ * the database never got to sleep: Neon suspends after five idle minutes, so a
+ * check that often kept it awake all month for nothing.
  *
  * The deriver works through photographs in the order they arrive, a few at a
  * time. When more arrive than it can keep up with, nothing fails: photographs
@@ -10,7 +14,7 @@
  *
  * Said through Sentry and, when `OPS_ALERT_EMAIL` is set, by email, the same
  * as the jobs heartbeat; once, and then again at most hourly while it lasts,
- * so a long backlog is one alert an hour rather than one every five minutes.
+ * so a long backlog is one alert an hour rather than one every fifteen minutes.
  *
  * Recorded in `job_run` as `derive_backlog`, so the admin page lists it beside
  * the hourly clean-up: succeeded when the queue was healthy, failed with the

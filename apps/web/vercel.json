@@ -11,7 +11,7 @@
     },
     {
       "path": "/api/cron/derive-backlog",
-      "schedule": "*/5 * * * *"
+      "schedule": "*/15 * * * *"
     },
     {
       "path": "/api/cron/requeue-stranded",

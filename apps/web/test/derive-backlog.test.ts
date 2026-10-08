@@ -84,7 +84,7 @@ describe('the photo queue alarm', () => {
     expect(row!.lastSucceededAt).not.toBeNull();
   });
 
-  it('says so once when the oldest has waited more than five minutes, not every five', async () => {
+  it('says so once when the oldest has waited more than five minutes, not on every check', async () => {
     await waiting(minutesAgo(12));
     await waiting(minutesAgo(1));
     await call();
@@ -100,10 +100,10 @@ describe('the photo queue alarm', () => {
     expect(captured).toHaveLength(0);
   });
 
-  it('is on the five-minute schedule', () => {
+  it('is on the fifteen-minute schedule', () => {
     const vercel = JSON.parse(
       readFileSync(fileURLToPath(new URL('../vercel.json', import.meta.url)), 'utf8'),
     ) as { crons: { path: string; schedule: string }[] };
-    expect(vercel.crons).toContainEqual({ path: '/api/cron/derive-backlog', schedule: '*/5 * * * *' });
+    expect(vercel.crons).toContainEqual({ path: '/api/cron/derive-backlog', schedule: '*/15 * * * *' });
   });
 });
