@@ -28,7 +28,7 @@ export function SignInPage() {
     <LoginScreen>
       <SignIn
         title="Welcome to Parea"
-        why="Every photo from everyone who was there — sign in or make an account to see your rolls."
+        why="Life, with your people. Never miss a moment. Sign in or make an account to see your rolls."
         onSignedIn={signedIn}
       />
     </LoginScreen>
