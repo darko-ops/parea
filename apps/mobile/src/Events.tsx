@@ -1424,6 +1424,9 @@ export function ChatsTab({
       ref={scroller}
       contentContainerStyle={styles.groupsScroll}
       keyboardShouldPersistTaps="handled"
+      // A search field sits at the top of this tab; dragging the list puts the
+      // keyboard away, as it does in Messages.
+      keyboardDismissMode="on-drag"
       refreshControl={
         <RefreshControl refreshing={refreshing} onRefresh={refresh} tintColor={t.dim} />
       }
@@ -2432,7 +2435,13 @@ export function SearchTab({
   const doorLetter = Math.round(tile * 0.4);
 
   return (
-    <ScrollView ref={scroller} contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
+    <ScrollView
+      ref={scroller}
+      contentContainerStyle={styles.scroll}
+      keyboardShouldPersistTaps="handled"
+      // Dragging the results puts the keyboard away, as it does in Messages.
+      keyboardDismissMode="on-drag"
+    >
       {/*
         The field *is* the head here, and it is the one tab where that is true.
 
