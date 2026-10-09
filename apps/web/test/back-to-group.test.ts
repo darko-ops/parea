@@ -45,3 +45,12 @@ describe('a roll opened from a group', () => {
     expect(view).toMatch(/params\.set\('group', group\)/);
   });
 });
+
+describe("a roll in a group's people tab", () => {
+  it('says the group decides who is in it, and links there', () => {
+    const view = read('app/components/EventView.tsx');
+    expect(view).toMatch(/\{group && \(\s*<p className="people-group-note">/);
+    expect(view).toMatch(/To add or remove\s+people, do it in the group\./);
+    expect(view).toMatch(/<a href=\{`\/group\/\$\{group\.id\}`\}>Open \{group\.name\}<\/a>/);
+  });
+});

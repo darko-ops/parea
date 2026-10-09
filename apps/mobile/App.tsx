@@ -5101,6 +5101,14 @@ function EventScreen({
             hosted={(adding ?? feed?.event.contributePolicy) === 'host'}
             onSetHost={(actorId, host) => void setHost(actorId, host)}
             onPerson={personActions}
+            group={
+              feed?.event.groupId
+                ? {
+                    name: feed.event.groupName ?? 'the group',
+                    onOpen: () => onOpenGroup(feed.event.groupId!),
+                  }
+                : undefined
+            }
           />
         )}
       </View>

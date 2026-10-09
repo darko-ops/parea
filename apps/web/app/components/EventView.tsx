@@ -1256,6 +1256,11 @@ export function EventView({
                 : undefined
             }
             onInvite={() => setSharing(true)}
+            group={
+              feed.event.groupId
+                ? { id: feed.event.groupId, name: feed.event.groupName ?? 'the group' }
+                : null
+            }
             onRemove={
               feed.event.canAdminister && feed.event.accessPolicy === PRIVATE
                 ? removeMember
@@ -1546,9 +1551,16 @@ function People({
   onMakeHost,
   onInvite,
   onRemove,
+  group,
 }: {
   roster: Roster[];
   linkToken: string;
+  /**
+   * The group this roll is in, when it is in one. Who is in it is decided
+   * there — everyone in the group, nobody else — so the tab says where to go
+   * to change it rather than leaving somebody looking for a control here.
+   */
+  group: { id: string; name: string } | null;
   /** Half of what the line under the link is allowed to promise. */
   accessPolicy: string;
   /**
@@ -1613,6 +1625,13 @@ function People({
           Invite
         </button>
       </div>
+
+      {group && (
+        <p className="people-group-note">
+          Everyone in <strong>{group.name}</strong> is in this roll. To add or remove
+          people, do it in the group. <a href={`/group/${group.id}`}>Open {group.name}</a>
+        </p>
+      )}
 
       {removing && onRemove && (
         <div className="strip-confirm" role="group" aria-label="Confirm removal">

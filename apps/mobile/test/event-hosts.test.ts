@@ -121,3 +121,11 @@ describe('the ask, once it is sent', () => {
     expect(read('src/answers.ts')).toMatch(/host: \{ yes: 'Let them add', no: 'Not now' \}/);
   });
 });
+
+describe("a roll in a group's people list", () => {
+  it('says the group decides who is in it, and opens the group', () => {
+    expect(THREAD).toMatch(/To add or remove people, do it in the group\./);
+    expect(THREAD).toMatch(/onPress=\{group\.onOpen\}/);
+    expect(APP).toMatch(/onOpen: \(\) => onOpenGroup\(feed\.event\.groupId!\)/);
+  });
+});

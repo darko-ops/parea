@@ -1403,6 +1403,12 @@ export function People({
    * pressable.
    */
   onPerson,
+  /**
+   * The group this roll is in, when it is in one. Who is in it is decided
+   * there — everyone in the group, nobody else — so the list says where to
+   * go to change it rather than leaving somebody looking for a control here.
+   */
+  group,
 }: {
   roster: Roster[];
   t: GroupTheme;
@@ -1410,12 +1416,32 @@ export function People({
   hosted?: boolean;
   onSetHost?: (actorId: string, host: boolean) => void;
   onPerson?: (person: Roster) => void;
+  group?: { name: string; onOpen: () => void };
 }) {
   return (
     <FlatList
       data={roster}
       keyExtractor={(person, i) => person.actorId ?? `${person.name}-${i}`}
       contentContainerStyle={styles.people}
+      ListHeaderComponent={
+        group ? (
+          <Pressable
+            onPress={group.onOpen}
+            accessibilityRole="button"
+            accessibilityHint={`Opens ${group.name}`}
+            style={({ pressed }) => [
+              styles.groupNote,
+              { backgroundColor: t.card, borderColor: t.line, opacity: pressed ? 0.7 : 1 },
+            ]}
+          >
+            <Text style={[styles.groupNoteText, { color: t.dim }]}>
+              Everyone in <Text style={{ color: t.fg, fontWeight: '600' }}>{group.name}</Text> is
+              in this roll. To add or remove people, do it in the group.
+            </Text>
+            <Text style={[styles.groupNoteLink, { color: t.fg }]}>Open {group.name} ›</Text>
+          </Pressable>
+        ) : null
+      }
       renderItem={({ item }) => {
         const lens = lensFor(item.actorId ?? item.name);
         /*
@@ -1797,6 +1823,9 @@ const styles = StyleSheet.create({
   postText: { fontSize: 14, fontWeight: '600' },
   error: { fontSize: 13, lineHeight: 18 },
   people: { padding: 16, paddingBottom: 40 },
+  groupNote: { borderWidth: 1, borderRadius: 12, padding: 12, gap: 6, marginBottom: 8 },
+  groupNoteText: { fontSize: 13.5, lineHeight: 19 },
+  groupNoteLink: { fontSize: 13.5, fontWeight: '600' },
   personRow: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 11, borderBottomWidth: 1 },
   personFace: { width: 38, height: 38, borderRadius: 10 },
   personLetter: { fontSize: 14, fontWeight: '700' },
