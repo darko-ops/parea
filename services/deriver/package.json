@@ -24,7 +24,7 @@
     "@upstash/qstash": "^2.11.3",
     "drizzle-orm": "^0.45.2",
     "postgres": "^3.4.9",
-    "sharp": "^0.35.4",
+    "sharp": "^0.35.5",
     "tsx": "^4.20.6"
   },
   "devDependencies": {
