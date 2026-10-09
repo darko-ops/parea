@@ -580,8 +580,9 @@ export function FindFriendsView() {
                               className="secondary small hit-do"
                               disabled={standing === 'asking'}
                               onClick={() => void ask(person)}
+                              aria-label={`Add ${name} as a friend`}
                             >
-                              Add friend
+                              + Add
                             </button>
                           )}
                         </li>

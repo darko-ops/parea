@@ -656,7 +656,7 @@ export function FindFriends({
                               <Text style={[styles.done, { color: t.dim }]}>Asked</Text>
                             ) : (
                               <Button
-                                label="Add friend"
+                                label="+ Add"
                                 t={t}
                                 primary
                                 disabled={standing === 'asking'}
