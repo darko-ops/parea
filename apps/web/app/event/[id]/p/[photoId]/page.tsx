@@ -25,6 +25,7 @@ import { notFound } from 'next/navigation';
 import { avatarUrl } from '@/accounts';
 import { decide, findEventById } from '@/access';
 import { contributorKey, contributorsOf } from '@/contributors';
+import { coverFirst } from '@/cover';
 import { getDb } from '@/db';
 import { hasDerivatives, imageSources, imageSrc } from '@/images';
 import { mayListMembers, membersOf, visibleMembers } from '@/members';
@@ -114,11 +115,17 @@ export default async function PhotoPage({
    * say where you are in the event and what is either side of you — and
    * "photo 7 of 214" is not answerable from the photograph alone.
    */
-  const rows = await db
-    .select()
-    .from(schema.photos)
-    .where(visiblePhotos(event.id, await viewerContext(db, viewerId)))
-    .orderBy(desc(schema.photos.addedSeq));
+  const rows = coverFirst(
+    await db
+      .select()
+      .from(schema.photos)
+      .where(visiblePhotos(event.id, await viewerContext(db, viewerId)))
+      .orderBy(desc(schema.photos.addedSeq)),
+    // The cover ahead of the rest, as the gallery has it — without this the
+    // roll's first picture was somewhere in the middle of the strip, and
+    // "1 of 12" on the gallery's first tile read as some other number here.
+    event.coverPhotoId,
+  );
 
   const index = rows.findIndex((row) => row.id === photoId);
   // Not in the visible list is the same answer as not existing, and it has to

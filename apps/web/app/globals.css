@@ -3620,6 +3620,13 @@ button.small { padding: 7px 11px; font-size: 13px; border-radius: 8px; }
    side — one short reach between going on and liking. Two classes, because
    `.photo-verbs` above spreads its row to the ends. */
 .photo-verbs.photo-nav { justify-content: center; gap: 8px; }
+/* The arrows drawn the way the heart between them is: no outline, the quiet
+   ink, and a soft round ground under the pointer. Three of a kind in a row
+   rather than two boxes either side of a bare glyph. */
+.photo-nav .photo-step {
+  border: 0; border-radius: 999px; color: var(--dim-soft);
+}
+.photo-nav .photo-step:hover { background: var(--track); color: var(--fg); }
 /* No top margin, unlike a message's: this row *is* the row rather than
    something under one. */
 .photo-like { display: flex; align-items: center; }
@@ -3750,7 +3757,10 @@ button.photo-icon { background: transparent; padding: 0; cursor: pointer; font: 
   height: 560px;
 }
 @media (min-height: 1000px) { .photo-aside { height: min(62vh, 720px); } }
+/* At the column's right-hand edge, which is the page's — under the position
+   in the header, on the line the screen ends on. */
 .photo-chat-label {
+  align-self: flex-end;
   font-size: 12px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase;
   color: var(--dim-soft); text-decoration: none;
 }

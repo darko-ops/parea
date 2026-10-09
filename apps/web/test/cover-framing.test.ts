@@ -528,4 +528,11 @@ describe('the cover first in the roll', () => {
     expect(coverFirst(rows, null)).toBe(rows);
     expect(coverFirst(rows, 'gone')).toBe(rows);
   });
+
+  it('is the order the photograph page steps through and draws its strip in', () => {
+    // The gallery put the cover first and the photo page did not, so opening
+    // the roll's first tile landed in the middle of the strip beside it.
+    const PAGE = read('../app/event/[id]/p/[photoId]/page.tsx');
+    expect(PAGE).toMatch(/const rows = coverFirst\([\s\S]*?event\.coverPhotoId,\s*\);/);
+  });
 });
