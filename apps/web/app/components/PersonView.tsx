@@ -60,7 +60,7 @@ import type { Standing } from '@/people';
 
 import { Avatar } from './Avatar';
 import { CoverImage } from './CoverImage';
-import { EventCard } from './EventCard';
+import { EventCard, Padlock } from './EventCard';
 import { FrostedGlass } from './FrostedGlass';
 import { Menu } from './Menu';
 import { MomentStrip } from './MomentStrip';
@@ -72,6 +72,8 @@ export type ProfileAlbumCard = {
   name: string;
   /** Private, and this viewer is not in it. */
   locked: boolean;
+  /** Private at all — the padlock on an open card. */
+  isPrivate?: boolean;
   cover: string | null;
   /** Null on a locked album. */
   photoCount: number | null;
@@ -797,6 +799,13 @@ export function PersonView({
                     <div className="card-under">
                       <div className="card-name">{album.name}</div>
                       <div className="card-meta">
+                        {/*
+                          The padlock on an open album that is private — one
+                          the viewer is in. A locked one says it with its
+                          frosted glass, and a padlock under that would say it
+                          twice. The app's rule, on the app's tile.
+                        */}
+                        {!album.locked && album.isPrivate && <Padlock />}
                         {/*
                           A date on a locked one too, like every album beside
                           it — it is safe, and the ask lives on the cover now.

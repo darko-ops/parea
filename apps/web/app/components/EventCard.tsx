@@ -46,7 +46,8 @@ function initial(name: string): string {
 export function EventCard({ event }: { event: CardEvent }) {
   const cover = event.cover;
 
-  const label = `${event.name}, ${event.photoCount} ${
+  // "private" in the name too: the padlock is drawn, and a drawing is not read.
+  const label = `${event.name}, ${event.isPrivate ? 'private, ' : ''}${event.photoCount} ${
     event.photoCount === 1 ? 'photo' : 'photos'
   }`;
 
@@ -76,7 +77,10 @@ export function EventCard({ event }: { event: CardEvent }) {
         <div>
           <div className="card-name">{event.name}</div>
           {event.caption && <div className="card-caption">{event.caption}</div>}
-          <div className="card-meta">{emptyLine(event.memberCount)}</div>
+          <div className="card-meta">
+            {event.isPrivate && <Padlock />}
+            {emptyLine(event.memberCount)}
+          </div>
         </div>
 
         <div className="card-empty-lenses" aria-hidden="true">
@@ -211,12 +215,43 @@ export function EventCard({ event }: { event: CardEvent }) {
           and the sentence is most of what it has.
         */}
         <div className="card-meta">
+          {/*
+            A private album says so here, on the label on the outside of the
+            box, as the app's card does. A public one stays unmarked.
+          */}
+          {event.isPrivate && <Padlock />}
           {event.memberCount} {event.memberCount === 1 ? 'person' : 'people'}
           {event.date && ' · '}
           {event.date}
         </div>
       </div>
     </a>
+  );
+}
+
+/**
+ * The small padlock in front of a private album's last line.
+ *
+ * The app's `locked` glyph at the app's 11 points, in the line's own grey —
+ * a note on the label, not a badge on the picture. Decorative: the card's
+ * accessible name already says "private".
+ */
+export function Padlock() {
+  return (
+    <svg
+      className="card-lock"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2.4"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+      focusable="false"
+    >
+      <rect x="4.5" y="11" width="15" height="9.5" rx="2" />
+      <path d="M8 11V7.5a4 4 0 0 1 8 0V11" />
+    </svg>
   );
 }
 

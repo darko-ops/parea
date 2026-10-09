@@ -17,6 +17,7 @@
  */
 
 import { dateLabel } from '@parea/cards';
+import { PRIVATE } from '@parea/core/settings';
 import { notFound, redirect } from 'next/navigation';
 
 import { PersonView } from '@/../app/components/PersonView';
@@ -104,6 +105,9 @@ export default async function PersonPage({
         id: album.id,
         name: album.name,
         locked: album.locked,
+        // The padlock on an open card: a private album the viewer is in. A
+        // locked one says it with its frosted glass instead.
+        isPrivate: album.accessPolicy === PRIVATE,
         asked: album.asked,
         cover: await eventCover(album),
         photoCount: album.photoCount,

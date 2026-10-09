@@ -15,6 +15,7 @@ import { ago, dateLabel, CARD_FACES, isLive } from "@parea/cards";
 import { avatarUrl } from "./accounts";
 import { imageSources, imageSrc } from "./images";
 import { getStorage } from "./storage";
+import { PRIVATE } from "@parea/core/settings";
 import type { EventListing } from "./events";
 
 export type CardEvent = {
@@ -80,6 +81,12 @@ export type CardEvent = {
   creatorHandle: string | null;
   /** Yours, so the line reads "You" rather than your own name back at you. */
   mine: boolean;
+  /**
+   * Private, which the card says with a padlock in front of its last line —
+   * the app's mark, in the app's place. Absent is public: the common case
+   * stays unmarked, because a mark on every card is a mark nobody reads.
+   */
+  isPrivate?: boolean;
   /** The host's own line, under the title. Null draws nothing. */
   caption: string | null;
   /** How many lenses to draw. Capped at four when it is drawn, not here. */
@@ -189,6 +196,7 @@ export async function toCards(
         id: listing.id,
         name: listing.name,
         photoCount: listing.photoCount,
+        isPrivate: listing.accessPolicy === PRIVATE,
         /*
          * The cover if the event has one, else its newest photograph.
          *

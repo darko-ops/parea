@@ -45,7 +45,7 @@ describe('what a card says now that the photograph is the card', () => {
      */
     expect(CARD).toMatch(/event\.memberCount === 1 \? 'person' : 'people'/);
     expect(CARD).not.toMatch(/event\.live \? `added to/);
-    const meta = CARD.slice(CARD.indexOf('className="card-meta">\n'));
+    const meta = CARD.slice(CARD.lastIndexOf('className="card-meta">\n'));
     expect(meta).not.toMatch(/event\.live/);
   });
 
@@ -397,3 +397,35 @@ describe('changing the cover afterwards', () => {
   });
 });
 
+
+/**
+ * The padlock on a private album, as the app draws it.
+ *
+ * In front of the card's last line, in that line's grey, and only on private
+ * albums — a public one is the common case and stays unmarked. On somebody
+ * else's profile an open private album gets it too; a locked one already says
+ * so with its frosted glass.
+ */
+describe('the padlock on a private album', () => {
+  const ACCOUNT = read('../app/components/AccountView.tsx');
+  const PERSON = read('../app/components/PersonView.tsx');
+  const PERSON_PAGE = read('../app/u/[handle]/page.tsx');
+
+  it('is carried on every card from the album’s own setting', () => {
+    expect(CARDS).toMatch(/isPrivate\?: boolean;/);
+    expect(CARDS).toMatch(/isPrivate: listing\.accessPolicy === PRIVATE,/);
+    expect(ACCOUNT).toMatch(/isPrivate: event\.accessPolicy === PRIVATE,/);
+    expect(PERSON_PAGE).toMatch(/isPrivate: album\.accessPolicy === PRIVATE,/);
+  });
+
+  it('is drawn in front of the last line, on both kinds of card, and said aloud', () => {
+    expect(CARD.match(/\{event\.isPrivate && <Padlock \/>\}/g)).toHaveLength(2);
+    expect(CARD).toMatch(/\$\{event\.isPrivate \? 'private, ' : ''\}/);
+    expect(CARD).toMatch(/<path d="M8 11V7\.5a4 4 0 0 1 8 0V11" \/>/);
+    expect(CSS).toMatch(/\.card-lock \{[^}]*width: 11px; height: 11px;/);
+  });
+
+  it('is on an open private album on a profile, not on a locked one', () => {
+    expect(PERSON).toMatch(/\{!album\.locked && album\.isPrivate && <Padlock \/>\}/);
+  });
+});

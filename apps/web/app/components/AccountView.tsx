@@ -17,6 +17,7 @@
  */
 
 import { ago, dateLabel, CARD_FACES, isLive } from '@parea/cards';
+import { PRIVATE } from '@parea/core/settings';
 import { useCallback, useEffect, useState } from 'react';
 
 import type { MomentsResponse } from '@/moments';
@@ -77,6 +78,8 @@ type EventListing = {
   faces: { actorId: string; name: string; avatarUrl: string | null }[];
   /** Whether this person made it, decided by the server. Drives the filter. */
   mine: boolean;
+  /** `private` or `public` — the card's padlock. `/api/events` sends it. */
+  accessPolicy?: string;
   /** Whose event it is. The URL is presigned by the route; null is normal. */
   creator: { name: string | null; handle: string | null; avatarUrl: string | null };
 };
@@ -649,6 +652,7 @@ export function AccountView() {
                 creatorName: event.creator?.name ?? null,
                 creatorHandle: event.creator?.handle ?? null,
                 mine: event.mine,
+                isPrivate: event.accessPolicy === PRIVATE,
               }}
             />
           ))}

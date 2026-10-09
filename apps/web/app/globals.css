@@ -1534,6 +1534,13 @@ button.secondary {
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
 .card-meta { font-size: 13px; line-height: 1.35; color: var(--dim); margin-top: 2px; }
+/* A private album's padlock, in front of the line and in its grey. Sat on the
+   text's middle rather than its baseline, which is where a glyph this small
+   reads as part of the line instead of as a dropped character. */
+.card-lock {
+  display: inline-block; width: 11px; height: 11px; margin-right: 5px;
+  vertical-align: -1px;
+}
 
 /* An event with no photographs gets none of the above — cropping nothing
    produces a grey rectangle that reads as a loading state that never
