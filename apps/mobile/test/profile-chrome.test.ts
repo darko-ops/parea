@@ -64,7 +64,9 @@ describe('the two corners', () => {
     // It was half of the row under the bio. Two doors to one sheet is one
     // door too many, and the row is worth more to something else.
     expect(SCREEN).not.toMatch(/<Text style=\{\[styles\.actionText[^\]]*\]\}>Settings<\/Text>/);
-    expect(SCREEN.match(/setSettings\(true\)/g) ?? []).toHaveLength(1);
+    // One button on this screen. Find Friends' "Settings" pill also opens the
+    // sheet, by asking the tab to — that is a way here, not a second door.
+    expect(SCREEN.match(/onPress=\{\(\) => setSettings\(true\)\}/g) ?? []).toHaveLength(1);
   });
 
   it('draws the `+` as a stroke rather than a labelled button', () => {

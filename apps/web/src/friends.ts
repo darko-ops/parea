@@ -555,6 +555,16 @@ export type Recommendation = Person & {
   albums: number;
   /** Groups you are both in. */
   groups: number;
+  /**
+   * The evidence behind the counts, for a card that shows rather than counts:
+   * up to three of the friends in common, the latest roll you were both in,
+   * and the latest named group you are both in. Every one is something the
+   * reader is already on the other end of — their own friend, a roll they are
+   * in, a group they are in — so naming it tells them nothing new.
+   */
+  mutualFriends: { handle: string | null; name: string }[];
+  roll: string | null;
+  group: string | null;
 };
 
 /** Enough to be worth the screen, few enough to read in one pass. */
@@ -574,6 +584,9 @@ export async function recommendationsFor(
     mutuals: number;
     albums: number;
     groups: number;
+    mutualFriends: { handle: string | null; name: string }[] | null;
+    roll: string | null;
+    group: string | null;
   };
 
   /*
@@ -631,7 +644,43 @@ export async function recommendationsFor(
       a.avatar_key                  as "avatarKey",
       coalesce(mutual.mutuals, 0)   as "mutuals",
       coalesce(together.albums, 0)  as "albums",
-      coalesce(rooms.groups, 0)     as "groups"
+      coalesce(rooms.groups, 0)     as "groups",
+      -- The evidence, asked only of the rows that made the list. The joins are
+      -- the CTEs' own, narrowed to this one person.
+      (
+        select json_agg(json_build_object('handle', x.handle, 'name', x.name))
+        from (
+          select f.handle, coalesce(nullif(trim(f.display_name), ''), f.handle, 'Someone') as name
+          from "friendship" mine
+          join "friendship" theirs
+            on theirs.actor_id = mine.friend_actor_id and theirs.friend_actor_id = a.id
+          join "actor" f on f.id = mine.friend_actor_id
+          where mine.actor_id = ${actorId}
+          order by f.handle
+          limit 3
+        ) x
+      )                             as "mutualFriends",
+      (
+        select e.name
+        from "event_participant" mine
+        join "event" e on e.id = mine.event_id and e.deleted_at is null
+        join "event_participant" theirs
+          on theirs.event_id = mine.event_id and theirs.actor_id = a.id
+        where mine.actor_id = ${actorId}
+        order by coalesce(e.starts_at, e.created_at) desc
+        limit 1
+      )                             as "roll",
+      (
+        select g.name
+        from "group_member" mine
+        join "groups" g
+          on g.id = mine.group_id and g.deleted_at is null and nullif(trim(g.name), '') is not null
+        join "group_member" theirs
+          on theirs.group_id = mine.group_id and theirs.actor_id = a.id
+        where mine.actor_id = ${actorId}
+        order by g.created_at desc
+        limit 1
+      )                             as "group"
     from candidates c
     join "actor" a on a.id = c.id
     left join mutual on mutual.id = c.id
@@ -675,7 +724,10 @@ export async function recommendationsFor(
    * — see `suggestionsFor`, which learned it the hard way.
    */
   const rows = answer as unknown as Row[] | { rows: Row[] };
-  return Array.isArray(rows) ? rows : (rows.rows ?? []);
+  return (Array.isArray(rows) ? rows : (rows.rows ?? [])).map((row) => ({
+    ...row,
+    mutualFriends: row.mutualFriends ?? [],
+  }));
 }
 
 export type FriendRequest = Person & { id: string; askedAt: string };

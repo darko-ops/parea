@@ -85,6 +85,10 @@ export async function GET() {
         mutuals: person.mutuals,
         albums: person.albums,
         groups: person.groups,
+        // What the counts are made of, for the cards that show it.
+        mutualFriends: person.mutualFriends,
+        roll: person.roll,
+        group: person.group,
       })),
     ),
   });

@@ -5063,6 +5063,140 @@ img.you-face { object-fit: cover; }
 .ff-handle a { color: var(--fg); font-weight: 600; text-decoration: none; }
 .ff-handle a:hover { text-decoration: underline; }
 
+/* Find Friends with a proved number. A phone gets the app's screen — a status
+   card, then one card of rows with a badge on each face saying why — and a
+   desktop gets cards four across with room to show the why: the friends'
+   faces, the roll, the group. The same people are in both lists and CSS shows
+   one. */
+.ffl-top { align-items: flex-end; margin-bottom: 24px; }
+.ffl-title { display: flex; flex-direction: column; gap: 6px; }
+.ffl-lede { font-size: 13.5px; color: var(--dim); }
+.ffl-status {
+  display: flex; align-items: center; gap: 8px;
+  font-size: 13px; color: var(--dim);
+  border: 1px solid var(--line); border-radius: 999px; padding: 7px 14px 7px 12px;
+}
+.ffl-dot { flex: none; width: 7px; height: 7px; border-radius: 50%; background: var(--dim-soft); }
+.ffl-status.on .ffl-dot { background: #66e7c6; }
+.ffl-status-text { display: contents; }
+.ffl-status-text strong { font-weight: 400; }
+.ffl-status-text span { display: none; }
+.ffl-status-text strong::after { content: " \00b7"; }
+.ffl-pill { color: var(--fg); font-weight: 600; text-decoration: none; }
+.ffl-pill:hover { text-decoration: underline; }
+
+.ffl-section { display: flex; flex-direction: column; gap: 10px; }
+.ffl-head { display: none; }
+.ffl-list { display: none; }
+.ffl-grid {
+  list-style: none; margin: 0; padding: 0;
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 14px;
+}
+.ffl-card {
+  position: relative; overflow: hidden;
+  background: var(--card); border: 1px solid var(--line); border-radius: 20px;
+  padding: 22px 16px 16px;
+  display: flex; flex-direction: column; align-items: center; gap: 12px; text-align: center;
+}
+.ffl-card:hover { border-color: var(--line-strong, var(--line)); }
+.ffl-band { position: absolute; top: 0; left: 0; right: 0; height: 64px; opacity: .16; }
+.ffl-card-link {
+  position: relative; width: 100%; min-width: 0;
+  display: flex; flex-direction: column; align-items: center; gap: 12px;
+  color: inherit; text-decoration: none;
+}
+.ffl-card-face { border-radius: 50%; box-shadow: 0 0 0 4px var(--card); line-height: 0; }
+.ffl-card-name { display: flex; flex-direction: column; gap: 1px; width: 100%; min-width: 0; }
+.ffl-card-name strong { font-size: 16px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ffl-card-name span { font-size: 13px; color: var(--dim-soft); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ffl-face { border-radius: 50%; object-fit: cover; display: inline-flex; overflow: hidden; }
+.ffl-letter {
+  width: 100%; height: 100%; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center; font-weight: 600;
+}
+.ffl-why {
+  width: 100%; background: var(--bg); border-radius: 12px; padding: 10px;
+  display: flex; align-items: center; gap: 10px; text-align: left;
+}
+.ffl-why-faces { display: flex; padding-left: 7px; flex: none; }
+.ffl-why-faces span {
+  width: 26px; height: 26px; border-radius: 50%; margin-left: -7px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 11px; font-weight: 700; box-shadow: 0 0 0 2px var(--bg);
+}
+.ffl-why-rolls { display: flex; gap: 3px; flex: none; }
+.ffl-why-rolls span {
+  width: 22px; height: 28px; border-radius: 5px;
+  background: repeating-linear-gradient(135deg, var(--line) 0 3px, var(--track) 3px 6px);
+}
+.ffl-why-group {
+  flex: none; width: 28px; height: 28px; border-radius: 8px;
+  display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 700;
+}
+.ffl-why-text { min-width: 0; display: grid; }
+.ffl-why-text strong { font-size: 12.5px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ffl-why-text span { font-size: 12px; color: var(--dim-soft); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+.ffl-add, .ffl-asked {
+  display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+  font: 600 14px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  border-radius: 999px; white-space: nowrap;
+}
+.ffl-add { border: 0; background: var(--accent); color: var(--on-accent); cursor: pointer; }
+.ffl-add:disabled { opacity: .6; cursor: default; }
+.ffl-asked { border: 1px solid var(--line); color: var(--dim); }
+.ffl-add svg { width: 16px; height: 16px; }
+.ffl-asked svg { width: 14px; height: 14px; }
+.ffl-card-do { width: 100%; height: 38px; border-radius: 12px; }
+
+.ffl-handle { margin: 22px 0 0; font-size: 13.5px; color: var(--dim); }
+.ffl-handle a { color: var(--fg); font-weight: 600; text-decoration: none; }
+.ffl-handle a:hover { text-decoration: underline; }
+
+@media (max-width: 720px) {
+  .ffl-top { flex-direction: column; align-items: stretch; gap: 20px; margin-bottom: 20px; }
+  .ffl-lede { display: none; }
+  .ffl-status {
+    gap: 12px; border-radius: 14px; padding: 12px 14px; background: var(--card); color: var(--fg);
+  }
+  .ffl-dot { width: 8px; height: 8px; margin: 0 2px; }
+  .ffl-status.on .ffl-dot { box-shadow: 0 0 0 4px rgba(102, 231, 198, .14); }
+  .ffl-status-text { display: flex; flex-direction: column; gap: 1px; flex: 1; min-width: 0; }
+  .ffl-status-text strong { font-size: 14px; font-weight: 600; }
+  .ffl-status-text strong::after { content: none; }
+  .ffl-status-text span { display: block; font-size: 12.5px; line-height: 17px; color: var(--dim); }
+  .ffl-pill { font-size: 13px; padding: 6px 11px; border: 1px solid var(--line); border-radius: 999px; }
+  .ffl-pill:hover { text-decoration: none; }
+
+  .ffl-head { display: flex; align-items: baseline; justify-content: space-between; }
+  .ffl-head h2 { margin: 0; font-size: 17px; font-weight: 700; letter-spacing: -.01em; }
+  .ffl-head span { font-size: 13px; color: var(--dim); }
+  .ffl-grid { display: none; }
+  .ffl-list {
+    display: block; list-style: none; margin: 0; padding: 0;
+    background: var(--card); border: 1px solid var(--line); border-radius: 18px; overflow: hidden;
+  }
+  .ffl-row { display: flex; align-items: center; gap: 12px; padding: 12px 14px; }
+  .ffl-row + .ffl-row { border-top: 1px solid var(--hairline); }
+  .ffl-row-link { flex: 1; min-width: 0; display: flex; align-items: center; gap: 12px; color: inherit; text-decoration: none; }
+  .ffl-row-face { position: relative; flex: none; line-height: 0; }
+  .ffl-kind {
+    position: absolute; right: -3px; bottom: -3px; width: 20px; height: 20px; border-radius: 50%;
+    border: 2.5px solid var(--card); color: #0d0f12;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .ffl-kind svg { width: 11px; height: 11px; }
+  .ffl-kind-friends { background: #ffa6ad; }
+  .ffl-kind-rolls { background: #99b1fa; }
+  .ffl-kind-groups { background: #9cdec5; }
+  .ffl-row-text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+  .ffl-row-text strong { font-size: 15.5px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .ffl-row-text span { font-size: 13px; line-height: 18px; color: var(--dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .ffl-row-do { flex: none; height: 34px; padding: 0 14px 0 11px; }
+  .ffl-asked.ffl-row-do { padding: 0 13px 0 10px; }
+  .ffl-handle { text-align: center; font-size: 13px; line-height: 18px; padding-top: 4px; }
+}
+
 /* The line saying a text is about to be sent.
 
    Ruled off above rather than merely spaced, because it is doing a different job

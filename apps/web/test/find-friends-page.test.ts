@@ -123,7 +123,7 @@ describe('the page', () => {
     // page that did it — and a statement about a switch with no route to the
     // switch is worse than silence.
     expect(VIEW).toMatch(/People who have it can find you/);
-    expect(VIEW).toMatch(/<a href="\/account">your account<\/a>/);
+    expect(VIEW).toMatch(/<a href="\/account" className="ffl-pill">\s*Account\s*<\/a>/);
   });
 
   it('asks for consent rather than describing what the button does', () => {

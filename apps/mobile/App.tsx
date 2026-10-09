@@ -455,6 +455,12 @@ export default function App() {
    * `+` twice has to open it twice.
    */
   const [makeGroup, setMakeGroup] = useState(0);
+  /**
+   * Find Friends' "Settings": open the profile tab's Settings sheet. Spent
+   * through `onSettingsOpened`, for the reason `searchHandle` is — the tabs
+   * remount on every return, and a request still standing would open it again.
+   */
+  const [openSettings, setOpenSettings] = useState(false);
   /** Find Friends asked for the Find tab, on people, with its field focused. */
   const [searchHandle, setSearchHandle] = useState(false);
   const [events, setEvents] = useState<EventListing[]>([]);
@@ -1900,6 +1906,11 @@ export default function App() {
               setTab('search');
               leaveToTabs();
             }}
+            onOpenSettings={() => {
+              setOpenSettings(true);
+              setTab('profile');
+              leaveToTabs();
+            }}
             /* Deeper rather than back: a suggestion is somebody you are
                deciding whether you recognise, and their page is how. */
             onOpenPerson={(handle) => setRoute({ screen: 'person', handle })}
@@ -2177,6 +2188,8 @@ export default function App() {
                 t={t}
                 active={tab === 'profile'}
                 top={tabTop.profile}
+                openSettings={openSettings}
+                onSettingsOpened={() => setOpenSettings(false)}
                 onOpen={openListing}
                 onOpenPerson={(handle) => setRoute({ screen: 'person', handle })}
                 onCreateEvent={() => setRoute({ screen: 'pick' })}

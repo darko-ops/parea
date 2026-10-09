@@ -244,7 +244,9 @@ describe('what the screen will not draw', () => {
   it('says what adding a number switched on, and where to switch it off', () => {
     // Adding a number made somebody findable. The honest place to say so is the
     // screen that did it, not a settings sheet they may never open.
-    expect(SCREEN).toMatch(/People who have it can find you — turn that off in Settings/);
+    expect(SCREEN).toMatch(/'Findable' : 'Not findable'\} by your number/);
+    expect(SCREEN).toMatch(/'People who have it can find you\.'/);
+    expect(SCREEN).toMatch(/onPress=\{onOpenSettings\}[\s\S]{0,600}>Settings</);
   });
 });
 

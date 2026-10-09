@@ -108,6 +108,8 @@ export function ProfileScreen({
   onSignedOut,
   Button,
   top = 0,
+  openSettings = false,
+  onSettingsOpened,
 }: {
   api: Api;
   /** Everything this person can reach, which is what the grid draws. */
@@ -144,6 +146,9 @@ export function ProfileScreen({
   onCreateMoment: () => void;
   onSignedIn: () => void;
   onSignedOut: () => void;
+  /** Asked from Find Friends: open the Settings sheet once, then spent. */
+  openSettings?: boolean;
+  onSettingsOpened?: () => void;
   Button: ButtonEl;
   /** Bumped when this tab is pressed while it is showing — to its top. See `useToTop`. */
   top?: number;
@@ -166,6 +171,11 @@ export function ProfileScreen({
   const [showFriends, setShowFriends] = useState(false);
   const [editing, setEditing] = useState(false);
   const [settings, setSettings] = useState(false);
+  useEffect(() => {
+    if (!openSettings) return;
+    setSettings(true);
+    onSettingsOpened?.();
+  }, [openSettings, onSettingsOpened]);
   /** The `+`'s two-line menu. Nothing is created until one of them is chosen. */
   const [creating, setCreating] = useState(false);
   const { width } = useWindowDimensions();

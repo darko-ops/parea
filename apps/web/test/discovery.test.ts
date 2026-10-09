@@ -531,6 +531,34 @@ describe('people you may know', () => {
     expect(found[0]).toMatchObject({ mutuals: 1, albums: 1, groups: 1 });
   });
 
+  it('names what the counts are made of: the friends, the roll, the group', async () => {
+    // The desktop cards show the evidence rather than a number, and every piece
+    // of it is something the reader is in: their friend, their roll, their group.
+    const me = await person('me');
+    const between = await person('between');
+    const them = await person('them');
+    await makeFriends(me, between);
+    await makeFriends(between, them);
+    const id = await event('Naxos', me);
+    await wereThere(id, [me, them]);
+    await group('Sunday', [me, them]);
+
+    const [found] = await recommendationsFor(db, me);
+    expect(found!.mutualFriends.map((f) => f.handle)).toEqual(['between']);
+    expect(found!.roll).toBe('Naxos');
+    expect(found!.group).toBe('Sunday');
+  });
+
+  it('has an empty list rather than null when there is no friend in common', async () => {
+    const me = await person('me');
+    const them = await person('them');
+    await group('Sunday', [me, them]);
+
+    const [found] = await recommendationsFor(db, me);
+    expect(found!.mutualFriends).toEqual([]);
+    expect(found!.roll).toBeNull();
+  });
+
   it('never suggests you to yourself', async () => {
     const me = await person('me');
     const id = await event('Naxos', me);
@@ -690,6 +718,9 @@ describe('no address book', () => {
       'friend_request',
       'friendship',
       'group_member',
+      // Read for a group's name only, as evidence for a reason group_member
+      // already gave — not a fourth source of reasons.
+      'groups',
     ]);
   });
 });

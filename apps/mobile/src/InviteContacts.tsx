@@ -30,7 +30,7 @@ import { Linking, Platform, Pressable, StyleSheet, Text, TextInput, View } from 
 
 import type { GroupTheme } from './Groups';
 import { inviteText, toRows, type PhoneContact } from './invite';
-import { initialOf, lensFor } from './lens';
+import { initialOf } from './lens';
 
 type ButtonComponent = (props: {
   label: string;
@@ -170,43 +170,46 @@ export function InviteContacts({
         <Text style={[styles.small, { color: t.dim }]}>No contacts with a phone number.</Text>
       )}
 
-      {matching.slice(0, shown).map((row) => {
-        const lens = lensFor(row.id);
-        return (
-          <View
-            key={row.id}
-            style={[styles.row, { backgroundColor: t.card, borderColor: t.line }]}
-          >
-            <View style={[styles.disc, { backgroundColor: lens.fill }]}>
-              <Text style={[styles.initial, { color: lens.ink }]}>{initialOf(row.name)}</Text>
+      {matching.length > 0 && (
+        <View style={[styles.list, { backgroundColor: t.card, borderColor: t.line }]}>
+          {matching.slice(0, shown).map((row, i) => (
+            <View
+              key={row.id}
+              style={[styles.row, i > 0 && { borderTopWidth: 1, borderTopColor: t.line }]}
+            >
+              {/* Quiet rather than on a lens: these are not people on Parea, and
+                  a colour would make them look like they were. */}
+              <View style={[styles.disc, { backgroundColor: t.bg }]}>
+                <Text style={[styles.initial, { color: t.dim }]}>{initialOf(row.name)}</Text>
+              </View>
+              <View style={styles.rowText}>
+                <Text style={[styles.rowName, { color: t.fg }]} numberOfLines={1}>
+                  {row.name}
+                </Text>
+                <Text style={[styles.small, { color: t.dim }]} numberOfLines={1}>
+                  {row.number}
+                </Text>
+              </View>
+              {invited[row.id] ? (
+                <Text style={[styles.done, { color: t.dim }]}>Invited</Text>
+              ) : (
+                <Pressable
+                  onPress={() => void invite(row)}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Invite ${row.name} to Parea`}
+                  hitSlop={8}
+                  style={({ pressed }) => [
+                    styles.invite,
+                    { borderColor: t.line, opacity: pressed ? 0.6 : 1 },
+                  ]}
+                >
+                  <Text style={[styles.inviteText, { color: t.fg }]}>Invite</Text>
+                </Pressable>
+              )}
             </View>
-            <View style={styles.rowText}>
-              <Text style={[styles.rowName, { color: t.fg }]} numberOfLines={1}>
-                {row.name}
-              </Text>
-              <Text style={[styles.small, { color: t.dim }]} numberOfLines={1}>
-                {row.number}
-              </Text>
-            </View>
-            {invited[row.id] ? (
-              <Text style={[styles.done, { color: t.dim }]}>Invited</Text>
-            ) : (
-              <Pressable
-                onPress={() => void invite(row)}
-                accessibilityRole="button"
-                accessibilityLabel={`Invite ${row.name} to Parea`}
-                hitSlop={8}
-                style={({ pressed }) => [
-                  styles.invite,
-                  { borderColor: t.line, opacity: pressed ? 0.6 : 1 },
-                ]}
-              >
-                <Text style={[styles.inviteText, { color: t.fg }]}>Invite</Text>
-              </Pressable>
-            )}
-          </View>
-        );
-      })}
+          ))}
+        </View>
+      )}
 
       {matching.length > shown && (
         <Button label="Show more" t={t} onPress={() => setShown((n) => n + PAGE)} />
@@ -216,22 +219,16 @@ export function InviteContacts({
 }
 
 const styles = StyleSheet.create({
-  section: { gap: 10, paddingTop: 12 },
-  sectionTitle: { fontSize: 15, fontWeight: '700', letterSpacing: -0.01 },
+  section: { gap: 10, paddingTop: 4 },
+  sectionTitle: { fontSize: 17, fontWeight: '700', letterSpacing: -0.2 },
+  list: { borderWidth: 1, borderRadius: 18, overflow: 'hidden' },
   small: { fontSize: 13, lineHeight: 18 },
   input: { borderWidth: 1, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 11, fontSize: 16 },
-  row: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    borderRadius: 12,
-    borderWidth: 1,
-    padding: 12,
-  },
-  disc: { width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center' },
-  initial: { fontSize: 17, fontWeight: '600' },
+  row: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 12, paddingHorizontal: 14 },
+  disc: { width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center' },
+  initial: { fontSize: 16, fontWeight: '600' },
   rowText: { flex: 1, minWidth: 0, gap: 2 },
-  rowName: { fontSize: 15.5, fontWeight: '600' },
+  rowName: { fontSize: 15, fontWeight: '600' },
   invite: { borderWidth: 1, borderRadius: 999, paddingHorizontal: 14, paddingVertical: 7 },
   inviteText: { fontSize: 14, fontWeight: '600' },
   done: { fontSize: 13, fontWeight: '600' },

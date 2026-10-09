@@ -67,6 +67,8 @@ import {
 
 import { ApiError, type Api, type Discovery, type Recommendation } from './api';
 import { reasonFor } from './answers';
+import Svg, { Circle, Path, Rect } from 'react-native-svg';
+
 import { Glyph } from './Glyph';
 import { InviteContacts } from './InviteContacts';
 import type { GroupTheme } from './Groups';
@@ -111,6 +113,76 @@ type ButtonComponent = (props: {
   disabled?: boolean;
 }) => React.ReactElement;
 
+/** The dot on the status card while a number finds somebody: the mark's mint. */
+const FINDABLE = '#66E7C6';
+
+/** Why somebody is suggested, strongest first — the order `reasonFor` speaks in. */
+type Kind = 'friends' | 'rolls' | 'groups';
+
+function kindOf(person: Recommendation): Kind {
+  return (person.mutuals ?? 0) > 0 ? 'friends' : (person.albums ?? 0) > 0 ? 'rolls' : 'groups';
+}
+
+/** The mark's three circles, one to a reason. */
+const KIND_COLOUR: Record<Kind, string> = {
+  friends: '#ffa6ad',
+  rolls: '#99b1fa',
+  groups: '#9cdec5',
+};
+
+function KindGlyph({ kind }: { kind: Kind }) {
+  return (
+    <Svg
+      width={11}
+      height={11}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="#0d0f12"
+      strokeWidth={3}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      {kind === 'friends' && (
+        <>
+          <Circle cx="9.5" cy="8.5" r="3.5" />
+          <Path d="M3 19.5c0-3.4 2.9-5 6.5-5s6.5 1.6 6.5 5" />
+          <Path d="M16 5.4a3.5 3.5 0 0 1 0 6.2" />
+          <Path d="M17.5 14.9c2.2.5 3.5 1.9 3.5 4.6" />
+        </>
+      )}
+      {kind === 'rolls' && (
+        <>
+          <Rect x="8" y="4" width="12.5" height="12.5" rx="2" />
+          <Path d="M16 20H5.5a2 2 0 0 1-2-2V8" />
+        </>
+      )}
+      {kind === 'groups' && (
+        <>
+          <Path d="M9 2.5h10A2.5 2.5 0 0 1 21.5 5v5A2.5 2.5 0 0 1 19 12.5" />
+          <Path d="M4 8h10a2.5 2.5 0 0 1 2.5 2.5v5A2.5 2.5 0 0 1 14 18H8l-4 3.5 1-3.5H4a2.5 2.5 0 0 1-2.5-2.5v-5A2.5 2.5 0 0 1 4 8z" />
+        </>
+      )}
+    </Svg>
+  );
+}
+
+function Tick({ color }: { color: string }) {
+  return (
+    <Svg
+      width={14}
+      height={14}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke={color}
+      strokeWidth={2.6}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <Path d="M5 12.5l4.5 4.5L19 7.5" />
+    </Svg>
+  );
+}
+
 /** Their picture, or the letter on their own lens when there is none. */
 function Face({ person, size }: { person: Recommendation; size: number }) {
   const name = person.displayName?.trim() || person.handle || 'Someone';
@@ -146,6 +218,7 @@ export function FindFriends({
   webBase,
   onBack,
   onOpenPerson,
+  onOpenSettings,
   onSearchHandle,
 }: {
   api: Api;
@@ -155,6 +228,8 @@ export function FindFriends({
   webBase: string;
   onBack: () => void;
   onOpenPerson: (handle: string) => void;
+  /** The Settings sheet, where the findable switch is. */
+  onOpenSettings: () => void;
   /** "Know their handle?": back to Find, on people, with the field focused. */
   onSearchHandle: () => void;
 }) {
@@ -592,11 +667,39 @@ export function FindFriends({
                     statement about a switch with no route to the switch is worse
                     than silence.
                   */}
-                  <Text style={[styles.standing, { color: t.dim }]}>
-                    {state.discoverable
-                      ? `Your number ends ${state.phone.last2 ?? '••'}. People who have it can find you — turn that off in Settings whenever you like.`
-                      : `Your number ends ${state.phone.last2 ?? '••'}. People who have it cannot find you: that is switched off in Settings.`}
-                  </Text>
+                  <View style={[styles.status, { backgroundColor: t.card, borderColor: t.line }]}>
+                    <View
+                      style={[
+                        styles.dot,
+                        state.discoverable
+                          ? { backgroundColor: FINDABLE, boxShadow: '0 0 0 4px rgba(102,231,198,0.14)' }
+                          : { backgroundColor: t.dim },
+                      ]}
+                    />
+                    <View style={styles.rowText}>
+                      <Text style={[styles.statusTitle, { color: t.fg }]}>
+                        {state.discoverable ? 'Findable' : 'Not findable'} by your number ··
+                        {state.phone.last2 ?? '••'}
+                      </Text>
+                      <Text style={[styles.statusSub, { color: t.dim }]}>
+                        {state.discoverable
+                          ? 'People who have it can find you.'
+                          : 'Switched off in Settings.'}
+                      </Text>
+                    </View>
+                    <Pressable
+                      onPress={onOpenSettings}
+                      accessibilityRole="button"
+                      accessibilityLabel="Open Settings"
+                      hitSlop={8}
+                      style={({ pressed }) => [
+                        styles.pill,
+                        { borderColor: t.line, opacity: pressed ? 0.6 : 1 },
+                      ]}
+                    >
+                      <Text style={[styles.pillText, { color: t.fg }]}>Settings</Text>
+                    </Pressable>
+                  </View>
 
                   {state.people.length === 0 ? (
                     /*
@@ -623,65 +726,91 @@ export function FindFriends({
                     </View>
                   ) : (
                     <View style={styles.section}>
-                      <Text style={[styles.sectionTitle, { color: t.fg }]}>
-                        People you may know
-                      </Text>
+                      <View style={styles.sectionHead}>
+                        <Text style={[styles.sectionTitle, { color: t.fg }]}>
+                          People you may know
+                        </Text>
+                        <Text style={[styles.count, { color: t.dim }]}>{state.people.length}</Text>
+                      </View>
 
-                      {state.people.map((person) => {
-                        const name = person.displayName?.trim() || person.handle || 'Someone';
-                        const standing = asked[person.actorId];
-                        return (
-                          <Pressable
-                            key={person.actorId}
-                            // The row opens the person; the button asks. A row
-                            // whose only action is the ask would make deciding
-                            // whether you know somebody impossible from here.
-                            onPress={() => person.handle && onOpenPerson(person.handle)}
-                            accessibilityRole="button"
-                            accessibilityLabel={`${name}, ${reasonFor(person)}`}
-                            style={({ pressed }) => [
-                              styles.row,
-                              {
-                                backgroundColor: t.card,
-                                borderColor: t.line,
-                                opacity: pressed ? 0.85 : 1,
-                              },
-                            ]}
-                          >
-                            <Face person={person} size={44} />
-                            <View style={styles.rowText}>
-                              <Text
-                                style={[styles.rowName, { color: t.fg }]}
-                                numberOfLines={1}
-                              >
-                                {name}
-                              </Text>
-                              <Text style={[styles.small, { color: t.dim }]} numberOfLines={1}>
-                                {reasonFor(person)}
-                              </Text>
-                            </View>
+                      {/* One card of rows rather than a card per row: a list
+                          reads as a list. */}
+                      <View style={[styles.list, { backgroundColor: t.card, borderColor: t.line }]}>
+                        {state.people.map((person, i) => {
+                          const name = person.displayName?.trim() || person.handle || 'Someone';
+                          const standing = asked[person.actorId];
+                          const kind = kindOf(person);
+                          return (
+                            <Pressable
+                              key={person.actorId}
+                              // The row opens the person; the button asks. A row
+                              // whose only action is the ask would make deciding
+                              // whether you know somebody impossible from here.
+                              onPress={() => person.handle && onOpenPerson(person.handle)}
+                              accessibilityRole="button"
+                              accessibilityLabel={`${name}, ${reasonFor(person)}`}
+                              style={({ pressed }) => [
+                                styles.row,
+                                i > 0 && { borderTopWidth: 1, borderTopColor: t.line },
+                                { opacity: pressed ? 0.85 : 1 },
+                              ]}
+                            >
+                              <View>
+                                <Face person={person} size={48} />
+                                {/* Why they are here, as a colour on the corner of
+                                    their face: friends, rolls, groups. */}
+                                <View
+                                  style={[
+                                    styles.kind,
+                                    { backgroundColor: KIND_COLOUR[kind], borderColor: t.card },
+                                  ]}
+                                >
+                                  <KindGlyph kind={kind} />
+                                </View>
+                              </View>
+                              <View style={styles.rowText}>
+                                <Text style={[styles.rowName, { color: t.fg }]} numberOfLines={1}>
+                                  {name}
+                                </Text>
+                                <Text style={[styles.small, { color: t.dim }]} numberOfLines={1}>
+                                  {reasonFor(person)}
+                                </Text>
+                              </View>
 
-                            {standing === 'asked' ? (
-                              /*
-                                A word rather than a disabled button.
-
-                                Asking is done and there is nothing to press;
-                                a greyed-out "Add friend" invites a second tap
-                                and answers it with nothing.
-                              */
-                              <Text style={[styles.done, { color: t.dim }]}>Asked</Text>
-                            ) : (
-                              <Button
-                                label="+ Add"
-                                t={t}
-                                primary
-                                disabled={standing === 'asking'}
-                                onPress={() => void ask(person)}
-                              />
-                            )}
-                          </Pressable>
-                        );
-                      })}
+                              {standing === 'asked' ? (
+                                /*
+                                  A word in an outline rather than a disabled
+                                  button. Asking is done and there is nothing to
+                                  press; a greyed-out Add invites a second tap and
+                                  answers it with nothing.
+                                */
+                                <View style={[styles.asked, { borderColor: t.line }]}>
+                                  <Tick color={t.dim} />
+                                  <Text style={[styles.askText, { color: t.dim }]}>Asked</Text>
+                                </View>
+                              ) : (
+                                <Pressable
+                                  onPress={() => void ask(person)}
+                                  disabled={standing === 'asking'}
+                                  accessibilityRole="button"
+                                  accessibilityLabel={`Add ${name} as a friend`}
+                                  hitSlop={6}
+                                  style={({ pressed }) => [
+                                    styles.add,
+                                    {
+                                      backgroundColor: t.accent,
+                                      opacity: standing === 'asking' ? 0.6 : pressed ? 0.8 : 1,
+                                    },
+                                  ]}
+                                >
+                                  <Glyph name="add-person" size={16} color={t.onAccent} />
+                                  <Text style={[styles.askText, { color: t.onAccent }]}>Add</Text>
+                                </Pressable>
+                              )}
+                            </Pressable>
+                          );
+                        })}
+                      </View>
                     </View>
                   )}
 
@@ -788,23 +917,70 @@ const styles = StyleSheet.create({
   agreeTick: { fontSize: 14, fontWeight: '700', lineHeight: 16 },
   small: { fontSize: 13, lineHeight: 18 },
   error: { fontSize: 13, lineHeight: 19 },
-  standing: { fontSize: 12.5, lineHeight: 18 },
+
+  /* Where the number stands: a dot, two lines, and the way to the switch. */
+  status: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    borderWidth: 1,
+    borderRadius: 14,
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+  },
+  dot: { width: 8, height: 8, borderRadius: 4, marginHorizontal: 2 },
+  statusTitle: { fontSize: 14, fontWeight: '600' },
+  statusSub: { fontSize: 12.5, lineHeight: 17 },
+  pill: { borderWidth: 1, borderRadius: 999, paddingVertical: 6, paddingHorizontal: 11 },
+  pillText: { fontSize: 13, fontWeight: '600' },
 
   section: { gap: 10 },
-  sectionTitle: { fontSize: 15, fontWeight: '700', letterSpacing: -0.01 },
+  sectionHead: { flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between' },
+  sectionTitle: { fontSize: 17, fontWeight: '700', letterSpacing: -0.2 },
+  count: { fontSize: 13 },
+  list: { borderWidth: 1, borderRadius: 18, overflow: 'hidden' },
   row: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
-    borderRadius: 12,
-    borderWidth: 1,
-    padding: 12,
+    paddingVertical: 12,
+    paddingHorizontal: 14,
   },
+  kind: {
+    position: 'absolute',
+    right: -3,
+    bottom: -3,
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    borderWidth: 2.5,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  add: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    height: 34,
+    paddingLeft: 11,
+    paddingRight: 14,
+    borderRadius: 999,
+  },
+  asked: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    height: 34,
+    paddingLeft: 10,
+    paddingRight: 13,
+    borderRadius: 999,
+    borderWidth: 1,
+  },
+  askText: { fontSize: 14, fontWeight: '600' },
   /* `flex: 1` and `minWidth: 0` so a long name wraps or truncates instead of
      pushing the button off the edge. */
   rowText: { flex: 1, minWidth: 0, gap: 2 },
   rowName: { fontSize: 15.5, fontWeight: '600' },
-  done: { fontSize: 13, fontWeight: '600' },
 
   nothing: { paddingTop: 40, alignItems: 'center', gap: 12 },
   nothingText: { fontSize: 14, lineHeight: 21, textAlign: 'center', maxWidth: 320 },
