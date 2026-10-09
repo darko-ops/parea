@@ -43,6 +43,30 @@ export const ACCESS_OPTIONS: {
 ];
 
 /**
+ * The same two settings, named for what they do in a group.
+ *
+ * In a group, the group is always in: `authorize` lets a group's members past
+ * the private check, so "Private" there never meant "only the people I pick"
+ * — it meant the group and the people you add. Named as that, so nobody sets
+ * a group's roll to private expecting it to hide from half the group. A roll
+ * for only some of a group is a roll taken out of it.
+ *
+ * Group only first, because in a group it is the one you mean.
+ */
+export const GROUP_ACCESS_OPTIONS: typeof ACCESS_OPTIONS = [
+  {
+    value: PRIVATE,
+    label: 'Group only',
+    help: 'Everyone in the group, and anyone you add by name. A forwarded link only lets somebody ask.',
+  },
+  {
+    value: PUBLIC,
+    label: 'Anyone with the link',
+    help: 'Everyone in the group, and anyone signed in who holds the link — and anyone they pass it on to.',
+  },
+];
+
+/**
  * The same two, asked as a switch rather than as a row of names.
  *
  * The create screen asks it this way because somebody making an album is
@@ -62,18 +86,22 @@ export function AccessChoice({
   disabled = false,
   /** Shown under the options when this is an album that already exists. */
   note,
+  /** In a group, which names the two for what they do there. */
+  inGroup = false,
 }: {
   value: AccessPolicy;
   onChange: (next: AccessPolicy) => void;
   disabled?: boolean;
   note?: string;
+  inGroup?: boolean;
 }) {
-  const chosen = ACCESS_OPTIONS.find((option) => option.value === value);
+  const options = inGroup ? GROUP_ACCESS_OPTIONS : ACCESS_OPTIONS;
+  const chosen = options.find((option) => option.value === value);
 
   return (
     <>
       <div className="pills">
-        {ACCESS_OPTIONS.map((option) => (
+        {options.map((option) => (
           <button
             key={option.value}
             type="button"

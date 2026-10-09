@@ -2056,3 +2056,51 @@ export async function sharedOnceWith(
       }),
   );
 }
+
+/**
+ * A roll taken out of its group, with everybody in the group still in it.
+ *
+ * Being in a group's roll is not written down anywhere: `authorize` reads the
+ * group's members live, so clearing `group_id` on its own would shut out every
+ * one of them who was never let in by name — including people with their
+ * photographs in it — and tell nobody. So the group's people are written in
+ * first, each with a participant row that is in by right (`admitted`), and the
+ * roll comes out of the group after, as one act: either both happen or the
+ * roll is still in the group. From then on it is a roll like any other, and
+ * its creator narrows it one person at a time if they want it narrower.
+ *
+ * The expiry is left alone. A roll in a group is made without one, and one
+ * leaving a group should not start counting down because of where it was
+ * filed.
+ *
+ * Returns how many people were carried over, or null for a roll that was not
+ * in a group.
+ */
+export async function takeOutOfGroup(db: Db, eventId: string): Promise<number | null> {
+  return db.transaction(async (tx) => {
+    const [event] = await tx
+      .select({ groupId: schema.events.groupId })
+      .from(schema.events)
+      .where(eq(schema.events.id, eventId))
+      .for('update');
+    if (!event?.groupId) return null;
+
+    const members = await tx
+      .select({ actorId: schema.groupMembers.actorId })
+      .from(schema.groupMembers)
+      .where(eq(schema.groupMembers.groupId, event.groupId));
+
+    if (members.length > 0) {
+      await tx
+        .insert(schema.eventParticipants)
+        .values(members.map(({ actorId }) => ({ eventId, actorId, admitted: true })))
+        .onConflictDoUpdate({
+          target: [schema.eventParticipants.eventId, schema.eventParticipants.actorId],
+          set: { admitted: true },
+        });
+    }
+
+    await tx.update(schema.events).set({ groupId: null }).where(eq(schema.events.id, eventId));
+    return members.length;
+  });
+}

@@ -2412,6 +2412,14 @@ export class Api {
     });
   }
 
+  /**
+   * The roll out of its group, with everybody in the group kept in it.
+   * Its creator's alone — anybody else gets a 404. See the route.
+   */
+  takeOutOfGroup(eventId: string): Promise<unknown> {
+    return this.call(`/api/events/${encodeURIComponent(eventId)}/group`, { method: 'DELETE' });
+  }
+
   setAccessPolicy(eventId: string, accessPolicy: 'public' | 'private'): Promise<unknown> {
     return this.call(`/api/events/${encodeURIComponent(eventId)}`, {
       method: 'PATCH',

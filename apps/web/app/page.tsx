@@ -79,7 +79,10 @@ export default function CreatePage() {
   const [groupId, setGroupId] = useState<string | null>(null);
   useEffect(() => {
     const value = new URLSearchParams(window.location.search).get('group');
-    setGroupId(value && /^[0-9a-f-]{36}$/i.test(value) ? value : null);
+    const group = value && /^[0-9a-f-]{36}$/i.test(value) ? value : null;
+    setGroupId(group);
+    // Group only is the one you mean in a group, so it is where it starts.
+    if (group) setIsPrivate(true);
   }, []);
 
   const [step, setStep] = useState<'photos' | 'details'>('photos');
@@ -582,11 +585,17 @@ export default function CreatePage() {
                 <fieldset className="field create-see">
                   <legend className="field-label">WHO CAN SEE IT</legend>
                   <div className="pills">
-                    {(
-                      [
-                        [false, 'Public'],
-                        [true, 'Private'],
-                      ] as const
+                    {(groupId
+                      ? // In a group, named for what they do there — see
+                        // `GROUP_ACCESS_OPTIONS`.
+                        ([
+                          [true, 'Group only'],
+                          [false, 'Anyone with the link'],
+                        ] as const)
+                      : ([
+                          [false, 'Public'],
+                          [true, 'Private'],
+                        ] as const)
                     ).map(([value, label]) => (
                       <button
                         key={label}
@@ -600,9 +609,13 @@ export default function CreatePage() {
                     ))}
                   </div>
                   <p className="field-help">
-                    {isPrivate
-                      ? 'Only people you invite. A forwarded link opens nothing.'
-                      : 'Anyone signed in with the link can see it.'}
+                    {groupId
+                      ? isPrivate
+                        ? 'Everyone in the group, and anyone you add by name.'
+                        : 'Everyone in the group, and anyone signed in with the link.'
+                      : isPrivate
+                        ? 'Only people you invite. A forwarded link opens nothing.'
+                        : 'Anyone signed in with the link can see it.'}
                   </p>
                 </fieldset>
 

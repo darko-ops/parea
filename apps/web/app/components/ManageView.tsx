@@ -82,6 +82,9 @@ export function ManageView({
     code: string | null;
     url: string;
     groupId: string | null;
+    groupName: string | null;
+    /** Made it, rather than running it as a group admin. */
+    isCreator: boolean;
     /** The picture the event leads with, presigned. Null if it has none. */
     coverUrl: string | null;
   };
@@ -113,6 +116,7 @@ export function ManageView({
   const [error, setError] = useState<string | null>(null);
   const [confirmRotate, setConfirmRotate] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [confirmUngroup, setConfirmUngroup] = useState(false);
   const [groupName, setGroupName] = useState('');
   const [findable, setFindable] = useState(false);
   const [friends, setFriends] = useState<Friend[]>([]);
@@ -468,6 +472,24 @@ export function ManageView({
     }
   }
 
+  /*
+   * Out of its group, with everybody in the group kept in it — see
+   * `takeOutOfGroup`. A reload rather than patching state: the settings
+   * below change their names, the co-host note goes, and the "make a group"
+   * offer comes back, and the server is the one that knows all three.
+   */
+  async function ungroup() {
+    setBusy('ungroup');
+    try {
+      const res = await fetch(`/api/events/${eventId}/group`, { method: 'DELETE' });
+      if (!res.ok) throw new Error('Could not take it out of the group.');
+      window.location.reload();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+      setBusy(null);
+    }
+  }
+
   async function destroy() {
     setBusy('delete');
     try {
@@ -804,6 +826,7 @@ export function ManageView({
           */}
           <AccessChoice
             value={access}
+            inGroup={initial.groupId !== null}
             disabled={busy === 'switch'}
             onChange={(next) => {
               if (next !== access) void setSwitch({ accessPolicy: next });
@@ -1087,6 +1110,47 @@ export function ManageView({
           >
             {busy === 'group' ? 'Making it…' : 'Make a group'}
           </button>
+        </section>
+      )}
+
+      {tab === 'manage' && initial.groupId && initial.isCreator && (
+        /*
+          Out of the group, which is the answer to "only some of the group":
+          the roll keeps everybody who is in the group today, stops reaching
+          whoever joins it later, and its creator narrows it from there.
+          Creator only, which the route enforces — a group admin runs the
+          roll but does not decide where it lives.
+        */
+        <section className="panel">
+          <h2>In {initial.groupName ?? 'a group'}</h2>
+          {confirmUngroup ? (
+            <>
+              <p className="muted">
+                Everyone in {initial.groupName ?? 'the group'} stays in this roll.
+                It stops showing in the group, and people who join the group
+                later will not see it. You can remove anyone under Members
+                afterwards.
+              </p>
+              <div className="row">
+                <button className="danger" onClick={ungroup} disabled={busy === 'ungroup'}>
+                  {busy === 'ungroup' ? 'Taking it out…' : 'Take it out of the group'}
+                </button>
+                <button className="secondary" onClick={() => setConfirmUngroup(false)}>
+                  Cancel
+                </button>
+              </div>
+            </>
+          ) : (
+            <>
+              <p className="muted">
+                Everyone in the group can see it. To share it with only some of
+                them, take it out of the group.
+              </p>
+              <button className="secondary" onClick={() => setConfirmUngroup(true)}>
+                Take it out of the group
+              </button>
+            </>
+          )}
         </section>
       )}
 

@@ -125,7 +125,12 @@ export async function POST(
     return NextResponse.json({ error: 'blocked' }, { status: 403 });
   }
 
-  await recordParticipant(db, event.id, actorId);
+  /*
+   * In by right once they have added to a roll in a group, so leaving the
+   * group later does not shut them out of a roll with their photographs in
+   * it. See `admitted` on the participant row.
+   */
+  await recordParticipant(db, event.id, actorId, 'member', event.groupId !== null);
 
   // Per-request limits alone bound nothing: a thousand requests of fifty files
   // is still a thousand requests. The cap that matters is cumulative.

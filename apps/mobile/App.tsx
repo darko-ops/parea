@@ -5263,6 +5263,29 @@ function EventScreen({
             }
           }}
           onOpenGroup={onOpenGroup}
+          onUngroup={() => {
+            const group = feed?.event.groupName ?? 'the group';
+            Alert.alert(
+              `Take it out of ${group}?`,
+              `Everyone in ${group} stays in this roll. It stops showing in the group, and people who join the group later won’t see it. You can remove anyone from People afterwards.`,
+              [
+                { text: 'Keep it there', style: 'cancel' },
+                {
+                  text: 'Take it out',
+                  style: 'destructive',
+                  onPress: async () => {
+                    try {
+                      await api.takeOutOfGroup(event.id);
+                      onGroupsChanged();
+                      await refresh();
+                    } catch {
+                      Alert.alert('Could not take it out', 'Try again in a moment.');
+                    }
+                  },
+                },
+              ],
+            );
+          }}
         />
       )}
 
@@ -5942,6 +5965,7 @@ function HostSheet({
   onContribute,
   onGroup,
   onOpenGroup,
+  onUngroup,
 }: {
   api: Api;
   t: Theme;
@@ -5995,6 +6019,8 @@ function HostSheet({
   onContribute: (value: ContributePolicy) => void;
   onGroup: (name: string) => void;
   onOpenGroup: (groupId: string) => void;
+  /** Out of its group, everybody kept — the creator's alone. */
+  onUngroup: () => void;
 }) {
   const [naming, setNaming] = useState(false);
   const [groupName, setGroupName] = useState('');
@@ -6282,10 +6308,20 @@ function HostSheet({
                 <Text style={[styles.label, { color: t.fg }]}>Who can see it</Text>
                 <View style={styles.pills}>
                   {(
-                    [
-                      ['public', 'Public'],
-                      ['private', 'Private'],
-                    ] as ['public' | 'private', string][]
+                    /*
+                      In a group, named for what they do there: the group is
+                      always in, so "Private" never meant only the people you
+                      pick. A roll for some of a group is taken out of it.
+                    */
+                    (feed?.event.groupId
+                      ? [
+                          ['private', 'Group only'],
+                          ['public', 'Anyone with the link'],
+                        ]
+                      : [
+                          ['public', 'Public'],
+                          ['private', 'Private'],
+                        ]) as ['public' | 'private', string][]
                   ).map(([value, label]) => {
                     const on = visible === value;
                     return (
@@ -6315,9 +6351,13 @@ function HostSheet({
                   })}
                 </View>
                 <Text style={[styles.small, { color: t.dim }]}>
-                  {visible === 'private'
-                    ? 'Only the people in it. Anyone else with the link can ask, and you answer — everyone already here stays in.'
-                    : 'Anyone signed in with the link can see it.'}
+                  {feed?.event.groupId
+                    ? visible === 'private'
+                      ? 'Everyone in the group, and anyone you add by name. Anyone else with the link can ask.'
+                      : 'Everyone in the group, and anyone signed in with the link.'
+                    : visible === 'private'
+                      ? 'Only the people in it. Anyone else with the link can ask, and you answer — everyone already here stays in.'
+                      : 'Anyone signed in with the link can see it.'}
                 </Text>
                 {(feed?.event.waiting ?? 0) > 0 && (
                   <Text style={[styles.small, { color: t.accent }]}>
@@ -6620,6 +6660,20 @@ function HostSheet({
                   onClose();
                   onOpenGroup(feed.event.groupId!);
                 }}
+                t={t}
+              />
+            )}
+
+            {/*
+              Out of the group: the answer to "only some of the group". Its
+              creator's alone — a group admin runs the roll, but where it lives
+              is the call of whoever made it. Everyone in the group stays in.
+            */}
+            {feed?.event.groupId && feed.event.membership === 'creator' && (
+              <Row
+                label="Take out of group"
+                note="Everyone in the group keeps it. New members won’t see it."
+                onPress={onUngroup}
                 t={t}
               />
             )}

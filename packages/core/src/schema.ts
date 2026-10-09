@@ -950,6 +950,22 @@ export const eventParticipants = pgTable(
     role: text('role', { enum: ['member', 'host'] })
       .notNull()
       .default('member'),
+    /**
+     * In by right rather than by holding a link — read alongside an accepted
+     * invitation or an approved request as "let in by name". See `admitted` in
+     * `authorize`.
+     *
+     * Those two say how somebody arrived on their own. This is for the people
+     * whose way in was a group: a roll taken out of its group writes it for
+     * everybody in the group at that moment, so nobody loses a roll because
+     * of where it was filed — and an upload to a roll in a group writes it for
+     * the uploader, so leaving the group does not shut them out of a roll
+     * they added to. Without it their row would mean nothing on a private
+     * roll: a participant who was not let in by name gets in only with a
+     * capability in the browser they are using, and somebody who came in
+     * through the group never had one.
+     */
+    admitted: boolean('admitted').notNull().default(false),
     firstSeenAt: timestamp('first_seen_at', { withTimezone: true })
       .notNull()
       .defaultNow(),

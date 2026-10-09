@@ -6,6 +6,7 @@ import { ManageView } from '@/../app/components/ManageView';
 import { decide, findEventById } from '@/access';
 import { coverSrc } from '@/cards';
 import { getDb } from '@/db';
+import { findGroup } from '@/groups';
 import { requesterFor } from '@/session';
 import { Shell } from '@/../app/components/Shell';
 
@@ -65,6 +66,9 @@ export default async function ManagePage({
           code: code?.words ?? null,
           url: `/e/${event.linkToken}`,
           groupId: event.groupId,
+          groupName: event.groupId ? ((await findGroup(db, event.groupId))?.name ?? null) : null,
+          // Taking it out of its group is the creator's alone — see the route.
+          isCreator: requester.actorId === event.createdBy,
           // Presigned, an hour, like every other cover URL. The key stays on
           // this side of the boundary — see `coverSrc`.
           coverUrl: await coverSrc(event.coverKey),

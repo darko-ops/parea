@@ -152,8 +152,11 @@ export function CreateEvent({
   // A name, and nothing else. The page before answered when, and whether there
   // are photographs at all is not this screen's business to insist on.
   const ready = Boolean(name.trim());
-  /** Public unless the creator says otherwise — a forwarded link still works. */
-  const [isPrivate, setIsPrivate] = useState(false);
+  /**
+   * Public unless the creator says otherwise — a forwarded link still works.
+   * In a group it starts at Group only, the one you mean there.
+   */
+  const [isPrivate, setIsPrivate] = useState(Boolean(groupId));
   /* Everyone, which is what an album is usually for. The other two are
      choices somebody makes on purpose. */
   const [contribute, setContribute] = useState<ContributePolicy>('everyone');
@@ -434,10 +437,16 @@ export function CreateEvent({
           <Text style={[styles.fieldLabel, { color: t.dim }]}>WHO CAN SEE IT</Text>
           <View style={styles.pills}>
             {(
-              [
-                [false, 'Public'],
-                [true, 'Private'],
-              ] as [boolean, string][]
+              // In a group, named for what they do there: the group is always in.
+              (groupId
+                ? [
+                    [true, 'Group only'],
+                    [false, 'Anyone with the link'],
+                  ]
+                : [
+                    [false, 'Public'],
+                    [true, 'Private'],
+                  ]) as [boolean, string][]
             ).map(([value, label]) => {
               const on = isPrivate === value;
               return (
@@ -464,9 +473,13 @@ export function CreateEvent({
           </View>
           {/* Said as what it costs rather than as the name of a policy. */}
           <Text style={[styles.small, { color: t.dim }]}>
-            {isPrivate
-              ? 'Only people you invite. A forwarded link opens nothing.'
-              : 'Anyone signed in with the link can see it.'}
+            {groupId
+              ? isPrivate
+                ? 'Everyone in the group, and anyone you add by name.'
+                : 'Everyone in the group, and anyone signed in with the link.'
+              : isPrivate
+                ? 'Only people you invite. A forwarded link opens nothing.'
+                : 'Anyone signed in with the link can see it.'}
           </Text>
         </View>
 

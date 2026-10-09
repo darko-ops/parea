@@ -90,8 +90,14 @@ async function resolveFacts(db: Db, event: EventRow, requester: Requester) {
              * has that row and no cookie anywhere else. See `admitted` in
              * `authorize`.
              */
+            /*
+             * Or in by right: carried over from a group the roll left, or an
+             * upload made while the roll was in one. See `admitted` on the
+             * participant row.
+             */
             admitted: sql<boolean>`
-              exists (
+              "event_participant"."admitted"
+              or exists (
                 select 1 from "event_invite" i
                 where i.event_id = ${event.id}
                   and i.actor_id = ${requester.actorId}
@@ -261,11 +267,22 @@ export async function recordParticipant(
    * of it.
    */
   role: 'member' | 'host' = 'member',
+  /**
+   * In by right — see `admitted` on the participant row. Raised on a row that
+   * already exists, unlike the role: it only ever says somebody may stay, and
+   * an upload to a roll in a group is how somebody already in comes to earn it.
+   */
+  admitted = false,
 ): Promise<void> {
-  await db
-    .insert(schema.eventParticipants)
-    .values({ eventId, actorId, role })
-    .onConflictDoNothing();
+  const insert = db.insert(schema.eventParticipants).values({ eventId, actorId, role, admitted });
+  if (admitted) {
+    await insert.onConflictDoUpdate({
+      target: [schema.eventParticipants.eventId, schema.eventParticipants.actorId],
+      set: { admitted: true },
+    });
+  } else {
+    await insert.onConflictDoNothing();
+  }
 }
 
 /**
@@ -274,8 +291,8 @@ export async function recordParticipant(
  * Not "the participants", which is what this used to count and what the warning
  * in front of the button used to say. Three kinds of person keep access through
  * a rotation, and none of them is holding the link: whoever made the album, the
- * members of its group, and anybody let in by name — an invitation accepted or
- * a request approved. See `admitted` in `authorize` for why the last of those
+ * members of its group, and anybody let in by name — an invitation accepted,
+ * a request approved, or in by right (`admitted` on the row). See `admitted` in `authorize` for why the last of those
  * is a credential a new link is not about.
  *
  * Here rather than in the route because it is the same question `decide` asks,
@@ -297,6 +314,7 @@ export async function lockedOutByRotation(
     .select({
       count: sql<number>`count(*) filter (
         where ep.actor_id <> ${event.createdBy}
+          and not ep.admitted
           and not exists (
             select 1 from "group_member" gm
             where gm.group_id = ${event.groupId}
