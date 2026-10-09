@@ -44,6 +44,7 @@ import {
   useWindowDimensions,
 } from 'react-native';
 
+import { useToTop } from './toTop';
 import { useAppearance } from './appearance';
 import { ApiError, isStaleSignIn, STALE_SIGN_IN_NOTE } from './api';
 import type {
@@ -1013,10 +1014,7 @@ export function HomeTab({
   openMoment?: { id: string; n: number } | null;
 }) {
   const [refreshing, setRefreshing] = useState(false);
-  const scroller = useRef<ScrollView>(null);
-  useEffect(() => {
-    if (top > 0) scroller.current?.scrollTo({ y: 0, animated: true });
-  }, [top]);
+  const scroller = useToTop(top);
   // One gesture refreshes both: pulling the list down and finding the count
   // above it stale would make the count the thing nobody trusts.
   const [pulled, setPulled] = useState(0);
@@ -1288,6 +1286,7 @@ export function ChatsTab({
   onOpenGroupThread,
   onCreateChat,
   Button,
+  top = 0,
 }: {
   api: Api;
   events: EventListing[];
@@ -1297,7 +1296,10 @@ export function ChatsTab({
   Button: ButtonComponent;
   active: boolean;
   onOpenGroupThread: (group: MyGroupDetail) => void;
+  /** Bumped when this tab is pressed while it is showing — to its top. See `useToTop`. */
+  top?: number;
 }) {
+  const scroller = useToTop(top);
   const [groups, setGroups] = useState<MyGroupDetail[] | null>(null);
   const [refreshing, setRefreshing] = useState(false);
   /** What is being looked for on this tab, if anything. */
@@ -1419,6 +1421,7 @@ export function ChatsTab({
 
   return (
     <ScrollView
+      ref={scroller}
       contentContainerStyle={styles.groupsScroll}
       keyboardShouldPersistTaps="handled"
       refreshControl={
@@ -2059,6 +2062,7 @@ export function SearchTab({
   searchHandle = false,
   onSearchHandled,
   Button,
+  top = 0,
 }: {
   api: Api;
   events: EventListing[];
@@ -2094,7 +2098,10 @@ export function SearchTab({
   searchHandle?: boolean;
   onSearchHandled?: () => void;
   Button: ButtonComponent;
+  /** Bumped when this tab is pressed while it is showing — to its top. See `useToTop`. */
+  top?: number;
 }) {
+  const scroller = useToTop(top);
   /** The shelf of doors below is laid out from this. See `door`. */
   const { width } = useWindowDimensions();
   const [scope, setScope] = useState<Scope>('all');
@@ -2425,7 +2432,7 @@ export function SearchTab({
   const doorLetter = Math.round(tile * 0.4);
 
   return (
-    <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
+    <ScrollView ref={scroller} contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
       {/*
         The field *is* the head here, and it is the one tab where that is true.
 

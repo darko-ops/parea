@@ -62,6 +62,7 @@ import {
 
 import { dateLabel } from '@parea/cards';
 
+import { useToTop } from './toTop';
 import { LinkIcon } from './LinkIcon';
 import type { Account, Api, EventListing, InvitablePerson } from './api';
 import { ApiError } from './api';
@@ -106,6 +107,7 @@ export function ProfileScreen({
   onSignedIn,
   onSignedOut,
   Button,
+  top = 0,
 }: {
   api: Api;
   /** Everything this person can reach, which is what the grid draws. */
@@ -143,7 +145,10 @@ export function ProfileScreen({
   onSignedIn: () => void;
   onSignedOut: () => void;
   Button: ButtonEl;
+  /** Bumped when this tab is pressed while it is showing — to its top. See `useToTop`. */
+  top?: number;
 }) {
+  const scroller = useToTop(top);
   const [account, setAccount] = useState<Account | null | undefined>();
   /*
    * The friends themselves, not only how many.
@@ -257,6 +262,7 @@ export function ProfileScreen({
     */
     <View style={styles.screen}>
     <ScrollView
+      ref={scroller}
       contentContainerStyle={styles.scroll}
       keyboardShouldPersistTaps="handled"
       // Drives the retract above. 16ms is one frame; less is work nobody sees.

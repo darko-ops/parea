@@ -181,10 +181,19 @@ describe('moments', () => {
     expect(APP).toMatch(/void loadAppearance\(\);/);
   });
 
-  it('scrolls Home to the top when Home is pressed on Home', () => {
-    expect(APP).toMatch(/if \(id === 'home' && tab === 'home'\) setHomeTop\(\(n\) => n \+ 1\);\s*else setTab\(id\);/);
-    expect(APP).toMatch(/top=\{homeTop\}/);
-    expect(EVENTS).toMatch(/if \(top > 0\) scroller\.current\?\.scrollTo\(\{ y: 0, animated: true \}\);/);
+  it('scrolls every tab to the top when it is pressed while showing, as Home always did', () => {
+    expect(APP).toMatch(/if \(id === tab\) setTabTop\(\(was\) => \(\{ \.\.\.was, \[id\]: was\[id\] \+ 1 \}\)\);\s*else setTab\(id\);/);
+    for (const tab of ['home', 'chats', 'search', 'profile']) {
+      expect(APP).toMatch(new RegExp(`top=\\{tabTop\\.${tab}\\}`));
+    }
+    const TO_TOP = read('src/toTop.ts');
+    expect(TO_TOP).toMatch(/if \(top > 0\) scroller\.current\?\.scrollTo\(\{ y: 0, animated: true \}\);/);
+    // Home, Chats and Find in Events.tsx, Profile in its own file — each list
+    // wears the ref.
+    expect(EVENTS.match(/const scroller = useToTop\(top\);/g)).toHaveLength(3);
+    expect(PROFILE).toMatch(/const scroller = useToTop\(top\);/);
+    expect(EVENTS.match(/<ScrollView\s+ref=\{scroller\}/g)?.length).toBeGreaterThanOrEqual(2);
+    expect(PROFILE).toMatch(/<ScrollView\s+ref=\{scroller\}/);
   });
 
   it('gives each moment fifteen seconds, shows the time going, and walks on', () => {

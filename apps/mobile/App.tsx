@@ -397,8 +397,16 @@ export default function App() {
   const [groups, setGroups] = useState<MyGroup[]>([]);
   const [route, setRoute] = useState<Route>({ screen: 'tabs' });
   const [tab, setTab] = useState<Tab>('home');
-  /** Pressing Home while on Home scrolls it to the top; see `HomeTab`'s `top`. */
-  const [homeTop, setHomeTop] = useState(0);
+  /**
+   * Pressing the tab you are on scrolls it to the top — every tab, as Home
+   * always has. A counter each, bumped on that press; see `useToTop`.
+   */
+  const [tabTop, setTabTop] = useState<Record<Tab, number>>({
+    home: 0,
+    chats: 0,
+    search: 0,
+    profile: 0,
+  });
   /*
    * Which tabs have been opened, and therefore still exist.
    *
@@ -2082,7 +2090,7 @@ export default function App() {
                 // The join screen's only way in, now that the pill above the tab
                 // bar is gone: a link, a QR code or a spoken phrase.
                 Button={Button}
-                top={homeTop}
+                top={tabTop.home}
                 openMoment={momentAsk}
               />
             </Pane>
@@ -2096,6 +2104,7 @@ export default function App() {
                 events={events}
                 t={t}
                 active={tab === 'chats'}
+                top={tabTop.chats}
                 /*
                  * A chat, made here rather than somewhere else.
                  *
@@ -2120,6 +2129,7 @@ export default function App() {
                 events={events}
                 t={t}
                 active={tab === 'search'}
+                top={tabTop.search}
                 openCreate={makeGroup}
                 onOpen={openListing}
                 onOpenGroup={(id) => setRoute({ screen: 'group', id })}
@@ -2165,6 +2175,7 @@ export default function App() {
                 webBase={API_BASE}
                 t={t}
                 active={tab === 'profile'}
+                top={tabTop.profile}
                 onOpen={openListing}
                 onOpenPerson={(handle) => setRoute({ screen: 'person', handle })}
                 onCreateEvent={() => setRoute({ screen: 'pick' })}
@@ -2204,8 +2215,8 @@ export default function App() {
             dark={dark}
             chats={chats}
             onTab={(id) => {
-              // Home, pressed on Home: to the top of it, not nowhere.
-              if (id === 'home' && tab === 'home') setHomeTop((n) => n + 1);
+              // The tab you are on, pressed again: to the top of it, not nowhere.
+              if (id === tab) setTabTop((was) => ({ ...was, [id]: was[id] + 1 }));
               else setTab(id);
             }}
           />
