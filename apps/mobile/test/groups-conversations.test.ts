@@ -207,9 +207,11 @@ describe('where a row goes', () => {
      */
     expect(FIND).toMatch(/onPress=\{\(\) => onOpenGroup\(group\.id\)\}/);
     expect(FIND).not.toMatch(/onOpenGroupThread/);
-    expect(read('App.tsx')).not.toMatch(
-      /<SearchTab[\s\S]*?onOpenGroupThread[\s\S]*?\/>/,
-    );
+    // The element itself, up to its own close — the roll's settings further
+    // down the file do open a group's conversation, and that is not Find.
+    const searchTab = read('App.tsx').match(/<SearchTab[\s\S]*?\n\s*\/>/)?.[0] ?? '';
+    expect(searchTab).not.toBe('');
+    expect(searchTab).not.toMatch(/onOpenGroupThread/);
     // And on Chats a row is only ever the conversation — the room itself is a
     // page you reach from Find.
     expect(TAB).toMatch(/onPress=\{\(\) => onOpenGroupThread\(group\)\}/);

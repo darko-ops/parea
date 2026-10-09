@@ -25,7 +25,7 @@ import { getDb } from '@/db';
 import { hostingFor } from '@/hosts';
 import { invitedTo, mayListMembers, membersOf, rosterFrom, visibleMembers } from '@/members';
 import { messagesFor } from '@/messages';
-import { findGroup } from '@/groups';
+import { findGroup, rollGroupSummary } from '@/groups';
 import { hasDerivatives, imageSources, imageSrc, imageSrcSet, photosWithCard } from '@/images';
 import { viewerContext } from '@/moderation';
 import { reactionLines, reactionsForPhotos } from '@/photoReactions';
@@ -434,7 +434,7 @@ export async function GET(
    * together — the same reasoning as the eleven above, applied to the
    * leftovers rather than abandoned for them.
    */
-  const [waitingRows, hostWaitingRows, hosting] = await Promise.all([
+  const [waitingRows, hostWaitingRows, hosting, groupSummary] = await Promise.all([
     canAdminister
       ? db
           .select({ n: countDistinct(schema.eventAccessRequests.id) })
@@ -474,6 +474,9 @@ export async function GET(
      * is the page contradicting itself while somebody watches.
      */
     hostingFor(db, event, accountActorId, contributeDecision.allow),
+    // The group's header on the roll's settings sheet, in the same response so
+    // it draws with the sheet rather than a beat after it.
+    group ? rollGroupSummary(db, group, accountActorId) : Promise.resolve(null),
   ]);
 
   /*
@@ -508,6 +511,7 @@ export async function GET(
       waiting,
       groupId: event.groupId,
       groupName: group?.name ?? null,
+      group: groupSummary,
       caption: event.caption,
       startsAt: event.startsAt?.toISOString() ?? null,
       linkToken: event.linkToken,

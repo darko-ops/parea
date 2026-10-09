@@ -868,6 +868,62 @@ export async function roomOf(
 }
 
 /**
+ * The group a roll is in, as the roll's settings sheet draws it: the room's
+ * mark and title, how many are in it, and whether this reader is one of them.
+ *
+ * A reader who is not in the group — somebody let into the roll by right who
+ * has since left it — gets the door and nothing behind it: the name it was
+ * given and the count, no faces, no picture, and `member: false`, which is
+ * what keeps "Group chat" off their sheet. The same rule every other door to
+ * a group follows.
+ */
+export async function rollGroupSummary(
+  db: Db,
+  group: { id: string; name: string | null; photoKey?: string | null },
+  viewerId: string | null,
+): Promise<{
+  id: string;
+  title: string;
+  kind: GroupKind;
+  photoUrl: string | null;
+  deck: { name: string; avatarUrl: string | null }[];
+  memberCount: number;
+  eventCount: number;
+  member: boolean;
+}> {
+  const [membership, members, [events]] = await Promise.all([
+    membershipOf(db, group.id, viewerId),
+    memberCount(db, group.id),
+    db
+      .select({ n: count() })
+      .from(schema.events)
+      .where(and(eq(schema.events.groupId, group.id), isNull(schema.events.deletedAt))),
+  ]);
+  const counts = { memberCount: members, eventCount: events?.n ?? 0 };
+  if (!membership) {
+    return {
+      id: group.id,
+      title: group.name?.trim() || 'the group',
+      kind: 'named',
+      photoUrl: null,
+      deck: [],
+      ...counts,
+      member: false,
+    };
+  }
+  const room = await roomOf(db, group, viewerId);
+  return {
+    id: group.id,
+    title: room.title,
+    kind: room.kind,
+    photoUrl: room.photoUrl,
+    deck: room.deck,
+    ...counts,
+    member: true,
+  };
+}
+
+/**
  * A room's own picture, signed — the same signer and lifetime as a face.
  *
  * Only ever built for somebody in the room: every caller here is a list of

@@ -56,6 +56,7 @@ import {
   type ContributePolicy,
   type EventListing,
   type Feed,
+  type RollGroup,
   type FeedPhoto,
   type Member,
   type GroupKind,
@@ -66,7 +67,7 @@ import {
 import { Glyph, type GlyphName } from './src/Glyph';
 import { initialOf, lensFor } from './src/lens';
 import { People, Thread } from './src/Thread';
-import { AccountCard, ChatsTab, HomeTab, SearchTab } from './src/Events';
+import { AccountCard, ChatsTab, HomeTab, RoomMark, SearchTab } from './src/Events';
 import { FindFriends } from './src/FindFriends';
 import { Launch } from './src/Launch';
 import { FIELD_BASE } from './src/MarkField';
@@ -1635,6 +1636,7 @@ export default function App() {
             Button={Button}
             onBack={leaveEvent}
             onOpenGroup={(id) => setRoute({ screen: 'group', id })}
+            onOpenGroupThread={(group) => setRoute({ screen: 'groupThread', group })}
             onOpenPerson={(handle) => setRoute({ screen: 'person', handle })}
             onGroupsChanged={refreshGroups}
           />
@@ -2493,6 +2495,7 @@ function EventScreen({
   Button: ButtonEl,
   onBack,
   onOpenGroup,
+  onOpenGroupThread,
   onOpenPerson,
   onGroupsChanged,
 }: {
@@ -2571,6 +2574,8 @@ function EventScreen({
   Button: typeof Button;
   onBack: () => void;
   onOpenGroup: (groupId: string) => void;
+  /** The group's own conversation, from the header on the settings sheet. */
+  onOpenGroupThread: (group: GroupThreadTarget) => void;
   /** A byline on a photograph is a person; pressing one opens them. */
   onOpenPerson: (handle: string) => void;
   onGroupsChanged: () => void;
@@ -5285,6 +5290,7 @@ function EventScreen({
             }
           }}
           onOpenGroup={onOpenGroup}
+          onOpenGroupThread={onOpenGroupThread}
           onUngroup={() => {
             const group = feed?.event.groupName ?? 'the group';
             Alert.alert(
@@ -5987,6 +5993,7 @@ function HostSheet({
   onContribute,
   onGroup,
   onOpenGroup,
+  onOpenGroupThread,
   onUngroup,
 }: {
   api: Api;
@@ -6041,6 +6048,7 @@ function HostSheet({
   onContribute: (value: ContributePolicy) => void;
   onGroup: (name: string) => void;
   onOpenGroup: (groupId: string) => void;
+  onOpenGroupThread: (group: GroupThreadTarget) => void;
   /** Out of its group, everybody kept — its creator or a group admin. */
   onUngroup: () => void;
 }) {
@@ -6155,6 +6163,48 @@ function HostSheet({
 
         <View style={[styles.sheet, { backgroundColor: t.bg }]}>
           <ScrollView contentContainerStyle={styles.sheetScroll}>
+            {/*
+              The group, first: a roll in a group is shared with exactly the
+              group, so who can see it is a fact about the group and is said
+              here, once, with the two ways into it. It used to appear twice —
+              a "Group only" card mid-sheet and an "in …" row at the foot.
+            */}
+            {known && feed?.event.groupId && (
+              <RollGroupHeader
+                group={
+                  feed.event.group ?? {
+                    // An older server: the name it sent, a lettered mark, and
+                    // no count to state.
+                    id: feed.event.groupId,
+                    title: feed.event.groupName ?? 'Group',
+                    kind: 'named',
+                    photoUrl: null,
+                    deck: [],
+                    memberCount: 0,
+                    eventCount: 0,
+                    member: true,
+                  }
+                }
+                t={t}
+                onOpenGroup={() => {
+                  onClose();
+                  onOpenGroup(feed.event.groupId!);
+                }}
+                onOpenChat={(group) => {
+                  onClose();
+                  onOpenGroupThread({
+                    id: group.id,
+                    name: group.title,
+                    memberCount: group.memberCount,
+                    eventCount: group.eventCount,
+                    kind: group.kind,
+                    deck: group.deck,
+                    photoUrl: group.photoUrl,
+                  });
+                }}
+              />
+            )}
+
             <View style={styles.actions}>
               <Action
                 t={t}
@@ -6335,21 +6385,6 @@ function HostSheet({
               note under it is not decoration: "private" sounds like it should
               throw people out, and it does not.
             */}
-            {host && feed?.event.groupId && (
-              /*
-                Not a choice in a group: a roll in a group is shared with
-                exactly the group — Group only — and the way to share it wider
-                is "Remove from group" further down.
-              */
-              <View style={[styles.card, { backgroundColor: t.card, borderColor: t.line }]}>
-                <Text style={[styles.label, { color: t.fg }]}>Who can see it</Text>
-                <Text style={[styles.body, { color: t.fg }]}>Group only</Text>
-                <Text style={[styles.small, { color: t.dim }]}>
-                  Everyone in {feed.event.groupName ?? 'the group'}. To share it with anyone
-                  else, remove it from the group.
-                </Text>
-              </View>
-            )}
             {host && !feed?.event.groupId && (
               <View style={[styles.card, { backgroundColor: t.card, borderColor: t.line }]}>
                 <Text style={[styles.label, { color: t.fg }]}>Who can see it</Text>
@@ -6685,30 +6720,25 @@ function HostSheet({
               </View>
             )}
 
-            {feed?.event.groupId && (
-              <Row
-                label={`in ${feed.event.groupName}`}
-                note="Open the group this roll is in."
-                onPress={() => {
-                  onClose();
-                  onOpenGroup(feed.event.groupId!);
-                }}
-                t={t}
-              />
-            )}
-
             {/*
               Out of the group: the answer to "only some of the group", and to
               anybody outside it. Its creator or a group admin — `host` is
               exactly those two. Everyone in the group stays in.
             */}
             {host && feed?.event.groupId && (
-              <Row
-                label="Remove from group"
-                note="Everyone in the group keeps it. New members won’t see it."
-                onPress={onUngroup}
-                t={t}
-              />
+              <View style={[styles.ungroup, { borderTopColor: t.line }]}>
+                <Pressable
+                  onPress={onUngroup}
+                  accessibilityRole="button"
+                  hitSlop={8}
+                  style={({ pressed }) => [styles.ungroupButton, { opacity: pressed ? 0.6 : 1 }]}
+                >
+                  <Text style={[styles.ungroupLabel, { color: t.warn }]}>Remove from group</Text>
+                </Pressable>
+                <Text style={[styles.ungroupNote, { color: t.dim }]}>
+                  Everyone in the group keeps it. New members won’t see it.
+                </Text>
+              </View>
             )}
           </ScrollView>
         </View>
@@ -6718,6 +6748,75 @@ function HostSheet({
           site: presented from outside this modal it would open underneath it. */}
       {coverFramer}
     </Modal>
+  );
+}
+
+/** What the `groupThread` route is pushed with. */
+type GroupThreadTarget = Extract<Route, { screen: 'groupThread' }>['group'];
+
+/**
+ * The group a roll is in, at the top of the roll's settings: its mark, its
+ * name, who can see the roll, and the two ways into the group.
+ *
+ * "Group chat" only for somebody in the group — a reader let into the roll who
+ * has since left it can still open the group's door, but has no conversation
+ * there to open.
+ */
+function RollGroupHeader({
+  group,
+  t,
+  onOpenGroup,
+  onOpenChat,
+}: {
+  group: RollGroup;
+  t: Theme;
+  onOpenGroup: () => void;
+  onOpenChat: (group: RollGroup) => void;
+}) {
+  const count = group.memberCount;
+  return (
+    <View style={[styles.groupHead, { borderBottomColor: t.line }]}>
+      <View style={styles.groupHeadMark}>
+        <RoomMark room={group} size={64} t={t} />
+      </View>
+      <Text style={[styles.groupHeadName, { color: t.fg }]} numberOfLines={1}>
+        {group.title}
+      </Text>
+      <View style={styles.groupHeadSees}>
+        <Glyph name="locked" size={13} color={t.dim} />
+        <Text style={[styles.groupHeadSeesText, { color: t.dim }]}>
+          {count > 0
+            ? `Group only · ${count} ${count === 1 ? 'member' : 'members'} can see this roll`
+            : 'Group only'}
+        </Text>
+      </View>
+      <View style={styles.groupHeadButtons}>
+        <Pressable
+          onPress={onOpenGroup}
+          accessibilityRole="button"
+          style={({ pressed }) => [
+            styles.groupHeadButton,
+            { backgroundColor: t.card, borderColor: t.line, opacity: pressed ? 0.7 : 1 },
+          ]}
+        >
+          <Glyph name="group" size={18} color={t.fg} />
+          <Text style={[styles.groupHeadButtonText, { color: t.fg }]}>Open group</Text>
+        </Pressable>
+        {group.member && (
+          <Pressable
+            onPress={() => onOpenChat(group)}
+            accessibilityRole="button"
+            style={({ pressed }) => [
+              styles.groupHeadButton,
+              { backgroundColor: t.card, borderColor: t.line, opacity: pressed ? 0.7 : 1 },
+            ]}
+          >
+            <Glyph name="bubbles" size={18} color={t.fg} />
+            <Text style={[styles.groupHeadButtonText, { color: t.fg }]}>Group chat</Text>
+          </Pressable>
+        )}
+      </View>
+    </View>
   );
 }
 
@@ -7774,6 +7873,36 @@ const styles = StyleSheet.create({
   bannerCount: { fontSize: 12, color: '#5b6472' },
   /* --- the sheet behind `⋯` ---------------------------------------------- */
   sheetScroll: { gap: 10, paddingBottom: 10 },
+  /* The group a roll is in, at the top of its settings. */
+  groupHead: {
+    alignItems: 'center',
+    gap: 6,
+    paddingTop: 6,
+    paddingBottom: 18,
+    marginBottom: 6,
+    borderBottomWidth: 1,
+  },
+  groupHeadMark: { marginBottom: 6 },
+  groupHeadName: { fontSize: 20, fontWeight: '700' },
+  groupHeadSees: { flexDirection: 'row', alignItems: 'center', gap: 5 },
+  groupHeadSeesText: { fontSize: 13 },
+  groupHeadButtons: { flexDirection: 'row', gap: 8, marginTop: 10, alignSelf: 'stretch' },
+  groupHeadButton: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 7,
+    borderRadius: 12,
+    borderWidth: 1,
+    paddingVertical: 12,
+  },
+  groupHeadButtonText: { fontSize: 15, fontWeight: '600' },
+  /* Remove from group, at the foot, set off by a hairline. */
+  ungroup: { alignItems: 'center', gap: 4, marginTop: 22, paddingTop: 18, borderTopWidth: 1 },
+  ungroupButton: { paddingVertical: 6, paddingHorizontal: 12 },
+  ungroupLabel: { fontSize: 15, fontWeight: '600' },
+  ungroupNote: { fontSize: 13, lineHeight: 18, textAlign: 'center' },
   sheetRow: { borderRadius: 14, borderWidth: 1, padding: 14, gap: 2 },
   /* Taller than a single-line field and top-aligned, because a caption is a
      sentence: two hundred characters is three lines on this width, and a box

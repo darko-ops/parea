@@ -84,7 +84,7 @@ describe('the feed asks for everything at once', () => {
     // `waiting` needs `canAdminister` to have come back; the photo URLs need
     // `hasCard` and `reactions`. Both stay in order, deliberately.
     expect(FEED).toMatch(/const canAdminister = adminDecision\.allow/);
-    expect(FEED).toMatch(/const \[waitingRows, hostWaitingRows, hosting\] = await Promise\.all/);
+    expect(FEED).toMatch(/const \[waitingRows, hostWaitingRows, hosting, groupSummary\] = await Promise\.all/);
   });
 
   it('makes the leftovers one wave rather than three', () => {

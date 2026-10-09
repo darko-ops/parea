@@ -285,6 +285,12 @@ export type Feed = {
     groupId: string | null;
     groupName: string | null;
     /**
+     * The group as the settings sheet's header draws it. Optional because a
+     * phone outlives deploys: an older server never sends it, and the header
+     * then draws from `groupName` with a lettered mark.
+     */
+    group?: RollGroup | null;
+    /**
      * The picture the event leads with, presigned for an hour, or null.
      *
      * Only the host can change it, but everybody is sent it: it costs one
@@ -1150,6 +1156,19 @@ export type Account = {
  * screen that read `mutuals` off an older response would render "undefined
  * mutual friends".
  */
+/** The group a roll is in, for the header on the roll's settings sheet. */
+export type RollGroup = {
+  id: string;
+  title: string;
+  kind: GroupKind;
+  photoUrl: string | null;
+  deck: { name: string; avatarUrl: string | null }[];
+  memberCount: number;
+  eventCount: number;
+  /** False for somebody let into the roll who is not in the group: no chat. */
+  member: boolean;
+};
+
 export type Recommendation = InvitablePerson & {
   mutuals?: number;
   albums?: number;

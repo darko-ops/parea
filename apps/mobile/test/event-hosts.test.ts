@@ -129,3 +129,22 @@ describe("a roll in a group's people list", () => {
     expect(APP).toMatch(/onOpen: \(\) => onOpenGroup\(feed\.event\.groupId!\)/);
   });
 });
+
+describe("a roll in a group's settings", () => {
+  it('leads with the group: its mark, who can see the roll, and the two ways in', () => {
+    expect(APP).toMatch(/<RollGroupHeader/);
+    expect(APP).toMatch(/<RoomMark room=\{group\} size=\{64\}/);
+    expect(APP).toMatch(/Group only · \$\{count\} \$\{count === 1 \? 'member' : 'members'\} can see this roll/);
+    expect(APP).toMatch(/>Open group</);
+    expect(APP).toMatch(/\{group\.member && \([\s\S]{0,200}onOpenChat/);
+  });
+
+  it('says it once: no Group only card and no "in …" row further down', () => {
+    expect(APP).not.toMatch(/label=\{`in \$\{feed\.event\.groupName\}`\}/);
+    expect(APP).not.toMatch(/<Text style=\{\[styles\.body, \{ color: t\.fg \}\]\}>Group only<\/Text>/);
+  });
+
+  it('keeps Remove from group at the foot, in the warning colour', () => {
+    expect(APP).toMatch(/color: t\.warn \}\]\}>Remove from group</);
+  });
+});

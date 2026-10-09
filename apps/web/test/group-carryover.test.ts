@@ -21,7 +21,7 @@ import { beforeAll, beforeEach, describe, expect, it } from 'vitest';
 
 import { decide, findEventById, lockedOutByRotation, recordParticipant } from '@/access';
 import type { Db } from '@/db';
-import { outsideGroup, takeOutOfGroup } from '@/groups';
+import { outsideGroup, rollGroupSummary, takeOutOfGroup } from '@/groups';
 
 const MIGRATIONS = fileURLToPath(new URL('../../../packages/core/drizzle', import.meta.url));
 
@@ -201,3 +201,28 @@ describe('a roll in a group is the group’s', () => {
     expect(UNGROUP).not.toMatch(/createdBy/);
   });
 });
+
+describe("the group's header on a roll's settings", () => {
+  it('gives a member the room, its size and its rolls', async () => {
+    const { group, member } = await setting();
+    const summary = await rollGroupSummary(db, group, member);
+    expect(summary).toMatchObject({
+      id: group.id,
+      title: 'House',
+      kind: 'named',
+      memberCount: 3,
+      eventCount: 1,
+      member: true,
+    });
+  });
+
+  it('gives somebody outside the group the door and nothing behind it', async () => {
+    const { group } = await setting();
+    const stranger = await person();
+    const summary = await rollGroupSummary(db, group, stranger);
+    expect(summary).toMatchObject({ title: 'House', memberCount: 3, member: false });
+    expect(summary.deck).toEqual([]);
+    expect(summary.photoUrl).toBeNull();
+  });
+});
+
