@@ -337,3 +337,12 @@ describe('the public page a reviewer can actually open', () => {
     expect(said, 'the documents').toMatch(/privacy page/);
   });
 });
+
+describe('how many are drawn', () => {
+  it('shows ten, and ten more each time Show more is pressed', () => {
+    expect(VIEW).toMatch(/const SUGGESTION_PAGE = 10;/);
+    expect(VIEW).toMatch(/state\.people\.slice\(0, shown\)/);
+    expect(VIEW).toMatch(/setShown\(\(n\) => n \+ SUGGESTION_PAGE\)/);
+    expect(VIEW).toMatch(/state\.people\.length > shown/);
+  });
+});

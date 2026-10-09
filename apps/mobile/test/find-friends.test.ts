@@ -287,3 +287,12 @@ describe('the switch that turns it off', () => {
     expect(PROFILE).toMatch(/account\.discoverable !== false/);
   });
 });
+
+describe('how many are drawn', () => {
+  it('shows ten, and ten more each time Show more is pressed', () => {
+    expect(SCREEN).toMatch(/const SUGGESTION_PAGE = 10;/);
+    expect(SCREEN).toMatch(/state\.people\.slice\(0, shown\)/);
+    expect(SCREEN).toMatch(/setShown\(\(n\) => n \+ SUGGESTION_PAGE\)/);
+    expect(SCREEN).toMatch(/state\.people\.length > shown/);
+  });
+});

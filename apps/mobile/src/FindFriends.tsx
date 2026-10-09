@@ -113,6 +113,9 @@ type ButtonComponent = (props: {
   disabled?: boolean;
 }) => React.ReactElement;
 
+/** Suggestions drawn at a time. */
+const SUGGESTION_PAGE = 10;
+
 /** The dot on the status card while a number finds somebody: the mark's mint. */
 const FINDABLE = '#66E7C6';
 
@@ -277,6 +280,8 @@ export function FindFriends({
    * about its own suggestions, for the same reason.
    */
   const [asked, setAsked] = useState<Record<string, 'asking' | 'asked'>>({});
+  /** How many suggestions are drawn: ten, and ten more each "Show more". */
+  const [shown, setShown] = useState(SUGGESTION_PAGE);
   /** Your handle, for the profile link an invite carries; null until known or without one. */
   const [handle, setHandle] = useState<string | null>(null);
   useEffect(() => {
@@ -736,7 +741,7 @@ export function FindFriends({
                       {/* One card of rows rather than a card per row: a list
                           reads as a list. */}
                       <View style={[styles.list, { backgroundColor: t.card, borderColor: t.line }]}>
-                        {state.people.map((person, i) => {
+                        {state.people.slice(0, shown).map((person, i) => {
                           const name = person.displayName?.trim() || person.handle || 'Someone';
                           const standing = asked[person.actorId];
                           const kind = kindOf(person);
@@ -811,6 +816,13 @@ export function FindFriends({
                           );
                         })}
                       </View>
+                      {state.people.length > shown && (
+                        <Button
+                          label="Show more"
+                          t={t}
+                          onPress={() => setShown((n) => n + SUGGESTION_PAGE)}
+                        />
+                      )}
                     </View>
                   )}
 

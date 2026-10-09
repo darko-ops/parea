@@ -93,6 +93,9 @@ type Person = {
   group?: string | null;
 };
 
+/** Suggestions drawn at a time, as in the app. */
+const SUGGESTION_PAGE = 10;
+
 type Payload = {
   phone: { last2: string | null; verified: boolean };
   discoverable: boolean;
@@ -174,6 +177,8 @@ export function FindFriendsView() {
    * whole thing out from under a cursor halfway down it.
    */
   const [asked, setAsked] = useState<Record<string, 'asking' | 'asked'>>({});
+  /** How many suggestions are drawn: ten, and ten more each "Show more". */
+  const [shown, setShown] = useState(SUGGESTION_PAGE);
 
   const load = useCallback(async () => {
     try {
@@ -556,7 +561,7 @@ export function FindFriendsView() {
                       show *why* — the friends' faces, the roll, the group — and
                       a row has room to say it. */}
                   <ul className="ffl-list">
-                    {state.people.map((person) => (
+                    {state.people.slice(0, shown).map((person) => (
                       <PersonRow
                         key={person.actorId}
                         person={person}
@@ -566,7 +571,7 @@ export function FindFriendsView() {
                     ))}
                   </ul>
                   <ul className="ffl-grid">
-                    {state.people.map((person) => (
+                    {state.people.slice(0, shown).map((person) => (
                       <PersonCard
                         key={person.actorId}
                         person={person}
@@ -575,6 +580,15 @@ export function FindFriendsView() {
                       />
                     ))}
                   </ul>
+                  {state.people.length > shown && (
+                    <button
+                      type="button"
+                      className="secondary ffl-more"
+                      onClick={() => setShown((n) => n + SUGGESTION_PAGE)}
+                    >
+                      Show more
+                    </button>
+                  )}
                 </section>
               )}
 

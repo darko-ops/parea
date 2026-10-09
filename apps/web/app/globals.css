@@ -5149,6 +5149,7 @@ img.you-face { object-fit: cover; }
 .ffl-asked svg { width: 14px; height: 14px; }
 .ffl-card-do { width: 100%; height: 38px; border-radius: 12px; }
 
+.ffl-more { align-self: center; margin-top: 4px; padding: 9px 22px; border-radius: 999px; }
 .ffl-handle { margin: 22px 0 0; font-size: 13.5px; color: var(--dim); }
 .ffl-handle a { color: var(--fg); font-weight: 600; text-decoration: none; }
 .ffl-handle a:hover { text-decoration: underline; }

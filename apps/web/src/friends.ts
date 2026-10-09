@@ -567,8 +567,11 @@ export type Recommendation = Person & {
   group: string | null;
 };
 
-/** Enough to be worth the screen, few enough to read in one pass. */
-export const RECOMMENDATION_LIMIT = 24;
+/**
+ * How many the server sends. The screens draw ten and a "Show more" for ten at
+ * a time, so this is how far that can go rather than what one pass shows.
+ */
+export const RECOMMENDATION_LIMIT = 100;
 
 export async function recommendationsFor(
   db: Db,
