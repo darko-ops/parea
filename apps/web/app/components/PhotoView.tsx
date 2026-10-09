@@ -215,101 +215,113 @@ export function PhotoView({
 
       <div className="photo-body">
         <div className="photo-main">
-          <div
-            className="photo-frame photo-frame-sided"
-            ref={frame}
-            tabIndex={-1}
-            onTouchStart={onTouchStart}
-            onTouchEnd={onTouchEnd}
-          >
-            {/*
-              The photograph and, at its bottom-right corner, what you can do
-              with it — a column standing beside the picture rather than a row
-              under it, so the line below is left to the heart and the way
-              through the roll.
-            */}
-            <div className="photo-stage">
-              <Subject photo={photo} />
-
-              <span className="photo-side">
+          {/*
+            The roll down the left of the picture, and the picture with its
+            heart beside it. A column rather than a strip under the byline: the
+            way through the roll is next to the thing it changes.
+          */}
+          <div className="photo-view">
+            <Filmstrip strip={strip} current={photo.id} href={href} />
+            <div className="photo-col">
+              <div
+                className="photo-frame photo-frame-sided"
+                ref={frame}
+                tabIndex={-1}
+                onTouchStart={onTouchStart}
+                onTouchEnd={onTouchEnd}
+              >
                 {/*
-                  The favourite, first of these.
-
-                  Before Download because it is the one somebody does *while
-                  looking* — a shortlist is made in passing, and a download is a
-                  decision to take the picture away. The app puts it in the same
-                  corner for the same reason.
+                  The photograph and, at its bottom-right corner, what you can do
+                  with it — a column standing beside the picture rather than a row
+                  under it, so the line below is left to the heart and the way
+                  through the roll.
                 */}
-                <Star
+                <div className="photo-stage">
+                  <Subject photo={photo} />
+
+                  <span className="photo-side">
+                    {/*
+                      The favourite, first of these.
+
+                      Before Download because it is the one somebody does *while
+                      looking* — a shortlist is made in passing, and a download is a
+                      decision to take the picture away. The app puts it in the same
+                      corner for the same reason.
+                    */}
+                    <Star
+                      photoId={photo.id}
+                      favourite={photo.favourite}
+                      canKeep={photo.canKeep}
+                    />
+
+                    {/* Send it into a chat: the app's paper plane, before Download. */}
+                    {canPost && <SendToChat sending={{ photoId: photo.id }} />}
+
+                    <a
+                      className="photo-icon"
+                      href={photo.full}
+                      download
+                      aria-label="Download this photo"
+                      title="Download"
+                    >
+                      <svg viewBox="0 0 24 24" aria-hidden="true">
+                        <path d="M12 3.5v11" />
+                        <path d="M8.5 11 12 14.5 15.5 11" />
+                        <path d="M4 15.5v3.5a1.5 1.5 0 0 0 1.5 1.5h13a1.5 1.5 0 0 0 1.5-1.5v-3.5" />
+                      </svg>
+                    </a>
+
+                    <PhotoActions
+                      photoId={photo.id}
+                      mine={photo.mine}
+                      full={photo.full}
+                      onGone={() => location.assign(next ? href(next.id) : previous ? href(previous.id) : eventHref)}
+                    />
+                  </span>
+
+                  {/*
+                    Who took it, over the picture's right-hand corner, on the line
+                    the way back is on. Identity and nothing else.
+                  */}
+                  <div className="photo-by">
+                    <Face
+                      src={photo.byAvatar}
+                      size={36}
+                      className="photo-by-face"
+                      fallback={
+                        <span aria-hidden="true">
+                          {photo.by.replace(/^@/, '').slice(0, 1).toUpperCase()}
+                        </span>
+                      }
+                    />
+                    <span className="photo-by-text">
+                      <span className="photo-by-who">
+                        <strong>{photo.by}</strong> added this
+                      </span>
+                      <span className="photo-by-when">
+                        {photo.when} · {photo.whenAgo}
+                      </span>
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              {/*
+                The heart, centred under the picture, with a step through the roll
+                either side of it. The arrows lived in the header, a long way from
+                the photograph they change.
+              */}
+              <div className="photo-verbs photo-nav">
+                <Step href={previous ? href(previous.id) : null} glyph={'←'} label="Previous photo" />
+                <PhotoReactions
                   photoId={photo.id}
-                  favourite={photo.favourite}
-                  canKeep={photo.canKeep}
+                  reactions={reactions}
+                  canReact={canPost}
                 />
-
-                {/* Send it into a chat: the app's paper plane, before Download. */}
-                {canPost && <SendToChat sending={{ photoId: photo.id }} />}
-
-                <a
-                  className="photo-icon"
-                  href={photo.full}
-                  download
-                  aria-label="Download this photo"
-                  title="Download"
-                >
-                  <svg viewBox="0 0 24 24" aria-hidden="true">
-                    <path d="M12 3.5v11" />
-                    <path d="M8.5 11 12 14.5 15.5 11" />
-                    <path d="M4 15.5v3.5a1.5 1.5 0 0 0 1.5 1.5h13a1.5 1.5 0 0 0 1.5-1.5v-3.5" />
-                  </svg>
-                </a>
-
-                <PhotoActions
-                  photoId={photo.id}
-                  mine={photo.mine}
-                  full={photo.full}
-                  onGone={() => location.assign(next ? href(next.id) : previous ? href(previous.id) : eventHref)}
-                />
-              </span>
+                <Step href={next ? href(next.id) : null} glyph={'→'} label="Next photo" />
+              </div>
             </div>
           </div>
-
-          {/*
-            The heart, centred under the picture, with a step through the roll
-            either side of it. The arrows lived in the header, a long way from
-            the photograph they change.
-          */}
-          <div className="photo-verbs photo-nav">
-            <Step href={previous ? href(previous.id) : null} glyph={'←'} label="Previous photo" />
-            <PhotoReactions
-              photoId={photo.id}
-              reactions={reactions}
-              canReact={canPost}
-            />
-            <Step href={next ? href(next.id) : null} glyph={'→'} label="Next photo" />
-          </div>
-
-          <div className="photo-by">
-            <Face
-              src={photo.byAvatar}
-              size={36}
-              className="photo-by-face"
-              fallback={
-                <span aria-hidden="true">
-                  {photo.by.replace(/^@/, '').slice(0, 1).toUpperCase()}
-                </span>
-              }
-            />
-            <span className="photo-by-text">
-              <span className="photo-by-who">
-                <strong>{photo.by}</strong> added this
-              </span>
-              <span className="photo-by-when">
-                {photo.when} · {photo.whenAgo}
-              </span>
-            </span>
-          </div>
-
-          <Filmstrip strip={strip} current={photo.id} href={href} />
         </div>
 
         <aside className="photo-aside">
@@ -426,7 +438,10 @@ function Filmstrip({
     const box = rail.current;
     const here = box?.querySelector<HTMLElement>('[data-current="true"]');
     if (!box || !here) return;
+    // Down the side of the picture on a wide screen, across under it on a
+    // phone — whichever way it runs, the other axis has nothing to scroll.
     box.scrollLeft = here.offsetLeft - box.clientWidth / 2 + here.clientWidth / 2;
+    box.scrollTop = here.offsetTop - box.clientHeight / 2 + here.clientHeight / 2;
   }, [current]);
 
   if (strip.length < 2) return null;

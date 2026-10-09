@@ -129,11 +129,12 @@ describe('the column beside it', () => {
  */
 describe('the verbs around the photograph', () => {
   it('centres the heart between the arrows, and stands the tools beside the picture', () => {
-    const nav = VIEW.slice(VIEW.indexOf('className="photo-verbs photo-nav"'), VIEW.indexOf('className="photo-by"'));
+    const nav = VIEW.slice(VIEW.indexOf('className="photo-verbs photo-nav"'), VIEW.indexOf('<aside'));
     expect(nav.indexOf('label="Previous photo"')).toBeLessThan(nav.indexOf('<PhotoReactions'));
     expect(nav.indexOf('<PhotoReactions')).toBeLessThan(nav.indexOf('label="Next photo"'));
     expect(nav).not.toMatch(/photo-icon|PhotoActions/);
-    expect(CSS).toMatch(/\.photo-nav \{[^}]*justify-content: center/);
+    // Two classes, so it outranks `.photo-verbs` spreading the row to its ends.
+    expect(CSS).toMatch(/\.photo-verbs\.photo-nav \{[^}]*justify-content: center; gap: 8px/);
     // The arrows moved down beside the heart; the header no longer has them.
     const head = VIEW.slice(VIEW.indexOf('className="photo-head"'), VIEW.indexOf('</header>'));
     expect(head).not.toMatch(/<Step/);
@@ -141,9 +142,19 @@ describe('the verbs around the photograph', () => {
     expect(side.indexOf('<Star')).toBeLessThan(side.indexOf('Download this photo'));
     expect(side.indexOf('Download this photo')).toBeLessThan(side.indexOf('<PhotoActions'));
     expect(CSS).toMatch(/\.photo-side \{[^}]*position: absolute; left: calc\(100% \+ 12px\); bottom: 0;[^}]*flex-direction: column/);
-    // The byline under them is identity and nothing else now.
-    const by = VIEW.slice(VIEW.indexOf('className="photo-by"'), VIEW.indexOf('<Filmstrip'));
+    // The byline is identity and nothing else, and it rides on the stage —
+    // above the picture's right-hand corner, on the header's line.
+    const by = VIEW.slice(VIEW.indexOf('className="photo-by"'), VIEW.indexOf('className="photo-verbs photo-nav"'));
     expect(by).not.toMatch(/photo-get|PhotoActions|download/);
+    expect(VIEW.indexOf('className="photo-stage"')).toBeLessThan(VIEW.indexOf('className="photo-by"'));
+    expect(CSS).toMatch(/\.photo-stage \.photo-by \{[^}]*position: absolute; right: 0;[^}]*top: calc\(50% - var\(--photo-h\) \/ 2 - 49px\)/);
+  });
+
+  it('runs the roll down the left of the picture', () => {
+    const view = VIEW.slice(VIEW.indexOf('className="photo-view"'), VIEW.indexOf('className="photo-col"'));
+    expect(view).toMatch(/<Filmstrip /);
+    expect(CSS).toMatch(/\.photo-view \.photo-strip \{[^}]*flex-direction: column;[^}]*max-height: var\(--photo-h\)/);
+    expect(VIEW).toMatch(/box\.scrollTop = here\.offsetTop - box\.clientHeight \/ 2/);
   });
 
   it('downloads through one door rather than three', () => {

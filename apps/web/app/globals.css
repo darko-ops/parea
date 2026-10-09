@@ -3567,8 +3567,9 @@ button.small { padding: 7px 11px; font-size: 13px; border-radius: 8px; }
    `--photo-h` is the frame's height, said once, because the image has to be
    capped by a length rather than by `100%`: a percentage of a box that sizes
    to its content resolves to nothing, and the picture would spill out. */
-.photo-frame-sided { --photo-h: 560px; padding-inline: 46px; }
-@media (min-height: 1000px) { .photo-frame-sided { --photo-h: min(62vh, 720px); } }
+.photo-page { --photo-h: 560px; }
+@media (min-height: 1000px) { .photo-page { --photo-h: min(62vh, 720px); } }
+.photo-frame-sided { padding-inline: 46px; }
 .photo-stage { position: relative; max-width: 100%; }
 .photo-stage picture { display: block; width: auto; height: auto; }
 .photo-stage img { max-height: var(--photo-h); }
@@ -3579,8 +3580,23 @@ button.small { padding: 7px 11px; font-size: 13px; border-radius: 8px; }
 /* Out to the left from the bottom of the column, over the picture, rather
    than up over the icons above it. */
 .photo-side .dots-body { top: auto; bottom: 0; right: calc(100% + 8px); }
-/* The heart in the middle, a step through the roll either side of it. */
-.photo-nav { justify-content: center; gap: 14px; }
+/* Who took it, above the picture's right-hand corner, on the header's line.
+
+   Anchored to the stage so it ends where the picture does, however wide that
+   is; and lifted from the *frame's* top rather than the picture's, so a wide
+   photograph sat low in the frame does not drag it down with it. The stage is
+   centred in the frame, so the frame's top is half the frame's height above
+   the stage's middle — and 49px above that is the middle of the header row
+   (14px under it, 34px tall) less half the byline's 36px. */
+.photo-stage .photo-by {
+  position: absolute; right: 0;
+  top: calc(50% - var(--photo-h) / 2 - 49px);
+  flex-wrap: nowrap; white-space: nowrap;
+}
+
+/* The roll down the left of the picture, a frame's height of it, scrolling. */
+.photo-view { display: flex; gap: 16px; align-items: flex-start; }
+.photo-col { flex: 1; min-width: 0; }
 /* Said out loud, and the frame keeps its height: the actions under it are how
    somebody reports a photograph, and they must not jump up the screen. */
 .photo-dead {
@@ -3600,6 +3616,10 @@ button.small { padding: 7px 11px; font-size: 13px; border-radius: 8px; }
   gap: 12px; margin-top: 12px; min-height: 34px;
 }
 .photo-verbs-do { display: flex; align-items: center; gap: 6px; flex: none; }
+/* The heart in the middle, a step through the roll right beside it either
+   side — one short reach between going on and liking. Two classes, because
+   `.photo-verbs` above spreads its row to the ends. */
+.photo-verbs.photo-nav { justify-content: center; gap: 8px; }
 /* No top margin, unlike a message's: this row *is* the row rather than
    something under one. */
 .photo-like { display: flex; align-items: center; }
@@ -3701,6 +3721,14 @@ button.photo-icon { background: transparent; padding: 0; cursor: pointer; font: 
   display: flex; gap: 8px; overflow-x: auto; padding-top: 4px;
   scrollbar-width: none;
 }
+/* Upright beside the picture. Padded all round so the ring on the current
+   one is not clipped by the scroll box's edge; positioned so the thumbnails'
+   offsets, which centre the current one, are measured from the strip. */
+.photo-view .photo-strip {
+  position: relative; flex: none; flex-direction: column;
+  max-height: var(--photo-h); overflow-x: hidden; overflow-y: auto;
+  padding: 4px;
+}
 .photo-strip::-webkit-scrollbar { display: none; }
 .photo-strip-one {
   flex: none; width: 56px; height: 56px; border-radius: 8px; overflow: hidden;
@@ -3762,8 +3790,18 @@ button.photo-icon { background: transparent; padding: 0; cursor: pointer; font: 
   .photo-frame { height: min(58vh, 420px); }
   /* No room beside a phone's photograph for a column: the tools go back to a
      row, under the picture's right-hand corner, inside the same frame. */
-  .photo-frame-sided { --photo-h: min(58vh, 420px); padding-inline: 0; }
-  .photo-stage img { max-height: calc(var(--photo-h) - 44px); }
+  .photo-page { --photo-h: min(58vh, 420px); }
+  .photo-frame-sided { padding-inline: 0; }
+  /* The byline back under the picture, and the roll back across under the
+     heart, where a thumb is. */
+  .photo-stage .photo-by { position: static; margin-top: 10px; white-space: normal; }
+  .photo-view { flex-direction: column; align-items: stretch; }
+  .photo-view .photo-strip {
+    order: 2; flex-direction: row; max-height: none;
+    overflow-x: auto; overflow-y: hidden;
+  }
+  /* Room in the frame for the row of tools and the byline under it. */
+  .photo-stage img { max-height: calc(var(--photo-h) - 100px); }
   .photo-side { position: static; flex-direction: row; justify-content: flex-end; margin-top: 10px; }
   /* Swipe is the way through on a touch screen, and the position label in the
      header is what says where that got you. Two 34px arrows are a poor target
