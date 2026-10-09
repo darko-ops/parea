@@ -211,81 +211,81 @@ export function PhotoView({
         <span className="photo-where">
           {position.index + 1} of {position.total}
         </span>
-        <Step href={previous ? href(previous.id) : null} glyph={'←'} label="Previous photo" />
-        <Step href={next ? href(next.id) : null} glyph={'→'} label="Next photo" />
       </header>
 
       <div className="photo-body">
         <div className="photo-main">
           <div
-            className="photo-frame"
+            className="photo-frame photo-frame-sided"
             ref={frame}
             tabIndex={-1}
             onTouchStart={onTouchStart}
             onTouchEnd={onTouchEnd}
           >
-            <Subject photo={photo} />
+            {/*
+              The photograph and, at its bottom-right corner, what you can do
+              with it — a column standing beside the picture rather than a row
+              under it, so the line below is left to the heart and the way
+              through the roll.
+            */}
+            <div className="photo-stage">
+              <Subject photo={photo} />
+
+              <span className="photo-side">
+                {/*
+                  The favourite, first of these.
+
+                  Before Download because it is the one somebody does *while
+                  looking* — a shortlist is made in passing, and a download is a
+                  decision to take the picture away. The app puts it in the same
+                  corner for the same reason.
+                */}
+                <Star
+                  photoId={photo.id}
+                  favourite={photo.favourite}
+                  canKeep={photo.canKeep}
+                />
+
+                {/* Send it into a chat: the app's paper plane, before Download. */}
+                {canPost && <SendToChat sending={{ photoId: photo.id }} />}
+
+                <a
+                  className="photo-icon"
+                  href={photo.full}
+                  download
+                  aria-label="Download this photo"
+                  title="Download"
+                >
+                  <svg viewBox="0 0 24 24" aria-hidden="true">
+                    <path d="M12 3.5v11" />
+                    <path d="M8.5 11 12 14.5 15.5 11" />
+                    <path d="M4 15.5v3.5a1.5 1.5 0 0 0 1.5 1.5h13a1.5 1.5 0 0 0 1.5-1.5v-3.5" />
+                  </svg>
+                </a>
+
+                <PhotoActions
+                  photoId={photo.id}
+                  mine={photo.mine}
+                  full={photo.full}
+                  onGone={() => location.assign(next ? href(next.id) : previous ? href(previous.id) : eventHref)}
+                />
+              </span>
+            </div>
           </div>
 
           {/*
-            The two verbs, at the two ends of the picture.
-
-            Reacting on the left and saving on the right, which is the app's
-            own arrangement: both are one tap about the photograph, so they
-            belong at the ends rather than in the middle of the line that says
-            who took it. The byline under them is identity and nothing else.
-
-            Download was a bordered word in that byline *and* an item in the
-            `⋯` — two doors to one verb, one of which somebody has to learn is
-            the same door. It is the icon here, once, beside the menu that
-            holds what you can do *about* the picture rather than with it.
+            The heart, centred under the picture, with a step through the roll
+            either side of it. The arrows lived in the header, a long way from
+            the photograph they change.
           */}
-          <div className="photo-verbs">
+          <div className="photo-verbs photo-nav">
+            <Step href={previous ? href(previous.id) : null} glyph={'←'} label="Previous photo" />
             <PhotoReactions
               photoId={photo.id}
               reactions={reactions}
               canReact={canPost}
             />
-
-            <span className="photo-verbs-do">
-              {/*
-                The favourite, first of the three on this side.
-
-                Before Download because it is the one somebody does *while
-                looking* — a shortlist is made in passing, and a download is a
-                decision to take the picture away. The app puts it in the same
-                corner for the same reason.
-              */}
-              <Star
-                photoId={photo.id}
-                favourite={photo.favourite}
-                canKeep={photo.canKeep}
-              />
-
-              {/* Send it into a chat: the app's paper plane, before Download. */}
-              {canPost && <SendToChat sending={{ photoId: photo.id }} />}
-
-              <a
-                className="photo-icon"
-                href={photo.full}
-                download
-                aria-label="Download this photo"
-                title="Download"
-              >
-                <svg viewBox="0 0 24 24" aria-hidden="true">
-                  <path d="M12 3.5v11" />
-                  <path d="M8.5 11 12 14.5 15.5 11" />
-                  <path d="M4 15.5v3.5a1.5 1.5 0 0 0 1.5 1.5h13a1.5 1.5 0 0 0 1.5-1.5v-3.5" />
-                </svg>
-              </a>
-
-              <PhotoActions
-                photoId={photo.id}
-                mine={photo.mine}
-                full={photo.full}
-                onGone={() => location.assign(next ? href(next.id) : previous ? href(previous.id) : eventHref)}
-              />
-            </span>
+            <Step href={next ? href(next.id) : null} glyph={'→'} label="Next photo" />
           </div>
 
           <div className="photo-by">

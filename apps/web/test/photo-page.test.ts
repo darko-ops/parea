@@ -123,17 +123,24 @@ describe('the column beside it', () => {
 /**
  * What you can do with the photograph, as opposed to about it.
  *
- * Two verbs, at the two ends of the picture: react on the left, save on the
- * right. The app's arrangement, brought across — both are one tap about the
- * photograph, so they belong at the ends rather than in the middle of the line
- * that says who took it.
+ * The heart centred under the picture with a step through the roll either
+ * side of it; the tools — star, send, download, `⋯` — in a column at the
+ * picture's bottom-right corner, beside it rather than in the row under it.
  */
-describe('the two verbs under the photograph', () => {
-  it('puts reacting at one end and saving at the other', () => {
-    expect(VIEW).toMatch(/className="photo-verbs"/);
-    const verbs = VIEW.slice(VIEW.indexOf('className="photo-verbs"'), VIEW.indexOf('className="photo-by"'));
-    expect(verbs.indexOf('<PhotoReactions')).toBeLessThan(verbs.indexOf('photo-icon'));
-    expect(CSS).toMatch(/\.photo-verbs \{[^}]*justify-content: space-between/);
+describe('the verbs around the photograph', () => {
+  it('centres the heart between the arrows, and stands the tools beside the picture', () => {
+    const nav = VIEW.slice(VIEW.indexOf('className="photo-verbs photo-nav"'), VIEW.indexOf('className="photo-by"'));
+    expect(nav.indexOf('label="Previous photo"')).toBeLessThan(nav.indexOf('<PhotoReactions'));
+    expect(nav.indexOf('<PhotoReactions')).toBeLessThan(nav.indexOf('label="Next photo"'));
+    expect(nav).not.toMatch(/photo-icon|PhotoActions/);
+    expect(CSS).toMatch(/\.photo-nav \{[^}]*justify-content: center/);
+    // The arrows moved down beside the heart; the header no longer has them.
+    const head = VIEW.slice(VIEW.indexOf('className="photo-head"'), VIEW.indexOf('</header>'));
+    expect(head).not.toMatch(/<Step/);
+    const side = VIEW.slice(VIEW.indexOf('className="photo-side"'), VIEW.indexOf('className="photo-verbs photo-nav"'));
+    expect(side.indexOf('<Star')).toBeLessThan(side.indexOf('Download this photo'));
+    expect(side.indexOf('Download this photo')).toBeLessThan(side.indexOf('<PhotoActions'));
+    expect(CSS).toMatch(/\.photo-side \{[^}]*position: absolute; left: calc\(100% \+ 12px\); bottom: 0;[^}]*flex-direction: column/);
     // The byline under them is identity and nothing else now.
     const by = VIEW.slice(VIEW.indexOf('className="photo-by"'), VIEW.indexOf('<Filmstrip'));
     expect(by).not.toMatch(/photo-get|PhotoActions|download/);

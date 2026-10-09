@@ -296,7 +296,7 @@ export function Thread({
             <p>
               {room.kind === 'group'
                 ? 'Say something before this gets awkward.'
-                : 'Say something about these photographs.'}
+                : 'Go on, say what everyone’s thinking.'}
             </p>
           </div>
         )}

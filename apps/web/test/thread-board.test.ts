@@ -87,8 +87,8 @@ describe('one shape for every comment, and a side for your own', () => {
     expect(THREAD).toMatch(/placeholder="Add a comment…"/);
     expect(THREAD).not.toMatch(/Message everyone in this album/);
     // The same words the app's board says, because it is the same empty board.
-    expect(THREAD).toMatch(/Say something about these photographs\./);
-    expect(APP_THREAD).toMatch(/'Say something about these photographs\.'/);
+    expect(THREAD).toMatch(/Go on, say what everyone’s thinking\./);
+    expect(APP_THREAD).toMatch(/'Go on, say what everyone’s thinking\.'/);
   });
 });
 

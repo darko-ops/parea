@@ -541,7 +541,7 @@ describe('two rooms, one drawing', () => {
     // An empty chat is a room with nobody in it and the nudge is social; an
     // empty comment section sits under a wall of photographs somebody has
     // just scrolled, and the thing to say is about those.
-    expect(VIEWER).toMatch(/\? 'Say something about these photographs\.'/);
+    expect(VIEWER).toMatch(/\? 'Go on, say what everyone’s thinking\.'/);
     expect(VIEWER).toMatch(/: 'Say something before this gets awkward\.'/);
   });
 

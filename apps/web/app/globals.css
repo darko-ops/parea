@@ -3557,6 +3557,30 @@ button.small { padding: 7px 11px; font-size: 13px; border-radius: 8px; }
   border-radius: 16px; display: block;
 }
 @media (min-height: 1000px) { .photo-frame { height: min(62vh, 720px); } }
+/* The photograph page's frame, with its tools in a column beside the picture.
+
+   The stage is the picture's own box — it shrinks to the image, so the column
+   can stand off its right edge however wide or tall the photograph is. The
+   frame keeps room for that column on *both* sides, so the picture stays in
+   the middle and the heart under it sits under the middle of the picture.
+
+   `--photo-h` is the frame's height, said once, because the image has to be
+   capped by a length rather than by `100%`: a percentage of a box that sizes
+   to its content resolves to nothing, and the picture would spill out. */
+.photo-frame-sided { --photo-h: 560px; padding-inline: 46px; }
+@media (min-height: 1000px) { .photo-frame-sided { --photo-h: min(62vh, 720px); } }
+.photo-stage { position: relative; max-width: 100%; }
+.photo-stage picture { display: block; width: auto; height: auto; }
+.photo-stage img { max-height: var(--photo-h); }
+.photo-side {
+  position: absolute; left: calc(100% + 12px); bottom: 0;
+  display: flex; flex-direction: column; gap: 6px;
+}
+/* Out to the left from the bottom of the column, over the picture, rather
+   than up over the icons above it. */
+.photo-side .dots-body { top: auto; bottom: 0; right: calc(100% + 8px); }
+/* The heart in the middle, a step through the roll either side of it. */
+.photo-nav { justify-content: center; gap: 14px; }
 /* Said out loud, and the frame keeps its height: the actions under it are how
    somebody reports a photograph, and they must not jump up the screen. */
 .photo-dead {
@@ -3709,7 +3733,9 @@ button.photo-icon { background: transparent; padding: 0; cursor: pointer; font: 
    busy event. */
 .photo-chat .thread-list { flex: 1; min-height: 0; overflow-y: auto; }
 .photo-chat .thread-composer { margin-top: auto; }
-.photo-chat .thread-empty { padding: 24px 0; }
+/* In the middle of the room the conversation will fill, not pinned to its top
+   with the photograph's height of nothing underneath. */
+.photo-chat .thread-empty { padding: 24px 0; margin-block: auto; align-items: center; text-align: center; }
 .photo-chat .thread-empty h2 { font-size: 17px; }
 .photo-chat .thread-empty p { font-size: 13.5px; }
 
@@ -3734,6 +3760,11 @@ button.photo-icon { background: transparent; padding: 0; cursor: pointer; font: 
   .photo-head { padding: 14px 16px 10px; }
   .photo-body { padding: 0 16px 28px; }
   .photo-frame { height: min(58vh, 420px); }
+  /* No room beside a phone's photograph for a column: the tools go back to a
+     row, under the picture's right-hand corner, inside the same frame. */
+  .photo-frame-sided { --photo-h: min(58vh, 420px); padding-inline: 0; }
+  .photo-stage img { max-height: calc(var(--photo-h) - 44px); }
+  .photo-side { position: static; flex-direction: row; justify-content: flex-end; margin-top: 10px; }
   /* Swipe is the way through on a touch screen, and the position label in the
      header is what says where that got you. Two 34px arrows are a poor target
      for a thumb and are the second way to do the same thing. */

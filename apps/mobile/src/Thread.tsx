@@ -416,7 +416,7 @@ export function Thread({
         <View style={styles.empty}>
           <Text style={[styles.emptyTitle, { color: t.dim }]}>
             {board
-              ? 'Say something about these photographs.'
+              ? 'Go on, say what everyone’s thinking.'
               : 'Say something before this gets awkward.'}
           </Text>
         </View>

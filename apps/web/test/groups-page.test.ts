@@ -330,7 +330,7 @@ describe('what a row shows', () => {
      */
     expect(THREAD).toMatch(/room\.kind === 'group'/);
     expect(THREAD).toMatch(/Say something before this gets awkward\./);
-    expect(THREAD).toMatch(/Say something about these photographs\./);
+    expect(THREAD).toMatch(/Go on, say what everyone’s thinking\./);
   });
 
   it('orders by the last thing said, and lists the silent rooms anyway', () => {
