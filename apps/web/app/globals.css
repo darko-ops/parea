@@ -5586,6 +5586,40 @@ button.link {
 .send-chat-who .muted { font-size: 12px; }
 .send-chat-go { flex: none; color: var(--accent-ink); font-weight: 600; font-size: 14px; }
 
+/* The roll's photograph, full screen — see `FullPhoto`. Clicked into from
+   the picture on its page, which says so with the cursor. */
+.photo-open { cursor: zoom-in; }
+.photo-full {
+  position: fixed; inset: 0; z-index: 60;
+  display: flex; align-items: center; justify-content: center;
+  padding: max(16px, env(safe-area-inset-top)) 72px max(16px, env(safe-area-inset-bottom));
+  background: #0b0c0e; color: #fff;
+}
+.photo-full:focus-visible { outline: none; }
+.photo-full picture {
+  display: flex; align-items: center; justify-content: center;
+  width: 100%; height: 100%;
+}
+.photo-full img {
+  max-width: 100%; max-height: 100%; width: auto; height: auto;
+  object-fit: contain; display: block;
+}
+.photo-full-close, .photo-full-step {
+  position: absolute; width: 44px; height: 44px; padding: 0; border: 0;
+  border-radius: 50%; background: rgba(255, 255, 255, .08); color: #fff;
+  font-size: 20px; line-height: 1; cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+}
+.photo-full-close:hover, .photo-full-step:hover { background: rgba(255, 255, 255, .18); }
+.photo-full-close { top: max(16px, env(safe-area-inset-top)); right: 16px; font-size: 26px; }
+.photo-full-step { top: 50%; transform: translateY(-50%); }
+.photo-full-prev { left: 14px; }
+.photo-full-next { right: 14px; }
+@media (max-width: 720px) {
+  .photo-full { padding-inline: 0; }
+  .photo-full-step { top: auto; bottom: max(16px, env(safe-area-inset-bottom)); transform: none; }
+}
+
 /* A photograph sent into a chat, opened full: the roll's photo page without its talk. */
 .chat-photo {
   position: fixed; inset: 0; z-index: 60; display: flex; flex-direction: column;

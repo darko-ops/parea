@@ -387,3 +387,32 @@ describe('the Favourites tab', () => {
     expect(EVENT).toMatch(/Only you see this\./);
   });
 });
+
+/**
+ * The picture full screen, clicked into from the page.
+ *
+ * Over the page rather than the browser's fullscreen, which asks permission on
+ * every load — and every step through the roll is one. So the flag rides in
+ * the URL and the steps carry it.
+ */
+describe('the photograph full screen', () => {
+  it('opens from a click on the picture, and from Enter on the frame', () => {
+    expect(VIEW).toMatch(/<Subject photo=\{photo\} onOpen=\{\(\) => setFull\(true\)\} \/>/);
+    expect(VIEW).toMatch(/onClick=\{onOpen\}/);
+    expect(VIEW).toMatch(/e\.key === 'Enter' && on === frame\.current\) setFull\(true\)/);
+    expect(CSS).toMatch(/\.photo-open \{ cursor: zoom-in; \}/);
+  });
+
+  it('steps through the roll without dropping out of it', () => {
+    expect(VIEW).toMatch(/location\.assign\(full \? `\$\{href\(id\)\}\?full` : href\(id\)\)/);
+    expect(VIEW).toMatch(/new URLSearchParams\(location\.search\)\.has\('full'\)/);
+    // Arrows and swipes go through the same step, not straight to the page.
+    expect(VIEW).not.toMatch(/location\.assign\(href\((previous|next)\.id\)\)/);
+  });
+
+  it('comes back out with Escape before Escape leaves the page', () => {
+    expect(VIEW).toMatch(/if \(full\) closeFull\(\);\s*else location\.assign\(eventHref\);/);
+    expect(VIEW).toMatch(/history\.replaceState\(history\.state, '', location\.pathname\)/);
+    expect(VIEW).toMatch(/className="photo-full"[\s\S]*?onClick=\{\(e\) => e\.target === e\.currentTarget && onClose\(\)\}/);
+  });
+});

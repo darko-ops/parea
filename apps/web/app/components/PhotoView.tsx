@@ -25,6 +25,7 @@
  */
 
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 
 import type { Member } from '@/members';
 import type { Message } from '@/messages';
@@ -95,6 +96,29 @@ export function PhotoView({
   const frame = useRef<HTMLDivElement>(null);
 
   /*
+   * The picture on its own, the whole screen of it.
+   *
+   * Carried in the URL as `?full`, so stepping through the roll from inside it
+   * stays inside it: every step is a page load, and without the flag each one
+   * dropped you back out to the page. Read after mount rather than from the
+   * server so the first render matches on both sides.
+   */
+  const [full, setFull] = useState(false);
+  useEffect(() => {
+    if (new URLSearchParams(location.search).has('full')) setFull(true);
+  }, []);
+  const step = useCallback(
+    (id: string) => location.assign(full ? `${href(id)}?full` : href(id)),
+    [full, href],
+  );
+  const closeFull = useCallback(() => {
+    setFull(false);
+    // Out of the address too, so a reload or a shared link opens the page.
+    history.replaceState(history.state, '', location.pathname);
+    frame.current?.focus({ preventScroll: true });
+  }, []);
+
+  /*
    * The conversation, re-read after somebody posts.
    *
    * From the messages endpoint rather than the feed the event page polls: that
@@ -150,8 +174,9 @@ export function PhotoView({
       ) {
         return;
       }
-      if (e.key === 'ArrowLeft' && previous) location.assign(href(previous.id));
-      else if (e.key === 'ArrowRight' && next) location.assign(href(next.id));
+      if (e.key === 'ArrowLeft' && previous) step(previous.id);
+      else if (e.key === 'ArrowRight' && next) step(next.id);
+      else if (e.key === 'Enter' && on === frame.current) setFull(true);
       else if (e.key === 'Escape') {
         /*
          * Escape closes the innermost thing, and the `···` is inner.
@@ -162,12 +187,14 @@ export function PhotoView({
          * out of what I just opened" backing out of everything at once.
          */
         if (document.querySelector('[role="menu"]')) return;
-        location.assign(eventHref);
+        // And the full-screen picture is inner to the page.
+        if (full) closeFull();
+        else location.assign(eventHref);
       }
     };
     document.addEventListener('keydown', onKey);
     return () => document.removeEventListener('keydown', onKey);
-  }, [previous, next, href, eventHref]);
+  }, [previous, next, step, full, closeFull, eventHref]);
 
   /*
    * Swipe, on the frame only.
@@ -188,8 +215,8 @@ export function PhotoView({
     if (!start || !point) return;
     const dx = point.clientX - start.x;
     if (Math.abs(dx) < 60 || Math.abs(dx) < Math.abs(point.clientY - start.y)) return;
-    if (dx > 0 && previous) location.assign(href(previous.id));
-    if (dx < 0 && next) location.assign(href(next.id));
+    if (dx > 0 && previous) step(previous.id);
+    if (dx < 0 && next) step(next.id);
   };
 
   return (
@@ -237,7 +264,7 @@ export function PhotoView({
                   through the roll.
                 */}
                 <div className="photo-stage">
-                  <Subject photo={photo} />
+                  <Subject photo={photo} onOpen={() => setFull(true)} />
 
                   <span className="photo-side">
                     {/*
@@ -347,7 +374,76 @@ export function PhotoView({
           </div>
         </aside>
       </div>
+
+      {full && (
+        <FullPhoto
+          photo={photo}
+          onClose={closeFull}
+          previous={previous ? () => step(previous.id) : null}
+          next={next ? () => step(next.id) : null}
+        />
+      )}
     </main>
+  );
+}
+
+/**
+ * The photograph and nothing else, edge to edge on a dark ground.
+ *
+ * Over the page rather than the browser's own fullscreen: that one asks the
+ * browser's permission on every page load, and every step through the roll is
+ * a page load. The arrows either side and the keys go on stepping; the cross,
+ * Escape or a click on the dark around the picture comes back out.
+ */
+function FullPhoto({
+  photo,
+  onClose,
+  previous,
+  next,
+}: {
+  photo: PhotoSubject;
+  onClose: () => void;
+  previous: (() => void) | null;
+  next: (() => void) | null;
+}) {
+  const box = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    box.current?.focus();
+    // The page behind does not scroll while the picture is up.
+    const was = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.body.style.overflow = was;
+    };
+  }, []);
+
+  return createPortal(
+    <div
+      className="photo-full"
+      role="dialog"
+      aria-modal="true"
+      aria-label="Photo, full screen"
+      tabIndex={-1}
+      ref={box}
+      onClick={(e) => e.target === e.currentTarget && onClose()}
+    >
+      <Subject photo={photo} />
+      <button type="button" className="photo-full-close" onClick={onClose} aria-label="Close full screen">
+        ×
+      </button>
+      {previous && (
+        <button type="button" className="photo-full-step photo-full-prev" onClick={previous} aria-label="Previous photo">
+          {'←'}
+        </button>
+      )}
+      {next && (
+        <button type="button" className="photo-full-step photo-full-next" onClick={next} aria-label="Next photo">
+          {'→'}
+        </button>
+      )}
+    </div>,
+    document.body,
   );
 }
 
@@ -392,7 +488,7 @@ export function Step({
  * which is the whole reason the tile leading here stays clickable when its own
  * thumbnail has failed.
  */
-function Subject({ photo }: { photo: PhotoSubject }) {
+function Subject({ photo, onOpen }: { photo: PhotoSubject; onOpen?: () => void }) {
   const { ref, failed, onError } = useImageFailure(photo.full);
 
   if (failed) {
@@ -411,7 +507,15 @@ function Subject({ photo }: { photo: PhotoSubject }) {
           <source key={source.type} srcSet={source.src} type={source.type} />
         ))}
       {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img ref={ref} src={photo.full} alt="" onError={onError} />
+      <img
+        ref={ref}
+        src={photo.full}
+        alt=""
+        onError={onError}
+        onClick={onOpen}
+        className={onOpen ? 'photo-open' : undefined}
+        title={onOpen ? 'View full screen' : undefined}
+      />
     </picture>
   );
 }
