@@ -608,6 +608,22 @@ export const groupMembers = pgTable(
     joinedAt: timestamp('joined_at', { withTimezone: true })
       .notNull()
       .defaultNow(),
+    /**
+     * Who put them in, when somebody else did — a group's maker adding their
+     * friends. Null for every way in that was the member's own doing: making
+     * the group, accepting an invitation, being let in on request.
+     */
+    addedByActorId: uuid('added_by_actor_id').references(() => actors.id, {
+      onDelete: 'set null',
+    }),
+    /**
+     * When this member was handed the group, and by whom — the second null
+     * when its last admin left Parea. The notifications page's half of `group_handed`.
+     */
+    handedAt: timestamp('handed_at', { withTimezone: true }),
+    handedByActorId: uuid('handed_by_actor_id').references(() => actors.id, {
+      onDelete: 'set null',
+    }),
   },
   (t) => [primaryKey({ columns: [t.groupId, t.actorId] })],
 );
@@ -843,6 +859,15 @@ export const events = pgTable(
     createdBy: uuid('created_by')
       .notNull()
       .references(() => actors.id),
+    /**
+     * When `created_by` last changed hands, and who handed it — null when it
+     * passed because its Host left Parea. What the heir's notifications page
+     * reads to say "the roll is yours now"; the push is the other half.
+     */
+    handedAt: timestamp('handed_at', { withTimezone: true }),
+    handedByActorId: uuid('handed_by_actor_id').references(() => actors.id, {
+      onDelete: 'set null',
+    }),
     /**
      * Chosen by whoever creates the event, and it is one of two things.
      * `public` is the original model — possession of the link is the access.

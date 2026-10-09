@@ -144,10 +144,12 @@ export async function addMember(
   groupId: string,
   actorId: string,
   role: 'member' | 'admin' = 'member',
+  /** Who put them in, when it was not their own doing. See `addedByActorId`. */
+  addedBy: string | null = null,
 ): Promise<void> {
   await db
     .insert(schema.groupMembers)
-    .values({ groupId, actorId, role })
+    .values({ groupId, actorId, role, addedByActorId: addedBy })
     .onConflictDoNothing();
   // Every way in that reaches here is somebody deciding they should be: an
   // admin's invitation accepted, a request approved, a group being made. Any

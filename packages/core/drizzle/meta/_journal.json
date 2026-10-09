@@ -484,6 +484,13 @@
       "when": 1791516554906,
       "tag": "0068_group_rolls_group_only",
       "breakpoints": true
+    },
+    {
+      "idx": 69,
+      "version": "7",
+      "when": 1791580627870,
+      "tag": "0069_activity_records",
+      "breakpoints": true
     }
   ]
 }

@@ -490,6 +490,15 @@ export async function notifyRollHanded(
   try {
     const who = from ? await nameOf(db, from) : undefined;
     for (const heir of heirs) {
+      /*
+       * The record the heir's notifications page reads, written here because
+       * this is the one place every way a roll changes hands passes through.
+       * Only while they still hold it: a second handover since is its own line.
+       */
+      await db
+        .update(schema.events)
+        .set({ handedAt: new Date(), handedByActorId: from ?? null })
+        .where(and(eq(schema.events.id, heir.id), eq(schema.events.createdBy, heir.actorId)));
       const [event] = await db
         .select({ name: schema.events.name })
         .from(schema.events)
@@ -516,6 +525,16 @@ export async function notifyGroupHanded(
   try {
     const who = from ? await nameOf(db, from) : undefined;
     for (const heir of heirs) {
+      // The page's record, for the reason given in `notifyRollHanded`.
+      await db
+        .update(schema.groupMembers)
+        .set({ handedAt: new Date(), handedByActorId: from ?? null })
+        .where(
+          and(
+            eq(schema.groupMembers.groupId, heir.id),
+            eq(schema.groupMembers.actorId, heir.actorId),
+          ),
+        );
       const [group] = await db
         .select({ name: schema.groups.name })
         .from(schema.groups)

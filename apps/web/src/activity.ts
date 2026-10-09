@@ -140,7 +140,17 @@ export type ActivityKind =
    * day — pinned for good, it sat over everything newer for as long as the
    * host took to answer, which can be never.
    */
-  | 'asked_to_join';
+  | 'asked_to_join'
+  /** Somebody started a roll in a group you are in. */
+  | 'group_roll'
+  /** Somebody put you in a group — a group's maker adding their friends. */
+  | 'group_added'
+  /** A roll is yours to run now: handed to you, or its Host left Parea. */
+  | 'roll_handed'
+  /** The same for a group. */
+  | 'group_handed'
+  /** A host answered your request to take down a photo of you. */
+  | 'removal_answered';
 
 export type ActivityItem = {
   /** Stable across polls: the source row's id, prefixed by kind. */
@@ -304,6 +314,11 @@ export async function activityFor(
     arrivals,
     askedFor,
     groupJoins,
+    groupRolls,
+    addedTo,
+    rollsHanded,
+    groupsHanded,
+    removals,
   ] = await Promise.all([
     db
       .select({ key: schema.hiddenActivity.itemKey })
@@ -602,15 +617,25 @@ export async function activityFor(
       .from(schema.photos)
       .innerJoin(schema.events, eq(schema.events.id, schema.photos.eventId))
       .innerJoin(schema.actors, eq(schema.actors.id, schema.photos.uploaderId))
-      .innerJoin(
-        schema.eventParticipants,
-        and(
-          eq(schema.eventParticipants.eventId, schema.photos.eventId),
-          eq(schema.eventParticipants.actorId, actorId),
-        ),
-      )
       .where(
         and(
+          /*
+           * A roll you are in: by its link, an invitation or a request — or by
+           * being in its group. A group's rolls are its members' whether or not
+           * they ever opened one, and opening one from inside the group writes
+           * no participant row, so reading only those left a group member who
+           * had never uploaded hearing nothing about their own group's rolls.
+           */
+          sql`(
+            exists (
+              select 1 from "event_participant" p
+              where p.event_id = ${schema.photos.eventId} and p.actor_id = ${actorId}
+            )
+            or exists (
+              select 1 from "group_member" m
+              where m.group_id = ${schema.events.groupId} and m.actor_id = ${actorId}
+            )
+          )`,
           // Never an album made by somebody across a block, either way.
           not(blockedBetween(actorId, schema.events.createdBy)),
           eq(schema.photos.status, 'ready'),
@@ -829,6 +854,146 @@ export async function activityFor(
         ),
       )
       .orderBy(desc(schema.groupInvites.respondedAt))
+      .limit(LIMIT),
+
+    /*
+     * A roll started in a group you are in, by somebody else.
+     *
+     * The push for this (`group_event`) used to be the only trace of it: the
+     * roll is empty when it is made, so nothing else on this page could ever
+     * mention it. A month, as everything here is.
+     */
+    db
+      .select({
+        eventId: schema.events.id,
+        at: schema.events.createdAt,
+        who: NAME,
+        avatarKey: schema.actors.avatarKey,
+        name: schema.events.name,
+        groupName: schema.groups.name,
+      })
+      .from(schema.events)
+      .innerJoin(schema.groups, eq(schema.groups.id, schema.events.groupId))
+      .innerJoin(schema.actors, eq(schema.actors.id, schema.events.createdBy))
+      .innerJoin(
+        schema.groupMembers,
+        and(
+          eq(schema.groupMembers.groupId, schema.events.groupId),
+          eq(schema.groupMembers.actorId, actorId),
+        ),
+      )
+      .where(
+        and(
+          not(blockedBetween(actorId, schema.events.createdBy)),
+          ne(schema.events.createdBy, actorId),
+          isNull(schema.events.deletedAt),
+          isNull(schema.groups.deletedAt),
+          sql`${schema.events.createdAt} > now() - interval '30 days'`,
+        ),
+      )
+      .orderBy(desc(schema.events.createdAt))
+      .limit(LIMIT),
+
+    /*
+     * Somebody put you in a group. Named groups only: an unnamed room is a
+     * chat, and a chat you were added to is already the top row of Chats.
+     */
+    db
+      .select({
+        groupId: schema.groups.id,
+        at: schema.groupMembers.joinedAt,
+        who: NAME,
+        avatarKey: schema.actors.avatarKey,
+        name: schema.groups.name,
+      })
+      .from(schema.groupMembers)
+      .innerJoin(schema.groups, eq(schema.groups.id, schema.groupMembers.groupId))
+      .innerJoin(schema.actors, eq(schema.actors.id, schema.groupMembers.addedByActorId))
+      .where(
+        and(
+          eq(schema.groupMembers.actorId, actorId),
+          not(blockedBetween(actorId, schema.groupMembers.addedByActorId)),
+          isNull(schema.groups.deletedAt),
+          sql`nullif(btrim(${schema.groups.name}), '') is not null`,
+        ),
+      )
+      .orderBy(desc(schema.groupMembers.joinedAt))
+      .limit(LIMIT),
+
+    /*
+     * A roll you run now that you did not make — handed to you, or yours
+     * because its Host left Parea. While it is still yours.
+     */
+    db
+      .select({
+        eventId: schema.events.id,
+        at: schema.events.handedAt,
+        who: NAME,
+        avatarKey: schema.actors.avatarKey,
+        fromId: schema.events.handedByActorId,
+        name: schema.events.name,
+      })
+      .from(schema.events)
+      .leftJoin(schema.actors, eq(schema.actors.id, schema.events.handedByActorId))
+      .where(
+        and(
+          eq(schema.events.createdBy, actorId),
+          isNotNull(schema.events.handedAt),
+          isNull(schema.events.deletedAt),
+        ),
+      )
+      .orderBy(desc(schema.events.handedAt))
+      .limit(LIMIT),
+
+    /* The same for a group. */
+    db
+      .select({
+        groupId: schema.groups.id,
+        at: schema.groupMembers.handedAt,
+        who: NAME,
+        avatarKey: schema.actors.avatarKey,
+        fromId: schema.groupMembers.handedByActorId,
+        name: schema.groups.name,
+      })
+      .from(schema.groupMembers)
+      .innerJoin(schema.groups, eq(schema.groups.id, schema.groupMembers.groupId))
+      .leftJoin(schema.actors, eq(schema.actors.id, schema.groupMembers.handedByActorId))
+      .where(
+        and(
+          eq(schema.groupMembers.actorId, actorId),
+          isNotNull(schema.groupMembers.handedAt),
+          isNull(schema.groups.deletedAt),
+        ),
+      )
+      .orderBy(desc(schema.groupMembers.handedAt))
+      .limit(LIMIT),
+
+    /*
+     * A host answered your request to take a photo of you down. Without this
+     * the push was the only answer, and somebody who missed it had no way to
+     * find out short of looking for the photo.
+     */
+    db
+      .select({
+        id: schema.reports.id,
+        at: schema.reports.resolvedAt,
+        status: schema.reports.status,
+        eventId: schema.events.id,
+        name: schema.events.name,
+      })
+      .from(schema.reports)
+      .innerJoin(schema.photos, eq(schema.photos.id, schema.reports.photoId))
+      .innerJoin(schema.events, eq(schema.events.id, schema.photos.eventId))
+      .where(
+        and(
+          eq(schema.reports.reporterActorId, actorId),
+          eq(schema.reports.kind, 'removal_request'),
+          isNotNull(schema.reports.resolvedAt),
+          ne(schema.reports.status, 'open'),
+          isNull(schema.events.deletedAt),
+        ),
+      )
+      .orderBy(desc(schema.reports.resolvedAt))
       .limit(LIMIT),
   ]);
 
@@ -1099,6 +1264,68 @@ export async function activityFor(
       href: `/event/${a.eventId}`,
       image: null,
       face: a.name,
+      images: [],
+    })),
+    ...groupRolls.map(async (r) => ({
+      id: `grouproll:${r.eventId}`,
+      kind: 'group_roll' as const,
+      at: r.at.toISOString(),
+      who: r.who,
+      what: r.groupName?.trim()
+        ? `started ${r.name} in ${r.groupName.trim()}`
+        : `started ${r.name}`,
+      href: `/event/${r.eventId}`,
+      image: await avatarUrl(r.avatarKey),
+      images: [],
+    })),
+    ...addedTo.map(async (g) => ({
+      id: `addedto:${g.groupId}`,
+      kind: 'group_added' as const,
+      at: g.at.toISOString(),
+      who: g.who,
+      what: `added you to ${g.name!.trim()}`,
+      href: `/group/${g.groupId}`,
+      image: await avatarUrl(g.avatarKey),
+      images: [],
+    })),
+    ...rollsHanded.map(async (r) => ({
+      // The time is in the key: handed back and forth, each is its own line.
+      id: `rollhanded:${r.eventId}:${r.at!.getTime()}`,
+      kind: 'roll_handed' as const,
+      at: r.at!.toISOString(),
+      ...(r.fromId
+        ? { who: r.who, what: `handed you ${r.name} — you run it now` }
+        : { who: 'You', what: `run ${r.name} now — its Host left Parea`, face: r.name }),
+      href: `/event/${r.eventId}`,
+      image: r.fromId ? await avatarUrl(r.avatarKey) : null,
+      images: [],
+    })),
+    ...groupsHanded.map(async (g) => {
+      const name = g.name?.trim() || 'a group you are in';
+      return {
+        id: `grouphanded:${g.groupId}:${g.at!.getTime()}`,
+        kind: 'group_handed' as const,
+        at: g.at!.toISOString(),
+        ...(g.fromId
+          ? { who: g.who, what: `made you the admin of ${name}` }
+          : { who: 'You', what: `run ${name} now — its last admin left Parea`, face: name }),
+        href: `/group/${g.groupId}`,
+        image: g.fromId ? await avatarUrl(g.avatarKey) : null,
+        images: [],
+      };
+    }),
+    ...removals.map(async (r) => ({
+      id: `removal:${r.id}`,
+      kind: 'removal_answered' as const,
+      at: r.at!.toISOString(),
+      who: 'You',
+      what:
+        r.status === 'actioned'
+          ? `asked for a photo in ${r.name} to come down, and it has`
+          : `asked for a photo in ${r.name} to come down, and the host kept it up`,
+      href: `/event/${r.eventId}`,
+      image: null,
+      face: r.name,
       images: [],
     })),
   ]);

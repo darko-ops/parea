@@ -90,6 +90,11 @@ const OWNED: {
   { table: 'webauthn_challenge', column: 'actor_id' },
   { table: 'photo', column: 'uploader_id' },
   { table: 'event', column: 'created_by' },
+  // Who handed a roll or a group on, and who put somebody in a group: the
+  // notifications page names them, so they follow the person.
+  { table: 'event', column: 'handed_by_actor_id' },
+  { table: 'group_member', column: 'added_by_actor_id' },
+  { table: 'group_member', column: 'handed_by_actor_id' },
   { table: 'event_participant', column: 'actor_id', uniqueWith: ['event_id'] },
   { table: 'group_member', column: 'actor_id', uniqueWith: ['group_id'] },
   { table: 'group_join_request', column: 'actor_id', uniqueWith: ['group_id'] },

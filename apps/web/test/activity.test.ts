@@ -19,7 +19,10 @@ import { migrate } from 'drizzle-orm/pglite/migrator';
 import { fileURLToPath } from 'node:url';
 import { beforeAll, beforeEach, describe, expect, it } from 'vitest';
 
+import { eq } from 'drizzle-orm';
+
 import { activityFor } from '@/activity';
+import { notifyGroupHanded, notifyRollHanded } from '@/notify';
 import type { Db } from '@/db';
 
 
@@ -56,7 +59,7 @@ beforeEach(async () => {
     truncate "account", "actor", "event", "event_participant",
       "event_access_request", "event_message", "message_reaction",
       "friend_request", "photo", "photo_tag", "photo_reaction",
-      "hidden_activity", "groups", "group_invite"
+      "hidden_activity", "groups", "group_invite", "group_member", "report"
     restart identity cascade
   `);
 });
@@ -1012,3 +1015,145 @@ describe('the welcome', () => {
     expect(await activityFor(db, me)).toHaveLength(0);
   });
 });
+
+describe('what used to arrive only as a push', () => {
+  async function group(name: string | null, members: string[]) {
+    const [row] = await db.insert(schema.groups).values({ name }).returning();
+    for (const actorId of members) {
+      await db.insert(schema.groupMembers).values({ groupId: row!.id, actorId });
+    }
+    return row!;
+  }
+
+  async function photo(eventId: string, uploaderId: string) {
+    const [row] = await db
+      .insert(schema.photos)
+      .values({
+        eventId,
+        uploaderId,
+        storageKey: `ev/${eventId}/${crypto.randomUUID()}`,
+        byteSize: 1,
+        mime: 'image/jpeg',
+        status: 'ready',
+        uploadedAt: new Date(),
+      })
+      .returning();
+    return row!;
+  }
+
+  it("tells a group member about photos in the group's roll they never opened", async () => {
+    const me = await actor('me');
+    const maya = await actor('maya');
+    const house = await group('House', [me, maya]);
+    const roll = await event(maya, 'Cabin');
+    await db.update(schema.events).set({ groupId: house.id }).where(eq(schema.events.id, roll.id));
+    await photo(roll.id, maya);
+
+    const line = (await did(db, me)).find((i) => i.kind === 'photos_added');
+    expect(line).toMatchObject({ who: '@maya', what: 'added 1 photo to Cabin' });
+  });
+
+  it('says when somebody starts a roll in your group', async () => {
+    const me = await actor('me');
+    const maya = await actor('maya');
+    const house = await group('House', [me, maya]);
+    const roll = await event(maya, 'Cabin');
+    await db.update(schema.events).set({ groupId: house.id }).where(eq(schema.events.id, roll.id));
+
+    expect((await did(db, me)).find((i) => i.kind === 'group_roll')).toMatchObject({
+      who: '@maya',
+      what: 'started Cabin in House',
+      href: `/event/${roll.id}`,
+    });
+    // Not to the one who started it.
+    expect((await did(db, maya)).find((i) => i.kind === 'group_roll')).toBeUndefined();
+  });
+
+  it('says who put you in a group, and only a named one', async () => {
+    const me = await actor('me');
+    const maya = await actor('maya');
+    const [house] = await db.insert(schema.groups).values({ name: 'House' }).returning();
+    await db.insert(schema.groupMembers).values([
+      { groupId: house!.id, actorId: maya, role: 'admin' },
+      { groupId: house!.id, actorId: me, addedByActorId: maya },
+    ]);
+    const [chat] = await db.insert(schema.groups).values({ name: null }).returning();
+    await db.insert(schema.groupMembers).values({ groupId: chat!.id, actorId: me, addedByActorId: maya });
+
+    const lines = (await did(db, me)).filter((i) => i.kind === 'group_added');
+    expect(lines).toHaveLength(1);
+    expect(lines[0]).toMatchObject({ who: '@maya', what: 'added you to House', href: `/group/${house!.id}` });
+  });
+
+  it('says a roll is yours now, by whom or because its Host left', async () => {
+    const me = await actor('me');
+    const maya = await actor('maya');
+    const handed = await event(me, 'Cabin');
+    await db
+      .update(schema.events)
+      .set({ handedAt: new Date(), handedByActorId: maya })
+      .where(eq(schema.events.id, handed.id));
+    const inherited = await event(me, 'Lido');
+    await db.update(schema.events).set({ handedAt: new Date() }).where(eq(schema.events.id, inherited.id));
+
+    const lines = (await did(db, me)).filter((i) => i.kind === 'roll_handed');
+    expect(lines.map((l) => `${l.who} ${l.what}`).sort()).toEqual([
+      '@maya handed you Cabin — you run it now',
+      'You run Lido now — its Host left Parea',
+    ]);
+  });
+
+  it('says a group is yours to run now', async () => {
+    const me = await actor('me');
+    const maya = await actor('maya');
+    const [house] = await db.insert(schema.groups).values({ name: 'House' }).returning();
+    await db.insert(schema.groupMembers).values({
+      groupId: house!.id,
+      actorId: me,
+      role: 'admin',
+      handedAt: new Date(),
+      handedByActorId: maya,
+    });
+
+    expect((await did(db, me)).find((i) => i.kind === 'group_handed')).toMatchObject({
+      who: '@maya',
+      what: 'made you the admin of House',
+    });
+  });
+
+  it('gives the answer to a request to take a photo down', async () => {
+    const me = await actor('me');
+    const maya = await actor('maya');
+    const roll = await event(maya, 'Cabin');
+    const shot = await photo(roll.id, maya);
+    await db.insert(schema.reports).values({
+      photoId: shot.id,
+      reporterActorId: me,
+      kind: 'removal_request',
+      status: 'actioned',
+      resolvedAt: new Date(),
+    });
+
+    expect((await did(db, me)).find((i) => i.kind === 'removal_answered')).toMatchObject({
+      who: 'You',
+      what: 'asked for a photo in Cabin to come down, and it has',
+    });
+  });
+
+  it('is written by the handover itself, for a roll and for a group', async () => {
+    const me = await actor('me');
+    const maya = await actor('maya');
+    const roll = await event(me, 'Cabin');
+    await notifyRollHanded(db, [{ id: roll.id, actorId: me }], maya);
+    const [house] = await db.insert(schema.groups).values({ name: 'House' }).returning();
+    await db.insert(schema.groupMembers).values({ groupId: house!.id, actorId: me, role: 'admin' });
+    await notifyGroupHanded(db, [{ id: house!.id, actorId: me }]);
+
+    const lines = await did(db, me);
+    expect(lines.find((i) => i.kind === 'roll_handed')?.what).toBe('handed you Cabin — you run it now');
+    expect(lines.find((i) => i.kind === 'group_handed')?.what).toBe(
+      'run House now — its last admin left Parea',
+    );
+  });
+});
+

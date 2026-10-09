@@ -290,7 +290,9 @@ async function fromPeople(
     .returning();
 
   await addMember(db, group!.id, actorId, 'admin');
-  for (const id of added) await addMember(db, group!.id, id);
+  // Their friend put them in, and the notifications page says so — see
+  // `addedByActorId`.
+  for (const id of added) await addMember(db, group!.id, id, 'member', actorId);
   const invited = asked.length > 0 ? await inviteToGroup(db, group!.id, actorId, asked) : [];
 
   /*
