@@ -1744,7 +1744,12 @@ export class Api {
    * difference belongs here rather than in the screen, which should only know
    * that somebody pressed the left button or the right one.
    */
-  answerRequest(request: PendingRequest, yes: boolean): Promise<unknown> {
+  answerRequest(
+    request: PendingRequest,
+    yes: boolean,
+    /** A join from outside the roll's group, asked into the group instead. */
+    toGroup = false,
+  ): Promise<unknown> {
     switch (request.kind) {
       case 'invite':
         return this.call(`/api/invites/${request.id}`, {
@@ -1772,7 +1777,7 @@ export class Api {
           method: 'PATCH',
           body: JSON.stringify({
             requestId: request.id,
-            action: yes ? 'approve' : 'decline',
+            action: toGroup ? 'toGroup' : yes ? 'approve' : 'decline',
           }),
         });
       // Approving writes `host` onto their participant row, which is the
@@ -2275,10 +2280,15 @@ export class Api {
      * name that turns up in both.
      */
     hostActorIds: string[] = [],
-  ): Promise<{ invited: number }> {
+    /**
+     * Ask whoever is outside the roll's group into the group instead — a
+     * group admin's answer to the 409 `not_in_group`. See `notInGroup.ts`.
+     */
+    toGroup = false,
+  ): Promise<{ invited: number; toGroup?: number }> {
     return this.call(`/api/events/${encodeURIComponent(eventId)}/invites`, {
       method: 'POST',
-      body: JSON.stringify({ actorIds, hostActorIds }),
+      body: JSON.stringify({ actorIds, hostActorIds, ...(toGroup ? { toGroup: true } : {}) }),
     });
   }
 

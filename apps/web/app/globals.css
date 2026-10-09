@@ -4545,6 +4545,18 @@ button.photo-icon { background: transparent; padding: 0; cursor: pointer; font: 
    than a record. Everything else on this pane describes the room as it is;
    this asks what it should be.
    --------------------------------------------------------------------------- */
+/* Somebody outside a roll's group, being added to it — see `NotInGroupChoice`.
+   A bordered card in the flow rather than a dialog: it is a question about the
+   list it sits in, and the list stays readable around it. */
+.group-choice {
+  margin: 12px 0; padding: 14px 16px;
+  border: 1px solid var(--line); border-radius: 12px; background: var(--card, transparent);
+  display: flex; flex-direction: column; gap: 8px;
+}
+.group-choice-head { margin: 0; font-weight: 600; font-size: 15px; }
+.group-choice-body { margin: 0; font-size: 14px; line-height: 1.45; color: var(--dim); }
+.group-choice .row { flex-wrap: wrap; gap: 8px; }
+
 .join-queue {
   margin-top: 22px; padding: 16px 18px; max-width: 560px;
   background: var(--card); border: 1px solid var(--line); border-radius: 16px;

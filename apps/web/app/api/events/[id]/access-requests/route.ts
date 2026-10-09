@@ -17,6 +17,7 @@ import { and, asc, eq } from 'drizzle-orm';
 import { NextResponse } from 'next/server';
 
 import { decide, findEventById, isSignedIn, recordParticipant } from '@/access';
+import { inviteToGroup, membershipOf, notInGroup, outsideGroup } from '@/groups';
 import { getDb } from '@/db';
 import { isBlockedBy } from '@/moderation';
 import { notifyAccessRequested } from '@/notify';
@@ -165,8 +166,14 @@ export async function PATCH(
     requestId?: unknown;
     action?: unknown;
   };
+  /*
+   * `toGroup` is the third answer, and only for a roll in a group: the person
+   * asking is asked into the group instead, which brings the roll with it.
+   */
   const action =
-    body.action === 'approve' ? 'approve' : body.action === 'decline' ? 'decline' : null;
+    body.action === 'approve' || body.action === 'decline' || body.action === 'toGroup'
+      ? body.action
+      : null;
   if (!action || typeof body.requestId !== 'string') {
     return NextResponse.json({ error: 'invalid' }, { status: 400 });
   }
@@ -193,6 +200,34 @@ export async function PATCH(
     )
     .limit(1);
   if (!row) return notFound();
+
+  /*
+   * A roll in a group is shared with exactly the group, so letting in
+   * somebody outside it is the same question an invitation asks — see the
+   * invites route. Approving them by name is refused with what the client
+   * needs to ask it; `toGroup` asks them into the group instead, and the
+   * request is spent rather than approved, because approving it is the grant
+   * this rule exists to withhold. They hear about it as a group invitation.
+   */
+  if (event.groupId && action !== 'decline') {
+    const outside = (await outsideGroup(db, event.groupId, [row.actorId])).length > 0;
+    if (outside && action === 'approve') {
+      return NextResponse.json(await notInGroup(db, event.groupId, actorId, [row.actorId]), {
+        status: 409,
+      });
+    }
+    if (action === 'toGroup') {
+      if ((await membershipOf(db, event.groupId, actorId))?.role !== 'admin') {
+        return NextResponse.json({ error: 'admin_only' }, { status: 403 });
+      }
+      if (outside) await inviteToGroup(db, event.groupId, actorId, [row.actorId]);
+      await db
+        .delete(schema.eventAccessRequests)
+        .where(eq(schema.eventAccessRequests.id, body.requestId));
+      return NextResponse.json({ ok: true, toGroup: outside ? 1 : 0 });
+    }
+  }
+  if (action === 'toGroup') return NextResponse.json({ error: 'invalid' }, { status: 400 });
 
   // The participant row first. It is the grant, and the order matters: if this
   // crashes between the two writes, an approved person who is already in reads

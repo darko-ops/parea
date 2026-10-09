@@ -49,6 +49,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import type { ActivityRow, Api, PendingRequest } from './api';
+import { askNotInGroup, notInGroupOf } from './notInGroup';
 import { Glyph } from './Glyph';
 import type { GroupTheme } from './Groups';
 import { initialOf, lensFor } from './lens';
@@ -186,9 +187,35 @@ export function Lately({
         // "you can see Barcelona now" — and the point of reloading is to show
         // it, which is also how somebody sees that the answer took.
         await load();
-      } catch {
+      } catch (err) {
         setWaiting(before);
-        setError('That did not go through. Try again in a moment.');
+        /*
+         * Letting somebody into a roll in a group they are not in: refused,
+         * and the question put — into the group, or the roll out of it.
+         */
+        const outside = notInGroupOf(err);
+        if (!outside) {
+          setError('That did not go through. Try again in a moment.');
+          return;
+        }
+        const then = async (act: () => Promise<unknown>) => {
+          try {
+            await act();
+            setWaiting((list) => list.filter((r) => r.key !== request.key));
+            onAnswered();
+            await load();
+          } catch {
+            setError('That did not go through. Try again in a moment.');
+          }
+        };
+        askNotInGroup(outside, {
+          onAddToGroup: () => void then(() => api.answerRequest(request, true, true)),
+          onTakeOut: () =>
+            void then(async () => {
+              await api.takeOutOfGroup(request.eventId!);
+              await api.answerRequest(request, true);
+            }),
+        });
       } finally {
         setBusy(null);
       }

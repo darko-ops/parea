@@ -5266,12 +5266,12 @@ function EventScreen({
           onUngroup={() => {
             const group = feed?.event.groupName ?? 'the group';
             Alert.alert(
-              `Take it out of ${group}?`,
-              `Everyone in ${group} stays in this roll. It stops showing in the group, and people who join the group later won’t see it. You can remove anyone from People afterwards.`,
+              `Remove ${feed?.event.name ?? event.name} from ${group}?`,
+              `Everyone in ${group} keeps this roll, but it won’t show in the group anymore, and people who join later won’t see it.`,
               [
-                { text: 'Keep it there', style: 'cancel' },
+                { text: 'Cancel', style: 'cancel' },
                 {
-                  text: 'Take it out',
+                  text: 'Remove from group',
                   style: 'destructive',
                   onPress: async () => {
                     try {
@@ -5279,7 +5279,7 @@ function EventScreen({
                       onGroupsChanged();
                       await refresh();
                     } catch {
-                      Alert.alert('Could not take it out', 'Try again in a moment.');
+                      Alert.alert('Could not remove it', 'Try again in a moment.');
                     }
                   },
                 },
@@ -6019,7 +6019,7 @@ function HostSheet({
   onContribute: (value: ContributePolicy) => void;
   onGroup: (name: string) => void;
   onOpenGroup: (groupId: string) => void;
-  /** Out of its group, everybody kept — the creator's alone. */
+  /** Out of its group, everybody kept — its creator or a group admin. */
   onUngroup: () => void;
 }) {
   const [naming, setNaming] = useState(false);
@@ -6289,7 +6289,17 @@ function HostSheet({
               have: somebody who made one could send the link and wait to be
               asked, but could not ask anybody.
             */}
-            {host && <InviteCard api={api} t={t} eventId={event.id} Button={ButtonEl} />}
+            {host && (
+              <InviteCard
+                api={api}
+                t={t}
+                eventId={event.id}
+                Button={ButtonEl}
+                // Taken out of its group to let somebody in: the sheet's
+                // group rows and its Who-can-see card are read off the feed.
+                onUngrouped={onNameSaved}
+              />
+            )}
 
             {/*
               Who can see it, changeable here.
@@ -6303,25 +6313,30 @@ function HostSheet({
               note under it is not decoration: "private" sounds like it should
               throw people out, and it does not.
             */}
-            {host && (
+            {host && feed?.event.groupId && (
+              /*
+                Not a choice in a group: a roll in a group is shared with
+                exactly the group — Group only — and the way to share it wider
+                is "Remove from group" further down.
+              */
+              <View style={[styles.card, { backgroundColor: t.card, borderColor: t.line }]}>
+                <Text style={[styles.label, { color: t.fg }]}>Who can see it</Text>
+                <Text style={[styles.body, { color: t.fg }]}>Group only</Text>
+                <Text style={[styles.small, { color: t.dim }]}>
+                  Everyone in {feed.event.groupName ?? 'the group'}. To share it with anyone
+                  else, remove it from the group.
+                </Text>
+              </View>
+            )}
+            {host && !feed?.event.groupId && (
               <View style={[styles.card, { backgroundColor: t.card, borderColor: t.line }]}>
                 <Text style={[styles.label, { color: t.fg }]}>Who can see it</Text>
                 <View style={styles.pills}>
                   {(
-                    /*
-                      In a group, named for what they do there: the group is
-                      always in, so "Private" never meant only the people you
-                      pick. A roll for some of a group is taken out of it.
-                    */
-                    (feed?.event.groupId
-                      ? [
-                          ['private', 'Group only'],
-                          ['public', 'Anyone with the link'],
-                        ]
-                      : [
-                          ['public', 'Public'],
-                          ['private', 'Private'],
-                        ]) as ['public' | 'private', string][]
+                    [
+                      ['public', 'Public'],
+                      ['private', 'Private'],
+                    ] as ['public' | 'private', string][]
                   ).map(([value, label]) => {
                     const on = visible === value;
                     return (
@@ -6351,13 +6366,9 @@ function HostSheet({
                   })}
                 </View>
                 <Text style={[styles.small, { color: t.dim }]}>
-                  {feed?.event.groupId
-                    ? visible === 'private'
-                      ? 'Everyone in the group, and anyone you add by name. Anyone else with the link can ask.'
-                      : 'Everyone in the group, and anyone signed in with the link.'
-                    : visible === 'private'
-                      ? 'Only the people in it. Anyone else with the link can ask, and you answer — everyone already here stays in.'
-                      : 'Anyone signed in with the link can see it.'}
+                  {visible === 'private'
+                    ? 'Only the people in it. Anyone else with the link can ask, and you answer — everyone already here stays in.'
+                    : 'Anyone signed in with the link can see it.'}
                 </Text>
                 {(feed?.event.waiting ?? 0) > 0 && (
                   <Text style={[styles.small, { color: t.accent }]}>
@@ -6665,13 +6676,13 @@ function HostSheet({
             )}
 
             {/*
-              Out of the group: the answer to "only some of the group". Its
-              creator's alone — a group admin runs the roll, but where it lives
-              is the call of whoever made it. Everyone in the group stays in.
+              Out of the group: the answer to "only some of the group", and to
+              anybody outside it. Its creator or a group admin — `host` is
+              exactly those two. Everyone in the group stays in.
             */}
-            {feed?.event.groupId && feed.event.membership === 'creator' && (
+            {host && feed?.event.groupId && (
               <Row
-                label="Take out of group"
+                label="Remove from group"
                 note="Everyone in the group keeps it. New members won’t see it."
                 onPress={onUngroup}
                 t={t}

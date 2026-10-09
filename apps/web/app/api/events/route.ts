@@ -10,6 +10,7 @@ import {
   ACCESS_POLICIES,
   CONTRIBUTE_EVERYONE,
   CONTRIBUTE_POLICIES,
+  PRIVATE,
   PUBLIC,
   newLinkToken,
   schema,
@@ -340,7 +341,9 @@ export async function POST(request: Request) {
       groupId,
       linkToken: newLinkToken(),
       createdBy: actorId,
-      accessPolicy,
+      // A roll in a group is shared with exactly the group: Group only,
+      // whatever was asked for. See the invites route.
+      accessPolicy: groupId ? PRIVATE : accessPolicy,
       contributePolicy,
       eventDate: asDateString(body.eventDate),
       // Typed by the host, never derived from the photos — there is no

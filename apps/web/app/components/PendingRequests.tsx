@@ -38,6 +38,12 @@ import { useCallback, useState } from 'react';
 import type { PendingRequest, PendingRequestKind } from '@/requests';
 
 import { Face } from './Faces';
+import {
+  NotInGroupChoice,
+  readNotInGroup,
+  takeRollOutOfGroup,
+  type NotInGroupAnswer,
+} from './NotInGroup';
 
 /** Where an answer goes, and what the two answers are called there. */
 const ANSWERS: Record<
@@ -101,22 +107,50 @@ export function PendingRequests({ requests }: { requests: WaitingRequest[] }) {
   const [open, setOpen] = useState(requests);
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  /** A request to join a roll from somebody outside its group — see `NotInGroupChoice`. */
+  const [outside, setOutside] = useState<{
+    request: WaitingRequest;
+    answer: NotInGroupAnswer;
+  } | null>(null);
 
   const answer = useCallback(
-    async (request: WaitingRequest, yes: boolean) => {
+    async (
+      request: WaitingRequest,
+      yes: boolean,
+      /** The two answers to somebody outside a roll's group. */
+      instead?: 'toGroup' | 'ungroup',
+    ) => {
       setBusy(request.key);
       setError(null);
       const before = open;
       setOpen((list) => list.filter((r) => r.key !== request.key));
       try {
         const { url, body } = endpoint(request);
-        const action = yes ? ANSWERS[request.kind].yes : ANSWERS[request.kind].no;
+        if (instead === 'ungroup' && request.eventId) await takeRollOutOfGroup(request.eventId);
+        const action =
+          instead === 'toGroup'
+            ? 'toGroup'
+            : yes
+              ? ANSWERS[request.kind].yes
+              : ANSWERS[request.kind].no;
         const res = await fetch(url, {
           method: 'PATCH',
           headers: { 'content-type': 'application/json' },
           body: JSON.stringify({ ...body, action }),
         });
+        /*
+         * Letting somebody into a roll in a group they are not in: refused,
+         * and the card stays while the question is put — into the group, or
+         * the roll out of it.
+         */
+        const refused = await readNotInGroup(res);
+        if (refused) {
+          setOpen(before);
+          setOutside({ request, answer: refused });
+          return;
+        }
         if (!res.ok) throw new Error('Could not answer that.');
+        setOutside(null);
         /*
          * Accepting is not opening.
          *
@@ -166,6 +200,15 @@ export function PendingRequests({ requests }: { requests: WaitingRequest[] }) {
       </div>
 
       {error && <p className="waiting-error">{error}</p>}
+      {outside && (
+        <NotInGroupChoice
+          answer={outside.answer}
+          busy={busy === outside.request.key}
+          onAddToGroup={() => void answer(outside.request, true, 'toGroup')}
+          onTakeOut={() => void answer(outside.request, true, 'ungroup')}
+          onCancel={() => setOutside(null)}
+        />
+      )}
 
       <div className="waiting-list">
         {open.map((request) => (

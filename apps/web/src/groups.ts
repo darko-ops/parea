@@ -2104,3 +2104,68 @@ export async function takeOutOfGroup(db: Db, eventId: string): Promise<number | 
     return members.length;
   });
 }
+
+/**
+ * Of these people, the ones not in the group.
+ *
+ * A roll in a group is shared with exactly the group: nobody outside it comes
+ * in by name, through an invitation or an approved request. Whoever is adding
+ * them is asked instead to add them to the group, or to take the roll out of
+ * it so it can have people of its own — see `notInGroup`.
+ */
+export async function outsideGroup(db: Db, groupId: string, actorIds: string[]): Promise<string[]> {
+  if (actorIds.length === 0) return [];
+  const inside = await db
+    .select({ actorId: schema.groupMembers.actorId })
+    .from(schema.groupMembers)
+    .where(and(eq(schema.groupMembers.groupId, groupId), inArray(schema.groupMembers.actorId, actorIds)));
+  const members = new Set(inside.map((row) => row.actorId));
+  return actorIds.filter((id) => !members.has(id));
+}
+
+/**
+ * The answer to adding somebody from outside the group to a roll in it: a
+ * 409 that carries what the client needs to ask the question.
+ *
+ * Who they are, so it can name them; the group, so it can name that; and
+ * whether this person may add them to it — only a group's admins invite into
+ * a group, so a roll's creator who is not one is offered the other way only.
+ * Taking the roll out is open to everybody who can get here: adding people is
+ * `administer`, which is the roll's creator or a group admin, and both may.
+ */
+export async function notInGroup(
+  db: Db,
+  groupId: string,
+  actorId: string,
+  outsiders: string[],
+): Promise<NotInGroup> {
+  const [group, membership, people] = await Promise.all([
+    findGroup(db, groupId),
+    membershipOf(db, groupId, actorId),
+    db
+      .select({
+        actorId: schema.actors.id,
+        displayName: schema.actors.displayName,
+        handle: schema.actors.handle,
+      })
+      .from(schema.actors)
+      .where(inArray(schema.actors.id, outsiders)),
+  ]);
+  const named = new Map(
+    people.map((p) => [p.actorId, p.displayName ?? (p.handle ? `@${p.handle}` : 'Someone')]),
+  );
+  return {
+    error: 'not_in_group',
+    outsiders: outsiders.map((id) => ({ actorId: id, name: named.get(id) ?? 'Someone' })),
+    group: { id: groupId, name: group?.name ?? 'the group' },
+    canAddToGroup: membership?.role === 'admin',
+  };
+}
+
+/** The 409 body `notInGroup` builds, as both clients read it. */
+export type NotInGroup = {
+  error: 'not_in_group';
+  outsiders: { actorId: string; name: string }[];
+  group: { id: string; name: string };
+  canAddToGroup: boolean;
+};

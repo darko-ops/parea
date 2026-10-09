@@ -21,7 +21,7 @@ import { beforeAll, beforeEach, describe, expect, it } from 'vitest';
 
 import { decide, findEventById, lockedOutByRotation, recordParticipant } from '@/access';
 import type { Db } from '@/db';
-import { takeOutOfGroup } from '@/groups';
+import { outsideGroup, takeOutOfGroup } from '@/groups';
 
 const MIGRATIONS = fileURLToPath(new URL('../../../packages/core/drizzle', import.meta.url));
 
@@ -147,13 +147,57 @@ describe('the route', () => {
     'utf8',
   );
 
-  it('is the creator’s alone, and a 404 to anybody else', () => {
-    expect(ROUTE).toMatch(/await guard\(db, event, 'administer', requester\);/);
-    expect(ROUTE).toMatch(/if \(requester\.actorId !== event\.createdBy\) \{\s*return NextResponse\.json\(\{ error: 'not_found' \}, \{ status: 404 \}\);/);
-    expect(ROUTE).toMatch(/await takeOutOfGroup\(db, event\.id\)/);
-  });
-
   it('lets an uploader to a roll in a group in by right', () => {
     expect(UPLOADS).toMatch(/recordParticipant\(db, event\.id, actorId, 'member', event\.groupId !== null\)/);
+  });
+});
+
+/**
+ * A roll in a group is shared with exactly the group.
+ *
+ * Nobody outside it comes in by name — an invitation or an approved request is
+ * refused with what the client needs to ask: add them to the group, or take
+ * the roll out of it. And it is always Group only.
+ */
+describe('a roll in a group is the group’s', () => {
+  const src = (path: string) =>
+    readFileSync(fileURLToPath(new URL(path, import.meta.url)), 'utf8');
+  const INVITES = src('../app/api/events/[id]/invites/route.ts');
+  const REQUESTS = src('../app/api/events/[id]/access-requests/route.ts');
+  const PATCH = src('../app/api/events/[id]/route.ts');
+  const CREATE = src('../app/api/events/route.ts');
+  const UNGROUP = src('../app/api/events/[id]/group/route.ts');
+  const MIGRATION = src('../../../packages/core/drizzle/0068_group_rolls_group_only.sql');
+
+  it('finds who is outside the group', async () => {
+    const { group, member } = await setting();
+    const stranger = await person();
+    expect(await outsideGroup(db, group.id, [member, stranger])).toEqual([stranger]);
+    expect(await outsideGroup(db, group.id, [])).toEqual([]);
+  });
+
+  it('refuses to invite somebody outside it by name, and asks them into the group on request', () => {
+    expect(INVITES).toMatch(/const outsiders = await outsideGroup\(db, event\.groupId, asked\);/);
+    expect(INVITES).toMatch(/if \(body\.toGroup !== true\) \{\s*return NextResponse\.json\(await notInGroup\(db, event\.groupId, actorId, outsiders\), \{\s*status: 409,/);
+    expect(INVITES).toMatch(/\?\.role !== 'admin'\) \{\s*return NextResponse\.json\(\{ error: 'admin_only' \}, \{ status: 403 \}\);/);
+    expect(INVITES).toMatch(/toGroup = \(await inviteToGroup\(db, event\.groupId, actorId, outsiders\)\)\.length;/);
+  });
+
+  it('refuses to approve somebody outside it, and spends the request on a group invitation instead', () => {
+    expect(REQUESTS).toMatch(/if \(outside && action === 'approve'\) \{\s*return NextResponse\.json\(await notInGroup\(db, event\.groupId, actorId, \[row\.actorId\]\)/);
+    expect(REQUESTS).toMatch(/if \(outside\) await inviteToGroup\(db, event\.groupId, actorId, \[row\.actorId\]\);\s*await db\s*\.delete\(schema\.eventAccessRequests\)/);
+  });
+
+  it('is always Group only, made or changed', () => {
+    expect(CREATE).toMatch(/accessPolicy: groupId \? PRIVATE : accessPolicy,/);
+    expect(PATCH).toMatch(/if \(chosen !== PRIVATE && event\.groupId\) \{\s*return NextResponse\.json\(\{ error: 'group_only' \}, \{ status: 409 \}\);/);
+    expect(MIGRATION).toMatch(/UPDATE "event" SET "access_policy" = 'private'\s*WHERE "group_id" IS NOT NULL AND "access_policy" = 'public';/);
+    // Everybody already in one keeps it — let in by right before it closes.
+    expect(MIGRATION.indexOf('SET "admitted" = true')).toBeLessThan(MIGRATION.indexOf('SET "access_policy"'));
+  });
+
+  it('can be taken out by its creator or a group admin — `administer`, and nothing narrower', () => {
+    expect(UNGROUP).toMatch(/await guard\(db, event, 'administer', await requesterFor\(id\)\);/);
+    expect(UNGROUP).not.toMatch(/createdBy/);
   });
 });

@@ -59,6 +59,7 @@ import {
 import type { Api, InvitablePerson } from './api';
 import { Glyph } from './Glyph';
 import type { GroupTheme } from './Groups';
+import { askNotInGroup, notInGroupOf } from './notInGroup';
 import { lensFor } from './lens';
 
 /** What the server takes in one request. Said here so the copy can say it. */
@@ -318,10 +319,13 @@ export function InviteCard({
   t,
   eventId,
   Button,
+  onUngrouped,
 }: {
   api: Api;
   t: GroupTheme;
   eventId: string;
+  /** The roll was taken out of its group to let somebody in — the sheet re-reads. */
+  onUngrouped?: () => void;
   Button: (props: {
     label: string;
     onPress: () => void;
@@ -338,23 +342,53 @@ export function InviteCard({
     if (picked.length === 0) return;
     setBusy(true);
     setSaid(null);
+    const ids = picked.map((person) => person.actorId);
+    const asked = (invited: number) =>
+      invited === 0
+        ? 'Nobody new to ask — they had already been asked.'
+        : `Asked ${invited}. It is under their Events now.`;
     try {
-      const { invited } = await api.invite(
-        eventId,
-        picked.map((person) => person.actorId),
-      );
+      const { invited } = await api.invite(eventId, ids);
       setPicked([]);
-      setSaid(
-        invited === 0
-          ? 'Nobody new to ask — they had already been asked.'
-          : `Asked ${invited}. It is under their Events now.`,
-      );
-    } catch {
-      setSaid('Could not ask just now. Try again in a moment.');
+      setSaid(asked(invited));
+    } catch (err) {
+      /*
+       * Somebody outside the roll's group: not asked into the roll, and the
+       * question put instead — into the group, or the roll out of it.
+       */
+      const outside = notInGroupOf(err);
+      if (!outside) {
+        setSaid('Could not ask just now. Try again in a moment.');
+        return;
+      }
+      askNotInGroup(outside, {
+        onAddToGroup: async () => {
+          try {
+            const answer = await api.invite(eventId, ids, [], true);
+            setPicked([]);
+            setSaid(
+              `Asked ${answer.toGroup ?? 0} to join ${outside.group.name}. They’ll see this roll once they’re in.`,
+            );
+          } catch {
+            setSaid('Could not ask just now. Try again in a moment.');
+          }
+        },
+        onTakeOut: async () => {
+          try {
+            await api.takeOutOfGroup(eventId);
+            const { invited } = await api.invite(eventId, ids);
+            setPicked([]);
+            setSaid(`Removed from ${outside.group.name}. ${asked(invited)}`);
+            onUngrouped?.();
+          } catch {
+            setSaid('Could not do that just now. Try again in a moment.');
+          }
+        },
+      });
     } finally {
       setBusy(false);
     }
-  }, [api, eventId, picked]);
+  }, [api, eventId, picked, onUngrouped]);
 
   return (
     <View style={[styles.card, { backgroundColor: t.card, borderColor: t.line }]}>

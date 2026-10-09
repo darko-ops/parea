@@ -1,14 +1,11 @@
 /**
  * The roll comes out of its group.
  *
- * Its creator's alone. A group admin runs the rolls in a group in every other
- * way, but this one decides where somebody's roll lives and who it is shared
- * with from now on, and that is the person who made it. Everybody in the group
- * stays in the roll — see `takeOutOfGroup` for how, and why it has to be
- * written down rather than left to the group.
- *
- * A roll the reader did not make is a 404, the answer the other creator-only
- * routes give, rather than a 403 that confirms the roll exists.
+ * Its creator's to do, or an admin of the group's: a group admin keeps the
+ * group's shelf, and its creator decides where their roll lives. Either way
+ * the roll stays its creator's, and everybody in the group stays in it — see
+ * `takeOutOfGroup` for how, and why it has to be written down rather than left
+ * to the group.
  */
 
 import { NextResponse } from 'next/server';
@@ -33,16 +30,12 @@ export async function DELETE(
   const event = await findEventById(db, id);
   if (!event) return NextResponse.json({ error: 'not_found' }, { status: 404 });
 
-  // Running it at all first — deleted, signed out and strangers answered the
-  // way every roll route answers them — and then making it, which is narrower.
-  const requester = await requesterFor(id);
+  // `administer`, which is exactly the two who may: its creator, or an admin
+  // of the group it is in.
   try {
-    await guard(db, event, 'administer', requester);
+    await guard(db, event, 'administer', await requesterFor(id));
   } catch (err) {
     return toResponse(err);
-  }
-  if (requester.actorId !== event.createdBy) {
-    return NextResponse.json({ error: 'not_found' }, { status: 404 });
   }
 
   const carried = await takeOutOfGroup(db, event.id);

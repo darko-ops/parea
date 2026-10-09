@@ -13,6 +13,7 @@
 import {
   ACCESS_POLICIES,
   CONTRIBUTE_POLICIES,
+  PRIVATE,
   schema,
   type AccessPolicy,
   type ContributePolicy,
@@ -132,6 +133,14 @@ export async function PATCH(
     const chosen = ACCESS_POLICIES.find((policy) => policy === body.accessPolicy);
     if (!chosen) {
       return NextResponse.json({ error: 'invalid_access_policy' }, { status: 400 });
+    }
+    /*
+     * Except open, in a group. A roll in a group is shared with exactly the
+     * group — Group only — and the way to share it wider is to take it out of
+     * the group, after which this is the setting it always was.
+     */
+    if (chosen !== PRIVATE && event.groupId) {
+      return NextResponse.json({ error: 'group_only' }, { status: 409 });
     }
     patch.accessPolicy = chosen;
   }

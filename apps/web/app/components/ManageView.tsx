@@ -20,6 +20,12 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { ACCESS_OPTIONS, AccessChoice, type AccessPolicy } from './AccessChoice';
 import {
+  NotInGroupChoice,
+  readNotInGroup,
+  takeRollOutOfGroup,
+  type NotInGroupAnswer,
+} from './NotInGroup';
+import {
   CONTRIBUTE_OPTIONS,
   ContributeChoice,
   type ContributePolicy,
@@ -123,6 +129,19 @@ export function ManageView({
   const [already, setAlready] = useState<Set<string>>(new Set());
   const [picked, setPicked] = useState<Set<string>>(new Set());
   const [invited, setInvited] = useState<number | null>(null);
+  /*
+   * Somebody outside the roll's group, being added to it, and the request that
+   * was refused for it — sent again with the answer. See `NotInGroupChoice`.
+   * `where` is which of the two pickers asked, so the question is drawn under
+   * the button that was pressed.
+   */
+  const [outside, setOutside] = useState<{
+    answer: NotInGroupAnswer;
+    body: Record<string, unknown>;
+    where: 'invite' | 'cohosts';
+  } | null>(null);
+  /** Said after people were asked into the group instead of the roll. */
+  const [groupNote, setGroupNote] = useState<string | null>(null);
   /** What the search box holds, and what it found. Friends need no search. */
   const [term, setTerm] = useState('');
   const [found, setFound] = useState<Friend[]>([]);
@@ -231,20 +250,77 @@ export function ManageView({
     return () => clearTimeout(timer);
   }, [term]);
 
+  /**
+   * One request to the invitations route, from either picker.
+   *
+   * Null when it was refused because somebody is outside the roll's group —
+   * the question has been put on screen, and the caller stops there.
+   */
+  async function sendInvites(
+    body: Record<string, unknown>,
+    where: 'invite' | 'cohosts',
+  ): Promise<{ invited: number; toGroup?: number } | null> {
+    const res = await fetch(`/api/events/${eventId}/invites`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    const refused = await readNotInGroup(res);
+    if (refused) {
+      setOutside({ answer: refused, body, where });
+      return null;
+    }
+    if (!res.ok) throw new Error('Could not add them.');
+    return (await res.json()) as { invited: number; toGroup?: number };
+  }
+
   async function invite() {
     setBusy('invite');
     setError(null);
+    setGroupNote(null);
     try {
-      const res = await fetch(`/api/events/${eventId}/invites`, {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ actorIds: [...picked] }),
-      });
-      if (!res.ok) throw new Error('Could not add them.');
-      const body = (await res.json()) as { invited: number };
+      const body = await sendInvites({ actorIds: [...picked] }, 'invite');
+      if (!body) return;
       setInvited(body.invited);
       setPicked(new Set());
       await loadFriends();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  /*
+   * The two answers to somebody outside the group.
+   *
+   * Into the group: the same request with `toGroup`, which asks them into the
+   * group instead — they see the roll once they are in it. Out of the group:
+   * the roll leaves it, everybody in the group kept, and the same request goes
+   * again as it was, now that the roll can have people of its own; then a
+   * reload, because half this screen is worded by whether it is in a group.
+   */
+  async function answerOutside(into: 'group' | 'out') {
+    if (!outside) return;
+    setBusy('outside');
+    setError(null);
+    try {
+      if (into === 'group') {
+        const body = await sendInvites({ ...outside.body, toGroup: true }, outside.where);
+        if (!body) return;
+        setOutside(null);
+        setPicked(new Set());
+        setCoHostPick([]);
+        if (body.invited > 0) setInvited(body.invited);
+        setGroupNote(
+          `Asked ${body.toGroup ?? 0} ${body.toGroup === 1 ? 'person' : 'people'} to join ${outside.answer.group.name}. They’ll see this roll once they’re in.`,
+        );
+        await Promise.all([loadFriends(), loadHosts()]);
+      } else {
+        await takeRollOutOfGroup(eventId);
+        await sendInvites(outside.body, outside.where);
+        window.location.reload();
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
     } finally {
@@ -269,12 +345,11 @@ export function ManageView({
     setBusy('cohosts');
     setError(null);
     try {
-      const res = await fetch(`/api/events/${eventId}/invites`, {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ hostActorIds: coHostPick.map((p) => p.actorId) }),
-      });
-      if (!res.ok) throw new Error('Could not add them.');
+      const sent = await sendInvites(
+        { hostActorIds: coHostPick.map((p) => p.actorId) },
+        'cohosts',
+      );
+      if (!sent) return;
       setCoHostPick([]);
       await Promise.all([loadHosts(), loadFriends()]);
     } catch (err) {
@@ -482,7 +557,7 @@ export function ManageView({
     setBusy('ungroup');
     try {
       const res = await fetch(`/api/events/${eventId}/group`, { method: 'DELETE' });
-      if (!res.ok) throw new Error('Could not take it out of the group.');
+      if (!res.ok) throw new Error('Could not remove it from the group.');
       window.location.reload();
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
@@ -637,6 +712,16 @@ export function ManageView({
                   </span>
                 )}
               </div>
+              {outside?.where === 'invite' && (
+                <NotInGroupChoice
+                  answer={outside.answer}
+                  busy={busy === 'outside'}
+                  onAddToGroup={() => void answerOutside('group')}
+                  onTakeOut={() => void answerOutside('out')}
+                  onCancel={() => setOutside(null)}
+                />
+              )}
+              {groupNote && <p className="muted">{groupNote}</p>}
             </>
           )}
         </section>
@@ -824,15 +909,29 @@ export function ManageView({
             nobody has been sent anything yet at that moment, and what you want
             is obvious only once they have.
           */}
-          <AccessChoice
-            value={access}
-            inGroup={initial.groupId !== null}
-            disabled={busy === 'switch'}
-            onChange={(next) => {
-              if (next !== access) void setSwitch({ accessPolicy: next });
-            }}
-            note="Tightening this stops new people. Everyone already here stays."
-          />
+          {initial.groupId ? (
+            /*
+              Not a choice in a group. A roll in a group is shared with
+              exactly the group — Group only — and the way to share it wider
+              is the panel below, after which this is the switch it was.
+            */
+            <>
+              <p className="field-label">Group only</p>
+              <p className="field-help">
+                Everyone in {initial.groupName ?? 'the group'}. To share it with
+                anyone else, remove it from the group.
+              </p>
+            </>
+          ) : (
+            <AccessChoice
+              value={access}
+              disabled={busy === 'switch'}
+              onChange={(next) => {
+                if (next !== access) void setSwitch({ accessPolicy: next });
+              }}
+              note="Tightening this stops new people. Everyone already here stays."
+            />
+          )}
         </section>
       )}
 
@@ -966,6 +1065,15 @@ export function ManageView({
                     ? 'Asking…'
                     : `Ask ${coHostPick.length} ${coHostPick.length === 1 ? 'person' : 'people'} to co-host`}
                 </button>
+              )}
+              {outside?.where === 'cohosts' && (
+                <NotInGroupChoice
+                  answer={outside.answer}
+                  busy={busy === 'outside'}
+                  onAddToGroup={() => void answerOutside('group')}
+                  onTakeOut={() => void answerOutside('out')}
+                  onCancel={() => setOutside(null)}
+                />
               )}
               <p className="field-help">
                 {/*
@@ -1113,27 +1221,26 @@ export function ManageView({
         </section>
       )}
 
-      {tab === 'manage' && initial.groupId && initial.isCreator && (
+      {tab === 'manage' && initial.groupId && (
         /*
           Out of the group, which is the answer to "only some of the group":
           the roll keeps everybody who is in the group today, stops reaching
-          whoever joins it later, and its creator narrows it from there.
-          Creator only, which the route enforces — a group admin runs the
-          roll but does not decide where it lives.
+          whoever joins it later, and its creator narrows it from there. Its
+          creator or a group admin — everybody who can open this screen.
         */
         <section className="panel">
           <h2>In {initial.groupName ?? 'a group'}</h2>
           {confirmUngroup ? (
             <>
               <p className="muted">
-                Everyone in {initial.groupName ?? 'the group'} stays in this roll.
-                It stops showing in the group, and people who join the group
-                later will not see it. You can remove anyone under Members
-                afterwards.
+                Remove this roll from {initial.groupName ?? 'the group'}?
+                Everyone in the group keeps it, but it won&rsquo;t show in the
+                group anymore, and people who join later won&rsquo;t see it.
+                It stays {initial.isCreator ? 'yours' : 'its creator’s'}.
               </p>
               <div className="row">
                 <button className="danger" onClick={ungroup} disabled={busy === 'ungroup'}>
-                  {busy === 'ungroup' ? 'Taking it out…' : 'Take it out of the group'}
+                  {busy === 'ungroup' ? 'Removing…' : 'Remove from group'}
                 </button>
                 <button className="secondary" onClick={() => setConfirmUngroup(false)}>
                   Cancel
@@ -1143,11 +1250,11 @@ export function ManageView({
           ) : (
             <>
               <p className="muted">
-                Everyone in the group can see it. To share it with only some of
-                them, take it out of the group.
+                Shared with everyone in the group. To share it with only some of
+                them, or with people outside it, remove it from the group.
               </p>
               <button className="secondary" onClick={() => setConfirmUngroup(true)}>
-                Take it out of the group
+                Remove from group
               </button>
             </>
           )}

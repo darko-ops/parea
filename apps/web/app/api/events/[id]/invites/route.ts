@@ -48,6 +48,7 @@ import { NextResponse } from 'next/server';
 import { decide, findEventById } from '@/access';
 import { getDb } from '@/db';
 import { invitable } from '@/friends';
+import { inviteToGroup, membershipOf, notInGroup, outsideGroup } from '@/groups';
 import { notifyEventInvite } from '@/notify';
 import { currentActorId, requesterFor } from '@/session';
 
@@ -75,6 +76,8 @@ export async function POST(
   const body = (await request.json().catch(() => ({}))) as {
     actorIds?: unknown;
     hostActorIds?: unknown;
+    /** Ask the people outside the roll's group into the group instead. */
+    toGroup?: unknown;
   };
   const strings = (value: unknown): string[] =>
     Array.isArray(value) ? value.filter((a): a is string => typeof a === 'string') : [];
@@ -103,6 +106,33 @@ export async function POST(
     return NextResponse.json({ error: 'invalid' }, { status: 400 });
   }
   const wantsHost = new Set(hostAsked);
+
+  /*
+   * A roll in a group is shared with exactly the group.
+   *
+   * Somebody outside it is not invited into the roll by name: the person
+   * adding them chooses between asking them into the group — then the roll
+   * comes with it — and taking the roll out of the group so it can have people
+   * of its own. Asked here, where it cannot be routed around, and answered
+   * with what the client needs to put the question. `toGroup` is the first of
+   * the two answers, and a group admin's alone, as inviting into a group is.
+   */
+  let toGroup = 0;
+  if (event.groupId) {
+    const outsiders = await outsideGroup(db, event.groupId, asked);
+    if (outsiders.length > 0) {
+      if (body.toGroup !== true) {
+        return NextResponse.json(await notInGroup(db, event.groupId, actorId, outsiders), {
+          status: 409,
+        });
+      }
+      if ((await membershipOf(db, event.groupId, actorId))?.role !== 'admin') {
+        return NextResponse.json({ error: 'admin_only' }, { status: 403 });
+      }
+      toGroup = (await inviteToGroup(db, event.groupId, actorId, outsiders)).length;
+      for (const outsider of outsiders) asked.splice(asked.indexOf(outsider), 1);
+    }
+  }
 
   /*
    * Checked per person rather than trusted from the list the client sent.
@@ -187,7 +217,7 @@ export async function POST(
   // Says how many, not which: the caller already knows who it asked for, and a
   // per-person answer would report whether each one is your friend, which is a
   // question this route should not answer even to you in that shape.
-  return NextResponse.json({ invited: invited.length });
+  return NextResponse.json({ invited: invited.length, toGroup });
 }
 
 /** Who is already in, so the picker can leave them out. */

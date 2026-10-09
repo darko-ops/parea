@@ -248,7 +248,9 @@ describe('adding people to a roll', () => {
     // whitespace has to be part of the pattern.
     const used = [...PICKER.matchAll(/\bapi\s*\.\s*([a-zA-Z]+)\(/g)].map((m) => m[1]);
     expect(used.length).toBeGreaterThan(0);
-    expect(new Set(used)).toEqual(new Set(['friends', 'findPeople', 'invite']));
+    // And `takeOutOfGroup`: the second answer to somebody outside a roll's
+    // group is the roll leaving it, from the same button.
+    expect(new Set(used)).toEqual(new Set(['friends', 'findPeople', 'invite', 'takeOutOfGroup']));
   });
 
   it('debounces the search rather than spending a request per keystroke', () => {
@@ -267,14 +269,14 @@ describe('adding people to a roll', () => {
     expect(CREATE).toMatch(/<InviteFaces[\s\S]{0,120}picked=\{invitees\}/);
     expect(CREATE).toMatch(/api\s*\n?\s*\.invite\(/);
     expect(PICKER).toMatch(/export function InviteCard/);
-    expect(APP).toMatch(/<InviteCard api=\{api\} t=\{t\} eventId=\{event\.id\}/);
+    expect(APP).toMatch(/<InviteCard\s+api=\{api\}\s+t=\{t\}\s+eventId=\{event\.id\}/);
   });
 
   it('offers it on the event screen only to somebody who can administer', () => {
     // A host's guest list, not a way for anybody in an album to pull people
     // into it — the same gate the route applies.
     expect(APP).toMatch(/const host = feed\?\.event\.canAdminister === true;/);
-    expect(APP).toMatch(/\{host && <InviteCard/);
+    expect(APP).toMatch(/\{host && \(\s*<InviteCard/);
   });
 });
 

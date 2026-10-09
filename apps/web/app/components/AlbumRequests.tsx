@@ -38,6 +38,13 @@
 
 import { useCallback, useEffect, useState } from 'react';
 
+import {
+  NotInGroupChoice,
+  readNotInGroup,
+  takeRollOutOfGroup,
+  type NotInGroupAnswer,
+} from './NotInGroup';
+
 type Waiting = {
   id: string;
   /** What they have to be called by. A handle is issued at sign-in, so a
@@ -60,6 +67,10 @@ export function AlbumRequests({
   const [hosts, setHosts] = useState<Waiting[]>([]);
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  /** A request from somebody outside the roll's group — see `NotInGroupChoice`. */
+  const [outside, setOutside] = useState<{ requestId: string; answer: NotInGroupAnswer } | null>(
+    null,
+  );
 
   useEffect(() => {
     let live = true;
@@ -95,16 +106,33 @@ export function AlbumRequests({
    * can see except this row.
    */
   const answer = useCallback(
-    async (queue: Queue, requestId: string, action: 'approve' | 'decline') => {
+    async (
+      queue: Queue,
+      requestId: string,
+      action: 'approve' | 'decline' | 'toGroup',
+      /** Out of its group first — the second answer to somebody outside it. */
+      ungroup = false,
+    ) => {
       setBusy(requestId);
       setError(null);
       try {
+        if (ungroup) await takeRollOutOfGroup(eventId);
         const res = await fetch(`/api/events/${eventId}/${queue}`, {
           method: 'PATCH',
           headers: { 'content-type': 'application/json' },
           body: JSON.stringify({ requestId, action }),
         });
+        /*
+         * Somebody outside the roll's group: not let in by name, and the
+         * question put instead — into the group, or the roll out of it.
+         */
+        const refused = await readNotInGroup(res);
+        if (refused) {
+          setOutside({ requestId, answer: refused });
+          return;
+        }
         if (!res.ok) throw new Error('Could not answer that. Try again.');
+        setOutside(null);
         const drop = (rows: Waiting[]) => rows.filter((row) => row.id !== requestId);
         if (queue === 'access-requests') setAccess(drop);
         else setHosts(drop);
@@ -175,6 +203,15 @@ export function AlbumRequests({
   return (
     <>
       {error && <p className="group-error">{error}</p>}
+      {outside && (
+        <NotInGroupChoice
+          answer={outside.answer}
+          busy={busy === outside.requestId}
+          onAddToGroup={() => void answer('access-requests', outside.requestId, 'toGroup')}
+          onTakeOut={() => void answer('access-requests', outside.requestId, 'approve', true)}
+          onCancel={() => setOutside(null)}
+        />
+      )}
       {list(
         'access-requests',
         access,

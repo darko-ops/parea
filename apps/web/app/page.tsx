@@ -81,7 +81,8 @@ export default function CreatePage() {
     const value = new URLSearchParams(window.location.search).get('group');
     const group = value && /^[0-9a-f-]{36}$/i.test(value) ? value : null;
     setGroupId(group);
-    // Group only is the one you mean in a group, so it is where it starts.
+    // Group only, which is what the server makes a roll in a group — and
+    // what the contribute list below reads to name its first answer.
     if (group) setIsPrivate(true);
   }, []);
 
@@ -584,39 +585,43 @@ export default function CreatePage() {
 
                 <fieldset className="field create-see">
                   <legend className="field-label">WHO CAN SEE IT</legend>
-                  <div className="pills">
-                    {(groupId
-                      ? // In a group, named for what they do there — see
-                        // `GROUP_ACCESS_OPTIONS`.
-                        ([
-                          [true, 'Group only'],
-                          [false, 'Anyone with the link'],
-                        ] as const)
-                      : ([
-                          [false, 'Public'],
-                          [true, 'Private'],
-                        ] as const)
-                    ).map(([value, label]) => (
-                      <button
-                        key={label}
-                        type="button"
-                        className="pill"
-                        aria-pressed={isPrivate === value}
-                        onClick={() => setIsPrivate(value)}
-                      >
-                        {label}
-                      </button>
-                    ))}
-                  </div>
-                  <p className="field-help">
-                    {groupId
-                      ? isPrivate
-                        ? 'Everyone in the group, and anyone you add by name.'
-                        : 'Everyone in the group, and anyone signed in with the link.'
-                      : isPrivate
-                        ? 'Only people you invite. A forwarded link opens nothing.'
-                        : 'Anyone signed in with the link can see it.'}
-                  </p>
+                  {groupId ? (
+                    /*
+                      Not a choice in a group: a roll in a group is shared with
+                      exactly the group, and the server makes it so whatever is
+                      sent. Said, so nobody wonders where the switch went.
+                    */
+                    <p className="field-help">
+                      Group only — everyone in the group. To share it with anyone
+                      else, remove it from the group afterwards.
+                    </p>
+                  ) : (
+                    <>
+                      <div className="pills">
+                        {(
+                          [
+                            [false, 'Public'],
+                            [true, 'Private'],
+                          ] as const
+                        ).map(([value, label]) => (
+                          <button
+                            key={label}
+                            type="button"
+                            className="pill"
+                            aria-pressed={isPrivate === value}
+                            onClick={() => setIsPrivate(value)}
+                          >
+                            {label}
+                          </button>
+                        ))}
+                      </div>
+                      <p className="field-help">
+                        {isPrivate
+                          ? 'Only people you invite. A forwarded link opens nothing.'
+                          : 'Anyone signed in with the link can see it.'}
+                      </p>
+                    </>
+                  )}
                 </fieldset>
 
                 {/*
@@ -653,11 +658,14 @@ export default function CreatePage() {
                   roll by somebody else: this writes invitations, and they
                   answer in Activity.
                 */}
-                <InviteFaces
-                  picked={invitees}
-                  onChange={setInvitees}
-                  exclude={new Set(coHosts.map((p) => p.actorId))}
-                />
+                {/* Nobody to invite in a group: the group is who it is shared with. */}
+                {!groupId && (
+                  <InviteFaces
+                    picked={invitees}
+                    onChange={setInvitees}
+                    exclude={new Set(coHosts.map((p) => p.actorId))}
+                  />
+                )}
 
                 <div className="create-foot">
                   {error && <p className="muted" style={{ margin: 0, textAlign: 'center' }}>{error}</p>}

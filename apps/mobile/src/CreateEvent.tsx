@@ -154,7 +154,8 @@ export function CreateEvent({
   const ready = Boolean(name.trim());
   /**
    * Public unless the creator says otherwise — a forwarded link still works.
-   * In a group it starts at Group only, the one you mean there.
+   * In a group it is Group only, which the server makes it anyway, and which
+   * the contribute list reads to name its first answer.
    */
   const [isPrivate, setIsPrivate] = useState(Boolean(groupId));
   /* Everyone, which is what an album is usually for. The other two are
@@ -435,52 +436,56 @@ export function CreateEvent({
 
         <View style={styles.seeField}>
           <Text style={[styles.fieldLabel, { color: t.dim }]}>WHO CAN SEE IT</Text>
-          <View style={styles.pills}>
-            {(
-              // In a group, named for what they do there: the group is always in.
-              (groupId
-                ? [
-                    [true, 'Group only'],
-                    [false, 'Anyone with the link'],
-                  ]
-                : [
+          {groupId ? (
+            /*
+              Not a choice in a group: a roll in a group is shared with exactly
+              the group, and the server makes it so whatever is sent. Said, so
+              nobody wonders where the switch went.
+            */
+            <Text style={[styles.small, { color: t.dim }]}>
+              Group only — everyone in {groupName ?? 'the group'}. To share it with anyone else,
+              remove it from the group afterwards.
+            </Text>
+          ) : (
+            <>
+              <View style={styles.pills}>
+                {(
+                  [
                     [false, 'Public'],
                     [true, 'Private'],
-                  ]) as [boolean, string][]
-            ).map(([value, label]) => {
-              const on = isPrivate === value;
-              return (
-                <Pressable
-                  key={label}
-                  onPress={() => setIsPrivate(value)}
-                  accessibilityRole="button"
-                  accessibilityState={{ selected: on }}
-                  style={[
-                    styles.pill,
-                    on
-                      ? { borderColor: t.accent, borderWidth: 1.5, backgroundColor: t.bg }
-                      : { borderColor: t.line, backgroundColor: t.card },
-                  ]}
-                >
-                  <Text
-                    style={[styles.pillText, on && styles.pillTextOn, { color: on ? t.accent : t.fg }]}
-                  >
-                    {label}
-                  </Text>
-                </Pressable>
-              );
-            })}
-          </View>
-          {/* Said as what it costs rather than as the name of a policy. */}
-          <Text style={[styles.small, { color: t.dim }]}>
-            {groupId
-              ? isPrivate
-                ? 'Everyone in the group, and anyone you add by name.'
-                : 'Everyone in the group, and anyone signed in with the link.'
-              : isPrivate
-                ? 'Only people you invite. A forwarded link opens nothing.'
-                : 'Anyone signed in with the link can see it.'}
-          </Text>
+                  ] as [boolean, string][]
+                ).map(([value, label]) => {
+                  const on = isPrivate === value;
+                  return (
+                    <Pressable
+                      key={label}
+                      onPress={() => setIsPrivate(value)}
+                      accessibilityRole="button"
+                      accessibilityState={{ selected: on }}
+                      style={[
+                        styles.pill,
+                        on
+                          ? { borderColor: t.accent, borderWidth: 1.5, backgroundColor: t.bg }
+                          : { borderColor: t.line, backgroundColor: t.card },
+                      ]}
+                    >
+                      <Text
+                        style={[styles.pillText, on && styles.pillTextOn, { color: on ? t.accent : t.fg }]}
+                      >
+                        {label}
+                      </Text>
+                    </Pressable>
+                  );
+                })}
+              </View>
+              {/* Said as what it costs rather than as the name of a policy. */}
+              <Text style={[styles.small, { color: t.dim }]}>
+                {isPrivate
+                  ? 'Only people you invite. A forwarded link opens nothing.'
+                  : 'Anyone signed in with the link can see it.'}
+              </Text>
+            </>
+          )}
         </View>
 
         {/*
@@ -520,16 +525,22 @@ export function CreateEvent({
           )}
         </View>
 
-        <View style={styles.inviteField} onLayout={measureField('invite')}>
-          <InviteFaces
-            api={api}
-            t={t}
-            picked={invitees}
-            onChange={setInvitees}
-            exclude={new Set(coHosts.map((person) => person.actorId))}
-            onSearchFocus={() => bringIntoView('invite')}
-          />
-        </View>
+        {/*
+          Nobody to invite in a group: the group is who it is shared with, and
+          somebody outside it is let in by adding them to the group.
+        */}
+        {!groupId && (
+          <View style={styles.inviteField} onLayout={measureField('invite')}>
+            <InviteFaces
+              api={api}
+              t={t}
+              picked={invitees}
+              onChange={setInvitees}
+              exclude={new Set(coHosts.map((person) => person.actorId))}
+              onSearchFocus={() => bringIntoView('invite')}
+            />
+          </View>
+        )}
       </ScrollView>
 
       <View style={styles.footer}>

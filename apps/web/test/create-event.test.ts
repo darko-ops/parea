@@ -351,7 +351,9 @@ describe('the access policy a creator chooses', () => {
     // The same bug shape as the window above: validate one thing, insert
     // another. Here it would write a policy `authorize` does not recognise,
     // which fails closed and locks the creator out of their own event.
-    expect(source).toMatch(/^\s*accessPolicy,$/m);
+    // The validated value — and Group only for a roll in a group, which the
+    // server makes it whatever was asked for.
+    expect(source).toMatch(/^\s*accessPolicy: groupId \? PRIVATE : accessPolicy,$/m);
     expect(source).not.toMatch(/accessPolicy: body\.accessPolicy/);
   });
 });
