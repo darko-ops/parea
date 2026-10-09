@@ -1617,13 +1617,20 @@ function People({
           <h2>
             {joined.length} {joined.length === 1 ? 'person has' : 'people have'} joined
           </h2>
-          <p className="muted">
-            Invite everyone who was there so the roll has every perspective.
-          </p>
+          {/* In a group, the group is who is in it: nobody is invited to the
+              roll itself, so there is no button here and the note below says
+              where to go instead. */}
+          {!group && (
+            <p className="muted">
+              Invite everyone who was there so the roll has every perspective.
+            </p>
+          )}
         </div>
-        <button type="button" onClick={onInvite}>
-          Invite
-        </button>
+        {!group && (
+          <button type="button" onClick={onInvite}>
+            Invite
+          </button>
+        )}
       </div>
 
       {group && (

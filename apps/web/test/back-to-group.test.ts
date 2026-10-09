@@ -53,4 +53,9 @@ describe("a roll in a group's people tab", () => {
     expect(view).toMatch(/To add or remove\s+people, do it in the group\./);
     expect(view).toMatch(/<a href=\{`\/group\/\$\{group\.id\}`\}>Open \{group\.name\}<\/a>/);
   });
+
+  it('has no Invite button, since nobody is invited to the roll itself', () => {
+    const view = read('app/components/EventView.tsx');
+    expect(view).toMatch(/\{!group && \(\s*<button type="button" onClick=\{onInvite\}>/);
+  });
 });
