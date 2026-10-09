@@ -3805,21 +3805,37 @@ button.photo-icon { background: transparent; padding: 0; cursor: pointer; font: 
   .photo-head { padding: 14px 16px 10px; }
   .photo-body { padding: 0 16px 28px; }
   .photo-frame { height: min(58vh, 420px); }
-  /* No room beside a phone's photograph for a column: the tools go back to a
-     row, under the picture's right-hand corner, inside the same frame. */
+  /* No room beside a phone's photograph for a column. The picture has the
+     frame to itself and sits in its middle; the tools move down onto the
+     heart's row, against the screen's right edge; who added it goes under
+     that row, and the roll across under that.
+
+     Placed against the column rather than the picture — the stage stops being
+     their box — because a row hung off the picture's corner moved with every
+     photograph's width, and a row wider than a narrow picture pushed the
+     picture off the middle. The frame's height is fixed, so the heart's row is
+     always the same distance down: `--photo-h`, then the row's 12px margin. */
   .photo-page { --photo-h: min(58vh, 420px); }
   .photo-frame-sided { padding-inline: 0; }
-  /* The byline back under the picture, and the roll back across under the
-     heart, where a thumb is. */
-  .photo-stage .photo-by { position: static; margin-top: 10px; white-space: normal; }
+  .photo-col { position: relative; padding-bottom: 56px; }
+  .photo-stage { position: static; }
+  .photo-side {
+    top: calc(var(--photo-h) + 12px); left: auto; right: 0; bottom: auto;
+    flex-direction: row; gap: 2px;
+  }
+  /* Four of them and a heart centred beside them, on a 360px screen: 32px
+     discs are what keeps the row clear of the heart. */
+  .photo-side .photo-icon, .photo-side .dots-quiet { width: 32px; height: 32px; }
+  .photo-side .dots-body { right: 0; bottom: calc(100% + 8px); }
+  .photo-stage .photo-by {
+    top: calc(var(--photo-h) + 12px + 34px + 12px); left: 0; right: 0;
+    white-space: normal;
+  }
   .photo-view { flex-direction: column; align-items: stretch; }
   .photo-view .photo-strip {
     order: 2; flex-direction: row; max-height: none;
     overflow-x: auto; overflow-y: hidden;
   }
-  /* Room in the frame for the row of tools and the byline under it. */
-  .photo-stage img { max-height: calc(var(--photo-h) - 100px); }
-  .photo-side { position: static; flex-direction: row; justify-content: flex-end; margin-top: 10px; }
   /* Swipe is the way through on a touch screen, and the position label in the
      header is what says where that got you. Two 34px arrows are a poor target
      for a thumb and are the second way to do the same thing. */

@@ -416,3 +416,21 @@ describe('the photograph full screen', () => {
     expect(VIEW).toMatch(/className="photo-full"[\s\S]*?onClick=\{\(e\) => e\.target === e\.currentTarget && onClose\(\)\}/);
   });
 });
+
+/**
+ * On a phone: the picture alone in the middle of its frame, the tools on the
+ * heart's row against the screen's right edge, who added it under that row.
+ *
+ * The tools used to hang off the picture's corner, so they moved with every
+ * photograph's width — and a row wider than a narrow picture pushed the
+ * picture off the middle.
+ */
+describe('the photograph page on a phone', () => {
+  it('pins the tools to the right edge on the heart’s row, whatever the picture', () => {
+    const phone = CSS.slice(CSS.indexOf('.photo-col { position: relative; padding-bottom: 56px; }'));
+    expect(phone).toMatch(/^\.photo-col \{ position: relative; padding-bottom: 56px; \}\s*\.photo-stage \{ position: static; \}/);
+    expect(phone).toMatch(/\.photo-side \{\s*top: calc\(var\(--photo-h\) \+ 12px\); left: auto; right: 0; bottom: auto;\s*flex-direction: row;/);
+    expect(phone).toMatch(/\.photo-stage \.photo-by \{\s*top: calc\(var\(--photo-h\) \+ 12px \+ 34px \+ 12px\); left: 0; right: 0;/);
+    expect(CSS).not.toMatch(/max-height: calc\(var\(--photo-h\) - 100px\)/);
+  });
+});
