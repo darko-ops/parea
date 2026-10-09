@@ -1,12 +1,12 @@
 /**
  * Find Friends on the phone, and the three claims it has to keep.
  *
- * **It does not touch the address book.** The obvious build of this screen is a
- * contacts permission and an upload, and the reason this one refuses is not
- * squeamishness: an uploaded address book is a list of people who never agreed
- * to anything. That promise is one permission string away from being broken by
- * accident, so it is asserted against the manifest rather than trusted to the
- * screen.
+ * **The address book never leaves the phone.** The obvious build of this
+ * screen is a contacts permission and an upload, and the reason this one
+ * refuses the upload is not squeamishness: an uploaded address book is a list
+ * of people who never agreed to anything. The contacts are read for one thing
+ * — drawing them with an Invite beside each — and only in one file, which is
+ * asserted to have no way to send them anywhere.
  *
  * **The number is asked for and never kept.** Nothing in this client holds the
  * digits after the request that sends them, and nothing in it ever receives
@@ -55,26 +55,55 @@ function respond(body: unknown, status = 200) {
   return calls;
 }
 
-describe('no address book', () => {
-  it('asks for no contacts permission anywhere in the app', () => {
+describe('the address book stays on the phone', () => {
+  const INVITE = read('src/InviteContacts.tsx');
+
+  it('is read in one file, and nowhere else', () => {
     /*
      * The whole design rests on this, and no assertion about behaviour can
-     * protect it: a `NSContactsUsageDescription` and an `expo-contacts` import
-     * is two lines away at any time. Checked against the manifest and the
-     * dependency list, which are the two places it would have to appear before
-     * any code could ask.
+     * protect it: an import of `expo-contacts` next to the API client is one
+     * line away at any time. So there is exactly one reader, and every other
+     * source the app is built from is checked for a second.
      */
-    const manifest = read('app.json');
-    const pkg = read('package.json');
-    for (const source of [manifest, pkg, SCREEN, code(APP)]) {
-      expect(source).not.toMatch(/Contacts|CONTACTS|expo-contacts/);
+    for (const source of [SCREEN, code(APP), EVENTS, PROFILE, read('src/api.ts')]) {
+      expect(source).not.toMatch(/expo-contacts/);
     }
+    expect(INVITE).toMatch(/from 'expo-contacts'/);
   });
 
-  it('says so on the screen, rather than only in the code', () => {
-    // Somebody arriving here has met this screen in three other products and
-    // expects the permission dialog. Not asking is worth saying out loud.
-    expect(SCREEN).toMatch(/we do not read your contacts/i);
+  it('has no way to send what it reads', () => {
+    // No API client, no fetch, no upload. Its only way out is the composer,
+    // with one number in it, which the person sends themselves.
+    expect(INVITE).not.toMatch(/from '\.\/api'|\bfetch\(|XMLHttpRequest|Clipboard/);
+    expect(INVITE).toMatch(/SMS\.sendSMSAsync\(\[row\.number\]/);
+  });
+
+  it('says so in the permission dialog and on the screen', () => {
+    expect(read('app.json')).toMatch(/"contactsPermission": "[^"]*never uploaded/);
+    expect(SCREEN).toMatch(/contacts never leave your phone/i);
+    expect(INVITE).toMatch(/Your contacts stay on this phone/);
+  });
+});
+
+describe('an invite', () => {
+  it('is one row per person with a number, texted at the mobile one', async () => {
+    const { toRows } = await import('../src/invite');
+    expect(
+      toRows([
+        { id: '1', fullName: 'Zoë', phones: [{ label: 'home', number: '020 7946 0000' }, { label: 'mobile', number: '+44 7700 900123' }] },
+        { id: '2', fullName: 'Ana', phones: [{ label: 'iPhone', number: '+1 201 555 0123' }] },
+        { id: '3', fullName: 'No number', phones: [] },
+      ]),
+    ).toEqual([
+      { id: '2', name: 'Ana', number: '+1 201 555 0123' },
+      { id: '1', name: 'Zoë', number: '+44 7700 900123' },
+    ]);
+  });
+
+  it('carries your profile link', async () => {
+    const { inviteText } = await import('../src/invite');
+    expect(inviteText('https://www.parea.photos/u/sam')).toMatch(/Parea.*https:\/\/www\.parea\.photos\/u\/sam$/);
+    expect(SCREEN).toMatch(/link=\{handle \? `\$\{webBase\}\/u\/\$\{handle\}` : webBase\}/);
   });
 });
 

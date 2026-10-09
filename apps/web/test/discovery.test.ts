@@ -653,19 +653,20 @@ describe('no address book', () => {
   const source = (name: string) =>
     readFileSync(fileURLToPath(new URL(name, import.meta.url).href), 'utf8');
 
-  it('asks for no contacts permission in either client', () => {
+  it('never receives an address book from either client', () => {
     /*
      * The promise the whole design rests on, and the one no behavioural
      * assertion above can protect: an uploaded address book is a list of people
-     * who never agreed to anything, and it would be one commit and one
-     * permission string away.
+     * who never agreed to anything, and it would be one commit away.
      *
-     * Checked against the app's manifest and the iOS strings rather than against
-     * a screen, because that is where the permission would have to be declared
-     * before any code could ask for it.
+     * The app does read the contacts now — to list them with an Invite beside
+     * each — and its permission string says they are never uploaded. The app's
+     * own tests hold the reader to that; this one holds the promise to the
+     * dialog that makes it.
      */
     const manifest = source('../../mobile/app.json');
-    expect(manifest).not.toMatch(/CONTACTS|Contacts|expo-contacts/);
+    expect(manifest).toMatch(/"contactsPermission": "[^"]*never uploaded/);
+    expect(source('../../mobile/src/api.ts')).not.toMatch(/contacts/i);
   });
 
   it('builds recommendations out of rolls, groups and friendships only', () => {

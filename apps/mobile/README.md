@@ -412,7 +412,9 @@ separate page: the link reaching the group chat is the most important moment
 in the product, and the empty event visible behind the sheet is what makes
 "an empty event stays empty" a fact rather than a slogan.
 
-The design's contact-avatar row is deliberately absent. `/privacy` says "No
+The design's contact-avatar row is deliberately absent. (Find Friends does
+read the contacts now, to invite people who are not here — on the phone only,
+never uploaded; see design §17b.) `/privacy` says "No
 contacts, no address book, no social graph import" in a dated public document,
 and reading the address book would need a native dependency, a usage string, a
 privacy-manifest entry and a different nutrition label — a decision about what

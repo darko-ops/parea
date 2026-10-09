@@ -437,13 +437,21 @@ export default function PrivacyPage() {
             scrambled form, the two digits and the record that it was checked.
           </p>
           <p className="muted">
-            We do not read your contacts. There is no address-book permission
-            in the app and nothing here uploads one: the people the Find
-            Friends page suggests come from rolls you have both been in,
-            groups you are both in, and friends you have in common &mdash;
-            records this product already holds because you and they made them.
-            A number is asked for so that people who have yours can reach you,
-            not so that we can look through your phone.
+            We never upload your contacts. The people the Find Friends page
+            suggests come from rolls you have both been in, groups you are both
+            in, and friends you have in common &mdash; records this product
+            already holds because you and they made them. A number is asked for
+            so that people who have yours can reach you, not so that we can
+            look through your phone.
+          </p>
+
+          <p className="muted">
+            In the app, Find Friends can also list your contacts so you can
+            invite people who are not here yet &mdash; only if you allow it, in
+            the phone&rsquo;s own permission dialog. The list is read and shown
+            on your phone and never sent to us. Inviting somebody opens your own
+            messages app with a text and your profile link in it; you send it,
+            from your number, and we do not see who it went to.
           </p>
 
           <p className="muted">
@@ -544,7 +552,11 @@ export default function PrivacyPage() {
           <ul className="plain muted">
             <li>No advertising identifiers, and no advertising.</li>
             <li>No third-party analytics or tracking SDK, in the app or on the web.</li>
-            <li>No contacts, no address book, no social graph import.</li>
+            <li>
+              No contacts, no address book, no social graph import. The app can
+              show your contacts on your phone, for inviting; none of it is sent
+              to us.
+            </li>
             <li>
               No background location, and no location at all beyond what is
               already inside a photo you chose to upload.

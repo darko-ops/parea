@@ -1893,6 +1893,7 @@ export default function App() {
             api={api}
             t={t}
             Button={Button}
+            webBase={API_BASE}
             onBack={leaveToTabs}
             onSearchHandle={() => {
               setSearchHandle(true);

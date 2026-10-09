@@ -106,10 +106,10 @@ describe('the page', () => {
     expect(VIEW).toMatch(/region: 'US'.*\n.*region: 'CA'.*\n.*region: 'GB'/);
   });
 
-  it('says it does not read your contacts', () => {
+  it('says it does not upload your contacts', () => {
     // Somebody arriving here has met this screen in three other products and is
-    // expecting the permission dialog. Not asking is worth saying out loud.
-    expect(VIEW).toMatch(/we do not read your contacts/i);
+    // expecting their address book to be matched. Not doing it is worth saying.
+    expect(VIEW).toMatch(/we never upload your contacts/i);
   });
 
   it('tells "nobody yet" apart from "could not load"', () => {

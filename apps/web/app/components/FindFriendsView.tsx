@@ -343,7 +343,7 @@ export function FindFriendsView() {
                 <h2>Find contacts</h2>
                 <p className="muted">
                   Add your number so people who already have it can find you
-                  here. We never read your contacts, and the number is never
+                  here. We never upload your contacts, and the number is never
                   shown to anybody.
                 </p>
               </div>
@@ -441,8 +441,8 @@ export function FindFriendsView() {
               <h2>Add your phone number</h2>
               <p className="muted">
                 So the people who already have your number can find you here.
-                That is the whole of it &mdash; we do not read your contacts, and
-                the number itself is never stored or shown to anybody.
+                That is the whole of it &mdash; we never upload your contacts,
+                and the number itself is never stored or shown to anybody.
               </p>
 
               <>

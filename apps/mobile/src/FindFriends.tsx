@@ -6,7 +6,7 @@
  * is the other half of the same question, and nobody can type it: *who is here
  * that I know?*
  *
- * ## Why this screen does not ask for your contacts
+ * ## Why this screen does not upload your contacts
  *
  * The obvious build is a contacts permission, an address-book upload and a
  * match. This product refuses that, and the reason is not squeamishness: an
@@ -18,8 +18,11 @@
  * So the suggestions come out of records this product already had a reason to
  * keep, and every one of them is a relationship the reader can already see the
  * other end of — friends in common, albums you were both in, groups you are
- * both in. There is no permission prompt on this screen because there is
- * nothing to ask for.
+ * both in.
+ *
+ * The contacts permission it does ask for, under the suggestions, is for
+ * inviting people who are not here yet — and the address book it opens stays
+ * on the phone. See `InviteContacts.tsx`.
  *
  * ## Why it asks for a number instead
  *
@@ -65,6 +68,7 @@ import {
 import { ApiError, type Api, type Discovery, type Recommendation } from './api';
 import { reasonFor } from './answers';
 import { Glyph } from './Glyph';
+import { InviteContacts } from './InviteContacts';
 import type { GroupTheme } from './Groups';
 import { initialOf, lensFor } from './lens';
 import { Back, RoundButton } from './RoundButton';
@@ -139,6 +143,7 @@ export function FindFriends({
   api,
   t,
   Button,
+  webBase,
   onBack,
   onOpenPerson,
   onSearchHandle,
@@ -146,6 +151,8 @@ export function FindFriends({
   api: Api;
   t: GroupTheme;
   Button: ButtonComponent;
+  /** Where profiles live on the web, for the link an invite carries. */
+  webBase: string;
   onBack: () => void;
   onOpenPerson: (handle: string) => void;
   /** "Know their handle?": back to Find, on people, with the field focused. */
@@ -195,6 +202,14 @@ export function FindFriends({
    * about its own suggestions, for the same reason.
    */
   const [asked, setAsked] = useState<Record<string, 'asking' | 'asked'>>({});
+  /** Your handle, for the profile link an invite carries; null until known or without one. */
+  const [handle, setHandle] = useState<string | null>(null);
+  useEffect(() => {
+    void api
+      .account()
+      .then((account) => setHandle(account?.handle ?? null))
+      .catch(() => {});
+  }, [api]);
 
   const load = useCallback(async () => {
     try {
@@ -390,8 +405,8 @@ export function FindFriends({
                     </Text>
                     <Text style={[styles.body, { color: t.dim }]}>
                       Add your number so people who already have it can find you
-                      here. We never read your contacts, and the number is never
-                      shown to anybody.
+                      here. Your contacts never leave your phone, and the number
+                      is never shown to anybody.
                     </Text>
                   </View>
 
@@ -516,8 +531,9 @@ export function FindFriends({
                   </Text>
                   <Text style={[styles.small, { color: t.dim }]}>
                     So the people who already have your number can find you here.
-                    That is the whole of it — we do not read your contacts, and
-                    the number itself is never stored or shown to anybody.
+                    That is the whole of it — your contacts never leave your
+                    phone, and the number itself is never stored or shown to
+                    anybody.
                   </Text>
 
                   <Text style={[styles.small, { color: t.fg }]}>
@@ -668,6 +684,14 @@ export function FindFriends({
                       })}
                     </View>
                   )}
+
+                  {/* Without a handle there is no profile to land on, so the
+                      invite carries the front door instead. */}
+                  <InviteContacts
+                    t={t}
+                    Button={Button}
+                    link={handle ? `${webBase}/u/${handle}` : webBase}
+                  />
                 </>
               )}
             </>

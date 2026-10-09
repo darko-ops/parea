@@ -1585,6 +1585,18 @@ no change to the nutrition labels, and the line on `/privacy` above is still
 true word for word. The row of contact avatars in the handoff remains unbuilt
 for the reason above; the thing it was there to accomplish is now a page.
 
+**Inviting people who are not here** (9 October 2026) did open the address
+book, and on narrower terms than the handoff's row. Find Friends lists your
+contacts under the suggestions with an Invite beside each, after the phone's
+own permission dialog, which is asked from a button rather than on arrival.
+The list is read and drawn on the phone and never sent: it cannot say who is
+already here, and it says so. Invite opens the phone's composer with your
+profile link in it, and you send it from your own number — not through the
+product's registered texting, which is for verification codes only. One file
+reads the contacts (`apps/mobile/src/InviteContacts.tsx`) and a test holds it
+to having no way to send them. `/privacy` says all of this. No label changes:
+Apple counts data processed only on the device as not collected.
+
 ### 17a. The web shell
 
 The web had no home. You landed on the create form whether or not you had ever
