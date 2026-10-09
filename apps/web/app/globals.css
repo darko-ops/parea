@@ -5250,6 +5250,49 @@ img.you-face { object-fit: cover; }
   text-decoration: none;
 }
 .button-like:hover { border-color: var(--accent); color: var(--accent); }
+
+/* A roll's Manage tab: one column of sections ruled by hairlines rather than
+   a stack of panels, and for a roll in a group, the group at the top and
+   Remove from group at the foot. */
+.manage-flat > section.panel {
+  background: none; border: 0; border-radius: 0; box-shadow: none;
+  margin: 0; padding: 24px 0;
+  border-top: 1px solid var(--hairline);
+}
+.roll-group-head {
+  display: flex; flex-direction: column; align-items: center; text-align: center;
+  gap: 6px; margin-top: 16px; padding: 10px 20px 4px;
+}
+.roll-group-mark { margin-bottom: 6px; }
+.roll-group-name { margin: 0; font-size: 20px; font-weight: 700; line-height: 1.3; color: var(--fg); }
+.roll-group-sees {
+  margin: 0; display: inline-flex; align-items: center; gap: 5px;
+  font-size: 13px; color: var(--dim);
+}
+.roll-group-buttons {
+  display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; margin-top: 10px;
+}
+.roll-group-buttons .button-like {
+  display: inline-flex; align-items: center; gap: 7px;
+  padding: 10px 16px; font-size: 15px; font-weight: 600;
+  border: 1px solid var(--line); border-radius: 10px; background: var(--card);
+}
+.roll-group-buttons .rail-icon { width: 18px; height: 18px; }
+.roll-ungroup {
+  display: flex; flex-direction: column; align-items: center; text-align: center;
+  gap: 4px; margin-top: 32px; padding-top: 22px; border-top: 1px solid var(--line);
+}
+.roll-ungroup:has(.row) { gap: 14px; }
+.roll-ungroup .muted { max-width: 520px; margin: 0; }
+.roll-ungroup .row { justify-content: center; }
+.roll-ungroup-button {
+  background: none; border: 0; cursor: pointer;
+  font: inherit; font-size: 15px; font-weight: 600; color: var(--warn);
+  padding: 6px 12px; border-radius: 8px;
+}
+.roll-ungroup-button:hover { background: rgba(255, 123, 112, .1); }
+.roll-ungroup-button:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+.roll-ungroup-note { margin: 0; font-size: 13px; line-height: 1.5; color: var(--dim); }
 /* The one on the event page is the point of the page, so it is the filled
    button rather than the outlined one. */
 .button-like.primary {

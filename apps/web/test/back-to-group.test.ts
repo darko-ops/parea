@@ -59,3 +59,29 @@ describe("a roll in a group's people tab", () => {
     expect(view).toMatch(/\{!group && \(\s*<button type="button" onClick=\{onInvite\}>/);
   });
 });
+
+describe("a roll in a group's Manage tab", () => {
+  const view = () => read('app/components/ManageView.tsx');
+
+  it('leads with the group: its mark, who can see the roll, and the two ways in', () => {
+    expect(view()).toMatch(/\{tab === 'manage' && initial\.group && \(\s*<div className="roll-group-head">/);
+    expect(view()).toMatch(/size=\{64\}/);
+    expect(view()).toMatch(/Group only · \{initial\.group\.memberCount\}/);
+    expect(view()).toMatch(/href=\{`\/group\/\$\{initial\.group\.id\}`\}/);
+    expect(view()).toMatch(/\{initial\.group\.member && \([\s\S]{0,200}\/chat`\}/);
+  });
+
+  it('says it once: no Who can see it panel and no "In …" panel in a group', () => {
+    expect(view()).toMatch(/\{tab === 'manage' && !initial\.groupId && \(\s*<section className="panel">\s*<h2>Who can see it<\/h2>/);
+    expect(view()).not.toMatch(/<h2>In \{initial\.groupName/);
+  });
+
+  it('puts Remove from group last, under Delete', () => {
+    const v = view();
+    expect(v.indexOf('className="roll-ungroup"')).toBeGreaterThan(v.indexOf('<h2>Delete</h2>'));
+  });
+
+  it('sends the header from the server, so it draws on the first paint', () => {
+    expect(read('app/event/[id]/manage/page.tsx')).toMatch(/group: groupSummary/);
+  });
+});

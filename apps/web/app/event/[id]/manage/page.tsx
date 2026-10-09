@@ -6,7 +6,7 @@ import { ManageView } from '@/../app/components/ManageView';
 import { decide, findEventById } from '@/access';
 import { coverSrc } from '@/cards';
 import { getDb } from '@/db';
-import { findGroup } from '@/groups';
+import { findGroup, rollGroupSummary } from '@/groups';
 import { requesterFor } from '@/session';
 import { Shell } from '@/../app/components/Shell';
 
@@ -47,6 +47,10 @@ export default async function ManagePage({
     .where(and(eq(schema.codes.eventId, event.id), isNull(schema.codes.releasedAt)))
     .limit(1);
 
+  // The group's header: drawn on the first paint, so resolved here.
+  const group = event.groupId ? await findGroup(db, event.groupId) : null;
+  const groupSummary = group ? await rollGroupSummary(db, group, requester.actorId) : null;
+
   return (
     <Shell>
       <ManageView
@@ -66,7 +70,8 @@ export default async function ManagePage({
           code: code?.words ?? null,
           url: `/e/${event.linkToken}`,
           groupId: event.groupId,
-          groupName: event.groupId ? ((await findGroup(db, event.groupId))?.name ?? null) : null,
+          groupName: group?.name ?? null,
+          group: groupSummary,
           // Taking it out of its group is the creator's alone — see the route.
           isCreator: requester.actorId === event.createdBy,
           // Presigned, an hour, like every other cover URL. The key stays on

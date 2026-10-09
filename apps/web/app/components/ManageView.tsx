@@ -31,6 +31,9 @@ import {
   type ContributePolicy,
 } from './ContributeChoice';
 import { Face } from './Faces';
+import { lensFor } from './lens';
+import { RailIcon } from './RailIcon';
+import { RoomMark } from './RoomMark';
 import { MemberPicker, type Person } from './MemberPicker';
 import { coverBytes } from './coverBytes';
 import { CoverFramer, framingQuery, type CoverFraming } from './CoverFramer';
@@ -89,6 +92,16 @@ export function ManageView({
     url: string;
     groupId: string | null;
     groupName: string | null;
+    /** The group as its header draws it — see `rollGroupSummary`. */
+    group: {
+      id: string;
+      title: string;
+      kind: 'named' | 'direct' | 'unnamed';
+      photoUrl: string | null;
+      deck: { name: string; avatarUrl: string | null }[];
+      memberCount: number;
+      member: boolean;
+    } | null;
     /** Made it, rather than running it as a group admin. */
     isCreator: boolean;
     /** The picture the event leads with, presigned. Null if it has none. */
@@ -578,7 +591,7 @@ export function ManageView({
   }
 
   return (
-    <main className="wrap">
+    <main className={tab === 'manage' ? 'wrap manage-flat' : 'wrap'}>
       {/*
         A back control, not a sentence with a link in it.
 
@@ -620,6 +633,49 @@ export function ManageView({
           Members
         </a>
       </nav>
+
+      {/*
+        The group, first: a roll in a group is shared with exactly the group,
+        so who can see it is a fact about the group and is said here, once,
+        with the two ways into it. It used to be a "Who can see it" panel
+        saying "Group only" and an "In …" panel further down.
+      */}
+      {tab === 'manage' && initial.group && (
+        <div className="roll-group-head">
+          <RoomMark
+            title={initial.group.title}
+            kind={initial.group.kind}
+            deck={initial.group.deck}
+            photoUrl={initial.group.photoUrl}
+            lens={lensFor(initial.group.id)}
+            size={64}
+            className="roll-group-mark"
+          />
+          <h2 className="roll-group-name">{initial.group.title}</h2>
+          <p className="roll-group-sees">
+            <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <rect x="4.5" y="11" width="15" height="9.5" rx="2" />
+              <path d="M8 11V7.5a4 4 0 0 1 8 0V11" />
+            </svg>
+            Group only · {initial.group.memberCount}{' '}
+            {initial.group.memberCount === 1 ? 'member' : 'members'} can see this roll
+          </p>
+          <div className="roll-group-buttons">
+            <a className="button-like" href={`/group/${initial.group.id}`}>
+              <RailIcon glyph="groups" />
+              Open group
+            </a>
+            {/* Only for somebody in the group: there is no conversation of
+                theirs to open otherwise. */}
+            {initial.group.member && (
+              <a className="button-like" href={`/group/${initial.group.id}/chat`}>
+                <RailIcon glyph="bubbles" />
+                Group chat
+              </a>
+            )}
+          </div>
+        </div>
+      )}
 
       {tab === 'members' && (
         <section className="panel">
@@ -900,7 +956,9 @@ export function ManageView({
         </section>
       )}
 
-      {tab === 'manage' && (
+      {/* Not here in a group: the header above says Group only, and Remove
+          from group at the foot is the way to share it wider. */}
+      {tab === 'manage' && !initial.groupId && (
         <section className="panel">
           <h2>Who can see it</h2>
           {/*
@@ -909,29 +967,14 @@ export function ManageView({
             nobody has been sent anything yet at that moment, and what you want
             is obvious only once they have.
           */}
-          {initial.groupId ? (
-            /*
-              Not a choice in a group. A roll in a group is shared with
-              exactly the group — Group only — and the way to share it wider
-              is the panel below, after which this is the switch it was.
-            */
-            <>
-              <p className="field-label">Group only</p>
-              <p className="field-help">
-                Everyone in {initial.groupName ?? 'the group'}. To share it with
-                anyone else, remove it from the group.
-              </p>
-            </>
-          ) : (
-            <AccessChoice
-              value={access}
-              disabled={busy === 'switch'}
-              onChange={(next) => {
-                if (next !== access) void setSwitch({ accessPolicy: next });
-              }}
-              note="Tightening this stops new people. Everyone already here stays."
-            />
-          )}
+          <AccessChoice
+            value={access}
+            disabled={busy === 'switch'}
+            onChange={(next) => {
+              if (next !== access) void setSwitch({ accessPolicy: next });
+            }}
+            note="Tightening this stops new people. Everyone already here stays."
+          />
         </section>
       )}
 
@@ -1221,46 +1264,6 @@ export function ManageView({
         </section>
       )}
 
-      {tab === 'manage' && initial.groupId && (
-        /*
-          Out of the group, which is the answer to "only some of the group":
-          the roll keeps everybody who is in the group today, stops reaching
-          whoever joins it later, and its creator narrows it from there. Its
-          creator or a group admin — everybody who can open this screen.
-        */
-        <section className="panel">
-          <h2>In {initial.groupName ?? 'a group'}</h2>
-          {confirmUngroup ? (
-            <>
-              <p className="muted">
-                Remove this roll from {initial.groupName ?? 'the group'}?
-                Everyone in the group keeps it, but it won&rsquo;t show in the
-                group anymore, and people who join later won&rsquo;t see it.
-                It stays {initial.isCreator ? 'yours' : 'its creator’s'}.
-              </p>
-              <div className="row">
-                <button className="danger" onClick={ungroup} disabled={busy === 'ungroup'}>
-                  {busy === 'ungroup' ? 'Removing…' : 'Remove from group'}
-                </button>
-                <button className="secondary" onClick={() => setConfirmUngroup(false)}>
-                  Cancel
-                </button>
-              </div>
-            </>
-          ) : (
-            <>
-              <p className="muted">
-                Shared with everyone in the group. To share it with only some of
-                them, or with people outside it, remove it from the group.
-              </p>
-              <button className="secondary" onClick={() => setConfirmUngroup(true)}>
-                Remove from group
-              </button>
-            </>
-          )}
-        </section>
-      )}
-
       {tab === 'manage' && (
         <section className="panel">
           <h2>Delete</h2>
@@ -1285,6 +1288,49 @@ export function ManageView({
             </button>
           )}
         </section>
+      )}
+
+      {tab === 'manage' && initial.groupId && (
+        /*
+          Out of the group, which is the answer to "only some of the group":
+          the roll keeps everybody who is in the group today, stops reaching
+          whoever joins it later, and its creator narrows it from there. Its
+          creator or a group admin — everybody who can open this screen. At
+          the foot, under Delete, where a step this size belongs.
+        */
+        <div className="roll-ungroup">
+          {confirmUngroup ? (
+            <>
+              <p className="muted">
+                Remove this roll from {initial.groupName ?? 'the group'}?
+                Everyone in the group keeps it, but it won&rsquo;t show in the
+                group anymore, and people who join later won&rsquo;t see it.
+                It stays {initial.isCreator ? 'yours' : 'its creator’s'}.
+              </p>
+              <div className="row">
+                <button className="danger" onClick={ungroup} disabled={busy === 'ungroup'}>
+                  {busy === 'ungroup' ? 'Removing…' : 'Remove from group'}
+                </button>
+                <button className="secondary" onClick={() => setConfirmUngroup(false)}>
+                  Cancel
+                </button>
+              </div>
+            </>
+          ) : (
+            <>
+              <button
+                type="button"
+                className="roll-ungroup-button"
+                onClick={() => setConfirmUngroup(true)}
+              >
+                Remove from group
+              </button>
+              <p className="roll-ungroup-note">
+                Everyone in the group keeps it. New members won&rsquo;t see it.
+              </p>
+            </>
+          )}
+        </div>
       )}
 
       {error && <p className="muted">{error}</p>}
