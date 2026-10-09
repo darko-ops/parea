@@ -6,7 +6,7 @@ transport. This is the state of the actual Twilio account and campaign, the
 wording that was accepted or refused and why, and the things still open — so that
 coming back to it in three weeks does not mean re-deriving any of it.
 
-**Last touched 7 October 2026.** Update the state table below when you move it.
+**Last touched 9 October 2026.** Update the state table below when you move it.
 
 ## State
 
@@ -14,14 +14,14 @@ coming back to it in three weeks does not mean re-deriving any of it.
 |---|---|
 | Code, both clients | Shipped |
 | `SMS_PROVIDER` | Set — `twilio` |
-| `SMS_API_KEY` | Set |
+| `SMS_API_KEY` | Set — a Standard API key (`SK…:<secret>`), rotated 9 October |
 | `SMS_API_URL` | Set |
 | `PHONE_PEPPER` | Set — a dedicated pepper, not the session-secret fallback |
 | `SMS_FROM` | **Not set.** The only missing piece |
 | Twilio compliance profile | Submitted under DAED LLC, in review |
 | Phone number | Not bought. `+13374694577`, Carencro LA, local, SMS+MMS+Voice, $1.15/mo — instant once the profile clears |
-| A2P brand | Submitted |
-| A2P campaign | Fifth submission, 7 October, in review — after the third refusal ("CTA verification: no proof shared") added the checkbox and the screenshots on /texts |
+| A2P brand | Approved — `BN407fe5…` |
+| A2P campaign | **Approved** (fifth submission) — `CM1e0c85…`, 2FA, on Messaging Service `MGfe4456…`. Sends only once a number is added to that service |
 | Delivery ever tested | **No.** Nothing has sent a real text yet |
 
 Until `SMS_FROM` is set, `texterFromEnv` returns an `UnconfiguredTexter`, and
@@ -32,7 +32,11 @@ change. That is a deliberate fail-closed state, not a broken one.
 
 ## Finishing it
 
-1. **Compliance profile clears** → buy the number. Instant.
+1. **Compliance profile clears** → buy the number. Instant. Then add it to the
+   Messaging Service `MGfe4456…` (Sender Pool) — that is what puts it under the
+   approved campaign. A number outside the service sends unregistered and is
+   filtered. `SMS_FROM` stays the phone number; the transport sends `From`, and
+   Twilio applies the service's campaign because the number belongs to it.
 2. `vercel env add SMS_FROM production --sensitive` → paste `+13374694577`.
    Variable name on the command line, value at the prompt: the prompt does not
    echo, which is the only thing keeping the value out of a shell history.
@@ -192,12 +196,12 @@ sweep fails loudly rather than breaking a campaign months later.
 **`SMS_FROM`, and one real delivery.** Nothing has sent a text yet. Everything
 above is configuration and paperwork.
 
-**Two credentials to revoke.** A Twilio Auth Token and an API key created during
-setup on 26 September were pasted into an assistant session transcript while
-trying to set the environment variables, so they must be treated as disclosed
-regardless of anything else. Replace them in the console; an API key is revocable
-in isolation, which is why it is the better credential to send with. The account
-SID is an identifier rather than a secret and needs no rotation.
+**Credentials rotated, 9 October.** The Auth Token and API key created on 26
+September were pasted into an assistant session, so both were replaced. `SMS_API_KEY`
+now holds a new Standard API key as `SK…:<secret>` — the account SID stays in
+`SMS_API_URL`, and Twilio takes an API key as the Basic-auth username. The Auth
+Token is not used for sending; it will be needed only by an inbound route, for
+signature validation.
 
 **A number that has replied STOP can never verify, and is told nothing.** Twilio
 blocks sends to opted-out numbers with error 21610, and `POST /api/account/phone`
