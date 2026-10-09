@@ -3689,20 +3689,26 @@ button.photo-icon { background: transparent; padding: 0; cursor: pointer; font: 
 
 /* The event's conversation, in full — not this photograph's comments. See the
    note on `PhotoView`. */
+/* As tall as the photograph's frame, so the composer at the foot of it sits
+   level with the bottom of the picture rather than wherever a short
+   conversation happens to end. */
 .photo-aside {
   width: 352px; flex: none; display: flex; flex-direction: column; gap: 12px;
   position: sticky; top: 18px;
+  height: 560px;
 }
+@media (min-height: 1000px) { .photo-aside { height: min(62vh, 720px); } }
 .photo-chat-label {
   font-size: 12px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase;
   color: var(--dim-soft); text-decoration: none;
 }
 .photo-chat-label:hover { color: var(--accent-ink); }
-.photo-chat { display: flex; flex-direction: column; gap: 14px; min-height: 0; }
-/* Bounded and scrolling, so the composer stays where it was put. A column that
+.photo-chat { display: flex; flex-direction: column; gap: 14px; flex: 1; min-height: 0; }
+/* Filling and scrolling, so the composer stays where it was put. A column that
    grows with the conversation pushes the box you type in off the bottom of a
    busy event. */
-.photo-chat .thread-list { max-height: 452px; overflow-y: auto; }
+.photo-chat .thread-list { flex: 1; min-height: 0; overflow-y: auto; }
+.photo-chat .thread-composer { margin-top: auto; }
 .photo-chat .thread-empty { padding: 24px 0; }
 .photo-chat .thread-empty h2 { font-size: 17px; }
 .photo-chat .thread-empty p { font-size: 13.5px; }
@@ -3716,7 +3722,8 @@ button.photo-icon { background: transparent; padding: 0; cursor: pointer; font: 
      stops being sticky — a sticky element in a single column is one that
      covers what is above it. */
   .photo-body { flex-direction: column; align-items: stretch; }
-  .photo-aside { width: 100%; position: static; }
+  .photo-aside { width: 100%; position: static; height: auto; }
+  .photo-chat .thread-list { flex: none; max-height: 452px; }
   /* `align-items: flex-start` is what stops the row layout stretching the
      column to the tallest of the two. Turned off above, it has to be, or the
      photograph shrinks to its own width and sits in the left half of the page
