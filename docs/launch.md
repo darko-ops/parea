@@ -186,9 +186,9 @@ no auth wall doing it for you.
 Work the post-deploy checklist in [`deploy.md`](deploy.md#after-the-first-deploy).
 The two items in it that no test can cover:
 
-- [ ] **iOS Safari, large upload, reload mid-batch.** Does it resume or ask for
-      the files again? Both are handled; which happens is a device fact and it
-      decides how good the web contribution path actually is.
+- [x] **iOS Safari, large upload, reload mid-batch.** Checked 2026-10-10 on
+      an iPhone 17 Pro: the batch resumed on its own after the reload, without
+      asking for the files again — the better of the two handled outcomes.
 - [x] **The downloaded photo has no GPS.** Checked 2026-10-10: an iPhone 17
       Pro HEIC with GPS, camera and date in it, uploaded on the web and saved
       with Download, came back with no GPS, EXIF, XMP or IPTC at all
