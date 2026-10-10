@@ -139,3 +139,4 @@ copy of since-deleted data from outliving the one-day window.
 | Date | Restored to | Took | Notes |
 |---|---|---|---|
 | 2026-09-30 | 1 hour back, and 21:50 UTC (before migration 0054) | ~11 s to branch, count and delete | Project `parea-prod` (`still-dust-88337211`), history 1 day. Counts matched production (3 accounts, 20 actors, 27 events, 240 photos). The 21:50 copy showed 54 migrations against production's 55, proving it was the earlier state. Read-only branches, deleted after. |
+| 2026-10-10 | First off-site copy, `db/2026-10-10T00-48Z.dump.age` | ~40 s for the jobs run; seconds to download and decrypt | 3.2 MB encrypted, 3.2 MB decrypted, a valid `pg_dump` custom archive (`PGDMP` header). Downloaded and decrypted only, not yet `pg_restore`d into a scratch database: do that at the next drill. |
