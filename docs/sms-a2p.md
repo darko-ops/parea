@@ -17,9 +17,9 @@ coming back to it in three weeks does not mean re-deriving any of it.
 | `SMS_API_KEY` | Set — a Standard API key (`SK…:<secret>`), rotated 9 October |
 | `SMS_API_URL` | Set |
 | `PHONE_PEPPER` | Set — a dedicated pepper, not the session-secret fallback |
-| `SMS_FROM` | **Not set.** The only missing piece |
+| `SMS_FROM` | Set — `+14244088809` |
 | Twilio compliance profile | Submitted under DAED LLC, in review |
-| Phone number | Not bought. `+13374694577`, Carencro LA, local, SMS+MMS+Voice, $1.15/mo — instant once the profile clears |
+| Phone number | `+14244088809`, the sender in `SMS_FROM` |
 | A2P brand | Approved — `BN407fe5…` |
 | A2P campaign | **Approved** (fifth submission) — `CM1e0c85…`, 2FA, on Messaging Service `MGfe4456…`. Sends only once a number is added to that service |
 | Delivery ever tested | **No.** Nothing has sent a real text yet |
@@ -37,7 +37,7 @@ change. That is a deliberate fail-closed state, not a broken one.
    approved campaign. A number outside the service sends unregistered and is
    filtered. `SMS_FROM` stays the phone number; the transport sends `From`, and
    Twilio applies the service's campaign because the number belongs to it.
-2. `vercel env add SMS_FROM production --sensitive` → paste `+13374694577`.
+2. `vercel env add SMS_FROM production --sensitive` → paste `+14244088809`.
    Variable name on the command line, value at the prompt: the prompt does not
    echo, which is the only thing keeping the value out of a shell history.
 3. Add the same four vars to `development` as well, so `sms:test` can run locally
