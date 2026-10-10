@@ -291,6 +291,9 @@ async function probe(
     !avifOk ||
     !exiftoolVersion ||
     !posture.ok ||
+    // Configured to hash and unable to is fatal: falling back to sending the
+    // image would be the unapproved use, and failing every scan is no better.
+    !edgeOk ||
     (alertsRequired && !alertsGoSomewhere) ||
     (storageRequired && !storage.ok);
   console.log(

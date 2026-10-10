@@ -31,7 +31,11 @@ export const EDGE_HASH_SCRIPT = 'photoDnaEdgeHashS.js';
 /** How long the WebAssembly may take to initialise before the hasher gives up. */
 const READY_TIMEOUT_MS = 10_000;
 
-/** The library's entry point, as its Node sample calls it. */
+/**
+ * The library's entry point, as its Node sample calls it. It answers with a
+ * promise — the sample only gets away with not saying so because it calls it
+ * inside a `.then` — so it is always awaited here.
+ */
 export type GenerateEdgeHashes = (
   pixels: Buffer,
   width: number,
@@ -94,7 +98,7 @@ export class SdkEdgeHasher implements EdgeHasher {
       .raw()
       .toBuffer({ resolveWithObject: true });
     if (info.channels !== 3) throw new Error(`expected RGB, decoded ${info.channels} channels`);
-    return lastEdgeHash(generate(data, info.width, info.height, 'RGB'));
+    return lastEdgeHash(await generate(data, info.width, info.height, 'RGB'));
   }
 }
 

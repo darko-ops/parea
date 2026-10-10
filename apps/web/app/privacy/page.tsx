@@ -595,6 +595,14 @@ export default function PrivacyPage() {
               and the records described above.
             </li>
             <li>
+              <strong>Microsoft</strong> &mdash; PhotoDNA, which checks every
+              uploaded image against known child sexual abuse material. For
+              photos added to a roll it receives a fingerprint made here,
+              which cannot be turned back into the picture; for profile
+              pictures, covers, group photos and moments it still receives
+              the image itself, until those move to fingerprints too.
+            </li>
+            <li>
               <strong>Vercel</strong> &mdash; runs the website and the API.
             </li>
             <li>

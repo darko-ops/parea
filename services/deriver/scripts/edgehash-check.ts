@@ -10,15 +10,19 @@
  *   PHOTODNA_KEY="$(pbpaste)" \
  *   npx tsx services/deriver/scripts/edgehash-check.ts <image or .base64> …
  *
- * For each image: the hash's length and how long it took. With PHOTODNA_KEY,
- * also each hash sent to /MatchHash, the service's raw answer, and how
- * `PhotoDnaHashScanner` reads it. Microsoft's sample images are in its "Test"
- * list, so they should come back as matches. With `--test-hash`, the approval
- * letter's quick-start hash is sent too, which needs no library at all.
+ * A `.jpg` (or other image) is hashed with the library, timed, and — when a
+ * `.base64` of the same name sits beside it, as Microsoft's samples do —
+ * compared with Microsoft's own hash of it. The real test is the MatchDistance
+ * the service reports for it: near 0 means ours are right.
+ * A `.base64` on its own is already an Edge Hash and is sent as it is. With
+ * PHOTODNA_KEY, every hash goes to /MatchHash, with the service's raw answer
+ * and how `PhotoDnaHashScanner` reads it; the samples are in Microsoft's
+ * "Test" list, so they should come back as matches. `--test-hash` sends the
+ * approval letter's quick-start hash, which needs no library at all.
  */
 
 import { PhotoDnaHashScanner, PHOTODNA_HASH_ENDPOINT } from '@parea/core';
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 
 import { edgeHasherFromEnv } from '../src/edgeHash';
 
@@ -44,15 +48,27 @@ async function ask(label: string, hash: string): Promise<void> {
 
 async function main(): Promise<void> {
   if (args.includes('--test-hash')) await ask('test hash', TEST_HASH);
-  if (images.length === 0) return;
+  const hashes = images.filter((p) => p.endsWith('.base64'));
+  const pictures = images.filter((p) => !p.endsWith('.base64'));
+  for (const path of hashes) await ask(path, readFileSync(path, 'utf8').trim());
+  if (pictures.length === 0) return;
+
   const hasher = edgeHasherFromEnv();
   if (!hasher) throw new Error('set PHOTODNA_EDGEHASHGENERATOR to the folder holding photoDnaEdgeHashS.js');
-  for (const path of images) {
-    const file = readFileSync(path);
-    const bytes = path.endsWith('.base64') ? Buffer.from(file.toString('utf8').trim(), 'base64') : file;
+  for (const path of pictures) {
+    const bytes = readFileSync(path);
     const started = Date.now();
     const hash = await hasher.hash({ bytes, contentHash: Buffer.alloc(32), mime: 'image/jpeg' });
     console.log(`${path}: ${hash.length}-character hash in ${Date.now() - started}ms`);
+    const theirs = path.replace(/\.[^./]+$/, '.base64');
+    if (existsSync(theirs)) {
+      // Byte-for-byte equality is not the test: two JPEG decoders read the
+      // same file a few pixel values apart, and the strings differ. The test
+      // is the service's MatchDistance below — 0 to 2 for both samples on
+      // 10 October 2026, against Microsoft's own entries for them.
+      const same = readFileSync(theirs, 'utf8').trim() === hash;
+      console.log(`${path}: ${same ? 'byte-identical to' : 'not byte-identical to (expected; see MatchDistance)'} Microsoft's ${theirs.split('/').pop()}`);
+    }
     await ask(path, hash);
   }
 }

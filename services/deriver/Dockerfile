@@ -77,6 +77,16 @@ COPY services/deriver services/deriver
 # The posture is declared only to get past the runtime gate during a build. It
 # says nothing about how the deployment reviews content — that is read from the
 # environment at boot, where the answer actually lives.
+# PhotoDNA is asked with Edge Hashes made here, as Microsoft approved, using
+# its library — copied into vendor/photodna by hand and never committed (see
+# vendor/photodna/README.md and src/edgeHash.ts). Refused here rather than at
+# boot: a deploy from a machine without the library would otherwise build an
+# image that cannot scan. Only the file's presence is tested; the probe below
+# loads it and hashes a test card, so a broken copy fails the build too.
+ENV PHOTODNA_EDGEHASHGENERATOR=/app/services/deriver/vendor/photodna
+RUN test -f "$PHOTODNA_EDGEHASHGENERATOR/photoDnaEdgeHashS.js" \
+ || (echo "PhotoDNA Edge Hash library missing: copy photoDnaEdgeHashS.js into services/deriver/vendor/photodna (see its README)" >&2 && exit 1)
+
 RUN PAREA_MODERATION=manual NODE_ENV=development \
       node_modules/.bin/tsx services/deriver/src/index.ts probe
 

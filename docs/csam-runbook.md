@@ -249,20 +249,29 @@ request. Today Parea still sends the image itself to `/Match`, which the
 service answers, but which is not the approved use and sends every photo to
 Microsoft.
 
-- **Done:** the client. `PhotoDnaHashScanner` in `packages/core/src/scanner.ts`
-  sends one hash per upload to `/MatchHash` and keeps the rule that anything
-  but a clear answer (status 3000 and `IsMatch`) is `ScanUnavailable`, so the
-  upload is not published. `scannerFromEnv` uses it whenever it is handed an
-  `EdgeHasher`, and the image client otherwise.
-- **Open:** the hasher. It needs the SDK (`PhotoDNA.EdgeHashGeneration`,
-  linked from the approval letter, behind the PhotoDNA console sign-in and its
-  own licence). Its WebAssembly module is the one that runs in both the
-  deriver on Fly and the web app on Vercel.
-- **Then, before switching:** our hashes checked against the SDK's own
-  samples, and the letter's test hash sent through the live service once —
-  it answers a match from the source "Test" — to confirm the key and the
-  answer's shape. The same hash run through the whole match path is how the
-  quarantine alert gets its first end-to-end test without any real material.
+- **Done, 10 October 2026: the deriver.** `src/edgeHash.ts` hashes each
+  upload's scan rendition with Microsoft's WebAssembly library
+  (`photoDnaEdgeHashS.js`, SDK 1.05.009), and `PhotoDnaHashScanner` sends the
+  hash to `/MatchHash`; anything but status 3000 and `IsMatch` is
+  `ScanUnavailable`, so the upload is not published. The Dockerfile sets
+  `PHOTODNA_EDGEHASHGENERATOR` and refuses to build without the library, and
+  the boot probe hashes a test card, so a broken copy fails the build.
+- **Checked by hand** with `scripts/edgehash-check.ts` before switching: the
+  letter's test hash and both of Microsoft's sample images, hashed here, came
+  back from the live service as matches from "Test" (A1) at distances 0 and
+  2, in 2–8 ms a hash. The answer is
+  `{ TrackingId, MatchResults: [{ Status, IsMatch, MatchDetails, TrackingId }] }`.
+  The strings are not byte-identical to Microsoft's own sample hashes — two
+  JPEG decoders read a file a few values apart — and the distance is the test.
+- **The library is not in git.** It is copied into
+  `services/deriver/vendor/photodna/` on the machine that deploys (see the
+  README there). Microsoft's notice on AI agents forbids an agent from
+  opening it: a person copies it in.
+- **Open: the web app's own images** — moments, group photos, profile
+  pictures, covers — are still sent to `/Match` as images, from Vercel, which
+  builds from git and so cannot carry the library. They move to the deriver,
+  which hashes them, as the next step; the privacy page says which is which
+  until then.
 | `MODERATOR_PROVIDER` | `sightengine` or `generic`. A named one brings its own endpoint. |
 | `MODERATOR_URL` | Classifier endpoint. Required for `generic`; overrides a named one. |
 | `MODERATOR_KEY` | Bearer credential for it. |

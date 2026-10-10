@@ -30,6 +30,11 @@ describe('the Edge Hash wrapper', () => {
     expect(calls).toEqual([{ length: 400 * 300 * 3, width: 400, height: 300, layout: 'RGB' }]);
   });
 
+  it('waits for the library, which answers with a promise', async () => {
+    const hasher = new SdkEdgeHasher(async () => async () => ({ count: 1, data: [{ PhotoDna: 'later' }] }));
+    await expect(hasher.hash(scanInput(await jpeg(200, 200)))).resolves.toBe('later');
+  });
+
   it('drops alpha, so an image with transparency is still three bytes a pixel', async () => {
     let seen = 0;
     const hasher = new SdkEdgeHasher(async () => (pixels: Buffer) => {
