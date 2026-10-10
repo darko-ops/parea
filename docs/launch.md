@@ -46,12 +46,13 @@ before they can even be verified.
       it, wait an hour, then switch.
 - [x] Confirm with `dig +short NS parea.photos`. `dig +trace` if a resolver is
       holding the old answer.
-- [ ] Set SSL/TLS to **Full (strict)**. Not confirmed — it is a dashboard
-      setting nothing here can read. It only matters for a proxied record with
-      an origin behind it, and today there is none (Vercel is grey-cloud and
-      `img.`/`zip.` are Worker custom domains), so it is a trap for later rather
-      than a hole now. Flexible serves plaintext to the origin and looks fine in
-      a browser.
+- [x] Set SSL/TLS to **Full (strict)**, and **Always Use HTTPS** on — set in
+      the dashboard on 2026-10-10 (nothing here can read it back). It only
+      matters for a proxied record with an origin behind it, and today there is
+      none (Vercel is grey-cloud and `img.`/`zip.` are Worker custom domains),
+      so it guards later rather than changing anything now: proxy a record one
+      day and Cloudflare insists on a valid certificate at the origin, where
+      Flexible would have sent it plaintext and looked fine in a browser.
 
 Records, once the zone is live. Everything Vercel-facing is **DNS only** — grey
 cloud. Proxying Cloudflare in front of Vercel's own edge stacks two CDNs and
