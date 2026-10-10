@@ -13,6 +13,8 @@
 
 import { scannerFromEnv } from '@parea/core';
 
+import { deriverScannerFromEnv } from '@/deriverScanner';
+
 const placeholder = (value: string | undefined, fallback: string) =>
   value?.trim() || fallback;
 
@@ -54,6 +56,17 @@ export const LEGAL_UPDATED = '9 October 2026';
 export function hashMatchingLive(
   env: Record<string, string | undefined> = process.env,
 ): boolean {
-  // The scanner's own test, so a PhotoDNA key — which needs no URL — counts.
-  return scannerFromEnv(env as NodeJS.ProcessEnv) !== null;
+  // The scanner's own tests, in the order `screenUpload` asks them: the
+  // deriver's scan route, then a PhotoDNA key — which needs no URL — here.
+  return deriverScannerFromEnv(env as NodeJS.ProcessEnv) !== null || scannerFromEnv(env as NodeJS.ProcessEnv) !== null;
+}
+
+/**
+ * Whether every image reaches Microsoft as a fingerprint only: the web app's
+ * own images go through the deriver's scan route, which hashes them (roll
+ * photos are hashed there already). Without the route they are still sent
+ * whole, and the privacy page says so.
+ */
+export function scansByFingerprint(env: Record<string, string | undefined> = process.env): boolean {
+  return deriverScannerFromEnv(env) !== null;
 }

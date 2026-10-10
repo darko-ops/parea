@@ -38,7 +38,7 @@ describe('the images the web app stores itself', () => {
   }
 
   it('passes with no provider, refuses on an outage, and keeps a match out of sight', () => {
-    expect(SAFETY).toMatch(/const scanner = scannerFromEnv\(\);\s*if \(!scanner\) return null;/);
+    expect(SAFETY).toMatch(/const scanner = deriverScannerFromEnv\(\) \?\? scannerFromEnv\(\);\s*if \(!scanner\) return null;/);
     expect(SAFETY).toMatch(/err instanceof ScanUnavailable[\s\S]{0,200}status: 503/);
     expect(SAFETY).toMatch(/const storageKey = `preserved\/\$\{subject\.kind\}\/\$\{randomUUID\(\)\}`;/);
     expect(SAFETY).toMatch(/insert\(schema\.safetyIncidents\)/);

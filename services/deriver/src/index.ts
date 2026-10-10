@@ -29,10 +29,11 @@
 import { schema } from '@parea/core';
 import { drizzle } from 'drizzle-orm/postgres-js';
 import { execFile } from 'node:child_process';
+import { createHash } from 'node:crypto';
 import { promisify } from 'node:util';
 import postgres from 'postgres';
 
-import { createJobServer, JOB_PATH, receiverFromEnv } from './http';
+import { createJobServer, JOB_PATH, receiverFromEnv, type ScanRoute } from './http';
 import { profilePhoto, recentReadyPhotos, summarise } from './profile';
 import { dropPrivileges, environSealed } from './subprocess';
 import { createHandler, DEFAULT_CONCURRENCY } from './serve';
@@ -54,7 +55,7 @@ import {
 import sharp from 'sharp';
 
 import { describe, edgeHasherFromEnv } from './edgeHash';
-import { type CsamScanner, scannerFromEnv } from './safety';
+import { type CsamScanner, ScanUnavailable, scannerFromEnv } from './safety';
 import {
   backfillAvif,
   backfillDerivative,
@@ -125,6 +126,28 @@ async function storeReachable(): Promise<{ ok: boolean; detail: string }> {
       detail: `FAILED — ${err instanceof Error ? err.message : String(err)}`,
     };
   }
+}
+
+/**
+ * The web app's own images, checked here — see `SCAN_PATH` in http.ts. On
+ * only with `DERIVER_SCAN_TOKEN` (32 characters or more, shared with the web
+ * app); with a token and no scanner, every check is `ScanUnavailable`, which
+ * the web app refuses the upload on, rather than a pass.
+ */
+function scanRouteFromEnv(scanner: CsamScanner | null): ScanRoute | undefined {
+  const token = process.env.DERIVER_SCAN_TOKEN?.trim();
+  if (!token) return undefined;
+  if (token.length < 32) {
+    console.error('DERIVER_SCAN_TOKEN is shorter than 32 characters; /scan is off');
+    return undefined;
+  }
+  return {
+    token,
+    check: async (bytes, mime) => {
+      if (!scanner) throw new ScanUnavailable('this deriver has no scanner');
+      return scanner.scan({ bytes, contentHash: createHash('sha256').update(bytes).digest(), mime });
+    },
+  };
 }
 
 async function probe(
@@ -483,7 +506,7 @@ async function main(): Promise<void> {
         return true;
       },
     });
-    const server = createJobServer({ handle, receiver, publicUrl });
+    const server = createJobServer({ handle, receiver, publicUrl, scan: scanRouteFromEnv(scanner) });
 
     /*
      * Finish what is in flight before going.

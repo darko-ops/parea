@@ -15,7 +15,7 @@
  * and so does anyone deciding whether to upload.
  */
 
-import { LEGAL_ENTITY, LEGAL_UPDATED, SAFETY_CONTACT, hashMatchingLive } from '@/legal';
+import { LEGAL_ENTITY, LEGAL_UPDATED, SAFETY_CONTACT, hashMatchingLive, scansByFingerprint } from '@/legal';
 import { SiteFooter } from '@/../app/components/SiteFooter';
 import { Shell } from '@/../app/components/Shell';
 
@@ -596,11 +596,22 @@ export default function PrivacyPage() {
             </li>
             <li>
               <strong>Microsoft</strong> &mdash; PhotoDNA, which checks every
-              uploaded image against known child sexual abuse material. For
-              photos added to a roll it receives a fingerprint made here,
-              which cannot be turned back into the picture; for profile
-              pictures, covers, group photos and moments it still receives
-              the image itself, until those move to fingerprints too.
+              uploaded image against known child sexual abuse material.{' '}
+              {scansByFingerprint() ? (
+                <>
+                  It receives only a fingerprint of each image, made here,
+                  which cannot be turned back into the picture &mdash; never
+                  the image itself.
+                </>
+              ) : (
+                <>
+                  For photos added to a roll it receives a fingerprint made
+                  here, which cannot be turned back into the picture; for
+                  profile pictures, covers, group photos and moments it still
+                  receives the image itself, until those move to fingerprints
+                  too.
+                </>
+              )}
             </li>
             <li>
               <strong>Vercel</strong> &mdash; runs the website and the API.

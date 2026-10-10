@@ -274,11 +274,16 @@ Microsoft.
   `services/deriver/vendor/photodna/` on the machine that deploys (see the
   README there). Microsoft's notice on AI agents forbids an agent from
   opening it: a person copies it in.
-- **Open: the web app's own images** — moments, group photos, profile
-  pictures, covers — are still sent to `/Match` as images, from Vercel, which
-  builds from git and so cannot carry the library. They move to the deriver,
-  which hashes them, as the next step; the privacy page says which is which
-  until then.
+- **The web app's own images** — moments, group photos, profile pictures,
+  covers — are checked by the deriver too: `apps/web/src/deriverScanner.ts`
+  posts each scan copy to the deriver's `/scan` (`SCAN_PATH`), which hashes
+  it and asks `/MatchHash`, and answers the verdict; the web app still does
+  the preserving, the incident and the alert. Vercel builds from git and so
+  cannot carry the library, which is why. On with `DERIVER_SCAN_URL` and
+  `DERIVER_SCAN_TOKEN` on Vercel and the same `DERIVER_SCAN_TOKEN` secret on
+  the deriver; anything but a verdict from it refuses the upload, as an
+  outage always has. The privacy page says "only a fingerprint" exactly when
+  the route is configured.
 | `MODERATOR_PROVIDER` | `sightengine` or `generic`. A named one brings its own endpoint. |
 | `MODERATOR_URL` | Classifier endpoint. Required for `generic`; overrides a named one. |
 | `MODERATOR_KEY` | Bearer credential for it. |

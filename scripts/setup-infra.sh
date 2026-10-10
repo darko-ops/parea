@@ -299,6 +299,8 @@ MAIL_API_KEY=
 MAIL_FROM=
 MAIL_API_URL=
 RESEND_WEBHOOK_SECRET=
+DERIVER_SCAN_URL=
+DERIVER_SCAN_TOKEN=
 
 # Confirming a phone number, which is what friend discovery is gated on.
 # Optional the same way the mailer is; in production an unconfigured texter

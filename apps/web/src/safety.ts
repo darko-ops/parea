@@ -39,6 +39,7 @@ import { eq } from 'drizzle-orm';
 import { NextResponse } from 'next/server';
 
 import { type Db, getDb } from '@/db';
+import { deriverScannerFromEnv } from '@/deriverScanner';
 import { decode } from '@/imaging';
 import { revokePhotoLinks } from '@/revoke';
 import { getStorage } from '@/storage';
@@ -106,7 +107,10 @@ export async function screenUpload(
   subject: ScreenedSubject,
   uploaderActorId: string,
 ): Promise<NextResponse | null> {
-  const scanner = scannerFromEnv();
+  // Through the deriver when it is set up to take these, so the image is
+  // hashed there and only the hash reaches Microsoft; PhotoDNA directly,
+  // with the image, otherwise. See `@/deriverScanner`.
+  const scanner = deriverScannerFromEnv() ?? scannerFromEnv();
   if (!scanner) return null;
 
   const contentHash = createHash('sha256').update(bytes).digest();

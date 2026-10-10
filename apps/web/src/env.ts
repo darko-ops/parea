@@ -238,6 +238,18 @@ export function describeConfig(): ConfigItem[] {
       requiredInProduction: true,
     },
     {
+      name: 'DERIVER_SCAN_URL',
+      /*
+       * Not required: without it the web app's own images go to PhotoDNA
+       * whole, as before. With it and `DERIVER_SCAN_TOKEN`, they are hashed
+       * by the deriver and only the hash leaves — the use Microsoft approved.
+       * See `src/deriverScanner.ts`.
+       */
+      present: has('DERIVER_SCAN_URL') && has('DERIVER_SCAN_TOKEN'),
+      consequence: 'moments, group photos, profile pictures and covers are sent to PhotoDNA as images, not hashes',
+      requiredInProduction: false,
+    },
+    {
       name: 'ADMIN_API_TOKEN',
       /*
        * Not required: Parea runs without the hub, and with this unset every

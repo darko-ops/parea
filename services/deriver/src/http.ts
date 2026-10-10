@@ -30,13 +30,27 @@
  * looking like a routing mistake rather than an authentication one.
  */
 
+import type { ScanVerdict } from '@parea/core';
 import { Receiver } from '@upstash/qstash';
+import { timingSafeEqual } from 'node:crypto';
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http';
+
+import { ScanUnavailable } from './safety';
 
 import type { Reply } from './serve';
 
 /** Where a delivery is expected. Anything else is a 404. */
 export const JOB_PATH = '/jobs/photo';
+/**
+ * Where the web app has its own images checked — moments, group photos,
+ * profile pictures, covers — so that they too are hashed here and only the
+ * hash goes to Microsoft. The web app runs on Vercel, which builds from git and
+ * so cannot carry the Edge Hash library; this machine has it. See
+ * `apps/web/src/deriverScanner.ts`.
+ */
+export const SCAN_PATH = '/scan';
+/** A scan copy is at most PhotoDNA's 4 MB; a little over, and no more. */
+const SCAN_BODY_LIMIT = 5 * 1024 * 1024;
 
 /**
  * Proves a request came from QStash, or explains why not.
@@ -79,8 +93,50 @@ function readBody(request: IncomingMessage): Promise<string> {
   });
 }
 
+/**
+ * The body, up to `limit`. Past it, stops keeping what arrives and rejects —
+ * without cutting the connection, so the 413 is actually heard.
+ */
+function readBytes(request: IncomingMessage, limit: number): Promise<Buffer> {
+  return new Promise((resolve, reject) => {
+    const chunks: Buffer[] = [];
+    let size = 0;
+    let over = false;
+    request.on('data', (chunk: Buffer) => {
+      if (over) return;
+      size += chunk.length;
+      if (size > limit) {
+        over = true;
+        chunks.length = 0;
+        reject(new Error('body too large'));
+        return;
+      }
+      chunks.push(chunk);
+    });
+    request.on('end', () => resolve(Buffer.concat(chunks)));
+    request.on('error', reject);
+  });
+}
+
+/** The bearer token, compared in constant time. */
+function bearerIs(request: IncomingMessage, token: string): boolean {
+  const auth = request.headers.authorization ?? '';
+  if (!auth.startsWith('Bearer ')) return false;
+  const a = Buffer.from(auth.slice(7));
+  const b = Buffer.from(token);
+  return a.length === b.length && timingSafeEqual(a, b);
+}
+
+export type ScanRoute = {
+  /** Shared with the web app as `DERIVER_SCAN_TOKEN`. */
+  token: string;
+  check: (bytes: Buffer, mime: string) => Promise<ScanVerdict>;
+};
+
 export type JobServerOptions = {
   handle: (photoId: string) => Promise<Reply>;
+  /** The web app's scans; absent, `/scan` is a 404 like any unknown path. */
+  scan?: ScanRoute;
   receiver: Receiver;
   /** The URL QStash was told to deliver to; must match the token's `sub`. */
   publicUrl: string;
@@ -103,8 +159,9 @@ export function createJobServer(options: JobServerOptions): Server {
 async function route(
   request: IncomingMessage,
   response: ServerResponse,
-  { handle, receiver, publicUrl }: JobServerOptions,
+  options: JobServerOptions,
 ): Promise<void> {
+  const { handle, receiver, publicUrl } = options;
   const path = (request.url ?? '').split('?')[0];
 
   /*
@@ -118,6 +175,7 @@ async function route(
     return send(response, { status: 200, body: 'ok' });
   }
 
+  if (path === SCAN_PATH && options.scan) return scanRoute(request, response, options.scan);
   if (path !== JOB_PATH) return send(response, { status: 404, body: 'not found' });
   if (request.method !== 'POST') {
     return send(response, { status: 405, body: 'POST only' });
@@ -165,6 +223,50 @@ async function route(
   }
 
   send(response, await handle(photoId));
+}
+
+/**
+ * One image in, a verdict out — nothing stored, nothing published. The web app
+ * decides what a match means for its image (quarantine, preservation, the
+ * alert), exactly as it did when it asked Microsoft itself.
+ *
+ * 200 with the verdict; 503 when it could not be checked, which the web app
+ * turns into a refused upload, never a clean one.
+ */
+async function scanRoute(request: IncomingMessage, response: ServerResponse, scan: ScanRoute): Promise<void> {
+  if (request.method !== 'POST') return send(response, { status: 405, body: 'POST only' });
+  if (!bearerIs(request, scan.token)) return send(response, { status: 401, body: 'unauthorised' });
+  const mime = (request.headers['content-type'] ?? '').split(';')[0]!.trim();
+  if (!mime.startsWith('image/')) return send(response, { status: 415, body: 'an image only' });
+
+  let bytes: Buffer;
+  try {
+    bytes = await readBytes(request, SCAN_BODY_LIMIT);
+  } catch (err) {
+    // The rest is read and dropped rather than the socket cut, so the caller
+    // hears the 413 instead of a reset. Safe to drain: the token was checked
+    // before a byte of the body was read, so only the web app gets this far.
+    return send(response, { status: 413, body: err instanceof Error ? err.message : 'bad body' });
+  }
+  if (bytes.length === 0) return send(response, { status: 400, body: 'empty' });
+
+  try {
+    const verdict = await scan.check(bytes, mime);
+    // One line a scan, like a delivery's, and nothing about the image.
+    console.log(`scanned     (web)  ${verdict.match ? 'MATCH' : 'no match'}`);
+    return sendJson(response, 200, verdict);
+  } catch (err) {
+    if (err instanceof ScanUnavailable) {
+      console.error(`scan-wait   (web)  ${err.message}`);
+      return sendJson(response, 503, { error: 'scan_unavailable', detail: err.message });
+    }
+    throw err;
+  }
+}
+
+function sendJson(response: ServerResponse, status: number, body: unknown): void {
+  response.writeHead(status, { 'content-type': 'application/json' });
+  response.end(JSON.stringify(body));
 }
 
 function send(response: ServerResponse, reply: Reply): void {
