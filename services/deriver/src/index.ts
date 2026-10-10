@@ -51,6 +51,9 @@ import {
   postureFromEnv,
   type ContentModerator,
 } from './moderation';
+import sharp from 'sharp';
+
+import { edgeHasherFromEnv } from './edgeHash';
 import { type CsamScanner, scannerFromEnv } from './safety';
 import {
   backfillAvif,
@@ -183,6 +186,33 @@ async function probe(
     scanner !== null,
     scanner ? scanner.name : 'absent — no hash matching (see posture below)',
   ]);
+  // Whether PhotoDNA is asked with a hash made here, as Microsoft approved, or
+  // still with the photograph. Hashing a plain test card proves the library
+  // loads and runs in this container, not just that its folder is named.
+  const hasher = (() => {
+    try {
+      return edgeHasherFromEnv();
+    } catch (err) {
+      return err as Error;
+    }
+  })();
+  let edgeDetail = 'absent — PhotoDNA is sent the image (/Match)';
+  let edgeOk = true;
+  if (hasher instanceof Error) {
+    edgeOk = false;
+    edgeDetail = `FAILED — ${hasher.message}`;
+  } else if (hasher) {
+    const card = await sharp({ create: { width: 320, height: 240, channels: 3, background: '#7a5' } }).jpeg().toBuffer();
+    const started = Date.now();
+    edgeDetail = await hasher
+      .hash({ bytes: card, contentHash: Buffer.alloc(32), mime: 'image/jpeg' })
+      .then((h) => `hashed (${h.length} chars, ${Date.now() - started}ms) — PhotoDNA is sent hashes (/MatchHash)`)
+      .catch((err: Error) => {
+        edgeOk = false;
+        return `FAILED — ${err.message}`;
+      });
+  }
+  results.push(['photodna-edge-hash', edgeOk, edgeDetail]);
   results.push([
     'content-moderator',
     moderator !== null,
@@ -316,7 +346,9 @@ async function main(): Promise<void> {
   // Both reviewers come first because `probe` needs them and nothing else,
   // and the Dockerfile runs `probe` at build time with no database or R2 in
   // the environment. Building the rest eagerly here would fail that build.
-  const scanner = scannerFromEnv();
+  // With the Edge Hash SDK in place, PhotoDNA is asked with a hash made here
+  // rather than with the photograph — see `edgeHash.ts`.
+  const scanner = scannerFromEnv(process.env, { edgeHasher: edgeHasherFromEnv() ?? undefined });
   const moderator = contentModeratorFromEnv();
 
   if (command === 'probe') {

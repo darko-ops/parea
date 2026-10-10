@@ -1,0 +1,5 @@
+# Microsoft's PhotoDNA Edge Hash library lives here on the machine that
+# deploys, never in git — see README.md.
+*
+!.gitignore
+!README.md
