@@ -21,7 +21,7 @@ passkey or hardware key rather than SMS.
 | GitHub `darko-ops/parea` | the code; pushing to the default branch deploys production | admin |
 | Vercel `parea-web` | the web app, its environment variables, logs, firewall | owner |
 | Neon | the database: every account, message and photo record | owner |
-| Cloudflare | R2 (every photo), the image and zip Workers, DNS | owner |
+| Cloudflare | R2 (every photo, and the encrypted database backups), the image and zip Workers, DNS | owner |
 | Fly `parea-deriver`, `parea-jobs` | the image processor and hourly jobs, and their copies of the database and R2 keys | owner |
 | Upstash | QStash, which delivers upload jobs | owner |
 | Mail provider | sends sign-in codes as parea.photos | owner |
@@ -48,6 +48,8 @@ sensitive cannot be read back — to see a value, rotate it.
 | `CRON_SECRET`, `HEALTH_TOKEN` | Vercel | calling the cron and deep health routes | new value in Vercel |
 | `MAIL_API_KEY`, `SMS_API_KEY` | Vercel, Fly deriver (mail) | sending as Parea | new key at the provider, update, revoke the old |
 | `NEON_API_KEY` | Vercel (build) | taking branches before migrations | new key in Neon |
+| `BACKUP_R2_ACCESS_KEY_ID` / `BACKUP_R2_SECRET_ACCESS_KEY` | Fly jobs | the `parea-backups` bucket only: encrypted copies it cannot read, and cannot delete inside the bucket's six-day lock | make a new R2 token scoped to that bucket, `flyctl secrets set` on `parea-jobs`, `flyctl machine update`, delete the old token |
+| The backup's age private key | **no server** — the owner's password manager | reading every backup | cannot be rotated in place: make a new key pair, set `BACKUP_AGE_RECIPIENT` to the new public key, keep the old private key until the last copy made with it has expired (seven days) |
 | App signing keys | EAS, Apple, Google | shipping an app update as Parea | see the store's key-reset process; Apple certificate reissue is on the launch list |
 
 After a suspected leak rotate first and investigate second — see

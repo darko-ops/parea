@@ -19,12 +19,65 @@ newest three and to at most seven days old, which is what the privacy policy
 promises for them. Without those two
 variables the deploy logs a warning and relies on point-in-time restore.
 
-**No off-site copy yet.** Everything above lives inside Neon. A scheduled
-`pg_dump` to storage Neon does not control would survive losing the Neon
-account itself — but it also keeps deleted data for as long as the dump is
-kept, which the privacy policy does not currently allow. That is a decision to
-make, not a default to switch on: pick a retention, update the policy, then add
-the dump to the hourly job.
+**An encrypted daily copy, off Neon.** Once a day the hourly job on
+`parea-jobs` runs `pg_dump` of production, encrypts it with `age` to a public
+key, and puts it in its own R2 bucket, `parea-backups`
+(`services/deriver/src/backup.ts`). It survives losing the Neon account.
+
+- **Encrypted before it leaves the machine.** The private key is on no server:
+  it is in the owner's password manager. Cloudflare, and anyone with the
+  bucket's key, holds ciphertext.
+- **Its own token**, scoped to `parea-backups` only (`BACKUP_R2_*`). R2 has no
+  write-only permission, so the bucket carries a **lock rule** instead: nothing
+  under `db/` can be deleted or overwritten for six days, by any key.
+- **Kept seven days**, by a lifecycle rule that deletes each copy seven days
+  after it was written. The privacy page says the backup is kept at most a
+  week, so a longer retention changes that sentence in the same change.
+- **Watched.** `job_run` row `backup`; `/api/cron/jobs-heartbeat` alerts
+  (Sentry and `OPS_ALERT_EMAIL`) when no copy has succeeded for 26 hours,
+  including when the secrets are missing. The hub lists it on Experience.
+
+#### Setting it up (once)
+
+1. The key pair, on your own machine — `brew install age`, then
+   `age-keygen -o parea-backup.key`. It prints `Public key: age1…`. Put the
+   whole file's contents in the password manager as "Parea backup key", then
+   `rm parea-backup.key`. Without it no backup can ever be read.
+2. The bucket, its expiry and its lock:
+   ```
+   npx wrangler r2 bucket create parea-backups
+   npx wrangler r2 bucket lifecycle add parea-backups expire-7d db/ --expire-days 7 -y
+   npx wrangler r2 bucket lock add parea-backups lock-6d db/ --retention-days 6 -y
+   ```
+3. The token: Cloudflare → R2 → Manage API tokens → Create → **Object Read &
+   Write**, applied to **`parea-backups` only**. Copy the access key ID and
+   secret.
+4. The secrets, on the jobs app only (the deriver does not need them), then
+   point the scheduled machine at them and at the new image:
+   ```
+   flyctl secrets set --stage -a parea-jobs \
+     BACKUP_R2_BUCKET=parea-backups \
+     BACKUP_AGE_RECIPIENT=age1PASTE_HERE \
+     BACKUP_R2_ACCESS_KEY_ID=PASTE_HERE \
+     BACKUP_R2_SECRET_ACCESS_KEY=PASTE_HERE
+   ```
+   then build, push and `flyctl machine update` as `fly.jobs.toml` says, and
+   `flyctl machine start` it once. `flyctl logs -a parea-jobs` shows
+   `backup: db/<time>Z.dump.age (<bytes> bytes)`.
+
+#### Restoring from it
+
+When Neon itself is the problem — otherwise the branches below are faster.
+
+1. The newest copy: `npx wrangler r2 object get parea-backups/db/<time>Z.dump.age --remote --file dump.age`
+   (`npx wrangler r2 object list parea-backups --prefix db/` — or the dashboard — lists them).
+2. Decrypt, with the key from the password manager in a file for the moment:
+   `age --decrypt -i parea-backup.key -o parea.dump dump.age`, then delete the key file.
+3. A database to restore into — a new Neon project, or any Postgres 18 — and
+   `pg_restore --no-owner --no-acl --dbname "$NEW_DATABASE_URL" parea.dump`.
+4. Point `DATABASE_URL` at it everywhere ([access.md](access.md) lists where),
+   and delete `dump.age` and `parea.dump` once it is running: they are the
+   whole database in the clear.
 
 ### Restoring
 
@@ -66,7 +119,9 @@ cannot be read back. Losing them means rotating them, which
 
 Once a quarter, and after any change to the above: branch production from an
 hour ago, connect to it, count the rows in `photo` and `account`, and delete the
-branch. Write the date and how long it took here.
+branch. Then do the same from the newest off-site copy — download, decrypt,
+`pg_restore` into a scratch database, count, and delete the database and both
+files. Write the date and how long each took here.
 
 With the Neon CLI (`npx neonctl`, signed in once):
 

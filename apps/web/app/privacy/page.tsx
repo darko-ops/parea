@@ -581,8 +581,10 @@ export default function PrivacyPage() {
           </p>
           <ul className="plain muted">
             <li>
-              <strong>Cloudflare</strong> &mdash; stores the photos, and serves
-              images and downloads.
+              <strong>Cloudflare</strong> &mdash; stores the photos and the
+              encrypted daily backup of the database, and serves images and
+              downloads. The backup is encrypted before it reaches Cloudflare,
+              which cannot read it.
             </li>
             <li>
               <strong>Neon</strong> &mdash; the database: rolls, who is in them,
@@ -593,7 +595,8 @@ export default function PrivacyPage() {
             </li>
             <li>
               <strong>Fly.io</strong> &mdash; runs the processing that strips
-              location and makes the smaller copies.
+              location and makes the smaller copies, and the scheduled jobs,
+              which include making the daily backup.
             </li>
             <li>
               <strong>Resend</strong> &mdash; sends sign-in codes. It sees the
@@ -710,8 +713,9 @@ export default function PrivacyPage() {
               removes a photo from everyone&rsquo;s view immediately and it is
               never served again; the file itself is destroyed 30 days later.
               You cannot undo it and we do not restore deleted photos. Our
-              database keeps one day of history for recovering from faults,
-              and a copy taken just before each update to its structure is
+              database keeps one day of history for recovering from faults. A
+              copy taken just before each update to its structure, and an
+              encrypted daily backup stored apart from the database, are each
               kept for at most a week; after that the record is gone too.
             </li>
             <li>

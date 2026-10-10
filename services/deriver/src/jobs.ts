@@ -9,6 +9,7 @@
  *   auto-hide   hide photos whose removal request has gone 48 hours unanswered
  *   purge       hard-delete objects for rows tombstoned past the grace window
  *   codes       return codes for dormant events to the pool
+ *   backup      once a day, an encrypted pg_dump to its own R2 bucket
  *
  * `expire-events` from the design is deliberately absent: the retention lever
  * is populated but switched off in v1, and a job that silently deletes
@@ -48,6 +49,7 @@ import {
 import { drizzle } from 'drizzle-orm/postgres-js';
 import postgres from 'postgres';
 
+import { backupIfDue } from './backup';
 import { formatReport, report } from './metrics';
 import { objectStoreFromEnv, type ObjectStore } from './objects';
 import { backfillAvif, photosMissingAvif } from './pipeline';
@@ -736,6 +738,12 @@ async function runAll(
   await run('expire-phone-codes', () => expirePhoneCodes(database));
   await run('expire-sessions', () => expireSessions(database));
   await run('avif-backlog', () => avifBacklog(database, objects));
+
+  // Once a day, off-site — see `backup.ts`. Never throws: a failed backup is
+  // recorded and alerted on its own, and does not fail the other jobs.
+  if (!only || only === 'backup') {
+    console.log(`backup: ${await backupIfDue(database, { force: only === 'backup' })}`);
+  }
 
   // Read-only, and last: a report is not a job, but this is the only process
   // with a database connection and a schedule, and §18's numbers are worth

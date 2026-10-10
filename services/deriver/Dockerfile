@@ -34,6 +34,17 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
       ca-certificates \
  && rm -rf /var/lib/apt/lists/*
 
+# The daily off-site backup (`src/backup.ts`): `pg_dump` and `age`, for the
+# jobs machine, which runs this same image. `pg_dump` must be at least the
+# server's major version and Neon runs Postgres 18 where trixie ships 17, so
+# the client comes from the PostgreSQL project's own repository, set up by
+# the script Debian's `postgresql-common` ships for exactly that.
+RUN apt-get update && apt-get install -y --no-install-recommends postgresql-common age \
+ && /usr/share/postgresql-common/pgdg/apt.postgresql.org.sh -y \
+ && apt-get install -y --no-install-recommends postgresql-client-18 \
+ && pg_dump --version && age --version \
+ && rm -rf /var/lib/apt/lists/*
+
 WORKDIR /app
 COPY package.json package-lock.json ./
 

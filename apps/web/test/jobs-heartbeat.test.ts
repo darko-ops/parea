@@ -84,4 +84,37 @@ describe('the jobs heartbeat', () => {
     const config = JSON.parse(readFileSync(fileURLToPath(new URL('../vercel.json', import.meta.url)), 'utf8'));
     expect(config.crons).toContainEqual({ path: '/api/cron/jobs-heartbeat', schedule: '20 * * * *' });
   });
+
+  describe('the off-site backup', () => {
+    const backup = (set: Record<string, unknown>) => db.insert(schema.jobRuns).values({ name: 'backup', ...set });
+
+    it('is not watched before the job has ever written its row', async () => {
+      await succeeded(hoursAgo(1));
+      const body = (await (await call()).json()) as { ok: boolean };
+      expect(body.ok).toBe(true);
+      expect(captured).toHaveLength(0);
+    });
+
+    it('stays quiet with a copy from last night', async () => {
+      await succeeded(hoursAgo(1));
+      await backup({ lastSucceededAt: hoursAgo(20) });
+      expect(((await (await call()).json()) as { ok: boolean }).ok).toBe(true);
+      expect(captured).toHaveLength(0);
+    });
+
+    it('alerts once when no copy has succeeded for 26 hours', async () => {
+      await succeeded(hoursAgo(1));
+      await backup({ lastSucceededAt: hoursAgo(27), lastError: 'pg_dump exited 1' });
+      await call();
+      await call();
+      expect(captured).toEqual(['The off-site database backup has not succeeded for 27 hours']);
+    });
+
+    it('alerts when it is running but not configured', async () => {
+      await succeeded(hoursAgo(1));
+      await backup({ lastFailedAt: hoursAgo(0), lastError: 'not configured: BACKUP_AGE_RECIPIENT' });
+      await call();
+      expect(captured).toEqual(['The off-site database backup has never recorded a successful run']);
+    });
+  });
 });
