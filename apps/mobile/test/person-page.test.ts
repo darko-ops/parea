@@ -51,8 +51,11 @@ describe('the shape of somebody else’s page', () => {
       expect(source).toMatch(/head: \{ alignItems: 'center' \}/);
       expect(source).toMatch(/name: \{[\s\S]{0,120}?textAlign: 'center',[\s\S]{0,160}?fontSize: 28,/);
       expect(source).toMatch(/handle: \{ textAlign: 'center', fontSize: 14\.5, marginTop: 3 \}/);
-      expect(source).toMatch(/counts: \{ textAlign: 'center', fontSize: 14\.5, marginTop: 8 \}/);
-      expect(source).toMatch(/link: \{ textAlign: 'center', fontSize: 14\.5, marginTop: 6 \}/);
+      expect(source).toMatch(/counts: \{ textAlign: 'center', fontSize: 14\.5, fontWeight: '600', marginTop: 8 \}/);
+      // The link is a centred row now, with its icon beside it; the same six
+      // under the counts.
+      expect(source).toMatch(/linkRow: \{\s*flexDirection: 'row',\s*alignItems: 'center',\s*justifyContent: 'center',\s*gap: 5,\s*marginTop: 6,\s*\}/);
+      expect(source).toMatch(/link: \{ fontSize: 14\.5, flexShrink: 1 \}/);
       /*
        * And the bio in the column with them rather than under it.
        *

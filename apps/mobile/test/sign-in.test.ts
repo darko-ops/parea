@@ -132,7 +132,7 @@ describe('the account outlives the launch', () => {
     // Both ways an account answers — a code, and the date of birth a first
     // sign-in asks for — go through `finish`, which is where the write is.
     expect(CARD).toMatch(/const finish = useCallback\(\s*async \(result: SignedIn\) => \{\s*await saveActorToken\(result\.actorToken\)/);
-    expect(CARD).toMatch(/await finish\(await api\.completeSignIn\(/);
+    expect(CARD).toMatch(/await finish\(\s*await api\.completeSignIn\(/);
     expect(CARD).toMatch(/await finish\(await api\.confirmAge\(/);
     expect(EVENTS).toMatch(/import \{[^}]*saveActorToken[^}]*\} from '\.\/platform'/);
   });
@@ -153,7 +153,9 @@ describe('the account outlives the launch', () => {
 
 describe('the card still says what it always said', () => {
   it('will not send a code that is not six digits', () => {
-    expect(CARD).toMatch(/disabled=\{busy \|\| \(sent \? code\.length < 6 : !email\.includes\('@'\)\)\}/);
+    // Making an account also waits on the name, the date and the box; the code
+    // rule is the same either way.
+    expect(CARD).toMatch(/disabled=\{\s*busy \|\|\s*\(sent \? code\.length < 6 : !email\.includes\('@'\)/);
   });
 
   it('opens the number pad and offers the code from the notification', () => {

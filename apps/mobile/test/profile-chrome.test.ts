@@ -95,7 +95,11 @@ describe('the friends', () => {
      * line counted that the app could not then show you.
      */
     expect(SCREEN).toMatch(/onPress=\{friends\?\.length \? \(\) => setShowFriends\(true\) : undefined\}/);
-    expect(PROFILE).toMatch(/countsLink: \{ textDecorationLine: 'underline' \}/);
+    // A button to a screen reader, and not drawn as a link: since profile
+    // links went blue, the address under the counts is the one thing on the
+    // page that looks like one.
+    expect(SCREEN).toMatch(/accessibilityRole=\{friends\?\.length \? 'button' : undefined\}/);
+    expect(PROFILE).not.toMatch(/countsLink|textDecorationLine: 'underline'/);
   });
 
   it('still says "—" rather than "0" before the answer is back', () => {

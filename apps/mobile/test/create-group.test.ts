@@ -113,7 +113,9 @@ describe('what the screen says', () => {
 
   it('never calls a cluster a group', () => {
     // They are recurring sets of people until somebody presses something.
-    expect(EVENTS).not.toMatch(/you already have|unnamed groups/i);
+    // About groups only: "You already have an account" is the sign-in card's,
+    // in the same file, and says nothing about a cluster.
+    expect(EVENTS).not.toMatch(/you already have (\w+ )?groups?|unnamed groups/i);
     // And the vocabulary the design dropped: nobody has to learn a second word
     // for making a group with these people.
     expect(EVENTS).not.toMatch(/roll (one |a |an )?(of your )?events? (up|into)/i);

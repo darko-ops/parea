@@ -323,7 +323,9 @@ describe('the door', () => {
      */
     expect(APP).toMatch(/onNotificationReceived\(\(\) => void refreshWaiting\(\)\)/);
     expect(APP).toMatch(
-      /AppState\.addEventListener\('change', \(next\) => \{\s*if \(next === 'active'\) void refreshWaiting\(\);/,
+      // The same listener also notices a sign-out from another device; the
+      // count is still the first thing it refreshes.
+      /AppState\.addEventListener\('change', \(next\) => \{\s*if \(next !== 'active'\) return;\s*void refreshWaiting\(\);/,
     );
     // Both unsubscribed, or a remount leaves a listener behind holding the
     // last render's callback.
