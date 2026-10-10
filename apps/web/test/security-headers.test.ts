@@ -20,10 +20,19 @@ describe('security headers', () => {
     for (const directive of ["object-src 'none'", "frame-ancestors 'none'", "base-uri 'self'", "form-action 'self'"]) {
       expect(enforced).toContain(directive);
     }
-    // Scripts are not restricted by the enforced policy: that part stays
-    // report-only until the reports say it is safe to enforce.
+    // Scripts are restricted per page, by the proxy's nonce policy; this one
+    // covers files and the API too, which have no nonce to give.
     expect(enforced).not.toMatch(/script-src/);
-    expect(h['Content-Security-Policy-Report-Only']).toMatch(/script-src/);
+  });
+
+  it('enforces scripts on a page by nonce, with nothing inline allowed', async () => {
+    const { pagePolicy } = await import('../src/csp');
+    const policy = pagePolicy('abc123', false);
+    expect(policy).toContain("script-src 'self' 'nonce-abc123' 'strict-dynamic'");
+    expect(policy).not.toMatch(/unsafe-inline|unsafe-eval/);
+    expect(policy).toContain("object-src 'none'");
+    expect(policy).toContain('report-uri https://o123.ingest.us.sentry.io/api/456/security/?sentry_key=publickey');
+    expect(pagePolicy('abc123', true)).toContain("'unsafe-eval'");
   });
 
   it('sends what the policy saw to Sentry, rather than to nobody', async () => {

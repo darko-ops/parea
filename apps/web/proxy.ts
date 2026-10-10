@@ -35,6 +35,7 @@
 import { NextResponse, type NextRequest } from 'next/server';
 
 import { ACTOR_COOKIE } from '@/auth/cookies';
+import { NONCE_HEADER, pagePolicy } from '@/csp';
 import { isPublicPage, PATH_HEADER, signInFor } from '@/gate';
 
 /** Hosts a browser may be on when it asks the API to change something. */
@@ -85,9 +86,20 @@ export function proxy(request: NextRequest) {
   if (!isPublicPage(pathname) && pathname !== '/' && !request.cookies.has(ACTOR_COOKIE)) {
     return NextResponse.redirect(new URL(signInFor(pathname + search), request.url));
   }
+  /*
+   * A fresh script nonce for every page — see `@/csp`. Next finds it in the
+   * request's own CSP header and stamps it on the scripts it writes; the
+   * layout reads it from `x-nonce` for the one it writes itself.
+   */
+  const nonce = btoa(crypto.randomUUID());
+  const policy = pagePolicy(nonce);
   const headers = new Headers(request.headers);
   headers.set(PATH_HEADER, pathname + search);
-  return NextResponse.next({ request: { headers } });
+  headers.set(NONCE_HEADER, nonce);
+  headers.set('content-security-policy', policy);
+  const response = NextResponse.next({ request: { headers } });
+  response.headers.set('Content-Security-Policy', policy);
+  return response;
 }
 
 export const config = {

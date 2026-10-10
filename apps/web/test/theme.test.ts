@@ -18,7 +18,8 @@ describe('appearance', () => {
     const layout = read('app/layout.tsx');
     expect(layout).toMatch(/<html lang="en" data-theme="dark" suppressHydrationWarning>/);
     expect(layout).toMatch(/document\.documentElement\.dataset\.theme='light'/);
-    expect(layout).toMatch(/<script dangerouslySetInnerHTML=\{\{ __html: CHOOSE \}\} \/>/);
+    // With the page's nonce, or the script policy refuses it and every page is dark.
+    expect(layout).toMatch(/<script nonce=\{nonce\} dangerouslySetInnerHTML=\{\{ __html: CHOOSE \}\} \/>/);
   });
 
   it('has a dark set of every surface token, and words that read on the accent', () => {

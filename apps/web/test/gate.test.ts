@@ -8,6 +8,7 @@ import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 
+import { NONCE_HEADER } from '@/csp';
 import { isPublicPage, PATH_HEADER, signInFor } from '@/gate';
 import { proxy } from '../proxy';
 
@@ -51,6 +52,17 @@ describe('the proxy, for pages', () => {
     // NextResponse.next({ request }) passes rewritten request headers on as
     // `x-middleware-request-*`.
     expect(res.headers.get(`x-middleware-request-${PATH_HEADER}`)).toBe('/events');
+  });
+
+  it('gives every page a fresh script nonce, in the policy and to the layout', () => {
+    const a = proxy(page('/privacy'));
+    const b = proxy(page('/privacy'));
+    const nonce = a.headers.get(`x-middleware-request-${NONCE_HEADER}`)!;
+    expect(nonce).toMatch(/^[A-Za-z0-9+/=]{20,}$/);
+    expect(b.headers.get(`x-middleware-request-${NONCE_HEADER}`)).not.toBe(nonce);
+    expect(a.headers.get('content-security-policy')).toContain(`'nonce-${nonce}'`);
+    // Next finds the nonce for its own scripts in the request's CSP header.
+    expect(a.headers.get('x-middleware-request-content-security-policy')).toContain(`'nonce-${nonce}'`);
   });
 });
 

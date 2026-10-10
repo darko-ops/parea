@@ -6,6 +6,7 @@ import { redirect } from 'next/navigation';
 import { SignInPage } from '@/../app/components/SignInPage';
 import { isSignedIn } from '@/access';
 import { getDb } from '@/db';
+import { NONCE_HEADER } from '@/csp';
 import { isPublicPage, PATH_HEADER, signInFor } from '@/gate';
 import { currentActorId } from '@/session';
 import { SITE } from '@/site';
@@ -130,11 +131,13 @@ async function gate(): Promise<'show' | 'sign-in'> {
 
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
   const shown = await gate();
+  // The proxy's script nonce; without it the policy refuses this script.
+  const nonce = (await headers()).get(NONCE_HEADER) ?? undefined;
   return (
     <html lang="en" data-theme="dark" suppressHydrationWarning>
       <head>
-        <script dangerouslySetInnerHTML={{ __html: CHOOSE }} />
-        <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: STRUCTURED }} />
+        <script nonce={nonce} dangerouslySetInnerHTML={{ __html: CHOOSE }} />
+        <script type="application/ld+json" nonce={nonce} dangerouslySetInnerHTML={{ __html: STRUCTURED }} />
       </head>
       <body>{shown === 'show' ? children : <SignInPage />}</body>
     </html>

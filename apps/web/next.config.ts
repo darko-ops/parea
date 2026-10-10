@@ -1,106 +1,10 @@
 import { withSentryConfig } from '@sentry/nextjs';
 import type { NextConfig } from 'next';
 
+import { contentSecurityPolicy, enforcedPolicy } from './src/csp';
+
 /** Written once so the two private-path rules cannot drift apart. */
 const NOINDEX = 'noindex, nofollow, noarchive, noimageindex';
-
-/**
- * The content security policy, and why it ships report-only.
- *
- * The event link *is* the credential. Nothing in this app writes
- * `dangerouslySetInnerHTML` or `innerHTML`, so there is no known injection to
- * block — but "no known injection" is a statement about today, and what a CSP
- * buys is that a future one cannot post the link somewhere. That is the whole
- * threat model here: not defacement, exfiltration of a URL.
- *
- * Report-only to begin with, because enforcing a wrong policy is a blank page
- * and this one cannot be fully verified from a build. Next inlines its
- * bootstrap script, and the honest way to tighten `script-src` is nonces
- * through the proxy (`proxy.ts`), which runs on `/api` only and sets none. So the
- * first version allows what Next needs, reports what it sees, and the console
- * is the evidence for narrowing it later.
- *
- * ## The origins, and why each
- *
- * Photo bytes never come from this origin — that is the point of §2 — so the
- * image Worker has to be named or every thumbnail is a violation. Uploads go
- * straight from the browser to a presigned R2 URL, which makes R2 a
- * `connect-src` rather than an `img-src`; a wildcard covers it because the
- * account subdomain is not worth pinning in a public header and is already
- * visible in every presigned URL. The zip Worker needs nothing: a download is
- * a top-level navigation, which no directive here governs.
- *
- * Mapbox is absent on purpose. `/api/places` calls it from the server, so the
- * browser never does, and adding it would widen the policy for a request the
- * page cannot make.
- */
-function contentSecurityPolicy(): string {
-  const image = process.env.IMAGE_BASE_URL?.replace(/\/$/, '') ?? '';
-  const r2 = 'https://*.r2.cloudflarestorage.com';
-
-  return [
-    // Everything not named below comes from here or nowhere.
-    "default-src 'self'",
-    /*
-     * `unsafe-inline` is Next's bootstrap and nothing else, and it is the
-     * directive this policy exists to eventually tighten. It is also why the
-     * header is report-only: enforcing this as written would protect less
-     * than it appears to, and pretending otherwise is worse than reporting.
-     */
-    "script-src 'self' 'unsafe-inline'",
-    "style-src 'self' 'unsafe-inline'",
-    `img-src 'self' data: blob: ${image} ${r2}`.replace(/\s+/g, ' ').trim(),
-    `connect-src 'self' ${image} ${r2}`.replace(/\s+/g, ' ').trim(),
-    "font-src 'self' data:",
-    // No plugins, no embedding, and no <base> rewriting where links point.
-    "object-src 'none'",
-    "frame-ancestors 'none'",
-    "base-uri 'self'",
-    "form-action 'self'",
-  ].join('; ');
-}
-
-/**
- * Where browsers send what the policy above would have blocked: Sentry's
- * security endpoint, built from the DSN the server already reports errors to.
- *
- * The policy said "the console is the evidence for narrowing it later" — but
- * nobody reads other people's consoles, so for its whole life it collected
- * nothing. Null when there is no DSN, and then the policy simply reports
- * nowhere, as before.
- */
-function cspReportUri(): string | null {
-  const dsn = process.env.NEXT_PUBLIC_SENTRY_DSN;
-  if (!dsn) return null;
-  try {
-    const url = new URL(dsn);
-    const project = url.pathname.replace(/^\//, '');
-    if (!url.username || !project) return null;
-    return `${url.protocol}//${url.host}/api/${project}/security/?sentry_key=${url.username}`;
-  } catch {
-    return null;
-  }
-}
-
-/**
- * The part of the policy that cannot break a page, enforced.
- *
- * None of these touch what Next needs to run: no plugins, no framing of this
- * site by another (the attack `X-Frame-Options` already refuses), no `<base>`
- * that could rewrite where every relative link and form points, and forms that
- * submit only here. They were report-only alongside everything else, so an
- * injected `<base>` or an `<object>` would have been reported and allowed.
- */
-function enforcedPolicy(): string {
-  const report = cspReportUri();
-  return [
-    "object-src 'none'",
-    "frame-ancestors 'none'",
-    "base-uri 'self'",
-    "form-action 'self'",
-    ...(report ? [`report-uri ${report}`] : []),
-  ].join('; ');
-}
 
 const config: NextConfig = {
   // Says nothing a visitor needs, and names the framework to anybody probing.
@@ -201,13 +105,11 @@ const config: NextConfig = {
           { key: 'Referrer-Policy', value: 'no-referrer' },
           { key: 'X-Content-Type-Options', value: 'nosniff' },
           { key: 'X-Frame-Options', value: 'DENY' },
-          // Report-only, and `frame-ancestors` restates the line above it in
-          // the modern header — the two are kept together so that dropping
-          // `X-Frame-Options` later is one edit rather than an omission.
-          {
-            key: 'Content-Security-Policy-Report-Only',
-            value: [contentSecurityPolicy(), ...(cspReportUri() ? [`report-uri ${cspReportUri()}`] : [])].join('; '),
-          },
+          // See `src/csp.ts`. A page's enforced policy, with its script nonce,
+          // comes from `proxy.ts` instead; `frame-ancestors` restates the line
+          // above in the modern header, so dropping `X-Frame-Options` later is
+          // one edit rather than an omission.
+          { key: 'Content-Security-Policy-Report-Only', value: contentSecurityPolicy() },
           { key: 'Content-Security-Policy', value: enforcedPolicy() },
           /*
            * HTTPS on every host under the domain, for two years. Vercel sends
