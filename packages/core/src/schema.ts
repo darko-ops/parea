@@ -59,6 +59,42 @@ export const jobRuns = pgTable('job_run', {
   lastAlertedAt: timestamp('last_alerted_at', { withTimezone: true }),
 });
 
+/**
+ * What happened to mail we sent, as the provider (Resend) reports it: a
+ * bounce, a spam complaint, a send it refused because the address is on its
+ * suppression list, or one that failed outright. Written by
+ * `/api/webhooks/resend`.
+ *
+ * Resend already stops sending to an address that hard-bounced or complained;
+ * what was missing was anybody here knowing. Above all when the address is
+ * the one safety or ops alerts go to, because then an alert about a child-
+ * safety match goes nowhere and nothing says so.
+ *
+ * Never the address and never the subject (a sign-in code is in the subject):
+ * which kind of mail it was, a keyed hash of the address so one person's
+ * bounces can be counted and checked against an address somebody asks about,
+ * and the provider's reason. Kept 30 days, by the hourly job.
+ */
+export const mailEvents = pgTable(
+  'mail_event',
+  {
+    /** The webhook's own delivery id (`svix-id`): a redelivery is the same row. */
+    id: text('id').primaryKey(),
+    /** `email.bounced`, `email.complained`, `email.suppressed` or `email.failed`. */
+    type: text('type').notNull(),
+    /** `sign_in`, `passkey`, `alert` or `other`, from the subject's shape. */
+    mailKind: text('mail_kind').notNull(),
+    /** The provider's classification: for a bounce, e.g. `Permanent/Suppressed`. */
+    detail: text('detail'),
+    /** HMAC of the normalised address under SESSION_SECRET. */
+    recipientHash: text('recipient_hash').notNull(),
+    /** Sent to SAFETY_ALERT_EMAIL or OPS_ALERT_EMAIL. */
+    toAlertAddress: boolean('to_alert_address').notNull().default(false),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index('mail_event_created_idx').on(t.createdAt)],
+);
+
 export const accounts = pgTable('account', {
   id: uuid('id').primaryKey().defaultRandom(),
   /** Normalised before it gets here — see `normaliseEmail`. */

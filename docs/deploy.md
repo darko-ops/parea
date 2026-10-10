@@ -192,7 +192,13 @@ So set it up deliberately and then check it.
 3. **Set `MAIL_PROVIDER`, `MAIL_API_KEY` and `MAIL_FROM`.** `MAIL_FROM` has to
    be at the verified domain; most providers answer 422 otherwise. Mailgun also
    needs `MAIL_API_URL`, because its path carries the sending domain.
-4. **Send one:**
+4. **Hear about bounces.** Resend → Webhooks → Add endpoint
+   `https://www.parea.photos/api/webhooks/resend`, events `email.bounced`,
+   `email.complained`, `email.suppressed` and `email.failed`. Copy its signing
+   secret into `RESEND_WEBHOOK_SECRET` (Vercel, production). Resend already
+   stops sending to an address that bounced or complained; this is how we hear
+   that it did — see `src/mailEvents.ts`.
+5. **Send one:**
 
    ```
    npm run mail:test -- you@example.com
@@ -409,6 +415,7 @@ Generate with `openssl rand -base64 32`.
 | `MAIL_API_KEY` | ● | | sign-in codes; unset means accounts cannot be claimed |
 | `MAIL_FROM` | ● | | must be at a domain verified with the provider |
 | `MAIL_API_URL` | ● | | only to override the endpoint; required for `mailgun` |
+| `RESEND_WEBHOOK_SECRET` | ● | | Resend's webhook signing secret (`whsec_…`) for `/api/webhooks/resend`: bounces, complaints and suppressed sends are recorded and alerted on, loudly when it is an alert address |
 | `SMS_PROVIDER` | ● | | `twilio`, `messagebird` or `vonage`; default `twilio` |
 | `SMS_API_KEY` | ● | | confirming a phone number. One value: `<sid>:<token>` for Twilio, `<key>:<secret>` for Vonage, the access key alone for MessageBird |
 | `SMS_FROM` | ● | | the number or sender ID texts come from |

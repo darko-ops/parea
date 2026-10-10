@@ -247,6 +247,8 @@ describe('the closed list of what is collected', () => {
       suspension: /That your account was suspended/,
       group_removal: /admin took you out of it/,
       block: /blocked somebody/,
+      // A keyed hash of the address, never the address, and 30 days.
+      mail_event: /email we sent you\s+bounced or was marked as spam/,
       // Kept because the law requires it, and described at length in its own
       // section rather than in the list of ordinary collection.
       safety_incident: /Child safety scanning/,

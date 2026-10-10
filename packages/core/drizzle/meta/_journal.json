@@ -498,6 +498,13 @@
       "when": 1791591469034,
       "tag": "0070_photo_failure",
       "breakpoints": true
+    },
+    {
+      "idx": 71,
+      "version": "7",
+      "when": 1791593581280,
+      "tag": "0071_mail_event",
+      "breakpoints": true
     }
   ]
 }

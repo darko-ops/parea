@@ -240,5 +240,5 @@ At this point the **web product is launchable**. Everything below is the app.
 ## Known limits, not blockers
 
 One deriver machine — QStash delivers one photo at a time to it, and scaling
-out needs claim-based work distribution first. No bounce or complaint
-handling on outbound mail.
+out needs claim-based work distribution first. Bounces and complaints on outbound mail are
+suppressed by Resend and reported to us through its webhook (`src/mailEvents.ts`).

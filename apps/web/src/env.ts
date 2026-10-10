@@ -181,6 +181,15 @@ export function describeConfig(): ConfigItem[] {
       requiredInProduction: false,
     },
     {
+      name: 'RESEND_WEBHOOK_SECRET',
+      // Not required to send — Resend suppresses bounced addresses on its own.
+      // Without it nobody here hears that it did, including when the address
+      // safety alerts go to is the one bouncing. See `src/mailEvents.ts`.
+      present: has('RESEND_WEBHOOK_SECRET'),
+      consequence: 'bounces and complaints go unrecorded; an alert address that stops receiving is not noticed',
+      requiredInProduction: false,
+    },
+    {
       name: 'SMS_PROVIDER',
       // Reported the way MAIL_PROVIDER is: unset is fine and means the default,
       // and false here means somebody set it to a carrier no transport exists

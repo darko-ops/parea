@@ -339,7 +339,11 @@ export default function PrivacyPage() {
             into a group, who it was, and whether you accepted &mdash; kept so
             that being asked twice is not two questions, and so a decline stays
             declined. That you blocked somebody &mdash; kept so it
-            keeps working, and never shown to them.
+            keeps working, and never shown to them. That an email we sent you
+            bounced or was marked as spam &mdash; which kind of email it was,
+            the reason our email provider gave, and a coded fingerprint of the
+            address rather than the address itself &mdash; kept for 30 days, so
+            we notice when mail stops arriving.
           </p>
           <p className="muted">
             None of it is a feed and none of it is shown to anyone it is not
@@ -600,7 +604,8 @@ export default function PrivacyPage() {
             </li>
             <li>
               <strong>Resend</strong> &mdash; sends sign-in codes. It sees the
-              address the code goes to.
+              address the code goes to, and stops sending to an address that
+              bounces or marks its mail as spam.
             </li>
             <li>
               <strong>Twilio</strong> &mdash; sends the code that confirms a

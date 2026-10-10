@@ -20,11 +20,18 @@ When a second person joins, name a deputy here and give them the same access.
 | Any report of a photo, moment, comment, message, profile or group | web (`alertReport`) | the same |
 | The hourly job has not succeeded in 3 hours | Vercel cron `/api/cron/jobs-heartbeat` | Sentry, and `OPS_ALERT_EMAIL` |
 | Server errors, CSP violations | web | Sentry |
+| Mail to `SAFETY_ALERT_EMAIL` or `OPS_ALERT_EMAIL` bounced, was marked spam or is suppressed | Resend webhook `/api/webhooks/resend` | Sentry (fatal), and the *other* alert address |
+| Any other bounce, complaint or suppressed send, grouped by kind of mail | the same | Sentry (warning) |
 | Photos the deriver failed (with the reasons), at most hourly | Vercel cron `/api/cron/derive-backlog` | Sentry, and `OPS_ALERT_EMAIL` |
 | Photos waiting more than five minutes | the same cron | the same |
 | Deriver refusing to start | Fly logs (`flyctl logs -a parea-deriver`); it stops taking photos, so the backlog alarm above fires | the same, via the backlog |
 
 If `SAFETY_ALERT_EMAIL` is unset, reports are filed and nobody is told. Set it.
+
+Somebody says their sign-in codes never arrive: Resend has probably put the
+address on its suppression list after a bounce or a spam complaint, and will
+not send to it again by itself. Look it up in Resend → Suppressions, and remove
+it once the person confirms the address is right.
 
 ## Reports
 

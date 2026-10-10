@@ -344,6 +344,23 @@ export async function expireObservations(
 }
 
 /**
+ * What Resend reported about mail we sent, after 30 days — the privacy page's
+ * promise. Long enough to see a pattern and to answer somebody asking why
+ * their codes stopped arriving; nothing in it is needed after that.
+ */
+export async function expireMailEvents(
+  database: ReturnType<typeof db>,
+  now = new Date(),
+): Promise<number> {
+  const cutoff = new Date(now.getTime() - 30 * 24 * 3600_000);
+  const removed = await database
+    .delete(schema.mailEvents)
+    .where(lt(schema.mailEvents.createdAt, cutoff))
+    .returning({ id: schema.mailEvents.id });
+  return removed.length;
+}
+
+/**
  * Sign-in codes that have expired or been spent.
  *
  * They grant nothing once past their expiry — every check tests it — so this
@@ -733,6 +750,7 @@ async function runAll(
   await run('recycle-codes', () => recycleCodes(database));
   await run('expire-rate-limits', () => expireRateLimits(database));
   await run('expire-observations', () => expireObservations(database));
+  await run('expire-mail-events', () => expireMailEvents(database));
   await run('expire-sign-in-codes', () => expireSignInCodes(database));
   await run('expire-webauthn-challenges', () => expireWebauthnChallenges(database));
   await run('expire-phone-codes', () => expirePhoneCodes(database));
