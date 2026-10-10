@@ -29,6 +29,7 @@ import { SendToChat } from './SendToChat';
 import { Menu } from './Menu';
 import { reportContent, reportSaid } from './report';
 import { useImageFailure } from './useImageFailure';
+import { downloadHref } from './downloadHref';
 
 export type MomentSubject = {
   id: string;
@@ -265,7 +266,7 @@ export function MomentView({
 
             <a
               className="photo-icon"
-              href={moment.src}
+              href={downloadHref(moment.src)}
               download
               aria-label="Download this photo"
               title="Download"

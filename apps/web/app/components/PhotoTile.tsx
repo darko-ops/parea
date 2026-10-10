@@ -4,6 +4,7 @@ import { ago } from '@parea/cards';
 
 import { RailIcon } from './RailIcon';
 import { useImageFailure } from './useImageFailure';
+import { downloadHref } from './downloadHref';
 
 /**
  * How wide a tile actually is, so `srcset` can be answered rather than guessed.
@@ -168,7 +169,7 @@ export function PhotoTile({
       <span className="tile-chips">
         <a
           className="tile-chip"
-          href={photo.full}
+          href={downloadHref(photo.full)}
           download
           aria-label="Download this photo"
           onClick={(e) => e.stopPropagation()}

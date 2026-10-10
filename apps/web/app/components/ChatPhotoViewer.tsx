@@ -19,6 +19,7 @@ import { Face } from './Faces';
 import { SendToChat } from './SendToChat';
 import { Star } from './Star';
 import { useImageFailure } from './useImageFailure';
+import { downloadHref } from './downloadHref';
 
 type Sent = NonNullable<Message['photo']>;
 
@@ -126,7 +127,7 @@ export function ChatPhotoViewer({ photo, onClose }: { photo: Sent; onClose: () =
               </svg>
             </button>
             {photo.original && (
-              <a className="photo-icon" href={photo.original} download aria-label="Download this photo" title="Download">
+              <a className="photo-icon" href={downloadHref(photo.original)} download aria-label="Download this photo" title="Download">
                 <svg viewBox="0 0 24 24" aria-hidden="true">
                   <path d="M12 3.5v11" />
                   <path d="M8.5 11 12 14.5 15.5 11" />

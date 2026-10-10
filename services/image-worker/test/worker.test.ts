@@ -144,6 +144,20 @@ describe('serving', () => {
     expect(res.headers.get('x-content-type-options')).toBe('nosniff');
   });
 
+  it('shows a photo, and saves it when the URL asks', async () => {
+    makeCache();
+    const { env } = makeEnv(OBJECTS);
+    const path = await signImagePath(SECRET, ref);
+    expect((await fetchPath(env, path)).headers.get('content-disposition')).toBe('inline');
+
+    // A Download button on www links to this host, where the browser ignores
+    // `<a download>`; the header is what makes it save. The extra parameter
+    // is outside the signature, so the same URL still verifies.
+    const saved = await fetchPath(env, `${path}&download=1`);
+    expect(saved.status).toBe(200);
+    expect(saved.headers.get('content-disposition')).toBe(`attachment; filename="parea-${HASH.slice(0, 12)}.jpg"`);
+  });
+
   it('answers HEAD without a body', async () => {
     makeCache();
     const { env } = makeEnv(OBJECTS);

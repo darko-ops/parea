@@ -120,9 +120,15 @@ export default {
       standIn ? 'private, max-age=60' : `private, max-age=${maxAge(check.expires)}`,
     );
     headers.set('x-content-type-options', 'nosniff');
-    // Photos are never rendered as documents; if one is ever fetched as a
-    // top-level navigation it should download, not execute.
-    headers.set('content-disposition', 'inline');
+    /*
+     * Shown, unless the URL asks to be saved. A Download button is an
+     * `<a download>`, and browsers ignore `download` on a link to another host
+     * — this one, from www — so it opened the photo in a new page instead.
+     * `?download=1` asks for an attachment with a filename. It is not part of
+     * the signature (`v`, `e`, `s` and the path are), and grants nothing a
+     * plain view of the same URL does not.
+     */
+    headers.set('content-disposition', url.searchParams.get('download') === '1' ? attachment(check.ref, headers.get('content-type')!) : 'inline');
 
     if (request.method === 'HEAD') return new Response(null, { headers });
 
@@ -212,6 +218,21 @@ async function isRevoked(
 function maxAge(expiresAtSeconds: number): number {
   const remaining = expiresAtSeconds - Math.floor(Date.now() / 1000);
   return Math.max(0, Math.min(remaining, 3600));
+}
+
+/** `attachment` with a filename from the photo's hash and what is being served. */
+function attachment(ref: { hash: string }, contentType: string): string {
+  const ext: Record<string, string> = {
+    'image/jpeg': 'jpg',
+    'image/avif': 'avif',
+    'image/heic': 'heic',
+    'image/heif': 'heif',
+    'image/png': 'png',
+    'image/webp': 'webp',
+    'video/mp4': 'mp4',
+    'video/quicktime': 'mov',
+  };
+  return `attachment; filename="parea-${ref.hash.slice(0, 12)}.${ext[contentType] ?? 'bin'}"`;
 }
 
 function notFound(): Response {

@@ -38,6 +38,7 @@ import { Star } from './Star';
 import { Menu } from './Menu';
 import { Thread } from './Thread';
 import { useImageFailure } from './useImageFailure';
+import { downloadHref } from './downloadHref';
 
 type Neighbour = { id: string; full: string };
 
@@ -286,7 +287,7 @@ export function PhotoView({
 
                     <a
                       className="photo-icon"
-                      href={photo.full}
+                      href={downloadHref(photo.full)}
                       download
                       aria-label="Download this photo"
                       title="Download"
