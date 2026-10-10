@@ -19,7 +19,7 @@
 # sample with no auxiliary images at all, so it decoded happily on 1.15 and
 # the image built green — see the note on the probe below, which is the part
 # of this that still does not catch it.
-FROM node:22-trixie-slim
+FROM node:25-trixie-slim
 
 # The plugin is back, exactly as the note it replaces predicted. libheif moved
 # its decoders out into separate packages in 1.17, so on trixie `libheif1`
