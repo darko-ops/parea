@@ -207,10 +207,18 @@ None of these are code, and all of them gate shipping:
 - [ ] Registration and reporting credentials in place *before* the first
       detection, not after.
 - [ ] Counsel briefed on the reporting workflow and on preservation.
-- [ ] `SAFETY_ALERT_WEBHOOK` configured and tested end to end with a synthetic
-      incident.
-- [ ] Someone has confirmed the purge exemption works against the real
-      database, not only in tests.
+- [x] The alert tested end to end with a synthetic incident — by email
+      (`SAFETY_ALERT_EMAIL`; no webhook is configured). 2026-10-10, 05:00 UTC:
+      Microsoft's sample `img_130.jpg` uploaded on the web was Edge-hashed,
+      matched in the live service (Test, A1), quarantined, preserved under
+      `preserved/photo/`, recorded as incident `de9410cf…` with its moderation
+      row, and the alert reached demetri@daed.io. Then released as a test.
+- [x] Someone has confirmed the purge exemption works against the real
+      database, not only in tests. The same incident through the 05:09 UTC
+      hourly run: `purge: 0`, the preserved object still 17,219 bytes, the
+      photo still quarantined. (The purge deletes only tombstoned photos, so
+      this shows a quarantined photo is left alone; the narrower case — a
+      held photo somebody deleted — is covered by the jobs tests.)
 
 ## The audit trail
 
