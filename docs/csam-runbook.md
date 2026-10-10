@@ -256,6 +256,13 @@ Microsoft.
   `ScanUnavailable`, so the upload is not published. The Dockerfile sets
   `PHOTODNA_EDGEHASHGENERATOR` and refuses to build without the library, and
   the boot probe hashes a test card, so a broken copy fails the build.
+- **A flat image is "nothing to match", and only that.** The library refuses
+  a featureless picture — all black, all white, a lens cap — with `-7009,
+  "Image is flat"`: no edges, so no fingerprint, and nothing a hash list could
+  match. That one code is read as no match, logged, and not sent to
+  Microsoft (decided 10 October 2026), so a pocket photo does not hang at
+  "Processing" for ever. Every other refusal, unreadable file and service
+  failure is still `ScanUnavailable`, and the upload is not published.
 - **Checked by hand** with `scripts/edgehash-check.ts` before switching: the
   letter's test hash and both of Microsoft's sample images, hashed here, came
   back from the live service as matches from "Test" (A1) at distances 0 and

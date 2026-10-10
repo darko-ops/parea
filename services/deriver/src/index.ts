@@ -53,7 +53,7 @@ import {
 } from './moderation';
 import sharp from 'sharp';
 
-import { edgeHasherFromEnv } from './edgeHash';
+import { describe, edgeHasherFromEnv } from './edgeHash';
 import { type CsamScanner, scannerFromEnv } from './safety';
 import {
   backfillAvif,
@@ -202,14 +202,32 @@ async function probe(
     edgeOk = false;
     edgeDetail = `FAILED — ${hasher.message}`;
   } else if (hasher) {
-    const card = await sharp({ create: { width: 320, height: 240, channels: 3, background: '#7a5' } }).jpeg().toBuffer();
+    // A card with detail in it — PhotoDNA hashes edges and texture, and a flat
+    // colour has none, which the library refuses to hash at all. Bands of
+    // gradient and a grid, the same every build.
+    const w = 320;
+    const h = 240;
+    const pixels = Buffer.alloc(w * h * 3);
+    for (let y = 0; y < h; y++) {
+      for (let x = 0; x < w; x++) {
+        const i = (y * w + x) * 3;
+        const grid = (Math.floor(x / 20) + Math.floor(y / 20)) % 2 ? 60 : 0;
+        pixels[i] = (x * 255) / w;
+        pixels[i + 1] = (y * 255) / h;
+        pixels[i + 2] = 128 + grid;
+      }
+    }
+    const card = await sharp(pixels, { raw: { width: w, height: h, channels: 3 } }).jpeg().toBuffer();
     const started = Date.now();
     edgeDetail = await hasher
       .hash({ bytes: card, contentHash: Buffer.alloc(32), mime: 'image/jpeg' })
-      .then((h) => `hashed (${h.length} chars, ${Date.now() - started}ms) — PhotoDNA is sent hashes (/MatchHash)`)
-      .catch((err: Error) => {
+      .then((h) => {
+        if (h === null) throw new Error('the test card read as flat');
+        return `hashed (${h.length} chars, ${Date.now() - started}ms) — PhotoDNA is sent hashes (/MatchHash)`;
+      })
+      .catch((err: unknown) => {
         edgeOk = false;
-        return `FAILED — ${err.message}`;
+        return `FAILED — ${describe(err)}`;
       });
   }
   results.push(['photodna-edge-hash', edgeOk, edgeDetail]);

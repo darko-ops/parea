@@ -19,12 +19,16 @@
  * and how `PhotoDnaHashScanner` reads it; the samples are in Microsoft's
  * "Test" list, so they should come back as matches. `--test-hash` sends the
  * approval letter's quick-start hash, which needs no library at all.
+ * `--flat` hashes a featureless image (one colour) and prints what the
+ * library says, which is what a black pocket photo will meet.
  */
 
 import { PhotoDnaHashScanner, PHOTODNA_HASH_ENDPOINT } from '@parea/core';
 import { existsSync, readFileSync } from 'node:fs';
 
-import { edgeHasherFromEnv } from '../src/edgeHash';
+import sharp from 'sharp';
+
+import { describe, edgeHasherFromEnv } from '../src/edgeHash';
 
 const TEST_HASH =
   'UEROQQABAgAIT58oAAAAAAAAAADgAAAA4AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAw4AAAAAAAAAAAAAxv8F/3Gc/1j2zEqsPFD/JND/VcwjHf8jT8wGs88EjrgcfYYRDP8HSYUrtrj/OLwhVoYjOz6ty/9m8f//MsaXsjnFI/+SK+JEB/8DTtQiGrJXOvEMXNEdI6go/wg/X1arzlw6cPAOYP8B/54D8iYAhCc4jvJiRnEeJ4YjLKoWuJZ0///UlGlfY+6Hwf8IiEUL7rQR2ZO5KmH2XP+GywqczXp+LhT0zyz/Y+2+UUo+761nf7X1xdAo0eD6+U3k9n3LD3Hzw/zxDOt+JFAz/vNhlSz3Ru8Bv8w2zgo6/+4ifLHipIWjk82qg4z48qv+68vrUzyWM/ufh40q+sb1vCPSy5ZYYvshtwG/+S9ZCRTmC5sl/f7zCoxb6hbVAaDgS01ASP8+gnbV4PpYAyXnX7b9iv6HKNwD5zGQ+irlGHX2evgHNW/6/ufmIEfWYmCTSP832BMO/Z1vnCPs0psZHft7LxZb7njklCrqO+Yi9tEFJPyT+v7aT+XrdJQVUvu1ILOD9vQarQvxuWlNaPtLpfPD+ApA+ErxzNdvae8LW2Ak9qLMU+nbrVCt+fNziGN540wXtjXahAZJxKBlFYDX+s+4pIvnuzrrSe+RHVxj7APBDK776bhXH+cisbj2+BOw2ZfDD1o8wfRHHXih/2MOyYraBNfgGfl9osJy+67EtejZnvbwMP+EAkW27bpWddLpS1uWmfed0V3e+ynR/C/pUsrAlPEGcs2v8mDBsiTkGku1PP3+zMyJ8qgRFrHrp/DJRPwzDF7T+uDoz7Tn8ftiTfpkFfwmva6Rd/r/QWWMCPowEcR27NruceT2wl4fzPJhgZ9M4iLEoOL102+jDfm0712f6eTEFA7p2sPEIv3JUxm78i1TR9vO5BRjiv+B2mkTxbfB9xnngvKSCP+qBqpa6IDzP57+Oj3s6//WI6Cb9FAHvvT8b4eMW/XJ0BCX7Ax+ZE7jZgjywuwJOrqs9oH6nJv1uBnkxvsbOtYH+gr8nkzwFf8Odvsbj6zy984VzLnq4iyhHP1OeUll8F6mWxbsY9MVUOuZIYug0eyR1pqG5dsbqN1KDpdx7x2ac/H0MeBDavJpSoM18SkWB7TlFWm+Sutwf1+C5Y4cQarleEWGqf8qzqxS7uRNKn73GWHi1P5zfvT4';
@@ -51,6 +55,20 @@ async function main(): Promise<void> {
   const hashes = images.filter((p) => p.endsWith('.base64'));
   const pictures = images.filter((p) => !p.endsWith('.base64'));
   for (const path of hashes) await ask(path, readFileSync(path, 'utf8').trim());
+  if (args.includes('--flat')) {
+    const flatHasher = edgeHasherFromEnv();
+    if (!flatHasher) throw new Error('set PHOTODNA_EDGEHASHGENERATOR for --flat');
+    for (const [label, background] of [['black', '#000'], ['grey', '#7a5']] as const) {
+      const bytes = await sharp({ create: { width: 640, height: 480, channels: 3, background } }).jpeg().toBuffer();
+      const said = await flatHasher
+        .hash({ bytes, contentHash: Buffer.alloc(32), mime: 'image/jpeg' })
+        .then(
+          (h) => (h === null ? 'flat — nothing to match, treated as no match' : `hashed (${h.length} chars)`),
+          (e: unknown) => `refused: ${describe(e)}`,
+        );
+      console.log(`flat ${label} 640x480: ${said}`);
+    }
+  }
   if (pictures.length === 0) return;
 
   const hasher = edgeHasherFromEnv();
@@ -59,6 +77,10 @@ async function main(): Promise<void> {
     const bytes = readFileSync(path);
     const started = Date.now();
     const hash = await hasher.hash({ bytes, contentHash: Buffer.alloc(32), mime: 'image/jpeg' });
+    if (hash === null) {
+      console.log(`${path}: flat — nothing to match`);
+      continue;
+    }
     console.log(`${path}: ${hash.length}-character hash in ${Date.now() - started}ms`);
     const theirs = path.replace(/\.[^./]+$/, '.base64');
     if (existsSync(theirs)) {

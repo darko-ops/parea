@@ -212,6 +212,13 @@ describe('PhotoDNA with Edge Hashes', () => {
     await expect(scanner(hasher('')).scan(input)).rejects.toThrow(/empty/);
   });
 
+  it('reads a flat image as nothing to match, and does not ask Microsoft', async () => {
+    const sent = service([{ Status: { Code: 3000 }, IsMatch: true }]);
+    const flat = { async hash() { return null; } };
+    await expect(scanner(flat as never).scan(input)).resolves.toEqual({ match: false });
+    expect(sent).toHaveLength(0);
+  });
+
   it('keeps a regional host when it moves to the hash endpoint', () => {
     expect(hashEndpointFor(undefined)).toBe(PHOTODNA_HASH_ENDPOINT);
     expect(hashEndpointFor('https://uk-api.microsoftmoderator.com/photodna/v1.0/Match')).toBe(

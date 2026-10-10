@@ -28,6 +28,8 @@ import vm from 'node:vm';
 import sharp from 'sharp';
 
 export const EDGE_HASH_SCRIPT = 'photoDnaEdgeHashS.js';
+/** The library's "Image is flat": no features to fingerprint. See `EdgeHasher` in @parea/core. */
+export const FLAT_IMAGE = -7009;
 /** How long the WebAssembly may take to initialise before the hasher gives up. */
 const READY_TIMEOUT_MS = 10_000;
 
@@ -65,6 +67,24 @@ export function loadEdgeHashScript(scriptPath: string): Promise<GenerateEdgeHash
   });
 }
 
+/**
+ * Whatever the library threw, as words. It does not always throw an `Error`:
+ * a refusal can arrive as a number, a string, an object or nothing at all, and
+ * `err.message` on those printed "undefined", which said nothing.
+ */
+export function describe(err: unknown): string {
+  if (err instanceof Error) return err.message || err.name;
+  if (err === undefined) return 'the library rejected with no reason';
+  if (typeof err === 'object' && err !== null) {
+    try {
+      return JSON.stringify(err);
+    } catch {
+      return String(err);
+    }
+  }
+  return String(err);
+}
+
 /** The base64 Edge Hash out of what the library returned, or why there is none. */
 export function lastEdgeHash(result: unknown): string {
   const r = result as { count?: unknown; data?: unknown } | null;
@@ -90,7 +110,7 @@ export class SdkEdgeHasher implements EdgeHasher {
     return this.generate;
   }
 
-  async hash(input: ScanInput): Promise<string> {
+  async hash(input: ScanInput): Promise<string | null> {
     const generate = await this.ready();
     const { data, info } = await sharp(input.bytes, { failOn: 'error' })
       .toColorspace('srgb')
@@ -98,7 +118,15 @@ export class SdkEdgeHasher implements EdgeHasher {
       .raw()
       .toBuffer({ resolveWithObject: true });
     if (info.channels !== 3) throw new Error(`expected RGB, decoded ${info.channels} channels`);
-    return lastEdgeHash(await generate(data, info.width, info.height, 'RGB'));
+    let result: unknown;
+    try {
+      result = await generate(data, info.width, info.height, 'RGB');
+    } catch (err) {
+      // Only this code, matched exactly: any other refusal is a failure.
+      if ((err as { result?: unknown } | null)?.result === FLAT_IMAGE) return null;
+      throw new Error(`PhotoDNA could not hash this image: ${describe(err)}`);
+    }
+    return lastEdgeHash(result);
   }
 }
 

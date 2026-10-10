@@ -60,6 +60,22 @@ describe('the Edge Hash wrapper', () => {
     expect(loads).toBe(2);
   });
 
+  it('answers null for a flat image, and throws for any other refusal', async () => {
+    const image = scanInput(await jpeg(200, 200));
+    const flat = new SdkEdgeHasher(async () => async () => {
+      throw { result: -7009, count: 0, resultText: 'Image is flat' };
+    });
+    await expect(flat.hash(image)).resolves.toBeNull();
+    const other = new SdkEdgeHasher(async () => async () => {
+      throw { result: -7001, count: 0, resultText: 'Something else' };
+    });
+    await expect(other.hash(image)).rejects.toThrow(/Something else/);
+    const nothing = new SdkEdgeHasher(async () => async () => {
+      throw undefined;
+    });
+    await expect(nothing.hash(image)).rejects.toThrow(/no reason/);
+  });
+
   it('refuses an answer that holds no hash, rather than sending an empty one', () => {
     expect(() => lastEdgeHash({ count: 0, data: [] })).toThrow(/no edge hash/);
     expect(() => lastEdgeHash(null)).toThrow(/no edge hash/);

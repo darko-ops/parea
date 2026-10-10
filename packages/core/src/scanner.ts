@@ -279,12 +279,17 @@ export const PHOTODNA_HASH_ENDPOINT = 'https://api.microsoftmoderator.com/photod
  *
  * The hash is what leaves this system instead of the photograph: about a
  * kilobyte, and not reversible into the image. Returns the base64 `PreHashV2`
- * value the service takes. Throws if it cannot hash — which the scanner turns
- * into `ScanUnavailable`, so a photo that could not be hashed is a photo that
- * was not checked, and is not published.
+ * value the service takes.
+ *
+ * Null for one answer only: the library's "Image is flat" (-7009). A
+ * featureless picture — all black, all white, a lens cap — has no edges to
+ * fingerprint, so there is nothing a hash list could match, and Microsoft's
+ * own library declines to represent it. Every other failure throws, which the
+ * scanner turns into `ScanUnavailable`: a photo that could not be hashed for
+ * any other reason was not checked, and is not published.
  */
 export interface EdgeHasher {
-  hash(input: ScanInput): Promise<string>;
+  hash(input: ScanInput): Promise<string | null>;
 }
 
 /**
@@ -317,11 +322,17 @@ export class PhotoDnaHashScanner implements CsamScanner {
   }
 
   async scan(input: ScanInput): Promise<ScanVerdict> {
-    let value: string;
+    let value: string | null;
     try {
       value = await this.hasher.hash(input);
     } catch (err) {
       throw new ScanUnavailable(`photodna edge hash failed: ${err instanceof Error ? err.message : String(err)}`);
+    }
+    if (value === null) {
+      // Flat: nothing to fingerprint, so nothing to match. Said out loud, so a
+      // run of them is visible rather than a quiet hole in the scanning.
+      console.warn('photodna: image is flat (-7009); nothing to match, not sent');
+      return { match: false };
     }
     if (!value) throw new ScanUnavailable('photodna edge hash was empty');
     return this.matchHash(value);
