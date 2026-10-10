@@ -1164,6 +1164,18 @@ export const photos = pgTable(
       .notNull()
       .default('pending'),
     /**
+     * When the deriver gave up on this photo, and why — written with
+     * `status = 'failed'`, which is terminal.
+     *
+     * The reason used to live for one function call and a line in Fly's logs,
+     * so a decoder that failed every HEIC for weeks told nobody. With it here,
+     * `/api/cron/derive-backlog` can say what failed and why, through Sentry
+     * and `OPS_ALERT_EMAIL`, and a failed row says what happened to it.
+     * Null on rows that failed before this existed.
+     */
+    failedAt: timestamp('failed_at', { withTimezone: true }),
+    failureReason: text('failure_reason'),
+    /**
      * Temporarily invisible, pending a host decision on a removal request.
      * Distinct from deletion on purpose: being wrong in either direction is
      * bad, but hidden is recoverable and deleted is not.
@@ -1181,6 +1193,8 @@ export const photos = pgTable(
       sql`coalesce(${t.capturedAt}, ${t.uploadedAt})`,
     ),
     index('photo_event_added_idx').on(t.eventId, t.addedSeq),
+    // What the failure alarm asks for: the few that failed lately.
+    index('photo_failed_idx').on(t.failedAt).where(sql`${t.failedAt} is not null`),
   ],
 );
 

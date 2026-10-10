@@ -20,7 +20,9 @@ When a second person joins, name a deputy here and give them the same access.
 | Any report of a photo, moment, comment, message, profile or group | web (`alertReport`) | the same |
 | The hourly job has not succeeded in 3 hours | Vercel cron `/api/cron/jobs-heartbeat` | Sentry, and `OPS_ALERT_EMAIL` |
 | Server errors, CSP violations | web | Sentry |
-| Deriver refusing to start, or failing photos | Fly logs (`flyctl logs -a parea-deriver`) | nobody, yet — check after deploys |
+| Photos the deriver failed (with the reasons), at most hourly | Vercel cron `/api/cron/derive-backlog` | Sentry, and `OPS_ALERT_EMAIL` |
+| Photos waiting more than five minutes | the same cron | the same |
+| Deriver refusing to start | Fly logs (`flyctl logs -a parea-deriver`); it stops taking photos, so the backlog alarm above fires | the same, via the backlog |
 
 If `SAFETY_ALERT_EMAIL` is unset, reports are filed and nobody is told. Set it.
 

@@ -5,7 +5,7 @@
 
 import { PGlite } from '@electric-sql/pglite';
 import { schema } from '@parea/core';
-import { sql } from 'drizzle-orm';
+import { eq, sql } from 'drizzle-orm';
 import { drizzle } from 'drizzle-orm/pglite';
 import { migrate } from 'drizzle-orm/pglite/migrator';
 import { readFileSync } from 'node:fs';
@@ -52,6 +52,20 @@ beforeEach(async () => {
 const call = (auth = 'Bearer cron-secret') =>
   GET(new Request('https://parea.test/api/cron/derive-backlog', { headers: { authorization: auth } }));
 const minutesAgo = (m: number) => new Date(Date.now() - m * 60_000);
+const jobRun = async (name: string) =>
+  (await db.select().from(schema.jobRuns).where(eq(schema.jobRuns.name, name)))[0];
+const failedPhoto = (failedAt: Date | null, failureReason: string | null) =>
+  db.insert(schema.photos).values({
+    eventId,
+    uploaderId,
+    storageKey: `k/${++n}`,
+    byteSize: 1000,
+    mime: 'image/heic',
+    bytesAt: failedAt,
+    status: 'failed',
+    failedAt,
+    failureReason,
+  });
 let n = 0;
 const waiting = (bytesAt: Date | null, status: 'pending' | 'ready' = 'pending') =>
   db.insert(schema.photos).values({
@@ -79,7 +93,7 @@ describe('the photo queue alarm', () => {
     const body = (await (await call()).json()) as { ok: boolean; waiting: number };
     expect(body).toMatchObject({ ok: true, waiting: 1 });
     expect(captured).toHaveLength(0);
-    const [row] = await db.select().from(schema.jobRuns);
+    const row = await jobRun('derive_backlog');
     expect(row).toMatchObject({ name: 'derive_backlog', lastAlertedAt: null });
     expect(row!.lastSucceededAt).not.toBeNull();
   });
@@ -90,7 +104,7 @@ describe('the photo queue alarm', () => {
     await call();
     await call();
     expect(captured).toEqual(['2 photos waiting to process, the oldest for 12 minutes']);
-    const [row] = await db.select().from(schema.jobRuns);
+    const row = await jobRun('derive_backlog');
     expect(row!.lastError).toMatch(/2 photos waiting/);
   });
 
@@ -105,5 +119,52 @@ describe('the photo queue alarm', () => {
       readFileSync(fileURLToPath(new URL('../vercel.json', import.meta.url)), 'utf8'),
     ) as { crons: { path: string; schedule: string }[] };
     expect(vercel.crons).toContainEqual({ path: '/api/cron/derive-backlog', schedule: '*/15 * * * *' });
+  });
+});
+
+describe('the photographs that failed', () => {
+  it('stays quiet when none has', async () => {
+    // Failed before the deriver recorded when, or by the upload check rather
+    // than the deriver: neither is counted.
+    await failedPhoto(null, null);
+    const body = (await (await call()).json()) as { failures: { failed: number } };
+    expect(body.failures).toEqual({ failed: 0, alerted: false });
+    expect(captured).toHaveLength(0);
+    expect((await jobRun('derive_failures'))!.lastSucceededAt).not.toBeNull();
+  });
+
+  it('says how many failed and why, grouped by kind, while the queue itself is healthy', async () => {
+    await failedPhoto(minutesAgo(3), 'decode_failed:heif: unsupported codec');
+    await failedPhoto(minutesAgo(2), 'decode_failed:heif: unsupported codec');
+    await failedPhoto(minutesAgo(1), 'strip_failed:exiftool exited 1');
+    const body = (await (await call()).json()) as { ok: boolean; failures: { failed: number; alerted: boolean } };
+    expect(body.ok).toBe(true);
+    expect(body.failures).toEqual({ failed: 3, alerted: true });
+    expect(captured).toEqual(['3 photos failed to process']);
+    expect((await jobRun('derive_failures'))!.lastError).toBe('3 photos failed to process: decode_failed ×2, strip_failed ×1');
+  });
+
+  it('says it once an hour at most, and the next alert carries what failed in between', async () => {
+    await failedPhoto(minutesAgo(1), 'decode_failed:x');
+    await call();
+    await failedPhoto(new Date(), 'decode_failed:y');
+    await call();
+    expect(captured).toEqual(['1 photo failed to process']);
+
+    // An hour on, the next run counts from the last alert, so it carries the
+    // one that failed inside the quiet hour.
+    await db.update(schema.jobRuns).set({ lastAlertedAt: minutesAgo(61) }).where(eq(schema.jobRuns.name, 'derive_failures'));
+    await call();
+    expect(captured).toEqual(['1 photo failed to process', '2 photos failed to process']);
+  });
+
+  it('does not say the same failures twice', async () => {
+    await failedPhoto(minutesAgo(1), 'decode_failed:x');
+    await call();
+    // Alerted just now, so nothing has failed since.
+    await db.update(schema.jobRuns).set({ lastAlertedAt: new Date() }).where(eq(schema.jobRuns.name, 'derive_failures'));
+    await call();
+    expect(captured).toEqual(['1 photo failed to process']);
+    expect((await jobRun('derive_failures'))!.lastSucceededAt).not.toBeNull();
   });
 });

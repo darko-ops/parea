@@ -1,11 +1,12 @@
 /**
  * How far behind the deriver is: how many photographs are waiting, and how
- * long the oldest has. Numbers only — no photograph, event or person — which
- * is why the alarm route that asks can do so without authorizing anybody.
+ * long the oldest has; and which it gave up on. Numbers, photo ids and the
+ * deriver's own reasons — no event or person — which is why the alarm route
+ * that asks can do so without authorizing anybody.
  */
 
 import { schema } from '@parea/core';
-import { and, asc, eq, gt, isNotNull, isNull, lt, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, gt, isNotNull, isNull, lt, sql } from 'drizzle-orm';
 
 import type { Db } from './db';
 
@@ -68,4 +69,39 @@ export async function strandedPhotos(db: Db, now: Date, limit = 200): Promise<st
     .orderBy(asc(schema.photos.bytesAt))
     .limit(limit);
   return rows.map((row) => row.id);
+}
+
+/**
+ * Photographs the deriver gave up on since `since`: how many, how many for
+ * each kind of reason, and the latest few with theirs. The reason's kind is
+ * the part before the first colon — `decode_failed`, `strip_failed` — so a
+ * decoder that refuses every HEIC reads as one line with a count, not twenty.
+ *
+ * Photo ids and the deriver's reasons, and nothing about whose photograph it
+ * is or which roll: enough to find the row and the log line, and no more.
+ */
+export async function deriveFailures(
+  db: Db,
+  since: Date,
+  limit = 10,
+): Promise<{ failed: number; byKind: { kind: string; count: number }[]; latest: { id: string; reason: string; failedAt: Date }[] }> {
+  const recent = and(isNotNull(schema.photos.failedAt), gt(schema.photos.failedAt, since));
+  const kind = sql<string>`coalesce(split_part(${schema.photos.failureReason}, ':', 1), 'unknown')`;
+  const byKind = await db
+    .select({ kind, count: sql<number>`count(*)::int` })
+    .from(schema.photos)
+    .where(recent)
+    .groupBy(kind)
+    .orderBy(sql`count(*) desc`);
+  const latest = await db
+    .select({ id: schema.photos.id, reason: schema.photos.failureReason, failedAt: schema.photos.failedAt })
+    .from(schema.photos)
+    .where(recent)
+    .orderBy(desc(schema.photos.failedAt))
+    .limit(limit);
+  return {
+    failed: byKind.reduce((sum, row) => sum + row.count, 0),
+    byKind,
+    latest: latest.map((row) => ({ id: row.id, reason: row.reason ?? 'unknown', failedAt: row.failedAt! })),
+  };
 }

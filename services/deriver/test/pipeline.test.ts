@@ -457,6 +457,9 @@ describe('failure handling', () => {
     const [row] = await db.select().from(schema.photos).where(eq(schema.photos.id, photo.id));
     // Failed, not ready — nothing unprocessed becomes visible.
     expect(row.status).toBe('failed');
+    // And when and why, for the web app's failure alarm.
+    expect(row.failureReason).toBe('object_missing');
+    expect(row.failedAt).toBeInstanceOf(Date);
   });
 
   it('leaves an already-ready photo alone', async () => {

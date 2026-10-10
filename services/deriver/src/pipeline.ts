@@ -483,9 +483,11 @@ async function quarantine(
 }
 
 async function fail(db: any, photoId: string, reason: string): Promise<Outcome> {
+  // The time and the reason go on the row, so the web app's failure alarm can
+  // tell somebody — see `failedAt` in the schema.
   await db
     .update(schema.photos)
-    .set({ status: 'failed' })
+    .set({ status: 'failed', failedAt: new Date(), failureReason: reason.slice(0, 500) })
     .where(eq(schema.photos.id, photoId));
   return { status: 'failed', photoId, reason };
 }
