@@ -183,9 +183,10 @@ route for every report also means one way to record it, step 4 below.
    The duty to report starts at knowledge, not at registration, and
    PhotoDNA's 72 hours run either way — so do not hold a real match waiting
    for the account. Give what the form asks for from the incident (what was
-   found, when, the uploader's account, PhotoDNA's `TrackingId`), never the
-   image itself unless NCMEC asks for it, and keep the confirmation number
-   it shows: that is the reference for step 4. Chase the account at
+   found, when, the uploader's account, PhotoDNA's `TrackingId`); for the
+   file itself, follow the form's instructions and counsel's direction
+   rather than viewing it yourself (step 1). Keep the confirmation number it
+   shows: that is the reference for step 4. Chase the account at
    ESPteam@NCMEC.ORG; once it is active, file through it and drop this
    paragraph.
 4. **Record the outcome.** Set `reported_at` and `report_reference` on the
