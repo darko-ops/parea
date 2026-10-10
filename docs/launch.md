@@ -26,10 +26,10 @@ checklist, because it is consulted instead of the thing itself.
       (<https://esp.ncmec.org/registration>). The privacy page now says a
       confirmed match is reported to NCMEC, so this has to exist before the
       first one, not after. Not confirmed.
-- [ ] **SMS (A2P 10DLC) campaign.** Rejected twice with error 30908 (privacy
-      policy could not be verified). Both policies — parea.photos and daed.io —
-      were fixed on 2026-10-05; the campaign has to be resubmitted. Phone
-      verification texts are not reliably delivered in the US until it passes.
+- [x] **SMS (A2P 10DLC) campaign.** Approved on the fifth submission
+      (9 October 2026), sending from `+14244088809` — see `docs/sms-a2p.md`.
+      The two earlier 30908 rejections were the privacy policy, fixed on
+      2026-10-05.
       See [`sms-a2p.md`](sms-a2p.md).
 
 ## 1. DNS
@@ -227,7 +227,8 @@ At this point the **web product is launchable**. Everything below is the app.
       `preview` then reaches live data with nothing between them but the
       release channel.
 - [ ] Age rating. A UGC app does not get to claim 4+.
-- [ ] App Store / TestFlight submission. Only internal (ad hoc) builds exist.
+- [x] App Store / TestFlight submission. Build 7 is in App Review, signed in
+      with the review account (`APP_REVIEW_EMAIL`, see `apps/web/src/review.ts`).
 - [x] **Nutrition labels.** Precise location is declared (Location → Precise
       location, app functionality, not tracking) in the iOS privacy manifest in
       `apps/mobile/app.json` and in
