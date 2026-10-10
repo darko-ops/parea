@@ -157,7 +157,10 @@ thumbnail 404s, or every download does.
       real. People sign in with emailed codes every day. **Nothing else will tell you this is broken**: the code endpoint
       answers 204 however it went, on purpose, so a misconfigured mailer looks
       exactly like a working one from the outside.
-- [ ] Check spam. First mail from a new sending domain often lands there.
+- [x] Check spam. First mail from a new sending domain often lands there.
+      Checked 2026-10-10: a sign-in code arrived in the inbox, not spam.
+      DKIM (`resend._domainkey`), SPF on `send.parea.photos` and DMARC
+      (`p=quarantine`, relaxed alignment) are all published.
 
 ## 6. Deriver
 
