@@ -17,6 +17,7 @@
 import { schema } from '@parea/core';
 import { NextResponse } from 'next/server';
 
+import { cronGuard } from '@/cron';
 import { getDb } from '@/db';
 import { strandedPhotos } from '@/deriveBacklog';
 import { publishDerive } from '@/queue';
@@ -26,11 +27,8 @@ export const runtime = 'nodejs';
 const NAME = 'requeue_stranded';
 
 export async function GET(request: Request) {
-  const secret = process.env.CRON_SECRET;
-  if (!secret) return NextResponse.json({ error: 'not_configured' }, { status: 503 });
-  if (request.headers.get('authorization') !== `Bearer ${secret}`) {
-    return NextResponse.json({ error: 'not_found' }, { status: 404 });
-  }
+  const denied = cronGuard(request);
+  if (denied) return denied;
 
   const db = getDb();
   const now = new Date();

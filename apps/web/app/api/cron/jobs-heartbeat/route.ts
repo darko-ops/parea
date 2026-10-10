@@ -23,6 +23,7 @@ import { mailerFromEnv, schema } from '@parea/core';
 import { eq } from 'drizzle-orm';
 import { NextResponse } from 'next/server';
 
+import { cronGuard } from '@/cron';
 import { getDb } from '@/db';
 
 export const runtime = 'nodejs';
@@ -33,13 +34,8 @@ const STALE_AFTER_MS = 3 * 60 * 60 * 1000;
 const REALERT_AFTER_MS = 12 * 60 * 60 * 1000;
 
 export async function GET(request: Request) {
-  // Only Vercel's scheduler, which sends this secret. Without one set, the
-  // route does nothing rather than answering anybody who finds it.
-  const secret = process.env.CRON_SECRET;
-  if (!secret) return NextResponse.json({ error: 'not_configured' }, { status: 503 });
-  if (request.headers.get('authorization') !== `Bearer ${secret}`) {
-    return NextResponse.json({ error: 'not_found' }, { status: 404 });
-  }
+  const denied = cronGuard(request);
+  if (denied) return denied;
 
   const db = getDb();
   const now = new Date();

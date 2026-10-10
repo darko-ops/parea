@@ -16,17 +16,15 @@ import { mailerFromEnv, schema } from '@parea/core';
 import { and, isNull } from 'drizzle-orm';
 import { NextResponse } from 'next/server';
 
+import { cronGuard } from '@/cron';
 import { getDb } from '@/db';
 import { hoursLeft, REPORT_WITHIN_HOURS, stageFor } from '@/reportDeadline';
 
 export const runtime = 'nodejs';
 
 export async function GET(request: Request) {
-  const secret = process.env.CRON_SECRET;
-  if (!secret) return NextResponse.json({ error: 'not_configured' }, { status: 503 });
-  if (request.headers.get('authorization') !== `Bearer ${secret}`) {
-    return NextResponse.json({ error: 'not_found' }, { status: 404 });
-  }
+  const denied = cronGuard(request);
+  if (denied) return denied;
 
   const now = new Date();
   const open = await getDb()
