@@ -237,7 +237,10 @@ At this point the **web product is launchable**. Everything below is the app.
       rather than on a tester's phone. Revisit when real people are on it:
       `preview` then reaches live data with nothing between them but the
       release channel.
-- [ ] Age rating. A UGC app does not get to claim 4+.
+- [x] Age rating. A UGC app does not get to claim 4+. It is **13+** in App
+      Store Connect (checked 2026-10-10), which is the age sign-up enforces
+      (`MINIMUM_AGE` in `apps/web/src/age.ts`) and the terms state. Change the
+      three together.
 - [x] App Store / TestFlight submission. Build 7 is in App Review, signed in
       with the review account (`APP_REVIEW_EMAIL`, see `apps/web/src/review.ts`).
 - [x] **Nutrition labels.** Precise location is declared (Location → Precise
