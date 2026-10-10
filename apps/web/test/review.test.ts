@@ -6,11 +6,22 @@ import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 
-import { isReviewSignIn } from '@/review';
+import { isReviewAddress, isReviewSignIn } from '@/review';
 
 const env = { APP_REVIEW_EMAIL: 'AppReview@Parea.photos', APP_REVIEW_CODE: '482916' };
 
 describe('the review sign-in', () => {
+  it('survives values pasted with a trailing newline', () => {
+    const pasted = { APP_REVIEW_EMAIL: 'AppReview@Parea.photos\n', APP_REVIEW_CODE: '482916\n' };
+    expect(isReviewSignIn('appreview@parea.photos', '482916', pasted)).toBe(true);
+  });
+
+  it('mails the review address nothing, and only while review sign-in is on', () => {
+    expect(isReviewAddress('APPREVIEW@parea.photos', env)).toBe(true);
+    expect(isReviewAddress('someone@parea.photos', env)).toBe(false);
+    expect(isReviewAddress('appreview@parea.photos', { APP_REVIEW_EMAIL: env.APP_REVIEW_EMAIL })).toBe(false);
+  });
+
   it('admits the review address with its code, however it is cased or spaced', () => {
     expect(isReviewSignIn('appreview@parea.photos', '482916', env)).toBe(true);
     expect(isReviewSignIn(' APPREVIEW@parea.photos', '482 916', env)).toBe(true);

@@ -26,6 +26,22 @@ import { timingSafeEqual } from 'node:crypto';
 
 import { normaliseEmail, normaliseSignInCode } from '@parea/core';
 
+/**
+ * Whether this is the review address, with the review code configured — so
+ * `/api/account/code` sends it nothing. The address has no mailbox: every code
+ * mailed to it bounced, then sat on the provider's suppression list, and each
+ * one was a send to a dead address and an alert about it. The answer to the
+ * caller is the same 204 as for any other address.
+ */
+export function isReviewAddress(
+  email: string,
+  env: Record<string, string | undefined> = process.env,
+): boolean {
+  const reviewEmail = env.APP_REVIEW_EMAIL ? normaliseEmail(env.APP_REVIEW_EMAIL) : null;
+  const reviewCode = env.APP_REVIEW_CODE ? normaliseSignInCode(env.APP_REVIEW_CODE) : null;
+  return Boolean(reviewEmail && reviewCode && normaliseEmail(email) === reviewEmail);
+}
+
 export function isReviewSignIn(
   email: string,
   code: string,

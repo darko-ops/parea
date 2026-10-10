@@ -18,6 +18,7 @@ import { NextResponse } from 'next/server';
 
 import { storeCode } from '@/accounts';
 import { getDb } from '@/db';
+import { isReviewAddress } from '@/review';
 import { MailUnavailable, mailerFromEnv, redact, signInEmail } from '@parea/core';
 import { SIGN_IN_ADDRESS_LIMIT, SIGN_IN_LIMIT, withinLimit, withinLimitFor } from '@/ratelimit';
 
@@ -45,6 +46,10 @@ export async function POST(request: Request) {
   if (!(await withinLimitFor(db, SIGN_IN_ADDRESS_LIMIT, secret, email))) {
     return new NextResponse(null, { status: 204 });
   }
+
+  // App Review's address signs in with its fixed code and has no inbox to
+  // mail one to. See `@/review`.
+  if (isReviewAddress(email)) return new NextResponse(null, { status: 204 });
 
   const code = newSignInCode();
   await storeCode(db, secret, email, code);
