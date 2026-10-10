@@ -10,7 +10,7 @@ import { join } from 'node:path';
 import sharp from 'sharp';
 import { describe, expect, it } from 'vitest';
 
-import { EDGE_HASH_SCRIPT, edgeHasherFromEnv, lastEdgeHash, SdkEdgeHasher, type GenerateEdgeHashes } from '../src/edgeHash';
+import { EDGE_HASH_SCRIPT, edgeHasherFromEnv, lastEdgeHash, loadEdgeHashScript, SdkEdgeHasher, type GenerateEdgeHashes } from '../src/edgeHash';
 
 const jpeg = (width: number, height: number) =>
   sharp({ create: { width, height, channels: 3, background: '#336699' } }).jpeg().toBuffer();
@@ -105,5 +105,28 @@ describe('edgeHasherFromEnv', () => {
     // A placeholder file: only its presence is checked here; nothing runs it.
     writeFileSync(join(dir, EDGE_HASH_SCRIPT), '// placeholder\n');
     expect(edgeHasherFromEnv({ PHOTODNA_EDGEHASHGENERATOR: dir })).toBeInstanceOf(SdkEdgeHasher);
+  });
+});
+
+describe('loading the library', () => {
+  it('runs the script once per process, however many hashers ask for it', async () => {
+    // A stand-in with the same trap as Microsoft's: a top-level `const`, which
+    // a second run in the same context refuses to declare again.
+    const dir = mkdtempSync(join(tmpdir(), 'pdna-'));
+    const script = join(dir, EDGE_HASH_SCRIPT);
+    writeFileSync(
+      script,
+      `const standInMaxHashes = 2;
+       globalThis.standInRuns = (globalThis.standInRuns || 0) + 1;
+       globalThis.pdnaHash = () => {};
+       globalThis.PhotoDnaEdgeHashV2FromImageData = async () => ({ count: 1, data: [{ PhotoDna: 'once' }] });`,
+    );
+    const a = edgeHasherFromEnv({ PHOTODNA_EDGEHASHGENERATOR: dir })!;
+    const b = edgeHasherFromEnv({ PHOTODNA_EDGEHASHGENERATOR: dir })!;
+    const image = scanInput(await jpeg(200, 200));
+    await expect(a.hash(image)).resolves.toBe('once');
+    await expect(b.hash(image)).resolves.toBe('once');
+    expect(await loadEdgeHashScript(script)).toBeTypeOf('function');
+    expect((globalThis as { standInRuns?: number }).standInRuns).toBe(1);
   });
 });

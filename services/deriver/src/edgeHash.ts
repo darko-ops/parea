@@ -45,11 +45,35 @@ export type GenerateEdgeHashes = (
   layout: 'RGB' | 'RGBA',
 ) => unknown;
 
-/** Runs Microsoft's script and resolves with its hashing function once it is ready. */
+/**
+ * One load per script per process. The script declares its names at the top
+ * level, so running it a second time in the same context throws
+ * ("Identifier 'pdnaMaxHashes' has already been declared") — which is what
+ * the first production scan met, the boot probe having loaded it already
+ * through a hasher of its own. Every hasher shares the one load.
+ */
+const loads = new Map<string, Promise<GenerateEdgeHashes>>();
+
+/** Runs Microsoft's script once and resolves with its hashing function once it is ready. */
 export function loadEdgeHashScript(scriptPath: string): Promise<GenerateEdgeHashes> {
+  let load = loads.get(scriptPath);
+  if (!load) {
+    load = runEdgeHashScript(scriptPath);
+    // A failed load is not kept, so the next scan tries again.
+    load.catch(() => loads.delete(scriptPath));
+    loads.set(scriptPath, load);
+  }
+  return load;
+}
+
+function runEdgeHashScript(scriptPath: string): Promise<GenerateEdgeHashes> {
   const g = globalThis as Record<string, unknown>;
   g.document ??= { currentScript: { src: scriptPath } };
-  vm.runInThisContext(readFileSync(scriptPath, 'utf8'), { filename: scriptPath });
+  try {
+    vm.runInThisContext(readFileSync(scriptPath, 'utf8'), { filename: scriptPath });
+  } catch (err) {
+    return Promise.reject(err);
+  }
 
   return new Promise((resolve, reject) => {
     const started = Date.now();
