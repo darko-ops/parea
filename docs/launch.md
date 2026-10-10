@@ -145,8 +145,10 @@ thumbnail 404s, or every download does.
       grammar when setting it — `/terms` reads "governed by the law of
       {`LEGAL_JURISDICTION`}, and its courts have jurisdiction", so the value
       wants to be `the State of North Carolina` rather than a bare `NC`.
-- [ ] `/api/health` returns 200 and reports nothing missing. It returns 200;
-      the detailed report needs `HEALTH_TOKEN` and has not been read.
+- [x] `/api/health` returns 200 and reports nothing missing. Read with
+      `HEALTH_TOKEN` on 2026-10-10: database up, `missing` empty; the only
+      unset variables are `MAIL_API_URL` (Resend's default endpoint) and
+      `PASSKEY_RP_ID` (derived from the host), both unset on purpose.
 
 ## 5. Mail
 
