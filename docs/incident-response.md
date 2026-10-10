@@ -8,8 +8,16 @@ Child sexual abuse material has its own runbook with statutory deadlines —
 
 ## Who
 
-Parea is run by one person today, who is the incident lead for everything
-below and holds every production credential (see [access.md](access.md)).
+Parea is run by one person today — Demetri Hodges — who is the incident lead
+for everything below, receives every alert, and holds every production
+credential (see [access.md](access.md)).
+
+`safety@parea.photos` and `ops@parea.photos` are Cloudflare Email Routing
+rules, both forwarding to demetri@daed.io (checked 2026-10-10). One inbox
+means the bounce alarm's fallback — telling the *other* alert address when
+one stops receiving — reaches the same place; Sentry's fatal alert is the
+independent path. Change the routes in Cloudflare → parea.photos → Email →
+Email Routing.
 When a second person joins, name a deputy here and give them the same access.
 
 ## Where alerts arrive

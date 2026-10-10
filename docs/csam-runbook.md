@@ -199,8 +199,11 @@ None of these are code, and all of them gate shipping:
       depends on eligibility rather than anything technical. PhotoDNA Cloud
       Service, Thorn's Safer, Google's Content Safety API and Cloudflare's CSAM
       Scanning Tool all occupy this slot.
-- [ ] **A named human** who receives alerts and is reachable. A rota if there
-      is more than one.
+- [x] **A named human** who receives alerts and is reachable. A rota if there
+      is more than one. Demetri Hodges, the operator: `SAFETY_ALERT_EMAIL` is
+      `safety@parea.photos`, which Cloudflare Email Routing forwards to
+      demetri@daed.io (as it does `ops@`, so the two are one inbox — see
+      incident-response.md). Recorded 2026-10-10.
 - [ ] Registration and reporting credentials in place *before* the first
       detection, not after.
 - [ ] Counsel briefed on the reporting workflow and on preservation.
