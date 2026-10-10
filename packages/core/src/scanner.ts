@@ -166,6 +166,48 @@ function field(body: unknown, name: string): unknown {
 }
 
 /**
+ * One PhotoDNA answer, read the same way from either endpoint.
+ *
+ * Only `Status.Code` 3000 is an answer; anything else is `ScanUnavailable`.
+ * `fallbackTracking` is the request's own `TrackingId`, for an answer that
+ * sits inside a list and carries none of its own.
+ */
+function readMatch(body: unknown, fallbackTracking?: unknown): ScanVerdict {
+  const status = field(body, 'Status');
+  const code = field(status, 'Code');
+  if (code !== 3000) {
+    const said = field(status, 'Description');
+    throw new ScanUnavailable(
+      `photodna status ${String(code)}${typeof said === 'string' ? `: ${said}` : ''}`,
+    );
+  }
+  const isMatch = field(body, 'IsMatch');
+  if (typeof isMatch !== 'boolean') {
+    throw new ScanUnavailable('photodna answered 3000 without IsMatch');
+  }
+  if (!isMatch) return { match: false };
+
+  // Which list it matched, and what it is — what the incident and the
+  // NCMEC report need. `TrackingId` is the reference Microsoft asks for.
+  const flags = field(field(body, 'MatchDetails'), 'MatchFlags');
+  const list = Array.isArray(flags) ? flags : [];
+  const violations = list.flatMap((f) => {
+    const v = field(f, 'Violations');
+    return Array.isArray(v) ? v.filter((x): x is string => typeof x === 'string') : [];
+  });
+  const sources = list
+    .map((f) => field(f, 'Source'))
+    .filter((x): x is string => typeof x === 'string');
+  const tracking = field(body, 'TrackingId') ?? fallbackTracking;
+  return {
+    match: true,
+    classification:
+      [...new Set(violations)].join(', ') || [...new Set(sources)].join(', ') || 'photodna match',
+    providerReference: typeof tracking === 'string' ? tracking : undefined,
+  };
+}
+
+/**
  * Microsoft PhotoDNA Cloud Service.
  *
  * The image itself goes in the body, as its own content type, with the
@@ -219,39 +261,7 @@ export class PhotoDnaScanner implements CsamScanner {
         throw new ScanUnavailable(`photodna returned HTTP ${response.status}`);
       }
 
-      const body: unknown = await response.json();
-      const status = field(body, 'Status');
-      const code = field(status, 'Code');
-      if (code !== 3000) {
-        const said = field(status, 'Description');
-        throw new ScanUnavailable(
-          `photodna status ${String(code)}${typeof said === 'string' ? `: ${said}` : ''}`,
-        );
-      }
-      const isMatch = field(body, 'IsMatch');
-      if (typeof isMatch !== 'boolean') {
-        throw new ScanUnavailable('photodna answered 3000 without IsMatch');
-      }
-      if (!isMatch) return { match: false };
-
-      // Which list it matched, and what it is — what the incident and the
-      // NCMEC report need. `TrackingId` is the reference Microsoft asks for.
-      const flags = field(field(body, 'MatchDetails'), 'MatchFlags');
-      const list = Array.isArray(flags) ? flags : [];
-      const violations = list.flatMap((f) => {
-        const v = field(f, 'Violations');
-        return Array.isArray(v) ? v.filter((x): x is string => typeof x === 'string') : [];
-      });
-      const sources = list
-        .map((f) => field(f, 'Source'))
-        .filter((x): x is string => typeof x === 'string');
-      const tracking = field(body, 'TrackingId');
-      return {
-        match: true,
-        classification:
-          [...new Set(violations)].join(', ') || [...new Set(sources)].join(', ') || 'photodna match',
-        providerReference: typeof tracking === 'string' ? tracking : undefined,
-      };
+      return readMatch(await response.json());
     } catch (err) {
       if (err instanceof ScanUnavailable) throw err;
       throw new ScanUnavailable(err instanceof Error ? err.message : String(err));
@@ -259,6 +269,108 @@ export class PhotoDnaScanner implements CsamScanner {
       clearTimeout(timer);
     }
   }
+}
+
+/** Microsoft's hash endpoint — the one the cloud service is approved for. */
+export const PHOTODNA_HASH_ENDPOINT = 'https://api.microsoftmoderator.com/photodna/v1.0/MatchHash';
+
+/**
+ * Makes a PhotoDNA Edge Hash of an image, here, with Microsoft's SDK.
+ *
+ * The hash is what leaves this system instead of the photograph: about a
+ * kilobyte, and not reversible into the image. Returns the base64 `PreHashV2`
+ * value the service takes. Throws if it cannot hash — which the scanner turns
+ * into `ScanUnavailable`, so a photo that could not be hashed is a photo that
+ * was not checked, and is not published.
+ */
+export interface EdgeHasher {
+  hash(input: ScanInput): Promise<string>;
+}
+
+/**
+ * The approved way to call PhotoDNA: an Edge Hash made here, sent to
+ * `/MatchHash` as `[{ DataRepresentation: 'PreHashV2', Value }]` with the same
+ * subscription key. The approval letter says the service is to be used this
+ * way rather than with images.
+ *
+ * One hash per request, though five are allowed: each upload is scanned on
+ * its own and must be decided on its own.
+ *
+ * The answer's shape is read leniently and decided strictly. It may be one
+ * result, a list, or a list inside an object (`MatchResults`); whichever, the
+ * one result for our one hash must say 3000 and carry `IsMatch`, or it is
+ * `ScanUnavailable`. Confirm against the live service with the test hash in
+ * the approval letter before relying on a new reading.
+ */
+export class PhotoDnaHashScanner implements CsamScanner {
+  readonly name = 'photodna';
+  readonly limits = PHOTODNA_LIMITS;
+  private readonly timeoutMs: number;
+
+  constructor(
+    private readonly apiKey: string,
+    private readonly hasher: EdgeHasher,
+    private readonly endpoint: string = PHOTODNA_HASH_ENDPOINT,
+    options: { timeoutMs?: number } = {},
+  ) {
+    this.timeoutMs = options.timeoutMs ?? 15_000;
+  }
+
+  async scan(input: ScanInput): Promise<ScanVerdict> {
+    let value: string;
+    try {
+      value = await this.hasher.hash(input);
+    } catch (err) {
+      throw new ScanUnavailable(`photodna edge hash failed: ${err instanceof Error ? err.message : String(err)}`);
+    }
+    if (!value) throw new ScanUnavailable('photodna edge hash was empty');
+    return this.matchHash(value);
+  }
+
+  /** Asks about one hash already made — what the test hash in the approval letter is sent through. */
+  async matchHash(value: string): Promise<ScanVerdict> {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), this.timeoutMs);
+    try {
+      const response = await fetch(this.endpoint, {
+        method: 'POST',
+        signal: controller.signal,
+        headers: {
+          'content-type': 'application/json',
+          'Ocp-Apim-Subscription-Key': this.apiKey,
+        },
+        body: JSON.stringify([{ DataRepresentation: 'PreHashV2', Value: value }]),
+      });
+      if (!response.ok) {
+        throw new ScanUnavailable(`photodna returned HTTP ${response.status}`);
+      }
+      const body: unknown = await response.json();
+
+      // A request-level failure, when the service says so outside the list.
+      const outer = field(body, 'Status');
+      if (outer !== undefined && field(outer, 'Code') !== 3000) return readMatch(body);
+
+      const results = Array.isArray(body)
+        ? body
+        : (Object.values(body as Record<string, unknown>).find(Array.isArray) as unknown[] | undefined);
+      const one = results ? results[0] : body;
+      if (results && results.length !== 1) {
+        throw new ScanUnavailable(`photodna answered ${results.length} results for one hash`);
+      }
+      return readMatch(one, field(body, 'TrackingId'));
+    } catch (err) {
+      if (err instanceof ScanUnavailable) throw err;
+      throw new ScanUnavailable(err instanceof Error ? err.message : String(err));
+    } finally {
+      clearTimeout(timer);
+    }
+  }
+}
+
+/** The hash endpoint on the same host as `endpoint`, for a regional `CSAM_SCANNER_URL`. */
+export function hashEndpointFor(endpoint: string | undefined): string {
+  if (!endpoint) return PHOTODNA_HASH_ENDPOINT;
+  return endpoint.replace(/\/Match(Hash)?\/?$/, '/MatchHash');
 }
 
 /**
@@ -279,6 +391,12 @@ export class PhotoDnaScanner implements CsamScanner {
  */
 export function scannerFromEnv(
   env: NodeJS.ProcessEnv = process.env,
+  /**
+   * Microsoft's Edge Hash SDK, where this process has it. With one, PhotoDNA is
+   * asked with a hash at `/MatchHash`, as approved; without, with the image at
+   * `/Match`, which is how it ran before the SDK was wired in.
+   */
+  options: { edgeHasher?: EdgeHasher } = {},
 ): CsamScanner | null {
   const endpoint = env.CSAM_SCANNER_URL;
   const apiKey = env.CSAM_SCANNER_KEY;
@@ -286,7 +404,9 @@ export function scannerFromEnv(
   // PhotoDNA knows its own endpoint; CSAM_SCANNER_URL only moves it to a
   // regional host. A key alone is enough to turn it on.
   if (env.CSAM_SCANNER_PROVIDER === 'photodna') {
-    return apiKey ? new PhotoDnaScanner(apiKey, endpoint || PHOTODNA_ENDPOINT) : null;
+    if (!apiKey) return null;
+    if (options.edgeHasher) return new PhotoDnaHashScanner(apiKey, options.edgeHasher, hashEndpointFor(endpoint));
+    return new PhotoDnaScanner(apiKey, endpoint || PHOTODNA_ENDPOINT);
   }
 
   if (!endpoint || !apiKey) return null;

@@ -5,7 +5,10 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import {
+  hashEndpointFor,
   PHOTODNA_ENDPOINT,
+  PHOTODNA_HASH_ENDPOINT,
+  PhotoDnaHashScanner,
   PHOTODNA_LIMITS,
   PhotoDnaScanner,
   scannerFromEnv,
@@ -149,5 +152,70 @@ describe('PhotoDNA', () => {
       scanner().scan({ ...input, bytes: Buffer.alloc(PHOTODNA_LIMITS.maxBytes + 1) }),
     ).rejects.toBeInstanceOf(ScanUnavailable);
     expect(sent).toHaveLength(0);
+  });
+});
+
+describe('PhotoDNA with Edge Hashes', () => {
+  // The approval letter's quick-start hash, which the live service answers as
+  // a match from the source "Test". Truncated: only its passage is tested here.
+  const TEST_HASH = 'UEROQQABAgAIT58oAAAAAAAAAADgAAAA4AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAw4A';
+  const hasher = (value = TEST_HASH) => ({ seen: [] as string[], async hash(i: { mime: string }) { this.seen.push(i.mime); return value; } });
+
+  function service(body: unknown, status = 200) {
+    const sent: { url: string; headers: Record<string, string>; body: unknown }[] = [];
+    vi.stubGlobal('fetch', async (url: URL | string, init: RequestInit) => {
+      sent.push({ url: String(url), headers: init.headers as Record<string, string>, body: JSON.parse(String(init.body)) });
+      return new Response(JSON.stringify(body), { status });
+    });
+    return sent;
+  }
+  const scanner = (h = hasher()) =>
+    scannerFromEnv({ CSAM_SCANNER_PROVIDER: 'photodna', CSAM_SCANNER_KEY: 'sub-key' }, { edgeHasher: h })!;
+
+  it('is chosen when the SDK is there, and the image client when it is not', () => {
+    expect(scanner()).toBeInstanceOf(PhotoDnaHashScanner);
+    expect(scannerFromEnv({ CSAM_SCANNER_PROVIDER: 'photodna', CSAM_SCANNER_KEY: 'k' })).toBeInstanceOf(PhotoDnaScanner);
+    expect(scannerFromEnv({ CSAM_SCANNER_PROVIDER: 'photodna' }, { edgeHasher: hasher() })).toBeNull();
+  });
+
+  it('sends the hash, never the image, to MatchHash in the shape the letter gives', async () => {
+    const sent = service([{ Status: { Code: 3000 }, IsMatch: false }]);
+    await expect(scanner().scan(input)).resolves.toEqual({ match: false });
+    expect(sent[0]!.url).toBe(PHOTODNA_HASH_ENDPOINT);
+    expect(sent[0]!.headers['Ocp-Apim-Subscription-Key']).toBe('sub-key');
+    expect(sent[0]!.headers['content-type']).toBe('application/json');
+    expect(sent[0]!.body).toEqual([{ DataRepresentation: 'PreHashV2', Value: TEST_HASH }]);
+    expect(JSON.stringify(sent[0]!.body)).not.toContain(input.bytes.toString('base64'));
+  });
+
+  it('reads a match from a list, from a list inside an object, or from one result', async () => {
+    const match = { Status: { Code: 3000 }, IsMatch: true, MatchDetails: { MatchFlags: [{ Source: 'Test' }] } };
+    service([match]);
+    await expect(scanner().scan(input)).resolves.toMatchObject({ match: true, classification: 'Test' });
+    service({ TrackingId: 'tr-9', MatchResults: [match] });
+    await expect(scanner().scan(input)).resolves.toEqual({ match: true, classification: 'Test', providerReference: 'tr-9' });
+    service(match);
+    await expect(scanner().scan(input)).resolves.toMatchObject({ match: true });
+  });
+
+  it('never reads an outage, an odd answer or a failed hash as clean', async () => {
+    service({ Status: { Code: 3002, Description: 'Invalid request' } });
+    await expect(scanner().scan(input)).rejects.toThrow(/3002: Invalid request/);
+    service([{ Status: { Code: 3000 } }]);
+    await expect(scanner().scan(input)).rejects.toThrow(/without IsMatch/);
+    service([]);
+    await expect(scanner().scan(input)).rejects.toThrow(/0 results for one hash/);
+    service({}, 429);
+    await expect(scanner().scan(input)).rejects.toThrow(/HTTP 429/);
+    const broken = { async hash(): Promise<string> { throw new Error('sdk not loaded'); } };
+    await expect(scanner(broken as never).scan(input)).rejects.toThrow(ScanUnavailable);
+    await expect(scanner(hasher('')).scan(input)).rejects.toThrow(/empty/);
+  });
+
+  it('keeps a regional host when it moves to the hash endpoint', () => {
+    expect(hashEndpointFor(undefined)).toBe(PHOTODNA_HASH_ENDPOINT);
+    expect(hashEndpointFor('https://uk-api.microsoftmoderator.com/photodna/v1.0/Match')).toBe(
+      'https://uk-api.microsoftmoderator.com/photodna/v1.0/MatchHash',
+    );
   });
 });

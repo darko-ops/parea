@@ -104,9 +104,13 @@ export {
 } from './alerts';
 export {
   type CsamScanner,
+  type EdgeHasher,
+  hashEndpointFor,
   HttpHashScanner,
   PHOTODNA_ENDPOINT,
+  PHOTODNA_HASH_ENDPOINT,
   PHOTODNA_LIMITS,
+  PhotoDnaHashScanner,
   PhotoDnaScanner,
   type ScanInput,
   type ScanLimits,

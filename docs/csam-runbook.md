@@ -123,9 +123,8 @@ preservation — do not wait for anyone.
 
 **Every child-safety incident is reported, or released as a false match,
 within 72 hours of `detected_at`.** This is a commitment made when applying
-for PhotoDNA: every match is reported through the PhotoDNA reporting API
-within 72 hours of the match response, and missing it can get the service
-suspended. US law asks for "as soon as reasonably possible"; this is the
+for PhotoDNA: every match is reported within 72 hours of the match response,
+and missing it can get the service suspended. US law asks for "as soon as reasonably possible"; this is the
 number that makes that checkable, and it applies to incidents opened by a
 user's report too.
 
@@ -143,9 +142,12 @@ from the Vercel cron `/api/cron/safety-deadlines` (hourly, at :40), not from
 the Fly jobs machine, so they do not depend on the job whose heartbeat is
 separately watched.
 
-A match from PhotoDNA is reported **through the PhotoDNA reporting API**, as
-agreed; a user report that proves real is reported through the CyberTipline
-directly. Both are recorded the same way, step 4 below.
+Every report — a PhotoDNA match and a user report that proves real alike —
+goes **directly to NCMEC**, through its CyberTipline with Parea's ESP account.
+PhotoDNA can also submit a report for us, but Microsoft's approval letter
+(2 October 2026) recommends sending to NCMEC directly, whose interface is the
+more complete one, and both routes need the same ESP account anyway. One
+route for every report also means one way to record it, step 4 below.
 
 ## If you get an alert
 
@@ -168,8 +170,10 @@ directly. Both are recorded the same way, step 4 below.
 
    Null the column and delete the object for each one. Do not open either
    image to decide — step 1 applies to these as much as to the photograph.
-3. **File within 72 hours of detection.** A PhotoDNA match through the
-   PhotoDNA reporting API; anything else through the NCMEC CyberTipline.
+3. **File within 72 hours of detection,** directly with the NCMEC
+   CyberTipline under Parea's ESP account, whatever opened the incident.
+   Quote the incident's `provider_reference` (PhotoDNA's `TrackingId`) when
+   it was a match.
    Involve counsel as they have directed in advance, but do not let that
    stretch the deadline above — the reminders will say how long is left.
 4. **Record the outcome.** Set `reported_at` and `report_reference` on the
@@ -190,7 +194,7 @@ too.
 
 None of these are code, and all of them gate shipping:
 
-- [x] A scanning provider chosen, onboarded, and credentialed — PhotoDNA, approved 2026-10-06. Keys still to be set on Vercel *and* the deriver. The code speaks
+- [x] A scanning provider chosen, onboarded, and credentialed — PhotoDNA, approved 2026-10-06, keys live on Vercel and the deriver. The code speaks
       to a generic hash-matching HTTP endpoint; which provider is appropriate
       depends on eligibility rather than anything technical. PhotoDNA Cloud
       Service, Thorn's Safer, Google's Content Safety API and Cloudflare's CSAM
@@ -234,6 +238,31 @@ would be an unexplained disappearance, and a test refuses one.
 | `CSAM_SCANNER_URL` | Provider endpoint. Required for the generic scanner; for PhotoDNA it only moves the call to a regional host (default `https://api.microsoftmoderator.com/photodna/v1.0/Match`). |
 | `CSAM_SCANNER_KEY` | The credential — for PhotoDNA, the subscription key from the portal, sent as `Ocp-Apim-Subscription-Key`. |
 | `CSAM_SCANNER_NAME` | Recorded on incidents, so old records say what checked them (generic scanner; PhotoDNA records `photodna`). |
+
+### PhotoDNA: Edge Hashes, not images
+
+Microsoft's approval letter says the cloud service is to be called with
+**PhotoDNA Edge Hashes** — about a kilobyte, made here with Microsoft's SDK,
+not reversible into the image — at `/MatchHash`, as
+`[{ "DataRepresentation": "PreHashV2", "Value": "<base64>" }]`, up to five a
+request. Today Parea still sends the image itself to `/Match`, which the
+service answers, but which is not the approved use and sends every photo to
+Microsoft.
+
+- **Done:** the client. `PhotoDnaHashScanner` in `packages/core/src/scanner.ts`
+  sends one hash per upload to `/MatchHash` and keeps the rule that anything
+  but a clear answer (status 3000 and `IsMatch`) is `ScanUnavailable`, so the
+  upload is not published. `scannerFromEnv` uses it whenever it is handed an
+  `EdgeHasher`, and the image client otherwise.
+- **Open:** the hasher. It needs the SDK (`PhotoDNA.EdgeHashGeneration`,
+  linked from the approval letter, behind the PhotoDNA console sign-in and its
+  own licence). Its WebAssembly module is the one that runs in both the
+  deriver on Fly and the web app on Vercel.
+- **Then, before switching:** our hashes checked against the SDK's own
+  samples, and the letter's test hash sent through the live service once —
+  it answers a match from the source "Test" — to confirm the key and the
+  answer's shape. The same hash run through the whole match path is how the
+  quarantine alert gets its first end-to-end test without any real material.
 | `MODERATOR_PROVIDER` | `sightengine` or `generic`. A named one brings its own endpoint. |
 | `MODERATOR_URL` | Classifier endpoint. Required for `generic`; overrides a named one. |
 | `MODERATOR_KEY` | Bearer credential for it. |
