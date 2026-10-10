@@ -176,6 +176,18 @@ route for every report also means one way to record it, step 4 below.
    it was a match.
    Involve counsel as they have directed in advance, but do not let that
    stretch the deadline above — the reminders will say how long is left.
+
+   **Until the ESP account is confirmed** (applied for 6 October 2026, not
+   yet confirmed): file through NCMEC's public CyberTipline form,
+   <https://report.cybertip.org>, which anyone may use, a company included.
+   The duty to report starts at knowledge, not at registration, and
+   PhotoDNA's 72 hours run either way — so do not hold a real match waiting
+   for the account. Give what the form asks for from the incident (what was
+   found, when, the uploader's account, PhotoDNA's `TrackingId`), never the
+   image itself unless NCMEC asks for it, and keep the confirmation number
+   it shows: that is the reference for step 4. Chase the account at
+   ESPteam@NCMEC.ORG; once it is active, file through it and drop this
+   paragraph.
 4. **Record the outcome.** Set `reported_at` and `report_reference` on the
    incident by hand. Setting `reported_at` starts the one-year preservation
    window (`PRESERVATION_DAYS` in `@parea/core`), after which the purge job
