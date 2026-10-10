@@ -105,6 +105,9 @@ export function __setQueueForTests(fake: Client | null): void {
  * minutes, so a resend carries its own; the stranded photo it is for has, by
  * definition, been waiting far longer than that.
  */
+/** Milliseconds before each retry: ×4 from fifteen seconds, never more than fifteen minutes. */
+export const RETRY_DELAY = 'min(900000, 15000 * pow(4, retried))';
+
 export async function publishDerive(photoId: string, resend?: string): Promise<PublishResult> {
   const client = queue();
   if (!client) return 'not-configured';
@@ -129,6 +132,16 @@ export async function publishDerive(photoId: string, resend?: string): Promise<P
      * they wait.
      */
     retries: 5,
+    /*
+     * And no wait longer than fifteen minutes between them: 15s, 1m, 4m, then
+     * 15m and 15m — about 35 minutes in all, after which the hourly
+     * stranded-photo resend has it. QStash's own backoff went 12s, 2m28s,
+     * 30m, 6h, which meant a photo held by a fault that was fixed a minute
+     * later sat at "Processing" for half an hour or more anyway: the first
+     * Edge Hash scan in production waited exactly that, the fix already
+     * deployed. `retried` counts from 0.
+     */
+    retryDelay: RETRY_DELAY,
     /*
      * At-least-once delivery means the same photo can arrive twice, and the
      * deduplication window is ten minutes. This narrows the common case — a
@@ -157,7 +170,7 @@ export async function publishDerive(photoId: string, resend?: string): Promise<P
      * The deriver is one machine that takes one photo at a time (`hard_limit`
      * in fly.toml) and spends about ten seconds on each. Without this, a
      * 22-photo upload published 22 deliveries at once; Fly's proxy refused
-     * all but one, and QStash's retries — 12s, then 2m28s, then 30 minutes —
+     * all but one, and QStash's retries — 12s, then 2m28s, then 30 minutes, as they were then —
      * left five photographs of a real roll unprocessed for half an hour. With
      * a flow-control key QStash queues them itself and hands over the next
      * one as the last finishes, so nothing is refused and nothing waits on a

@@ -34,8 +34,8 @@
  *   489  terminal, with `Upstash-NonRetryable-Error` — to the dead letter queue
  *   500  something broke — come back
  *
- * Anything that is not 2xx is retried on QStash's backoff: twelve seconds,
- * then two and a half minutes, then half an hour. The early attempts are the
+ * Anything that is not 2xx is retried: fifteen seconds, a minute, four, then
+ * every fifteen (`RETRY_DELAY` in the web app's queue.ts). The early attempts are the
  * useful ones, which is why 409 and 429 are answers rather than waits — a
  * handler that blocked until a slot freed would hold a request open doing
  * nothing and eventually time out, turning "busy" into "failed".

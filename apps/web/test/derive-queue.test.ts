@@ -26,6 +26,7 @@ import {
   DERIVE_PARALLELISM,
   deduplicationKey,
   publishDerive,
+  RETRY_DELAY,
 } from '../src/queue';
 
 afterEach(() => {
@@ -83,6 +84,21 @@ describe('what publishDerive sends', () => {
     const sent = publishJSON.mock.calls[0]![0] as { deduplicationId: string; body: unknown };
     expect(sent.deduplicationId).toMatch(SAFE);
     expect(sent.body).toEqual({ photoId: '0f870694-9e30-4f18-9201-8854445556b6' });
+  });
+
+  it('waits no more than fifteen minutes between retries', async () => {
+    const publishJSON = vi.fn().mockResolvedValue({ messageId: 'm1' });
+    __setQueueForTests({ publishJSON } as never);
+    vi.stubEnv('QSTASH_TOKEN', 'test-token');
+    vi.stubEnv('DERIVER_JOB_URL', 'https://deriver.example/job');
+    await publishDerive('0f870694-9e30-4f18-9201-8854445556b6');
+    const sent = publishJSON.mock.calls[0]![0] as { retries: number; retryDelay: string };
+    expect(sent).toMatchObject({ retries: 5, retryDelay: RETRY_DELAY });
+
+    // QStash's expression, evaluated the way it will be for retried = 0…4.
+    const delay = (retried: number) =>
+      Function('min', 'pow', 'retried', `return ${RETRY_DELAY}`)(Math.min, Math.pow, retried) as number;
+    expect([0, 1, 2, 3, 4].map(delay)).toEqual([15_000, 60_000, 240_000, 900_000, 900_000]);
   });
 
   it('is paced one at a time by QStash, matching what the deriver takes', async () => {
