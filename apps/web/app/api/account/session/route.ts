@@ -28,7 +28,13 @@ import { ageProof, checkAgeProof } from '@/age';
 import { checkBirth } from '@/birth';
 import { getDb } from '@/db';
 import { isSuspended } from '@/suspension';
-import { hasPasskey, passkeyOwnerHasAccount, verifyAuthentication } from '@/passkeys';
+import {
+  hasPasskey,
+  passkeyOwnerHasAccount,
+  PASSKEYS_RETIRED,
+  retiredResponse,
+  verifyAuthentication,
+} from '@/passkeys';
 import {
   SIGN_IN_VERIFY_ADDRESS_LIMIT,
   SIGN_IN_VERIFY_LIMIT,
@@ -98,6 +104,9 @@ export async function POST(request: Request) {
     /** `create` from the Create account form, which must not sign anybody in. */
     intent?: unknown;
   };
+
+  // Retired: a passkey still saved on a device no longer signs anybody in.
+  if (body.passkey && PASSKEYS_RETIRED) return retiredResponse();
 
   const db = getDb();
   const method = body.passkey ? 'passkey' : 'code';

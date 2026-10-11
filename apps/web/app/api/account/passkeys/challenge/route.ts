@@ -18,13 +18,14 @@
 import { NextResponse } from 'next/server';
 
 import { getDb } from '@/db';
-import { authenticationOptions } from '@/passkeys';
+import { authenticationOptions, PASSKEYS_RETIRED, retiredResponse } from '@/passkeys';
 import { PASSKEY_CHALLENGE_LIMIT, withinLimit } from '@/ratelimit';
 import { requestHost } from '@/session';
 
 export const runtime = 'nodejs';
 
 export async function POST() {
+  if (PASSKEYS_RETIRED) return retiredResponse();
   const db = getDb();
   // Bounds rows, not guesses. See the note on the limit: there is nothing to
   // brute-force here, and the table is what needs a ceiling.

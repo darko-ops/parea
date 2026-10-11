@@ -1,10 +1,9 @@
 /**
- * Where you are signed in, and what can sign you in — design §3.
+ * Where you are signed in — design §3.
  *
- * The app's half of the web's Devices screen, and deliberately the same two
- * lists in the same order, because they answer the same question: *what can get
- * into this account?* A session is a device that is already in; a passkey is a
- * device that can let itself in whenever it likes.
+ * The app's half of the web's Devices screen: every device that is in this
+ * account, and the way to end any of them. The second list, of passkeys, went
+ * when passkeys were retired; a code to your email is the only way in now.
  *
  * A card rather than a screen with a route. It is reached from one button on the
  * profile tab and left by one button on itself — a destination in the navigator
@@ -16,11 +15,9 @@ import { ago } from '@parea/cards';
 import { useCallback, useEffect, useState } from 'react';
 import { Alert, Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 
-import { ApiError, isStaleSignIn, type Api, type DeviceListing, type PasskeyListing } from './api';
+import { ApiError, isStaleSignIn, type Api, type DeviceListing } from './api';
 import type { TabTheme } from './Events';
-import { passkeysSupported } from './passkeys';
 import { saveActorToken } from './platform';
-import { addPasskey } from './signin';
 
 /** A sign-out waiting on a fresh sign-in. */
 type Pending = { kind: 'one'; device: DeviceListing } | { kind: 'others' };
@@ -59,7 +56,6 @@ export function DevicesCard({
   onDone: () => void;
 }) {
   const [devices, setDevices] = useState<DeviceListing[] | null>(null);
-  const [passkeys, setPasskeys] = useState<PasskeyListing[] | null>(null);
   const [manageable, setManageable] = useState(true);
   const [busy, setBusy] = useState(false);
   const [note, setNote] = useState<string | null>(null);
@@ -72,32 +68,10 @@ export function DevicesCard({
    */
   const [now, setNow] = useState(() => new Date());
 
-  /*
-   * Whether this build can make a passkey, which is not the same as whether the
-   * account can have one.
-   *
-   * The list below is plain HTTP and works everywhere — a passkey added in a
-   * browser shows here, and can be removed here, on a build that could never
-   * have created it. Only the making needs native code. So the section stays
-   * and the button goes, which is the honest split: the thing you cannot do is
-   * the thing that is missing.
-   *
-   * Decided after the first paint rather than during render: the check reaches
-   * for a native module, and render happens again on every press.
-   */
-  const [canAdd, setCanAdd] = useState(false);
-  useEffect(() => {
-    setCanAdd(passkeysSupported());
-  }, []);
-
   const load = useCallback(async () => {
-    const [sessions, keys] = await Promise.all([
-      api.devices().catch(() => ({ devices: [], manageable: true })),
-      api.passkeys().catch(() => ({ passkeys: [] })),
-    ]);
+    const sessions = await api.devices().catch(() => ({ devices: [], manageable: true }));
     setDevices(sessions.devices);
     setManageable(sessions.manageable !== false);
-    setPasskeys(keys.passkeys);
     setNow(new Date());
   }, [api]);
 
@@ -271,52 +245,6 @@ export function DevicesCard({
     setCode('');
   }, []);
 
-  const add = useCallback(async () => {
-    setBusy(true);
-    setNote(null);
-    try {
-      const outcome = await addPasskey(api);
-      if (!outcome.ok) {
-        // A null note is a cancellation, and says nothing.
-        if (outcome.note) setNote(outcome.note);
-        return;
-      }
-      await load();
-      setNote('Passkey added. This phone can sign you in now.');
-    } finally {
-      setBusy(false);
-    }
-  }, [api, load]);
-
-  const removeKey = useCallback(
-    (passkey: PasskeyListing) => {
-      Alert.alert(
-        'Remove this passkey?',
-        // Said every time, because it is the thing that makes removing one safe
-        // to do: a code to the inbox is never taken away.
-        `${passkey.label ?? 'This passkey'} will stop signing you in. A code to your email still works.`,
-        [
-          { text: 'Cancel', style: 'cancel' },
-          {
-            text: 'Remove',
-            style: 'destructive',
-            onPress: async () => {
-              setBusy(true);
-              try {
-                await api.removePasskey(passkey.id).catch(() => {});
-                await load();
-                setNote('Passkey removed.');
-              } finally {
-                setBusy(false);
-              }
-            },
-          },
-        ],
-      );
-    },
-    [api, load],
-  );
-
   // Counted in sessions, not rows: this phone's row can stand for siblings
   // that only "everywhere else" reaches.
   const others = (devices ?? []).reduce(
@@ -443,62 +371,6 @@ export function DevicesCard({
             t={t}
             disabled={busy}
           />
-        )}
-      </View>
-
-      <View style={[styles.card, { backgroundColor: t.card, borderColor: t.line }]}>
-        <Text style={[styles.label, { color: t.fg }]}>Passkeys</Text>
-        <Text style={[styles.small, { color: t.dim }]}>
-          A passkey lets this phone sign you in with Face ID instead of a code
-          from your inbox. A code always works too — removing every passkey does
-          not lock you out.
-        </Text>
-
-        {passkeys?.map((passkey) => (
-          <View key={passkey.id} style={[styles.row, { borderTopColor: t.line }]}>
-            <View style={styles.rowText}>
-              <Text style={[styles.rowName, { color: t.fg }]}>
-                {passkey.label ?? 'A passkey'}
-              </Text>
-              <Text style={[styles.small, { color: t.dim }]}>
-                {/* Whether it is synced decides whether losing the device loses
-                    the key, which is the only thing about it worth printing. */}
-                {passkey.backedUp ? 'Saved to your keychain' : 'On one device only'}
-                {' · '}
-                {passkey.lastUsedAt
-                  ? `last used ${ago(new Date(passkey.lastUsedAt), now)}`
-                  : 'never used'}
-              </Text>
-            </View>
-            <Button label="Remove" onPress={() => removeKey(passkey)} t={t} disabled={busy} />
-          </View>
-        ))}
-
-        {passkeys?.length === 0 && (
-          <Text style={[styles.small, { color: t.dim }]}>No passkeys yet.</Text>
-        )}
-
-        {canAdd ? (
-          <Button
-            label={busy ? 'Working…' : 'Add a passkey'}
-            onPress={add}
-            t={t}
-            disabled={busy}
-          />
-        ) : (
-          /*
-           * A button that cannot work is worse than a sentence saying why.
-           *
-           * This build has no passkey module — it predates one, or it is Expo
-           * Go — so the ceremony would fail at the last step, after asking. The
-           * web can still make one, and it will appear in the list above on
-           * this phone, because the list is about the account rather than about
-           * this app.
-           */
-          <Text style={[styles.small, { color: t.dim }]}>
-            This version of the app cannot create passkeys yet. Adding one at
-            parea.photos in a browser works, and it will show here.
-          </Text>
         )}
       </View>
 

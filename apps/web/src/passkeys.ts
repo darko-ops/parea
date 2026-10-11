@@ -49,9 +49,24 @@ import type {
   RegistrationResponseJSON,
 } from '@simplewebauthn/server';
 import { and, eq, isNull, lt, sql } from 'drizzle-orm';
+import { NextResponse } from 'next/server';
 
 import type { Db } from './db';
 import { androidFingerprints } from './deeplinks';
+
+/**
+ * Passkeys are retired: an email code is the only way in.
+ *
+ * Signing in with one and adding one are both refused with
+ * `passkeys_retired` (410) while the rest of this file waits to be deleted
+ * with the next native build, which drops the app's passkey module too. Keys
+ * already saved stay in the table, unused, until that migration drops it.
+ */
+export const PASSKEYS_RETIRED = true;
+
+export function retiredResponse() {
+  return NextResponse.json({ error: 'passkeys_retired' }, { status: 410 });
+}
 
 /** Long enough to find the button, short enough that a captured one is stale. */
 export const CHALLENGE_TTL_MS = 5 * 60_000;

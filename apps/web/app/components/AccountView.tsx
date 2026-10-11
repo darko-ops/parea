@@ -368,11 +368,10 @@ export function AccountView() {
           scale of every device rather than this one.
         */}
         <section className="panel">
-          <h2>Devices and passkeys</h2>
+          <h2>Devices</h2>
           <p className="muted">
-            Everywhere your account is signed in, and the passkeys that can sign
-            it in. Sign out a device you have lent or lost, or add a passkey so
-            this browser lets you straight in.
+            Everywhere your account is signed in. Sign out a device you have
+            lent or lost.
           </p>
           <div className="row">
             <button className="secondary" onClick={() => setView('devices')}>

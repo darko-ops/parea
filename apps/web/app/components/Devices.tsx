@@ -1,13 +1,11 @@
 'use client';
 
 /**
- * Where you are signed in, and what can sign you in — design §3.
+ * Where you are signed in — design §3.
  *
- * Two lists on one screen, because they are two answers to one question:
- * *what can get into this account?* A session is a device that is already in;
- * a passkey is a device that can let itself in whenever it likes. Splitting
- * them across two screens would mean somebody who revoked every session still
- * had a key they never saw.
+ * Every device that is in this account, and the way to end any of them. There
+ * used to be a second list here, of passkeys; they were retired, and a code to
+ * your email is the only way in now.
  *
  * ## Every row can be ended, including the one being read
  *
@@ -19,8 +17,6 @@
 
 import { ago } from '@parea/cards';
 import { useCallback, useEffect, useState } from 'react';
-
-import { addPasskey, CANCELLED, passkeysAvailable } from './passkey';
 
 type Device = {
   id: string;
@@ -36,14 +32,6 @@ type Device = {
 
 /** A sign-out waiting on a fresh sign-in. */
 type Pending = { kind: 'one'; device: Device } | { kind: 'others' };
-
-type Passkey = {
-  id: string;
-  label: string | null;
-  backedUp: boolean;
-  createdAt: string;
-  lastUsedAt: string | null;
-};
 
 /**
  * How somebody got in, in words.
@@ -61,7 +49,6 @@ function howIn(method: Device['method']): string {
 
 export function Devices({ onDone }: { onDone: () => void }) {
   const [devices, setDevices] = useState<Device[] | null>(null);
-  const [passkeys, setPasskeys] = useState<Passkey[] | null>(null);
   const [manageable, setManageable] = useState(true);
   const [busy, setBusy] = useState(false);
   const [note, setNote] = useState<string | null>(null);
@@ -77,30 +64,18 @@ export function Devices({ onDone }: { onDone: () => void }) {
    * `new Date()` makes the server's HTML and the client's disagree.
    */
   const [now, setNow] = useState<Date | null>(null);
-  /*
-   * Whether this browser can make a passkey, decided after mount.
-   *
-   * `passkeysAvailable` reads `window`, which does not exist while this renders
-   * on the server — calling it during render would produce markup the client
-   * disagrees with. Null draws no button, which is the right first frame either
-   * way.
-   */
-  const [canPasskey, setCanPasskey] = useState(false);
   useEffect(() => {
     setNow(new Date());
-    setCanPasskey(passkeysAvailable());
   }, []);
 
   const load = useCallback(async () => {
-    const [sessions, keys, me] = await Promise.all([
+    const [sessions, me] = await Promise.all([
       fetch('/api/account/devices').then((r) => r.json()).catch(() => ({ devices: [] })),
-      fetch('/api/account/passkeys').then((r) => r.json()).catch(() => ({ passkeys: [] })),
       fetch('/api/account/session').then((r) => r.json()).catch(() => ({ account: null })),
     ]);
     setEmail(me.account?.email ?? null);
     setDevices(sessions.devices ?? []);
     setManageable(sessions.manageable !== false);
-    setPasskeys(keys.passkeys ?? []);
   }, []);
 
   useEffect(() => {
@@ -261,37 +236,6 @@ export function Devices({ onDone }: { onDone: () => void }) {
     setCode('');
   }, []);
 
-  const add = useCallback(async () => {
-    setBusy(true);
-    setNote(null);
-    try {
-      const result = await addPasskey();
-      if (!result.ok) {
-        if (result.message !== CANCELLED) setNote(result.message as string);
-        return;
-      }
-      await load();
-      setNote('Passkey added. This device can sign you in now.');
-    } finally {
-      setBusy(false);
-    }
-  }, [load]);
-
-  const removeKey = useCallback(
-    async (passkey: Passkey) => {
-      if (!confirm(`Remove the passkey on ${passkey.label ?? 'this device'}?`)) return;
-      setBusy(true);
-      try {
-        await fetch(`/api/account/passkeys/${passkey.id}`, { method: 'DELETE' });
-        await load();
-        setNote('Passkey removed.');
-      } finally {
-        setBusy(false);
-      }
-    },
-    [load],
-  );
-
   // Counted in sessions, not rows: the current row can stand for siblings that
   // only "everywhere else" reaches.
   const others = (devices ?? []).reduce(
@@ -392,49 +336,6 @@ export function Devices({ onDone }: { onDone: () => void }) {
           <div className="row" style={{ marginTop: 16 }}>
             <button className="secondary" onClick={endOthers} disabled={busy}>
               Sign out everywhere else
-            </button>
-          </div>
-        )}
-      </section>
-
-      <section className="panel">
-        <h2>Passkeys</h2>
-        <p className="muted">
-          A passkey lets a device sign you in with Face ID, Touch ID or its
-          screen lock, instead of a code from your inbox. A code always works
-          too — removing every passkey does not lock you out.
-        </p>
-
-        {passkeys?.map((passkey) => (
-          <div className="device-row" key={passkey.id}>
-            <div>
-              <p className="device-name">{passkey.label ?? 'A passkey'}</p>
-              <p className="device-detail">
-                {/* Whether it is synced decides whether losing the device loses
-                    the key, which is the only thing about it worth printing. */}
-                {passkey.backedUp ? 'Saved to your keychain' : 'On this device only'}
-                {now &&
-                  ` · ${
-                    passkey.lastUsedAt
-                      ? `last used ${ago(new Date(passkey.lastUsedAt), now)}`
-                      : 'never used'
-                  }`}
-              </p>
-            </div>
-            <button className="secondary" onClick={() => removeKey(passkey)} disabled={busy}>
-              Remove
-            </button>
-          </div>
-        ))}
-
-        {passkeys?.length === 0 && <p className="muted">No passkeys yet.</p>}
-
-        {/* Drawn only where one could actually be made. A button that can only
-            fail is worse than the sentence explaining its absence. */}
-        {canPasskey && (
-          <div className="row" style={{ marginTop: 16 }}>
-            <button onClick={add} disabled={busy}>
-              {busy ? 'Working…' : 'Add a passkey'}
             </button>
           </div>
         )}

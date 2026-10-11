@@ -62,8 +62,8 @@ describe('the card', () => {
 });
 
 describe('where it lives', () => {
-  it('opens from the signed-in card, beside devices and passkeys', () => {
-    const tail = between(EVENTS, '<Button label="Devices and passkeys"', '</View>');
+  it('opens from the signed-in card, beside devices', () => {
+    const tail = between(EVENTS, '<Button label="Devices"', '</View>');
     expect(tail).toMatch(/<Button label="Blocked" onPress=\{\(\) => setBlocking\(true\)\}/);
     expect(tail).toMatch(/\{blocking && \(\s*<BlockedCard api=\{api\} t=\{t\} Button=\{Button\}/);
   });

@@ -12,7 +12,7 @@ import { eq } from 'drizzle-orm';
 import { NextResponse } from 'next/server';
 
 import { getDb } from '@/db';
-import { registrationOptions } from '@/passkeys';
+import { PASSKEYS_RETIRED, registrationOptions, retiredResponse } from '@/passkeys';
 import { PASSKEY_CHALLENGE_LIMIT, withinLimit } from '@/ratelimit';
 import { currentActorId, currentSessionId, requestHost } from '@/session';
 import { signedInRecently } from '@/sessions';
@@ -20,6 +20,7 @@ import { signedInRecently } from '@/sessions';
 export const runtime = 'nodejs';
 
 export async function POST(request: Request) {
+  if (PASSKEYS_RETIRED) return retiredResponse();
   const actorId = await currentActorId();
   if (!actorId) return NextResponse.json({ error: 'sign_in_required' }, { status: 401 });
 

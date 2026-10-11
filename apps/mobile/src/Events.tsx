@@ -87,8 +87,7 @@ import {
 import { BlockedCard } from './Blocked';
 import { DevicesCard } from './Devices';
 import { birthFieldsNeeded, birthValue } from './birth';
-import { passkeysSupported } from './passkeys';
-import { signInWithPasskey, SUSPENDED_NOTE } from './signin';
+import { SUSPENDED_NOTE } from './signin';
 import { Waiting } from './Waiting';
 
 export type TabTheme = GroupTheme;
@@ -3310,31 +3309,6 @@ export function AccountCard({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  /*
-   * Whether to offer Face ID at all, decided after the first paint.
-   *
-   * False in Expo Go, in a build older than the native module, on an OS without
-   * the APIs, and on a phone with no biometrics or passcode set. All four want
-   * the same thing from this card: show the code and say nothing about
-   * passkeys — which is why this gates the button rather than being reported as
-   * a problem.
-   *
-   * ## Why an effect and not a plain call
-   *
-   * `passkeysSupported` reaches for a native module the first time it is asked,
-   * and on a build without one that attempt fails. Failing is fine and handled;
-   * doing it *during render* is not. Render runs again on every state change —
-   * every keystroke in the address field, every button on this card — so a
-   * module load on that path is a load attempted over and over, and anything it
-   * logs on the way past is logged over and over with it.
-   *
-   * After the commit it happens once, the answer is state, and the render body
-   * goes back to being a function of its inputs.
-   */
-  const [canPasskey, setCanPasskey] = useState(false);
-  useEffect(() => {
-    setCanPasskey(passkeysSupported());
-  }, []);
   /**
    * A first account asks for a date of birth once the code is proved — see
    * `@/age` on the server. The proof lets the date go back without a second
@@ -3567,33 +3541,6 @@ export function AccountCard({
       setBusy(false);
     }
   }, [ageProof, api, day, email, finish, month, name, year]);
-
-  const withPasskey = useCallback(async () => {
-    setBusy(true);
-    setError(null);
-    try {
-      const outcome = await signInWithPasskey(api);
-      if (!outcome.ok) {
-        // A null note is a cancellation. They dismissed the sheet, and a red
-        // line about it reads as a fault in the thing they declined.
-        if (outcome.note) setError(outcome.note);
-        return;
-      }
-
-      await saveActorToken(outcome.value.actorToken);
-      void rememberAccount();
-      setAccount({ email: outcome.value.email });
-      if (outcome.value.merged) {
-        Alert.alert(
-          'Signed in',
-          'This phone has joined your account. Everything you added here is now part of it.',
-        );
-      }
-      onSignedIn();
-    } finally {
-      setBusy(false);
-    }
-  }, [api, onSignedIn]);
 
   /**
    * Signing out, with the cost said out loud first.
@@ -3919,9 +3866,8 @@ export function AccountCard({
             plain buttons — a filled one here would be the loudest thing on a
             tab whose point is the events. */}
         {/* Above both, because it is the one of the three that is not about
-            ending something: it is where somebody checks what is signed in and
-            adds a passkey. */}
-        <Button label="Devices and passkeys" onPress={() => setManaging(true)} t={t} />
+            ending something: it is where somebody checks what is signed in. */}
+        <Button label="Devices" onPress={() => setManaging(true)} t={t} />
         {/* Next to devices because it answers the same kind of question — who
             can reach you — and is visited about as often. */}
         <Button label="Blocked" onPress={() => setBlocking(true)} t={t} />
@@ -4057,21 +4003,6 @@ export function AccountCard({
         </Text>
       )}
 
-      {/*
-        Second, and only where it can work: under Sign in, on a phone that has
-        held an account before, with a build that can do passkeys.
-      */}
-      {!creating && returning && canPasskey && !sent && (
-        <>
-          <Text style={[styles.small, { color: t.dim, textAlign: 'center' }]}>or</Text>
-          <Button
-            label={busy ? 'Working…' : 'Sign in with Face ID'}
-            onPress={withPasskey}
-            disabled={busy}
-            t={t}
-          />
-        </>
-      )}
     </View>
   );
 }

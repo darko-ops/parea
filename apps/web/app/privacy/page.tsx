@@ -165,20 +165,21 @@ export default function PrivacyPage() {
             person who made the roll can do it.
           </p>
 
-          <h3>A passkey, if you add one</h3>
+          <h3>Passkeys, which we no longer offer</h3>
           <p className="muted">
-            A passkey lets your device sign you in with Face ID, Touch ID or its
-            screen lock instead of a code. What is kept here is the{' '}
-            <em>public</em> half of it, which can verify that your device signed
-            something and cannot be used to sign anything &mdash; the private
-            half never leaves your device, and we never see it. Alongside it: a
-            label so you can tell one from another, and when it was last used.
+            Parea used to let you add a passkey &mdash; Face ID, Touch ID or a
+            screen lock instead of a code. It no longer does, and a passkey no
+            longer signs anybody in: a code to your inbox is the only way in. If
+            you added one, we still hold the <em>public</em> half of it (which
+            cannot be used to sign anything), its label and when it was last
+            used, unused, until we delete them all; the private half never left your
+            device. You can remove the passkey from your device&rsquo;s password
+            settings whenever you like.
           </p>
           <p className="muted">
-            While a passkey sign-in is happening, a random one-time challenge is
-            stored for five minutes so that the answer can be checked against
-            it, and is then spent. Adding a passkey is optional, removing them
-            all is allowed, and a code to your inbox always works.
+            During a passkey sign-in a random one-time challenge is stored for
+            five minutes and then spent. With passkey sign-ins refused, none
+            are made any more.
           </p>
 
           <h3>A display name, if you give one</h3>
@@ -751,18 +752,15 @@ export default function PrivacyPage() {
               they contain no address.
             </li>
             <li>
-              <strong>Passkey sign-in challenges</strong> &mdash; five minutes,
-              and they work once.
-            </li>
-            <li>
               <strong>Where you are signed in</strong> &mdash; until you sign
               that device out, or it goes unused for longer than the sign-in
               itself lasts. A device you sign out stays on the list, marked, for
               a week, so you can see that it worked.
             </li>
             <li>
-              <strong>Passkeys</strong> &mdash; until you remove one, or delete
-              your account, which removes all of them.
+              <strong>Passkeys</strong> &mdash; no longer added. Any saved
+              before are kept, unused, until we delete them all or you delete
+              your account, which removes yours.
             </li>
             <li>
               <strong>Rolls</strong> &mdash; until the roll is deleted, which

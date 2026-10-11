@@ -38,7 +38,6 @@ describe('where signing in lands', () => {
   it('tells the page whether the account was made just now', () => {
     expect(CARD).toMatch(/onSignedIn: \(outcome: \{ created: boolean \}\) => void \| Promise<void>;/);
     expect(CARD).toContain('await onSignedIn({ created: result.created });');
-    expect(CARD).toContain('await onSignedIn({ created: false });');
   });
 
   it('sends somebody signing back in to their home, not the Create Roll form', () => {

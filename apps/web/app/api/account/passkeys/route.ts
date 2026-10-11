@@ -10,7 +10,7 @@ import { eq } from 'drizzle-orm';
 import { NextResponse } from 'next/server';
 
 import { getDb } from '@/db';
-import { listPasskeys, verifyRegistration } from '@/passkeys';
+import { listPasskeys, PASSKEYS_RETIRED, retiredResponse, verifyRegistration } from '@/passkeys';
 import { signedInRecently } from '@/sessions';
 import {
   currentAccountActorId,
@@ -40,6 +40,7 @@ export async function GET() {
  * disagree with the first.
  */
 export async function POST(request: Request) {
+  if (PASSKEYS_RETIRED) return retiredResponse();
   const actorId = await currentActorId();
   if (!actorId) return NextResponse.json({ error: 'sign_in_required' }, { status: 401 });
 

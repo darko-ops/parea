@@ -770,8 +770,7 @@ export async function markLibraryAsked(): Promise<void> {
  */
 /**
  * This phone has been signed in to an account at least once — the condition
- * for offering Face ID sign-in, and for opening on Sign in rather than Create
- * account. Not cleared by `signOutDevice`, because signed out is exactly when
+ * for opening on Sign in rather than Create account. Not cleared by `signOutDevice`, because signed out is exactly when
  * it is read.
  */
 const HAD_ACCOUNT_KEY = 'parea.had-account';

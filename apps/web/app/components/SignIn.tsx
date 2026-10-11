@@ -13,37 +13,27 @@
  * rather than keeping a second copy. That page owns everything *around* signing
  * in — what you are in, deleting the account — and none of it belongs here.
  *
- * ## Sign in, or create an account — and a passkey only after there is one
+ * ## Sign in, or create an account
  *
- * This used to open on two equal ways in, a passkey above an email form, and
- * somebody who had never made an account had no way to tell which was theirs —
- * a passkey cannot exist before an account does, so the first button on the
- * screen was one a newcomer could only fail at.
- *
- * So the card asks the question a person can answer: are you signing in, or
+ * The card asks the question a person can answer: are you signing in, or
  * making an account? Both are an email and a code underneath — the server makes
  * the account at the first code to a new address — but saying which is which
  * lets each say only what it needs to.
- *
- * A passkey is offered only under Sign in, and only in a browser that has been
- * signed in to an account before (`HAD_ACCOUNT_KEY`). Anywhere else it is a
- * button that can only fail. Somebody whose passkey syncs to a browser this
- * one has never seen signs in with a code once, and it appears after that.
  *
  * Signing in with an address that has no account does not quietly make one:
  * it says so, and offers to. Making an account with an address that already has
  * one simply signs in — there is nothing to refuse.
  *
- * Adding a passkey never happens here. Signing in is the email and the code;
- * somebody who wants it faster adds one under Devices and passkeys, and from
- * then on the button below is theirs to use.
+ * The code is the only way in. There was a passkey button under Sign in; it
+ * was retired because a second way in, with its own Face ID prompt, was more
+ * to understand than it saved.
  */
 
 import { useCallback, useEffect, useState } from 'react';
 
 import { birthFieldsNeeded, birthValue } from '@/birth';
 
-import { CANCELLED, passkeysAvailable, signInWithPasskey, SUSPENDED_NOTE } from './passkey';
+import { SUSPENDED_NOTE } from './passkey';
 
 type Stage = 'email' | 'code' | 'missing' | 'exists' | 'age' | 'refused';
 
@@ -52,8 +42,7 @@ type Mode = 'signin' | 'create';
 
 /**
  * This browser has been signed in to an account at least once — the condition
- * for the passkey button, and for opening on Sign in rather than Create
- * account. Kept through sign-out, which is exactly when it matters. A hint and
+ * for opening on Sign in rather than Create account. Kept through sign-out, which is exactly when it matters. A hint and
  * not a lock: clearing it only means seeing Create account first.
  */
 const HAD_ACCOUNT_KEY = 'parea.had-account';
@@ -128,7 +117,7 @@ export function SignIn({
 }) {
   const [stage, setStage] = useState<Stage>('email');
   const [mode, setMode] = useState<Mode>('create');
-  /** See `HAD_ACCOUNT_KEY`. Read after mount, for the reason `canPasskey` is. */
+  /** See `HAD_ACCOUNT_KEY`. Read after mount: localStorage is not on the server. */
   const [returning, setReturning] = useState(false);
   const [email, setEmail] = useState('');
   const [code, setCode] = useState('');
@@ -148,22 +137,10 @@ export function SignIn({
   const [name, setName] = useState('');
   const [agreed, setAgreed] = useState(false);
 
-  /*
-   * Whether to draw the passkey button, decided after mount.
-   *
-   * Not during render: `window.PublicKeyCredential` does not exist on the
-   * server, so a component that reads it while rendering produces markup the
-   * client disagrees with. Null is "not yet", and draws nothing — a button that
-   * appears a frame late is better than a hydration mismatch on the sign-in
-   * screen.
-   */
-  const [canPasskey, setCanPasskey] = useState<boolean | null>(null);
-
   useEffect(() => {
     const before = hadAccount();
     setReturning(before);
     if (before) setMode('signin');
-    setCanPasskey(passkeysAvailable());
   }, []);
 
   const request = useCallback(async () => {
@@ -326,29 +303,6 @@ export function SignIn({
       setBusy(false);
     }
   }, [birthDate, email, finish, name, proof]);
-
-  /**
-   * Signing in with a passkey, which is one press and no form.
-   */
-  const withPasskey = useCallback(async () => {
-    setBusy(true);
-    setError(null);
-    try {
-      const result = await signInWithPasskey();
-      if (!result.ok) {
-        // A cancellation says nothing. They pressed Escape, and a red line
-        // about it reads as a fault in the thing they decided against.
-        if (result.message !== CANCELLED) setError(result.message);
-        return;
-      }
-      setMerged(result.value.merged);
-      rememberAccount();
-      // A passkey belongs to an account that already exists.
-      await onSignedIn({ created: false });
-    } finally {
-      setBusy(false);
-    }
-  }, [onSignedIn]);
 
   /*
    * A first account: the date of birth, and the terms, on one screen.
@@ -618,21 +572,6 @@ export function SignIn({
           </button>
         )}
       </div>
-
-      {/*
-        Second, smaller, and only where it can work: under Sign in, in a browser
-        that has held an account before. See `HAD_ACCOUNT_KEY`.
-      */}
-      {!creating && returning && canPasskey && stage === 'email' && (
-        <>
-          <p className="signin-or">or</p>
-          <div className="row">
-            <button type="button" className="secondary" onClick={withPasskey} disabled={busy}>
-              Sign in with a passkey
-            </button>
-          </div>
-        </>
-      )}
 
       {merged && (
         // Said rather than done quietly: everything added in this browser has
