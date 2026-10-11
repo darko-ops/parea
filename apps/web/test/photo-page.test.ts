@@ -429,10 +429,23 @@ describe('the photograph full screen', () => {
  * picture off the middle.
  */
 describe('the photograph page on a phone', () => {
-  it('pins the tools to the right edge on the heart’s row, whatever the picture', () => {
+  it('offers the app\'s ripple between the star and the paper plane', () => {
+    // Star, then share as a moment, then send to a chat — one column on a
+    // desktop, and the left end of the heart's row on a phone.
+    const star = VIEW.indexOf('<Star');
+    const moment = VIEW.indexOf('<ShareAsMoment photoId={photo.id} />');
+    const send = VIEW.indexOf('<SendToChat sending={{ photoId: photo.id }} />');
+    expect(star).toBeGreaterThan(-1);
+    expect(moment).toBeGreaterThan(star);
+    expect(send).toBeGreaterThan(moment);
+  });
+
+  it('spreads the tools to both ends of the heart’s row, whatever the picture', () => {
     const phone = CSS.slice(CSS.indexOf('.photo-col { position: relative; padding-bottom: 56px; }'));
     expect(phone).toMatch(/^\.photo-col \{ position: relative; padding-bottom: 56px; \}\s*\.photo-stage \{ position: static; \}/);
-    expect(phone).toMatch(/\.photo-side \{\s*top: calc\(var\(--photo-h\) \+ 12px\); left: auto; right: 0; bottom: auto;\s*flex-direction: row;/);
+    expect(phone).toMatch(/\.photo-side \{\s*top: calc\(var\(--photo-h\) \+ 12px\); left: 0; right: 0; bottom: auto;\s*flex-direction: row; justify-content: space-between; pointer-events: none;/);
+    // Keeping, sharing and sending at the left; the file and its menu at the right.
+    expect(phone).toMatch(/\.photo-side-say, \.photo-side-file \{\s*display: flex; flex-direction: row; gap: 2px; pointer-events: auto;/);
     expect(phone).toMatch(/\.photo-stage \.photo-by \{\s*top: calc\(var\(--photo-h\) \+ 12px \+ 34px \+ 12px\); left: 0; right: 0;/);
     expect(CSS).not.toMatch(/max-height: calc\(var\(--photo-h\) - 100px\)/);
   });

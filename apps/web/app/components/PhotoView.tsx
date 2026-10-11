@@ -34,6 +34,7 @@ import type { PhotoReaction } from '@/photoReactions';
 import { Face } from './Faces';
 import { PhotoReactions } from './PhotoReactions';
 import { SendToChat } from './SendToChat';
+import { ShareAsMoment } from './ShareAsMoment';
 import { Star } from './Star';
 import { Menu } from './Menu';
 import { Thread } from './Thread';
@@ -275,6 +276,13 @@ export function PhotoView({
 
                   <span className="photo-side">
                     {/*
+                      Two groups, one column on a desktop and the two ends of a
+                      row on a phone: what you do with the picture — keep it,
+                      share it, send it — and the file and its menu. See
+                      `.photo-side-say`.
+                    */}
+                    <span className="photo-side-say">
+                    {/*
                       The favourite, first of these.
 
                       Before Download because it is the one somebody does *while
@@ -288,8 +296,14 @@ export function PhotoView({
                       canKeep={photo.canKeep}
                     />
 
+                    {/* Share it as a moment: the app's ripple, under the star. */}
+                    {canPost && <ShareAsMoment photoId={photo.id} />}
+
                     {/* Send it into a chat: the app's paper plane, before Download. */}
                     {canPost && <SendToChat sending={{ photoId: photo.id }} />}
+                    </span>
+
+                    <span className="photo-side-file">
 
                     <a
                       className="photo-icon"
@@ -311,6 +325,7 @@ export function PhotoView({
                       full={photo.full}
                       onGone={() => location.assign(next ? href(next.id) : previous ? href(previous.id) : eventHref)}
                     />
+                    </span>
                   </span>
 
                   {/*

@@ -3611,6 +3611,9 @@ button.small { padding: 7px 11px; font-size: 13px; border-radius: 8px; }
   position: absolute; left: calc(100% + 12px); bottom: 0;
   display: flex; flex-direction: column; gap: 6px;
 }
+/* One column on a desktop, so the two groups are just its items — star,
+   moment, send, then download and the menu. A phone splits them; see below. */
+.photo-side-say, .photo-side-file { display: contents; }
 /* Out to the left from the bottom of the column, over the picture, rather
    than up over the icons above it. */
 .photo-side .dots-body { top: auto; bottom: 0; right: calc(100% + 8px); }
@@ -3846,12 +3849,18 @@ button.photo-icon { background: transparent; padding: 0; cursor: pointer; font: 
   .photo-frame-sided { padding-inline: 0; }
   .photo-col { position: relative; padding-bottom: 56px; }
   .photo-stage { position: static; }
+  /* Across the whole row, the heart centred between its two ends: keeping,
+     sharing and sending on the left, the file and its menu on the right. The
+     row lets taps through to the heart; only its two groups take them. */
   .photo-side {
-    top: calc(var(--photo-h) + 12px); left: auto; right: 0; bottom: auto;
-    flex-direction: row; gap: 2px;
+    top: calc(var(--photo-h) + 12px); left: 0; right: 0; bottom: auto;
+    flex-direction: row; justify-content: space-between; pointer-events: none;
   }
-  /* Four of them and a heart centred beside them, on a 360px screen: 32px
-     discs are what keeps the row clear of the heart. */
+  .photo-side-say, .photo-side-file {
+    display: flex; flex-direction: row; gap: 2px; pointer-events: auto;
+  }
+  /* Three on one side and two on the other, with a heart centred between, on
+     a 360px screen: 32px discs are what keeps both clear of the heart. */
   .photo-side .photo-icon, .photo-side .dots-quiet { width: 32px; height: 32px; }
   .photo-side .dots-body { right: 0; bottom: calc(100% + 8px); }
   .photo-stage .photo-by {
