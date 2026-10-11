@@ -642,10 +642,10 @@ describe('a comment about one photograph', () => {
     expect(APP).toMatch(/for \(const photo of feed\?\.photos \?\? \[\]\) byId\.set\(photo\.id, photo\);/);
   });
 
-  it('draws the thumbnail from the 320, not the full size', () => {
-    // It is 52 points on screen, and the grid has usually already put the
-    // same picture in the cache.
-    expect(APP).toMatch(/return photo \? \{ id: photo\.id, src: photo\.src \} : null;/);
+  it('draws the photograph from the 640, not the full size', () => {
+    // It is 220 points on screen, where the 320 is soft on a 3× phone — and
+    // the full size would be megabytes per comment.
+    expect(APP).toMatch(/return photo \? \{ id: photo\.id, src: photo\.card \?\? photo\.src \} : null;/);
   });
 });
 

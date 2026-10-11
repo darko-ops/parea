@@ -1079,10 +1079,9 @@ export function ThreadRow({
               * sentence meant two different things depending on where you
               * happened to read it, and on the board it meant nothing.
               *
-              * Small, and above the words rather than beside them. It is the
-              * subject of the sentence under it, not an illustration of it —
-              * and a thumbnail large enough to look at would make the board a
-              * second copy of the album.
+              * Directly above the words, and large: it is the subject of the
+              * sentence under it, and a 52-point thumbnail left somebody
+              * reading the board unable to tell which picture "this one" was.
               */}
             {/*
               The moment this answers, where it answers one.
@@ -1676,13 +1675,13 @@ const styles = StyleSheet.create({
   faceBlank: { alignItems: 'center', justifyContent: 'center' },
   faceLetter: { fontSize: 13, fontWeight: '700' },
   said: { flex: 1, minWidth: 0, gap: 2 },
-  /* The photograph a comment is about: a thumbnail the size of two lines of
-     the text under it, so the row still reads as a sentence with a subject
-     rather than as a picture with a caption. Aligned with whichever edge the
-     message itself is on. */
-  about: { borderWidth: 1, borderRadius: 10, overflow: 'hidden', alignSelf: 'flex-start' },
+  /* The photograph a comment is about, directly above the words and big
+     enough to see what is in it. At 52 it was a speck, and a comment left in
+     the viewer arrived on the board with no telling which picture it meant.
+     Aligned with whichever edge the message itself is on. */
+  about: { borderWidth: 1, borderRadius: 12, overflow: 'hidden', alignSelf: 'flex-start', marginVertical: 4 },
   aboutMine: { alignSelf: 'flex-end' },
-  aboutShot: { width: 52, height: 52 },
+  aboutShot: { width: 220, height: 220 },
   /* A moment a reply answers: a small rounded square and a quiet caption,
      on the same side as the message. */
   momentRef: { alignSelf: 'flex-start', alignItems: 'flex-start', gap: 4, marginBottom: 4 },

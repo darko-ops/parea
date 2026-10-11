@@ -73,7 +73,7 @@ export type ThreadProps = {
    * over: that column is where every reaction in the album is read in order,
    * and it is the one place that has to say *which* one.
    */
-  photoOf?: (photoId: string) => { id: string; src: string } | null;
+  photoOf?: (photoId: string) => { id: string; src: string; srcSet?: string | null } | null;
   /** Re-fetches the feed, which carries the messages. */
   onChanged: () => void | Promise<void>;
   /**
@@ -146,7 +146,9 @@ export function Thread({
       // A group owns no photographs, so nothing in one is about a picture and
       // there is no page to link to even if it were.
       const photo = room.kind === 'event' && photoId ? (photoOf?.(photoId) ?? null) : null;
-      return photo ? { src: photo.src, href: `/event/${room.id}/p/${photo.id}` } : null;
+      return photo
+        ? { src: photo.src, srcSet: photo.srcSet ?? null, href: `/event/${room.id}/p/${photo.id}` }
+        : null;
     },
     [room, photoOf],
   );
@@ -495,7 +497,7 @@ function Row({
   /** Which table the line is in, which is what `/api/reports` is told. */
   reportAs: 'event_message' | 'group_message';
   /** The photograph this line is about, and its page. Null where there is none. */
-  about?: { src: string; href: string } | null;
+  about?: { src: string; srcSet?: string | null; href: string } | null;
 }) {
   const [body, setBody] = useState(message.body);
   const [said, setSaid] = useState<string | null>(null);
@@ -630,14 +632,21 @@ function Row({
           different things depending on where you read it, and here it meant
           nothing. The app's board has shown it since the merge landed.
 
-          Small, above the words rather than beside them: it is the subject of
-          the sentence under it, not an illustration of it, and a thumbnail
-          big enough to look at would make this a second copy of the album.
+          Directly above the words, and large: it is the subject of the
+          sentence under it, and a 52px thumbnail left somebody reading the
+          board unable to tell which picture "this one" was.
         */}
         {about && !shot.failed && !editing && (
           <a href={about.href} className="message-about" aria-label="The photograph this is about">
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img ref={shot.ref} src={about.src} alt="" onError={shot.onError} />
+            <img
+              ref={shot.ref}
+              src={about.src}
+              srcSet={about.srcSet ?? undefined}
+              sizes="220px"
+              alt=""
+              onError={shot.onError}
+            />
           </a>
         )}
 

@@ -1189,7 +1189,7 @@ export function EventView({
              */
             photoOf={(photoId) => {
               const photo = feed.photos.find((one) => one.id === photoId);
-              return photo ? { id: photo.id, src: photo.src } : null;
+              return photo ? { id: photo.id, src: photo.src, srcSet: photo.srcSet } : null;
             }}
             onChanged={refresh}
             onSeen={markSeen}

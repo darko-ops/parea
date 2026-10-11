@@ -3323,9 +3323,8 @@ function EventScreen({
    * album is another, and scanning the second for every row of the first is
    * the shape that is fine at four photographs and visible at four hundred.
    *
-   * `src` is the 320 rather than `card` or the full size — the thumbnail on a
-   * comment is 52 points, and it is usually already in the cache because the
-   * grid drew the same picture.
+   * The board draws a comment's photograph from `card` (the 640), falling
+   * back to `src` (the 320) — see `photoOf` where the thread is drawn.
    */
   const photoById = useMemo(() => {
     const byId = new Map<string, FeedPhoto>();
@@ -5068,7 +5067,9 @@ function EventScreen({
              */
             photoOf={(photoId) => {
               const photo = photoById.get(photoId);
-              return photo ? { id: photo.id, src: photo.src } : null;
+              // The 640 where there is one: a comment's photograph is drawn
+              // at 220 points, and the 320 is soft at that size on a 3× screen.
+              return photo ? { id: photo.id, src: photo.card ?? photo.src } : null;
             }}
             // Tapping it opens that photograph, which is the other half: the
             // comment says which picture, and the picture is one tap away.

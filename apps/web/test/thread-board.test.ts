@@ -102,9 +102,10 @@ describe('the photograph a line is about', () => {
      */
     expect(THREAD).toMatch(/className="message-about"/);
     expect(RULES).toMatch(/\.message-about \{/);
-    // The same 52 the app's board uses, so the two are one drawing.
-    expect(RULES).toMatch(/width: 52px; height: 52px/);
-    expect(APP_THREAD).toMatch(/aboutShot: \{ width: 52, height: 52 \}/);
+    // The same 220 the app's board uses, so the two are one drawing — big
+    // enough to tell which picture the comment means.
+    expect(RULES).toMatch(/\.message-about \{\s*display: block; width: 220px; height: 220px;/);
+    expect(APP_THREAD).toMatch(/aboutShot: \{ width: 220, height: 220 \}/);
   });
 
   it('is what a reaction is drawn with, rather than an empty bubble', () => {
