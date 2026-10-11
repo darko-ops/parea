@@ -2983,6 +2983,16 @@ a.roster-person:hover .roster-name > span:first-child {
 .role-contributor { background: #eaf5ef; color: #3d6a55; }
 .role-viewer { background: #eef1f4; color: var(--dim); }
 .role-invited { background: #fbf3e8; color: #8a6a3a; }
+/* On a phone the pill moves up beside the handle, smaller, so the end of the
+   row is left to the buttons and the name line says who and what at once. */
+.role-inline { display: none; }
+@media (max-width: 720px) {
+  .roster-name { align-items: center; }
+  .roster-name .role-inline {
+    display: inline-block; padding: 2px 7px; font-size: 10.5px; line-height: 1.3;
+  }
+  .roster li > .role-trailing { display: none; }
+}
 .people-foot {
   display: flex; align-items: center; gap: 14px; flex-wrap: wrap;
   margin-top: 18px; padding: 16px 18px; border-radius: 14px;

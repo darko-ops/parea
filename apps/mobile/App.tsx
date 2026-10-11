@@ -4192,11 +4192,12 @@ function EventScreen({
   const visible = (policy ?? feed?.event.accessPolicy) ?? 'public';
 
   /*
-   * What pressing somebody on People offers. Make Host for the roll's Host
-   * only — not a group admin, since being Host is a person's own to hand on —
-   * and Remove for whoever runs a private one; on a public roll being a member
-   * is not what lets anybody see it. One choice goes straight to its own
-   * question; two are asked first, in a sheet naming the person.
+   * What pressing somebody on People offers: their profile, and Remove for
+   * whoever runs a private one — on a public roll being a member is not what
+   * lets anybody see it. Make Host is a button on the row itself, for the
+   * roll's Host only (not a group admin: being Host is a person's own to hand
+   * on). One choice goes straight to its own question; two are asked first, in
+   * a sheet naming the person.
    */
   const mayHandOver = feed?.event.membership === 'creator';
   const mayRemove = (feed?.event.canAdminister ?? false) && visible === 'private';
@@ -4211,7 +4212,6 @@ function EventScreen({
     const inIt = person.role !== 'invited' && person.role !== 'creator';
     const buttons: { text: string; style?: 'destructive' | 'cancel'; onPress?: () => void }[] = [];
     if (handle) buttons.push({ text: 'View profile', onPress: () => onOpenPerson(handle) });
-    if (mayHandOver && inIt) buttons.push({ text: 'Make Host', onPress: () => makeHost(actorId, name) });
     if (mayRemove && inIt) {
       buttons.push({
         text: 'Remove from roll',
@@ -5107,6 +5107,8 @@ function EventScreen({
             */
             hosted={(adding ?? feed?.event.contributePolicy) === 'host'}
             onSetHost={(actorId, host) => void setHost(actorId, host)}
+            onMakeHost={mayHandOver ? makeHost : undefined}
+            dark={dark}
             onPerson={personActions}
             group={
               feed?.event.groupId

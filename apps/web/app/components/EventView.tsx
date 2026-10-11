@@ -1703,6 +1703,9 @@ function People({
                 <div className="roster-name">
                   <span>{person.name}</span>
                   {person.handle && <span className="roster-handle">@{person.handle}</span>}
+                  {/* The same pill as the end of the row, drawn here instead on
+                      a phone — see `.role-inline`. */}
+                  <RolePill person={person} hosted={hosted} className="role-inline" />
                 </div>
                 <div className="roster-did">
                   {person.role === 'invited'
@@ -1771,15 +1774,7 @@ function People({
                 the creator keeps theirs, since they are the host rather than a
                 co-host of their own album.
               */
-              <span
-                className={`role role-${person.isHost && hosted && person.role !== 'creator' ? 'cohost' : person.role}`}
-              >
-                {person.isHost && hosted && person.role !== 'creator'
-                  ? 'Co-host'
-                  : person.hostAsked && person.role === 'invited' && hosted
-                    ? 'Co-host asked'
-                    : ROLE_WORDS[person.role]}
-              </span>
+              <RolePill person={person} hosted={hosted} className="role-trailing" />
             )}
             {onMakeHost && person.actorId && person.role !== 'invited' && person.role !== 'creator' && (
               <button
@@ -1900,6 +1895,28 @@ function linkPromise(contributePolicy: string): string {
     default:
       return 'Anyone signed in with the link can see it and add photos.';
   }
+}
+
+/** The role pill: one rule for its word and its colour, wherever it sits. */
+function RolePill({
+  person,
+  hosted,
+  className,
+}: {
+  person: Roster;
+  hosted: boolean;
+  className: string;
+}) {
+  const cohost = person.isHost && hosted && person.role !== 'creator';
+  return (
+    <span className={`role role-${cohost ? 'cohost' : person.role} ${className}`}>
+      {cohost
+        ? 'Co-host'
+        : person.hostAsked && person.role === 'invited' && hosted
+          ? 'Co-host asked'
+          : ROLE_WORDS[person.role]}
+    </span>
+  );
 }
 
 const ROLE_WORDS: Record<Roster['role'], string> = {

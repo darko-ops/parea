@@ -1418,6 +1418,14 @@ export function People({
   hosted = false,
   onSetHost,
   /**
+   * Handing the roll to this person — only for the roll's Host, since being
+   * Host is a person's own to hand on. A button on the row, as on the site,
+   * rather than something found only by pressing the row.
+   */
+  onMakeHost,
+  /** Picks the pills' dark palette, as the site's `[data-theme="dark"]` does. */
+  dark = false,
+  /**
    * Pressing somebody on the list: their profile, and for whoever runs the
    * roll the things they can do about them — which of those is on offer is the
    * caller's to decide, with the person's row in hand. Unset, a row is not
@@ -1436,6 +1444,8 @@ export function People({
   canAdminister?: boolean;
   hosted?: boolean;
   onSetHost?: (actorId: string, host: boolean) => void;
+  onMakeHost?: (actorId: string, name: string) => void;
+  dark?: boolean;
   onPerson?: (person: Roster) => void;
   group?: { name: string; onOpen: () => void };
 }) {
@@ -1483,6 +1493,12 @@ export function People({
           item.actorId != null &&
           item.role !== 'invited' &&
           item.role !== 'creator';
+        const handable =
+          onMakeHost != null &&
+          item.actorId != null &&
+          item.role !== 'invited' &&
+          item.role !== 'creator';
+        const pill = rolePill(item, hosted === true, dark);
         // Anybody with a profile to open, or somebody in it with things to do
         // about them.
         const pressable =
@@ -1517,12 +1533,36 @@ export function People({
               <Text style={[styles.personName, { color: t.fg }]} numberOfLines={1}>
                 {item.name}
               </Text>
-              {item.handle && (
-                <Text style={[styles.personHandle, { color: t.dim }]} numberOfLines={1}>
-                  @{item.handle}
-                </Text>
-              )}
+              {/* The handle with the role pill beside it — the site's roster
+                  on a phone, where the pill sits on the name line. */}
+              <View style={styles.personLine}>
+                {item.handle && (
+                  <Text
+                    style={[styles.personHandle, { color: t.dim, flexShrink: 1 }]}
+                    numberOfLines={1}
+                  >
+                    @{item.handle}
+                  </Text>
+                )}
+                <View style={[styles.rolePill, { backgroundColor: pill.bg }]}>
+                  <Text style={[styles.rolePillText, { color: pill.ink ?? t.dim }]}>{pill.word}</Text>
+                </View>
+              </View>
             </View>
+            {handable && (
+              <Pressable
+                onPress={() => onMakeHost!(item.actorId!, item.name)}
+                hitSlop={8}
+                accessibilityRole="button"
+                accessibilityLabel={`Make ${item.name} the Host`}
+                style={({ pressed }) => [
+                  styles.personDo,
+                  { borderColor: t.line, opacity: pressed ? 0.6 : 1 },
+                ]}
+              >
+                <Text style={[styles.personDoText, { color: t.fg }]}>Make Host</Text>
+              </Pressable>
+            )}
             {promotable ? (
               <Pressable
                 onPress={() => onSetHost!(item.actorId!, !item.isHost)}
@@ -1556,8 +1596,8 @@ export function People({
                   {item.isHost ? 'Co-host' : 'Make a co-host'}
                 </Text>
               </Pressable>
-            ) : (
-              <Text style={[styles.personHandle, { color: t.dim }]}>{standing(item, hosted === true)}</Text>
+            ) : handable ? null : (
+              <Text style={[styles.personHandle, { color: t.dim }]}>{standing(item)}</Text>
             )}
           </Pressable>
         );
@@ -1567,43 +1607,57 @@ export function People({
 }
 
 /**
- * The right-hand line: what this person is to the event, in three words.
+ * The role pill: the site's `RolePill`, word for word and colour for colour.
  *
- * A description of what somebody has done here, not a rank — which is why a
- * host who has added nothing still reads as their photo count or as "Here".
- * The one exception is somebody the album's owner promoted on an album that
- * turns on it: there, being a host is the fact the row is about.
+ * `Host` where the site still says "Creator", because Host is what the app
+ * calls the person who runs a roll everywhere else, Make Host included.
  */
-function standing(
+function rolePill(
   person: Roster,
-  /**
-   * Whether the album is set to `host`, which is what gives the word "co-host"
-   * any meaning here.
-   *
-   * Passed in rather than read off the person, because it is a fact about the
-   * album and not about them: on `everyone` every member may add, so the label
-   * would be true of everybody and say nothing.
-   */
   hosted: boolean,
-): string {
-  /*
-   * Somebody asked *as* a co-host says which, because the two are different
-   * facts and both matter to whoever reads the row: they were asked to hold the
-   * camera, and they cannot hold it yet. The role lives on the participant row,
-   * so until they accept there is nothing to grant.
-   */
-  if (person.role === 'invited') return person.hostAsked ? 'Co-host asked' : 'Asked';
-  if (person.role === 'creator') return 'Host';
-  /*
-   * And a co-host who has arrived, which is the one case where being granted
-   * something outranks what somebody has done here. On an album that turns on
-   * the setting it is the fact the row is about, and a photo count beside a
-   * person holding the camera says nothing the photographs did not.
-   *
-   * Only where the album's own setting gives the word meaning: on `everyone`
-   * every member may add, and "Co-host" on all of them would be noise.
-   */
-  if (person.isHost && hosted) return 'Co-host';
+  dark: boolean,
+): { word: string; bg: string; ink: string | null } {
+  const cohost = person.isHost && hosted && person.role !== 'creator';
+  const kind = cohost ? 'cohost' : person.role;
+  const word = cohost
+    ? 'Co-host'
+    : person.hostAsked && person.role === 'invited' && hosted
+      ? 'Co-host asked'
+      : ROLE_WORDS[person.role];
+  // `null` ink is the theme's dim, as `.role-viewer` uses `var(--dim)`.
+  const [bg, ink] = (dark ? ROLE_DARK : ROLE_LIGHT)[kind];
+  return { word, bg, ink };
+}
+
+const ROLE_WORDS: Record<Roster['role'], string> = {
+  creator: 'Host',
+  contributor: 'Contributor',
+  viewer: 'Viewer',
+  invited: 'Invited',
+};
+const ROLE_LIGHT: Record<Roster['role'] | 'cohost', [string, string | null]> = {
+  creator: ['#f5ece2', '#7d5230'],
+  cohost: ['#efeaf6', '#5b4a7d'],
+  contributor: ['#eaf5ef', '#3d6a55'],
+  viewer: ['#eef1f4', null],
+  invited: ['#fbf3e8', '#8a6a3a'],
+};
+const ROLE_DARK: Record<Roster['role'] | 'cohost', [string, string | null]> = {
+  creator: ['#3a2a1c', '#f0c9a4'],
+  cohost: ['#2c2440', '#cdbdf0'],
+  contributor: ['#17332a', '#a5dcc6'],
+  viewer: ['#1c1f25', null],
+  invited: ['#3a2f1c', '#f0d4a4'],
+};
+
+/**
+ * The right-hand line: what this person has put in.
+ *
+ * Their role is the pill beside the handle now, so this is only the count —
+ * and nothing for somebody invited, who has not arrived to add anything.
+ */
+function standing(person: Roster): string {
+  if (person.role === 'invited') return '';
   if (person.photoCount === 0) return 'Here';
   return `${person.photoCount} ${person.photoCount === 1 ? 'photo' : 'photos'}`;
 }
@@ -1865,4 +1919,8 @@ const styles = StyleSheet.create({
   personLetter: { fontSize: 14, fontWeight: '700' },
   personName: { fontSize: 15.5, fontWeight: '600' },
   personHandle: { fontSize: 13 },
+  personLine: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 2 },
+  /* The site's `.role-inline`: 10.5 type in a pill 7 across and 2 down. */
+  rolePill: { borderRadius: 999, paddingHorizontal: 7, paddingVertical: 2, flexShrink: 0 },
+  rolePillText: { fontSize: 10.5, fontWeight: '600' },
 });
