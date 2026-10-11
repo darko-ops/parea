@@ -85,6 +85,8 @@ type Photo = {
 type Person = {
   key: string;
   name: string;
+  /** Presigned, as every face that crosses the boundary is. */
+  avatarUrl: string | null;
   photoCount: number;
   mine: boolean;
 };

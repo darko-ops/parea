@@ -86,7 +86,13 @@ export function PhotoView({
    * The heart below fills for the viewer's and counts the rest.
    */
   reactions: PhotoReaction[];
-  people: { key: string; name: string; photoCount: number; mine: boolean }[];
+  people: {
+    key: string;
+    name: string;
+    avatarUrl: string | null;
+    photoCount: number;
+    mine: boolean;
+  }[];
   members: Member[];
   canPost: boolean;
 }) {

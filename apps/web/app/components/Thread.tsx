@@ -35,7 +35,14 @@ import { blockAsk, blockName, blockPerson, blockSaid, reportContent, reportSaid 
 import { SignIn, useSession } from './SignIn';
 import { useImageFailure } from './useImageFailure';
 
-type Person = { key: string; name: string; photoCount: number; mine: boolean };
+type Person = {
+  key: string;
+  name: string;
+  /** Presigned, for the face beside each name in the mention list. */
+  avatarUrl: string | null;
+  photoCount: number;
+  mine: boolean;
+};
 
 /**
  * Which room this thread is, which decides every route it talks to.
@@ -403,6 +410,18 @@ function Composer({
         <div className="mention-list">
           {mention.people.map((person) => (
             <button key={person.key} type="button" onClick={() => complete(person.name)}>
+              {/* A face beside each name — two contributors can share a first
+                  name, and the picture is how somebody tells them apart. */}
+              <Face
+                src={person.avatarUrl}
+                size={20}
+                className="mention-face"
+                fallback={
+                  <span aria-hidden="true">
+                    {person.name.replace(/^@/, '').slice(0, 1).toUpperCase()}
+                  </span>
+                }
+              />
               {person.name}
             </button>
           ))}

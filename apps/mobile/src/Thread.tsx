@@ -112,7 +112,7 @@ const FOOT = 30;
 const FOOT_TYPING = 12;
 
 /** Somebody the mention list may offer: a contributor to this event. */
-export type Mentionable = { key: string; name: string; mine: boolean };
+export type Mentionable = { key: string; name: string; avatarUrl: string | null; mine: boolean };
 
 /**
  * The four things a thread does to the server.
@@ -530,6 +530,28 @@ export function Thread({
                       { borderColor: t.line, opacity: pressed ? 0.6 : 1 },
                     ]}
                   >
+                    {/* A face beside each name — two contributors can share
+                        a first name, and the picture tells them apart. */}
+                    {person.avatarUrl ? (
+                      <Image
+                        source={{ uri: person.avatarUrl }}
+                        style={[styles.mentionFace, { backgroundColor: t.line }]}
+                        contentFit="cover"
+                        transition={120}
+                      />
+                    ) : (
+                      <View
+                        style={[
+                          styles.mentionFace,
+                          styles.faceBlank,
+                          { backgroundColor: lensFor(person.key).fill },
+                        ]}
+                      >
+                        <Text style={[styles.mentionLetter, { color: lensFor(person.key).ink }]}>
+                          {initialOf(person.name)}
+                        </Text>
+                      </View>
+                    )}
                     <Text style={[styles.mentionText, { color: t.fg }]}>{person.name}</Text>
                   </Pressable>
                 ))}
@@ -1774,7 +1796,20 @@ const styles = StyleSheet.create({
      site puts it: `.mention-list` is a wrapped row of pills with 6 of gap and
      8 of padding above its own bottom rule. */
   mentions: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, paddingBottom: 8, borderBottomWidth: 1 },
-  mention: { borderWidth: 1, borderRadius: 999, paddingVertical: 5, paddingHorizontal: 10 },
+  mention: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    borderWidth: 1,
+    borderRadius: 999,
+    paddingVertical: 3,
+    paddingLeft: 3,
+    paddingRight: 10,
+  },
+  /* Squared rather than round, as on the site's `.mention-face`: a face reads
+     as a photograph beside the name rather than a second pill inside the first. */
+  mentionFace: { width: 20, height: 20, borderRadius: 5 },
+  mentionLetter: { fontSize: 11, fontWeight: '700' },
   mentionText: { fontSize: 13, fontWeight: '600' },
   /* Pinned, with the home indicator's strip inside the padding rather than
      under the field — and `FOOT` rather than 30 written here, because that

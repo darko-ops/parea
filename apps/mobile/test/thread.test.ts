@@ -462,8 +462,13 @@ describe('two rooms, one drawing', () => {
      */
     expect(VIEWER).toMatch(/mentions: \{ flexDirection: 'row', flexWrap: 'wrap', gap: 6, paddingBottom: 8, borderBottomWidth: 1 \}/);
     expect(web('.mention-list {')).toMatch(/gap: 6px; flex-wrap: wrap; padding-bottom: 8px/);
-    expect(VIEWER).toMatch(/mention: \{ borderWidth: 1, borderRadius: 999, paddingVertical: 5, paddingHorizontal: 10 \}/);
-    expect(CSS).toMatch(/\.mention-list button \{\s*padding: 5px 10px; border-radius: 999px; font-size: 13px;/);
+    expect(VIEWER).toMatch(
+      /mention: \{\s*flexDirection: 'row',\s*alignItems: 'center',\s*gap: 6,\s*borderWidth: 1,\s*borderRadius: 999,\s*paddingVertical: 3,\s*paddingLeft: 3,\s*paddingRight: 10,\s*\}/,
+    );
+    expect(web('.mention-list button {')).toMatch(/align-items: center; gap: 6px;\s*padding: 3px 10px 3px 3px; border-radius: 999px; font-size: 13px;/);
+    // Each pill leads with the person's face, squared, at the same size.
+    expect(VIEWER).toMatch(/mentionFace: \{ width: 20, height: 20, borderRadius: 5 \}/);
+    expect(web('.mention-face {')).toMatch(/width: 20px; height: 20px; border-radius: 5px;/);
     // And the button filled, at the site's own size.
     expect(VIEWER).toMatch(/post: \{ paddingVertical: 9, paddingHorizontal: 16, borderRadius: 10 \}/);
     expect(CSS).toMatch(/\.thread-actions button \{ padding: 9px 16px; font-size: 14px; border-radius: 10px; \}/);

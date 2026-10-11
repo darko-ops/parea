@@ -5082,6 +5082,7 @@ function EventScreen({
             people={(feed?.people ?? []).map((person) => ({
               key: person.key,
               name: person.name,
+              avatarUrl: person.avatarUrl,
               mine: person.mine,
             }))}
             t={t}
