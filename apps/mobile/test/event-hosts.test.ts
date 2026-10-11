@@ -87,9 +87,9 @@ describe('handing the camera over', () => {
      * `host`: on `everyone` they can already add, and on `creator` the point
      * is that there is no set to join.
      */
-    expect(THREAD).toMatch(/canAdminister &&\s*\n\s*hosted &&/);
-    expect(THREAD).toMatch(/item\.role !== 'creator'/);
-    expect(THREAD).toMatch(/Make a host/);
+    expect(THREAD).toMatch(/const promotable = canAdminister && hosted && onSetHost != null && inIt;/);
+    expect(THREAD).toMatch(/const inIt = item\.actorId != null && item\.role !== 'invited' && item\.role !== 'creator';/);
+    expect(THREAD).toMatch(/Make a co-host/);
   });
 
   it('follows the live setting rather than a poll behind it', () => {

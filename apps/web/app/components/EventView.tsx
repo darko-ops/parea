@@ -1677,129 +1677,99 @@ function People({
       {removeNote && !removing && <p className="muted">{removeNote}</p>}
 
       <ul className="roster">
-        {roster.map((person) => (
-          <li
-            key={`${person.actorId}-${person.role}`}
-            className={person.role === 'invited' ? 'roster-waiting' : undefined}
-          >
-            {/*
-              The person — face, name and what they have added — is one link
-              to their profile, not just the name: the whole of that is what
-              somebody reaches for. The controls at the end of the row stay
-              outside it. No handle, no page, so no link.
-            */}
-            <RosterPerson handle={person.handle}>
-              <Face
-                src={person.role === 'invited' ? null : person.avatarUrl}
-                size={44}
-                className="roster-face"
-                fallback={
-                  <span aria-hidden="true">
-                    {person.name.replace('@', '').slice(0, 1).toUpperCase()}
-                  </span>
-                }
-              />
-              <div className="roster-who">
-                <div className="roster-name">
-                  <span>{person.name}</span>
-                  {person.handle && <span className="roster-handle">@{person.handle}</span>}
-                  {/* The same pill as the end of the row, drawn here instead on
-                      a phone — see `.role-inline`. */}
-                  <RolePill person={person} hosted={hosted} className="role-inline" />
+        {roster.map((person) => {
+          /*
+           * Somebody already in — an open invitation has no participant row and
+           * therefore nothing to act on — and not the Host, who cannot be
+           * promoted, handed the roll or removed from their own.
+           */
+          const inIt = person.actorId != null && person.role !== 'invited' && person.role !== 'creator';
+          /*
+           * The co-host toggle only where the setting means anything: on
+           * `everyone` they can already add, and on `creator` there is no set to
+           * join, so it would be a promotion into a group of one.
+           */
+          const promotable = canAdminister && hosted && inIt;
+          const handable = onMakeHost != null && inIt;
+          const removable = onRemove != null && inIt;
+          return (
+            <li
+              key={`${person.actorId}-${person.role}`}
+              className={person.role === 'invited' ? 'roster-waiting' : undefined}
+            >
+              {/*
+                One shape on every width, and the same one the app draws: the
+                face, then the name, then the handle with the role pill and what
+                they have added, then — only for whoever can — the actions on a
+                line of their own. Three buttons beside a name never fit on a
+                phone; under it they always do.
+
+                The person is one link to their profile, not just the name; the
+                actions stay outside it.
+              */}
+              <RosterPerson handle={person.handle}>
+                <Face
+                  src={person.role === 'invited' ? null : person.avatarUrl}
+                  size={44}
+                  className="roster-face"
+                  fallback={
+                    <span aria-hidden="true">
+                      {person.name.replace('@', '').slice(0, 1).toUpperCase()}
+                    </span>
+                  }
+                />
+                <div className="roster-who">
+                  <div className="roster-name">
+                    <span>{person.name}</span>
+                  </div>
+                  <div className="roster-line">
+                    {person.handle && <span className="roster-handle">@{person.handle}</span>}
+                    <RolePill person={person} hosted={hosted} />
+                    <span className="roster-did">{did(person)}</span>
+                  </div>
                 </div>
-                <div className="roster-did">
-                  {person.role === 'invited'
-                    ? /*
-                        A co-host who has not answered says so, because the two
-                        facts are different and both matter to whoever is reading
-                        the row: they were asked to hold the camera, and they
-                        cannot hold it yet. The role lives on the participant row,
-                        so until they accept there is nothing to grant — see
-                        `event_invite.as_host`.
-                      */
-                      `${person.hostAsked ? 'Asked to co-host' : 'Invited'} ${person.invitedAt ? relativeDay(person.invitedAt) : 'recently'} · not opened`
-                    : person.photoCount > 0
-                      ? `${person.photoCount} ${person.photoCount === 1 ? 'photo' : 'photos'} added`
-                      : 'Nothing added yet'}
+              </RosterPerson>
+              {(promotable || handable || removable) && (
+                <div className="roster-actions">
+                  {promotable && (
+                    <button
+                      type="button"
+                      className={person.isHost ? 'secondary small' : 'small'}
+                      aria-pressed={person.isHost}
+                      onClick={() => onSetHost(person.actorId!, !person.isHost)}
+                    >
+                      {/* The pill already says "Co-host", so the button says
+                          what pressing it does. */}
+                      {person.isHost ? 'Remove as co-host' : 'Make a co-host'}
+                    </button>
+                  )}
+                  {handable && (
+                    <button
+                      type="button"
+                      className="secondary small"
+                      onClick={() => onMakeHost!(person.actorId!, person.name)}
+                    >
+                      Make Host
+                    </button>
+                  )}
+                  {removable && (
+                    <button
+                      type="button"
+                      className="secondary small roster-remove"
+                      aria-label={`Remove ${person.name} from this roll`}
+                      onClick={() => {
+                        setRemoveNote(null);
+                        setRemoving({ actorId: person.actorId!, name: person.name });
+                      }}
+                    >
+                      Remove
+                    </button>
+                  )}
                 </div>
-              </div>
-            </RosterPerson>
-            {/*
-              The toggle, and the three things that have to be true for it.
-
-              Somebody already in — an open invitation has no participant row
-              and therefore no role to set. Not the creator, who is a host by
-              being the creator and whose row the server refuses to write. And
-              only where the setting means anything: on `everyone` they can
-              already add, and on `creator` the point is that there is no set to
-              join, so a "Make a host" beside every name would be offering a
-              promotion into a group of one.
-            */}
-            {canAdminister &&
-            hosted &&
-            person.actorId &&
-            person.role !== 'invited' &&
-            person.role !== 'creator' ? (
-              <button
-                type="button"
-                className={person.isHost ? 'secondary small' : 'small'}
-                aria-pressed={person.isHost}
-                onClick={() => onSetHost(person.actorId!, !person.isHost)}
-              >
-                {/*
-                  "Co-host", not "Host", and the distinction is the one the
-                  setting rests on: the album has one host — whoever made it,
-                  who cannot stop being one — and these are the people they
-                  handed the camera to. Calling both "Host" made the list read
-                  as though the album had several owners, which is the thing a
-                  co-host is deliberately not.
-                */}
-                {person.isHost ? 'Co-host' : 'Make a co-host'}
-              </button>
-            ) : (
-              /*
-                And the word for everybody else, which is a co-host before it is
-                anything else.
-
-                `role` describes what somebody has done here — made it, added to
-                it, only looked — and being a co-host is something they were
-                granted, so the two can both be true of one person. The grant
-                wins the label: on an album set to `host` it is the fact the row
-                is about, and "Contributor" beside somebody holding the camera
-                tells the rest of the album nothing it did not already know from
-                the photographs.
-
-                Read off `hosted` so it says this only where it means something.
-                On `everyone` every member may add and the word would be noise;
-                the creator keeps theirs, since they are the host rather than a
-                co-host of their own album.
-              */
-              <RolePill person={person} hosted={hosted} className="role-trailing" />
-            )}
-            {onMakeHost && person.actorId && person.role !== 'invited' && person.role !== 'creator' && (
-              <button
-                type="button"
-                className="secondary small"
-                onClick={() => onMakeHost(person.actorId!, person.name)}
-              >
-                Make Host
-              </button>
-            )}
-            {onRemove && person.actorId && person.role !== 'invited' && person.role !== 'creator' && (
-              <button
-                type="button"
-                className="secondary small"
-                aria-label={`Remove ${person.name} from this roll`}
-                onClick={() => {
-                  setRemoveNote(null);
-                  setRemoving({ actorId: person.actorId!, name: person.name });
-                }}
-              >
-                Remove
-              </button>
-            )}
-          </li>
-        ))}
+              )}
+            </li>
+          );
+        })}
       </ul>
 
       {/*
@@ -1898,18 +1868,10 @@ function linkPromise(contributePolicy: string): string {
 }
 
 /** The role pill: one rule for its word and its colour, wherever it sits. */
-function RolePill({
-  person,
-  hosted,
-  className,
-}: {
-  person: Roster;
-  hosted: boolean;
-  className: string;
-}) {
+function RolePill({ person, hosted }: { person: Roster; hosted: boolean }) {
   const cohost = person.isHost && hosted && person.role !== 'creator';
   return (
-    <span className={`role role-${cohost ? 'cohost' : person.role} ${className}`}>
+    <span className={`role role-${cohost ? 'cohost' : person.role}`}>
       {cohost
         ? 'Co-host'
         : person.hostAsked && person.role === 'invited' && hosted
@@ -1917,6 +1879,20 @@ function RolePill({
           : ROLE_WORDS[person.role]}
     </span>
   );
+}
+
+/**
+ * What somebody has added, after the pill — the app's `did` says the same.
+ *
+ * Somebody invited has not arrived to add anything; the pill already says they
+ * were asked, so this says when and that they have not opened it.
+ */
+function did(person: Roster): string {
+  if (person.role === 'invited') {
+    return `Asked ${person.invitedAt ? relativeDay(person.invitedAt) : 'recently'} · not opened`;
+  }
+  if (person.photoCount === 0) return 'No photos yet';
+  return `${person.photoCount} ${person.photoCount === 1 ? 'photo' : 'photos'}`;
 }
 
 const ROLE_WORDS: Record<Roster['role'], string> = {

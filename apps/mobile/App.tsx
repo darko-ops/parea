@@ -4192,36 +4192,17 @@ function EventScreen({
   const visible = (policy ?? feed?.event.accessPolicy) ?? 'public';
 
   /*
-   * What pressing somebody on People offers: their profile, and Remove for
-   * whoever runs a private one — on a public roll being a member is not what
-   * lets anybody see it. Make Host is a button on the row itself, for the
-   * roll's Host only (not a group admin: being Host is a person's own to hand
-   * on). One choice goes straight to its own question; two are asked first, in
-   * a sheet naming the person.
+   * The row's actions, as on the site: Make Host for the roll's Host only —
+   * not a group admin, since being Host is a person's own to hand on — and
+   * Remove for whoever runs a private one; on a public roll being a member is
+   * not what lets anybody see it. Each is a button on the row, and each asks
+   * its own question first.
    */
   const mayHandOver = feed?.event.membership === 'creator';
   const mayRemove = (feed?.event.canAdminister ?? false) && visible === 'private';
-  /*
-   * A member's profile is a tap away for everybody, as their face is on the
-   * web's roster. Somebody who runs the roll gets the profile and the actions
-   * together in one sheet; everybody else goes straight to the profile.
-   */
+  /* Pressing somebody opens their profile, as their face does on the site. */
   const personActions = (person: Roster) => {
-    const { actorId, name, handle } = person;
-    if (!actorId) return;
-    const inIt = person.role !== 'invited' && person.role !== 'creator';
-    const buttons: { text: string; style?: 'destructive' | 'cancel'; onPress?: () => void }[] = [];
-    if (handle) buttons.push({ text: 'View profile', onPress: () => onOpenPerson(handle) });
-    if (mayRemove && inIt) {
-      buttons.push({
-        text: 'Remove from roll',
-        style: 'destructive',
-        onPress: () => removeFromRoll(actorId, name),
-      });
-    }
-    if (buttons.length === 0) return;
-    if (buttons.length === 1) return buttons[0]!.onPress?.();
-    Alert.alert(name, undefined, [...buttons, { text: 'Cancel', style: 'cancel' }]);
+    if (person.handle) onOpenPerson(person.handle);
   };
 
   const tabs = (
@@ -5108,6 +5089,7 @@ function EventScreen({
             hosted={(adding ?? feed?.event.contributePolicy) === 'host'}
             onSetHost={(actorId, host) => void setHost(actorId, host)}
             onMakeHost={mayHandOver ? makeHost : undefined}
+            onRemove={mayRemove ? removeFromRoll : undefined}
             dark={dark}
             onPerson={personActions}
             group={

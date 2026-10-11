@@ -2934,7 +2934,7 @@ fieldset.field > legend { padding: 0; margin-bottom: 8px; }
 .people-head p { margin: 4px 0 0; font-size: 13.5px; max-width: 460px; }
 .roster { list-style: none; margin: 0; padding: 0; }
 .roster li {
-  display: flex; align-items: center; gap: 12px; padding: 13px 4px;
+  display: flex; flex-direction: column; align-items: stretch; gap: 8px; padding: 12px 4px;
   border-bottom: 1px solid var(--row-line);
 }
 .roster-face {
@@ -2954,15 +2954,25 @@ a.roster-person:hover .roster-name > span:first-child {
 }
 .roster-who { flex: 1; min-width: 0; }
 .roster-name { display: flex; align-items: baseline; gap: 7px; min-width: 0; }
+/* The second line: handle, role pill and what they have added. Wraps rather
+   than running off a phone, with the handle the part that gives way. */
+.roster-line {
+  display: flex; align-items: center; flex-wrap: wrap; gap: 4px 7px;
+  margin-top: 3px; min-width: 0;
+}
+/* The actions under the words, lined up with them rather than the face —
+   44 of face and 12 of gap — so a row reads as one person. */
+.roster-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-left: 56px; }
+.roster-actions .roster-remove { color: var(--warn); }
 .roster-name a, .roster-name > span:first-child {
   font-size: 15.5px; font-weight: 600; color: inherit; text-decoration: none;
 }
 .roster-name a:hover { text-decoration: underline; text-underline-offset: 3px; }
 .roster-handle {
-  font-size: 12.5px; color: var(--dim-soft);
+  font-size: 12.5px; color: var(--dim-soft); min-width: 0; max-width: 100%;
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
-.roster-did { font-size: 12.5px; color: var(--dim); margin-top: 2px; }
+.roster-did { font-size: 12.5px; color: var(--dim); }
 /* Asked and not arrived: the row is quieter and its circle is a dashed
    outline, which is what "nothing here yet" looks like everywhere else. */
 .roster-waiting .roster-face {
@@ -2972,8 +2982,8 @@ a.roster-person:hover .roster-name > span:first-child {
   color: var(--dim);
 }
 .role {
-  flex: none; padding: 4px 10px; border-radius: 999px;
-  font-size: 11.5px; font-weight: 600;
+  flex: none; padding: 2px 7px; border-radius: 999px;
+  font-size: 10.5px; font-weight: 600; line-height: 1.3;
 }
 .role-creator { background: #f5ece2; color: #7d5230; }
 /* Next to the creator's rather than next to the viewer's, because that is what
@@ -2983,16 +2993,6 @@ a.roster-person:hover .roster-name > span:first-child {
 .role-contributor { background: #eaf5ef; color: #3d6a55; }
 .role-viewer { background: #eef1f4; color: var(--dim); }
 .role-invited { background: #fbf3e8; color: #8a6a3a; }
-/* On a phone the pill moves up beside the handle, smaller, so the end of the
-   row is left to the buttons and the name line says who and what at once. */
-.role-inline { display: none; }
-@media (max-width: 720px) {
-  .roster-name { align-items: center; }
-  .roster-name .role-inline {
-    display: inline-block; padding: 2px 7px; font-size: 10.5px; line-height: 1.3;
-  }
-  .roster li > .role-trailing { display: none; }
-}
 .people-foot {
   display: flex; align-items: center; gap: 14px; flex-wrap: wrap;
   margin-top: 18px; padding: 16px 18px; border-radius: 14px;

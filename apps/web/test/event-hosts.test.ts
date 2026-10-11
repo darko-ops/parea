@@ -272,9 +272,9 @@ describe('what the two clients draw', () => {
 
   it('offers the promotion only where it means something', () => {
     const VIEW = read('app/components/EventView.tsx');
-    expect(VIEW).toMatch(/Make a host/);
-    expect(VIEW).toMatch(/canAdminister &&\s*\n\s*hosted &&/);
-    expect(VIEW).toMatch(/person\.role !== 'creator'/);
+    expect(VIEW).toMatch(/Make a co-host/);
+    expect(VIEW).toMatch(/const promotable = canAdminister && hosted && inIt;/);
+    expect(VIEW).toMatch(/const inIt = person\.actorId != null && person\.role !== 'invited' && person\.role !== 'creator';/);
   });
 
   it('names the two answers to "who can see it" differently', () => {

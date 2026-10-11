@@ -1423,6 +1423,12 @@ export function People({
    * rather than something found only by pressing the row.
    */
   onMakeHost,
+  /**
+   * Taking somebody out of a private roll — for whoever runs it, and only on a
+   * private one, where being a member is what lets anybody see it. A button
+   * on the row, as on the site.
+   */
+  onRemove,
   /** Picks the pills' dark palette, as the site's `[data-theme="dark"]` does. */
   dark = false,
   /**
@@ -1445,6 +1451,7 @@ export function People({
   hosted?: boolean;
   onSetHost?: (actorId: string, host: boolean) => void;
   onMakeHost?: (actorId: string, name: string) => void;
+  onRemove?: (actorId: string, name: string) => void;
   dark?: boolean;
   onPerson?: (person: Roster) => void;
   group?: { name: string; onOpen: () => void };
@@ -1476,130 +1483,133 @@ export function People({
       renderItem={({ item }) => {
         const lens = lensFor(item.actorId ?? item.name);
         /*
-         * The toggle, and the three things that have to be true for it.
-         *
-         * Somebody who is in the album — an open invitation has no participant
-         * row and therefore no role to set. Not the creator, who is a host by
-         * being the creator and whose row the server refuses to write. And
-         * only where the setting means anything: on `everyone` they can
-         * already add, and on `creator` the whole point is that there is no
-         * set to join, so a "Make a host" beside every name would be offering
-         * a promotion into a group of one.
+         * Somebody already in — an open invitation has no participant row and
+         * therefore nothing to act on — and not the Host, who cannot be
+         * promoted, handed the roll or removed from their own.
          */
-        const promotable =
-          canAdminister &&
-          hosted &&
-          onSetHost != null &&
-          item.actorId != null &&
-          item.role !== 'invited' &&
-          item.role !== 'creator';
-        const handable =
-          onMakeHost != null &&
-          item.actorId != null &&
-          item.role !== 'invited' &&
-          item.role !== 'creator';
+        const inIt = item.actorId != null && item.role !== 'invited' && item.role !== 'creator';
+        /*
+         * The co-host toggle only where the setting means anything: on
+         * `everyone` they can already add, and on `creator` there is no set to
+         * join. Promotion is `administer`-only on the server, so drawing it for
+         * anybody else would be the client promising what the server refuses.
+         */
+        const promotable = canAdminister && hosted && onSetHost != null && inIt;
+        const handable = onMakeHost != null && inIt;
+        const removable = onRemove != null && inIt;
         const pill = rolePill(item, hosted === true, dark);
-        // Anybody with a profile to open, or somebody in it with things to do
-        // about them.
-        const pressable =
-          onPerson != null &&
-          item.actorId != null &&
-          (item.handle != null || (item.role !== 'invited' && item.role !== 'creator'));
+        // Anybody with a profile to open.
+        const pressable = onPerson != null && item.actorId != null && item.handle != null;
         return (
-          <Pressable
-            disabled={!pressable}
-            onPress={() => onPerson!(item)}
-            accessibilityHint={pressable ? `Open ${item.name}` : undefined}
-            style={({ pressed }) => [
-              styles.personRow,
-              { borderBottomColor: t.line, opacity: pressed ? 0.6 : 1 },
-            ]}
-          >
-            {item.avatarUrl ? (
-              <Image
-                source={{ uri: item.avatarUrl }}
-                style={[styles.personFace, { backgroundColor: t.line }]}
-                contentFit="cover"
-                transition={120}
-              />
-            ) : (
-              <View style={[styles.personFace, styles.faceBlank, { backgroundColor: lens.fill }]}>
-                <Text style={[styles.personLetter, { color: lens.ink }]}>
-                  {initialOf(item.name)}
-                </Text>
-              </View>
-            )}
-            <View style={{ flex: 1, minWidth: 0 }}>
-              <Text style={[styles.personName, { color: t.fg }]} numberOfLines={1}>
-                {item.name}
-              </Text>
-              {/* The handle with the role pill beside it — the site's roster
-                  on a phone, where the pill sits on the name line. */}
-              <View style={styles.personLine}>
-                {item.handle && (
-                  <Text
-                    style={[styles.personHandle, { color: t.dim, flexShrink: 1 }]}
-                    numberOfLines={1}
-                  >
-                    @{item.handle}
+          /*
+            The site's row, line for line: the face, then the name, then the
+            handle with the role pill and what they have added, then — only for
+            whoever can — the actions on a line of their own, under the words.
+            Three buttons beside a name never fit on a phone; under it they do.
+          */
+          <View style={[styles.personRow, { borderBottomColor: t.line }]}>
+            <Pressable
+              disabled={!pressable}
+              onPress={() => onPerson!(item)}
+              accessibilityHint={pressable ? `Open ${item.name}` : undefined}
+              style={({ pressed }) => [styles.personTop, { opacity: pressed ? 0.6 : 1 }]}
+            >
+              {item.avatarUrl ? (
+                <Image
+                  source={{ uri: item.avatarUrl }}
+                  style={[styles.personFace, { backgroundColor: t.line }]}
+                  contentFit="cover"
+                  transition={120}
+                />
+              ) : (
+                <View style={[styles.personFace, styles.faceBlank, { backgroundColor: lens.fill }]}>
+                  <Text style={[styles.personLetter, { color: lens.ink }]}>
+                    {initialOf(item.name)}
                   </Text>
-                )}
-                <View style={[styles.rolePill, { backgroundColor: pill.bg }]}>
-                  <Text style={[styles.rolePillText, { color: pill.ink ?? t.dim }]}>{pill.word}</Text>
+                </View>
+              )}
+              <View style={{ flex: 1, minWidth: 0 }}>
+                <Text style={[styles.personName, { color: t.fg }]} numberOfLines={1}>
+                  {item.name}
+                </Text>
+                <View style={styles.personLine}>
+                  {item.handle && (
+                    <Text
+                      style={[styles.personHandle, { color: t.dim, flexShrink: 1 }]}
+                      numberOfLines={1}
+                    >
+                      @{item.handle}
+                    </Text>
+                  )}
+                  <View style={[styles.rolePill, { backgroundColor: pill.bg }]}>
+                    <Text style={[styles.rolePillText, { color: pill.ink ?? t.dim }]}>
+                      {pill.word}
+                    </Text>
+                  </View>
+                  <Text style={[styles.personHandle, { color: t.dim, flexShrink: 0 }]}>
+                    {did(item)}
+                  </Text>
                 </View>
               </View>
-            </View>
-            {handable && (
-              <Pressable
-                onPress={() => onMakeHost!(item.actorId!, item.name)}
-                hitSlop={8}
-                accessibilityRole="button"
-                accessibilityLabel={`Make ${item.name} the Host`}
-                style={({ pressed }) => [
-                  styles.personDo,
-                  { borderColor: t.line, opacity: pressed ? 0.6 : 1 },
-                ]}
-              >
-                <Text style={[styles.personDoText, { color: t.fg }]}>Make Host</Text>
-              </Pressable>
+            </Pressable>
+            {(promotable || handable || removable) && (
+              <View style={styles.personActions}>
+                {promotable && (
+                  <Pressable
+                    onPress={() => onSetHost!(item.actorId!, !item.isHost)}
+                    hitSlop={6}
+                    accessibilityRole="button"
+                    accessibilityState={{ selected: item.isHost }}
+                    accessibilityLabel={
+                      item.isHost ? `Remove ${item.name} as co-host` : `Make ${item.name} a co-host`
+                    }
+                    style={({ pressed }) => [
+                      styles.personDo,
+                      {
+                        borderColor: item.isHost ? t.line : t.accent,
+                        backgroundColor: item.isHost ? t.card : 'transparent',
+                        opacity: pressed ? 0.6 : 1,
+                      },
+                    ]}
+                  >
+                    {/* The pill already says "Co-host", so the button says what
+                        pressing it does. */}
+                    <Text style={[styles.personDoText, { color: item.isHost ? t.dim : t.accent }]}>
+                      {item.isHost ? 'Remove as co-host' : 'Make a co-host'}
+                    </Text>
+                  </Pressable>
+                )}
+                {handable && (
+                  <Pressable
+                    onPress={() => onMakeHost!(item.actorId!, item.name)}
+                    hitSlop={6}
+                    accessibilityRole="button"
+                    accessibilityLabel={`Make ${item.name} the Host`}
+                    style={({ pressed }) => [
+                      styles.personDo,
+                      { borderColor: t.line, opacity: pressed ? 0.6 : 1 },
+                    ]}
+                  >
+                    <Text style={[styles.personDoText, { color: t.fg }]}>Make Host</Text>
+                  </Pressable>
+                )}
+                {removable && (
+                  <Pressable
+                    onPress={() => onRemove!(item.actorId!, item.name)}
+                    hitSlop={6}
+                    accessibilityRole="button"
+                    accessibilityLabel={`Remove ${item.name} from this roll`}
+                    style={({ pressed }) => [
+                      styles.personDo,
+                      { borderColor: t.line, opacity: pressed ? 0.6 : 1 },
+                    ]}
+                  >
+                    <Text style={[styles.personDoText, { color: t.warn }]}>Remove</Text>
+                  </Pressable>
+                )}
+              </View>
             )}
-            {promotable ? (
-              <Pressable
-                onPress={() => onSetHost!(item.actorId!, !item.isHost)}
-                hitSlop={8}
-                accessibilityRole="button"
-                accessibilityState={{ selected: item.isHost }}
-                accessibilityLabel={
-                  item.isHost
-                    ? `${item.name} is a host. Press to take it back`
-                    : `Make ${item.name} a host`
-                }
-                style={({ pressed }) => [
-                  styles.personDo,
-                  {
-                    borderColor: item.isHost ? t.line : t.accent,
-                    backgroundColor: item.isHost ? t.card : 'transparent',
-                    opacity: pressed ? 0.6 : 1,
-                  },
-                ]}
-              >
-                <Text
-                  style={[styles.personDoText, { color: item.isHost ? t.dim : t.accent }]}
-                >
-                  {/*
-                    "Co-host", not "Host": the album has one host — whoever made
-                    it, who cannot stop being one — and these are the people they
-                    handed the camera to. Calling both the same made the list read
-                    as though the album had several owners, which is the thing a
-                    co-host is deliberately not.
-                  */}
-                  {item.isHost ? 'Co-host' : 'Make a co-host'}
-                </Text>
-              </Pressable>
-            ) : handable ? null : (
-              <Text style={[styles.personHandle, { color: t.dim }]}>{standing(item)}</Text>
-            )}
-          </Pressable>
+          </View>
         );
       }}
     />
@@ -1649,15 +1659,25 @@ const ROLE_DARK: Record<Roster['role'] | 'cohost', [string, string | null]> = {
 };
 
 /**
- * The right-hand line: what this person has put in.
+ * What somebody has added, after the pill — the site's `did`, word for word.
  *
- * Their role is the pill beside the handle now, so this is only the count —
- * and nothing for somebody invited, who has not arrived to add anything.
+ * Somebody invited has not arrived to add anything; the pill already says they
+ * were asked, so this says when and that they have not opened it.
  */
-function standing(person: Roster): string {
-  if (person.role === 'invited') return '';
-  if (person.photoCount === 0) return 'Here';
+function did(person: Roster): string {
+  if (person.role === 'invited') {
+    return `Asked ${person.invitedAt ? relativeDay(person.invitedAt) : 'recently'} · not opened`;
+  }
+  if (person.photoCount === 0) return 'No photos yet';
   return `${person.photoCount} ${person.photoCount === 1 ? 'photo' : 'photos'}`;
+}
+
+/** "2 days ago", for an invitation that has been sitting there — as on the site. */
+function relativeDay(iso: string): string {
+  const days = Math.floor((Date.now() - new Date(iso).getTime()) / 86_400_000);
+  if (days <= 0) return 'today';
+  if (days === 1) return 'yesterday';
+  return `${days} days ago`;
 }
 
 /**
@@ -1912,12 +1932,16 @@ const styles = StyleSheet.create({
   groupNote: { borderWidth: 1, borderRadius: 12, padding: 12, gap: 6, marginBottom: 8 },
   groupNoteText: { fontSize: 13.5, lineHeight: 19 },
   groupNoteLink: { fontSize: 13.5, fontWeight: '600' },
-  personRow: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 11, borderBottomWidth: 1 },
+  personRow: { gap: 8, paddingVertical: 11, borderBottomWidth: 1 },
+  personTop: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  /* Under the words, lined up with them rather than the face: 38 of face and
+     12 of gap, as the site's `.roster-actions` is 44 and 12. */
+  personActions: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginLeft: 50 },
   personFace: { width: 38, height: 38, borderRadius: 10 },
   personLetter: { fontSize: 14, fontWeight: '700' },
   personName: { fontSize: 15.5, fontWeight: '600' },
   personHandle: { fontSize: 13 },
-  personLine: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 2 },
+  personLine: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 2, minWidth: 0 },
   /* The site's `.role-inline`: 10.5 type in a pill 7 across and 2 down. */
   rolePill: { borderRadius: 999, paddingHorizontal: 7, paddingVertical: 2, flexShrink: 0 },
   rolePillText: { fontSize: 10.5, fontWeight: '600' },
