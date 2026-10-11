@@ -376,6 +376,7 @@ export function PhotoView({
               canPost={canPost}
               people={people}
               members={members}
+              postAbout={photo.id}
               onChanged={refresh}
             />
           </div>

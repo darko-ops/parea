@@ -98,12 +98,15 @@ describe('the column beside it', () => {
     expect(thread).not.toMatch(/photoId/);
   });
 
-  it('posts to the event rather than anchoring to the picture', async () => {
-    // `Thread` sends `{ body }` and nothing else. A `photoId` in that request
-    // is what files a message under one photograph — the whole difference
-    // between a group chat and a comment section, and one word wide.
+  it('posts to the event, carrying the picture it was written under', async () => {
+    // Still the roll's one thread — but a line written here says which photo
+    // it was about, as the app's viewer always has, so on the roll's board it
+    // arrives with that picture above it instead of as a sentence about
+    // nothing.
     const thread = await read('../app/components/Thread.tsx');
-    expect(thread).toMatch(/JSON\.stringify\(\{\s*body\s*\}\)/);
+    expect(thread).toMatch(/postTo/);
+    expect(thread).toMatch(/\{ body, photoId: postAbout \}/);
+    expect(VIEW).toMatch(/postAbout=\{photo\.id\}/);
   });
 
   it('has no per-photo comment component left to fall back to', async () => {

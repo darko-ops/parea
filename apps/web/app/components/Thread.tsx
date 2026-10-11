@@ -74,6 +74,14 @@ export type ThreadProps = {
    * and it is the one place that has to say *which* one.
    */
   photoOf?: (photoId: string) => { id: string; src: string; srcSet?: string | null } | null;
+  /**
+   * The photograph this composer is under, where it is under one.
+   *
+   * Posted with every comment written here, the way the app's viewer always
+   * has — so a line written on a photo's page arrives on the roll's board
+   * with that picture above it rather than as a sentence about nothing.
+   */
+  postAbout?: string;
   /** Re-fetches the feed, which carries the messages. */
   onChanged: () => void | Promise<void>;
   /**
@@ -107,6 +115,7 @@ export function Thread({
   people,
   members,
   photoOf,
+  postAbout,
   onChanged,
   onSeen,
 }: ThreadProps) {
@@ -192,7 +201,10 @@ export function Thread({
       const res = await fetch(postTo, {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ body }),
+        // A group owns no photographs, so only an event's post carries one.
+        body: JSON.stringify(
+          room.kind === 'event' && postAbout ? { body, photoId: postAbout } : { body },
+        ),
       });
       if (!res.ok) throw new Error(await explain(res));
       setDraft('');
@@ -205,7 +217,7 @@ export function Thread({
     } finally {
       setPosting(false);
     }
-  }, [draft, posting, postTo, onChanged]);
+  }, [draft, posting, postTo, room.kind, postAbout, onChanged]);
 
   /** Liking a line, or taking the like back. Says whether the server took it. */
   const like = useCallback(

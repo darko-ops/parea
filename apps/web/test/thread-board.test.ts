@@ -108,6 +108,17 @@ describe('the photograph a line is about', () => {
     expect(APP_THREAD).toMatch(/aboutShot: \{ width: 220, height: 220 \}/);
   });
 
+  it('is attached to a comment written on a photo\'s page', () => {
+    /*
+     * The photo page's column is the roll's thread, and it posted bare — so a
+     * comment written while looking at one picture reached the board with no
+     * picture, which is the bug the board's thumbnail was there to fix. The
+     * app's viewer has always sent the id; the site's photo page now does too.
+     */
+    expect(THREAD).toMatch(/room\.kind === 'event' && postAbout \? \{ body, photoId: postAbout \} : \{ body \}/);
+    expect(raw('../app/components/PhotoView.tsx')).toMatch(/postAbout=\{photo\.id\}/);
+  });
+
   it('is what a reaction is drawn with, rather than an empty bubble', () => {
     /*
      * The feed merges every reaction in the album into this thread so that
