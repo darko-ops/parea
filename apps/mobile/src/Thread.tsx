@@ -1607,10 +1607,8 @@ export function People({
 }
 
 /**
- * The role pill: the site's `RolePill`, word for word and colour for colour.
- *
- * `Host` where the site still says "Creator", because Host is what the app
- * calls the person who runs a roll everywhere else, Make Host included.
+ * The role pill: the site's `RolePill`, word for word and colour for colour —
+ * "Host" for the person who runs the roll on both, as Make Host calls them.
  */
 function rolePill(
   person: Roster,

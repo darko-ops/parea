@@ -1920,7 +1920,7 @@ function RolePill({
 }
 
 const ROLE_WORDS: Record<Roster['role'], string> = {
-  creator: 'Creator',
+  creator: 'Host',
   contributor: 'Contributor',
   viewer: 'Viewer',
   invited: 'Invited',
