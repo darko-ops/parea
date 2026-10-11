@@ -1152,14 +1152,15 @@ export async function myGroups(db: Db, actorId: string | null): Promise<MyGroup[
 }
 
 /**
- * The newest ready photograph in an event, as the event's picture.
+ * A ready photograph in an event, as the event's picture when it has no cover.
  *
- * The cover if the host set one, else this. Same rule `leadImage` follows, so
- * "the picture the event leads with" means one thing everywhere — a group's
- * strip and the event's own card should not disagree about which photograph
- * stands for it.
+ * `newest` by default: a card that changes as photographs arrive is the point
+ * of the home screen, and a group's strip follows it. `first` is the photograph
+ * the roll itself leads with when nobody chose a cover — the bottom of the
+ * stack, the first anybody added — so a profile shows a roll the way the roll
+ * shows itself, and adding a picture does not change it.
  */
-export const eventShot = (viewer: string | null) => sql<
+export const eventShot = (viewer: string | null, which: 'newest' | 'first' = 'newest') => sql<
   { storageKey: string; hash: string | null } | null
 >`(
   select json_build_object(
@@ -1176,9 +1177,42 @@ export const eventShot = (viewer: string | null) => sql<
       where (b.blocker_actor_id = ${viewer} and b.blocked_actor_id = p.uploader_id)
          or (b.blocked_actor_id = ${viewer} and b.blocker_actor_id = p.uploader_id)
     )
-  order by p.uploaded_at desc
+  order by ${which === 'first' ? sql`p.added_seq asc` : sql`p.uploaded_at desc`}
   limit 1
 )`;
+
+/**
+ * The first photograph in each of these events — `eventShot`'s `first`, for a
+ * list of events already fetched rather than a column on a query.
+ *
+ * One query for the lot: the profile's events-in-common list is the home
+ * screen's listings, filtered, and those carry the newest photographs only.
+ */
+export async function firstShots(
+  db: Db,
+  eventIds: string[],
+  viewer: string | null,
+): Promise<Map<string, { storageKey: string; hash: string | null }>> {
+  if (eventIds.length === 0) return new Map();
+  type Row = { event_id: string; storage_key: string; hash: string | null };
+  const rows = (await db.execute(sql`
+    select distinct on (p.event_id)
+      p.event_id, p.storage_key, encode(p.content_hash, 'hex') as hash
+    from "photo" p
+    where p.event_id in (${sql.join(eventIds.map((id) => sql`${id}::uuid`), sql`, `)})
+      and p.status = 'ready' and p.deleted_at is null and p.hidden_at is null
+      and not exists (
+        select 1 from "block" b
+        where (b.blocker_actor_id = ${viewer} and b.blocked_actor_id = p.uploader_id)
+           or (b.blocked_actor_id = ${viewer} and b.blocker_actor_id = p.uploader_id)
+      )
+    order by p.event_id, p.added_seq asc
+  `)) as unknown as Row[] | { rows: Row[] };
+  const list = Array.isArray(rows) ? rows : rows.rows;
+  return new Map(
+    list.map((row) => [row.event_id, { storageKey: row.storage_key, hash: row.hash }]),
+  );
+}
 
 /**
  * How many photographs have arrived in an event since this person last looked.

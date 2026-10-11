@@ -19,8 +19,7 @@ import { NextResponse } from 'next/server';
 import { isSignedIn } from '@/access';
 import { avatarUrl } from '@/accounts';
 import { getDb } from '@/db';
-import { leadImage } from '@/cards';
-import { eventCover } from '@/groups';
+import { eventCover, firstShots } from '@/groups';
 import { albumsBy, eventsWithBoth, profileFor } from '@/people';
 import { currentActorId } from '@/session';
 
@@ -46,6 +45,7 @@ export async function GET(
     albumsBy(db, actorId, person.actorId),
   ]);
   const alsoShared = new Set(shared.map((listing) => listing.id));
+  const leads = await firstShots(db, [...alsoShared], actorId);
 
   return NextResponse.json({
     person: {
@@ -98,7 +98,8 @@ export async function GET(
         accessPolicy: listing.accessPolicy,
         caption: listing.caption,
         lastActiveAt: listing.lastActiveAt,
-        thumb: await leadImage(listing),
+        // The roll's own lead, not its newest: see `eventShot`.
+        thumb: await eventCover({ ...listing, shot: leads.get(listing.id) ?? null }),
       })),
     ),
     /*

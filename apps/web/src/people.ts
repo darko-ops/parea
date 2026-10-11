@@ -401,7 +401,8 @@ export async function albumsBy(
       accessPolicy: schema.events.accessPolicy,
       coverKey: schema.events.coverKey,
       capEpoch: schema.events.capEpoch,
-      shot: eventShot(viewerId),
+      // The roll's own lead, not its newest: see `eventShot`.
+      shot: eventShot(viewerId, 'first'),
       createdAt: schema.events.createdAt,
       lastActiveAt: schema.events.lastActiveAt,
       /*

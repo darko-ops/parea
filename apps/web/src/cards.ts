@@ -180,11 +180,17 @@ export async function leadImage(
 export async function toCards(
   listings: EventListing[],
   now: Date = new Date(),
+  /**
+   * The photograph to stand in for a missing cover, where the caller wants a
+   * steady one — a profile, which shows each roll as the roll leads with it —
+   * rather than the newest, which is what the home screen is for.
+   */
+  leadOf?: (listing: EventListing) => { storageKey: string; hash: string | null } | null,
 ): Promise<CardEvent[]> {
   return Promise.all(
     listings.map(async (listing) => {
       const cover = await coverSrc(listing.coverKey);
-      const shot = listing.mosaic[0];
+      const shot = leadOf ? leadOf(listing) : listing.mosaic[0];
       const first = shot
         ? {
             eventId: listing.id,

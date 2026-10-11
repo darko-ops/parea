@@ -25,7 +25,7 @@ import { Shell } from '@/../app/components/Shell';
 import { isSignedIn } from '@/access';
 import { avatarUrl } from '@/accounts';
 import { toCards } from '@/cards';
-import { eventCover } from '@/groups';
+import { eventCover, firstShots } from '@/groups';
 import { getDb } from '@/db';
 import { momentsResponse } from '@/moments';
 import { albumsBy, eventsWithBoth, profileFor } from '@/people';
@@ -96,6 +96,9 @@ export default async function PersonPage({
    * sign — `albumsBy` dropped it — so this loop cannot leak one by accident.
    */
   const shownTwice = new Set(shared.map((listing) => listing.id));
+  // Each roll as it leads with itself, so adding a photograph to one does not
+  // change it here — the home screen is where the newest one goes.
+  const leads = await firstShots(db, shared.map((listing) => listing.id), actorId);
   const albumCards = await Promise.all(
     // An album they made that the viewer is also in is already a full card in
     // the section above. Once, in the place that says more about it.
@@ -138,7 +141,7 @@ export default async function PersonPage({
           // The same cards the home screen and your own profile draw, from the
           // same builder: an event should not look like a different kind of
           // thing depending on which page it is on.
-          events={await toCards(shared)}
+          events={await toCards(shared, undefined, (listing) => leads.get(listing.id) ?? null)}
           albums={albumCards}
           moments={moments}
         />

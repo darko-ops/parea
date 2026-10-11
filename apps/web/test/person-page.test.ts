@@ -22,6 +22,7 @@ import { fileURLToPath } from 'node:url';
 import { beforeAll, beforeEach, describe, expect, it } from 'vitest';
 
 import type { Db } from '@/db';
+import { firstShots } from '@/groups';
 import { albumsBy, eventsWithBoth, profileFor } from '@/people';
 import { stripComments } from './support/source';
 
@@ -262,7 +263,9 @@ describe('what the page looks like', () => {
   it('draws the events with the builder every other screen uses', () => {
     // An event should not look like a different kind of thing depending on
     // which page it is on.
-    expect(PAGE).toMatch(/events=\{await toCards\(shared\)\}/);
+    expect(PAGE).toMatch(/events=\{await toCards\(shared,/);
+    // Led by each roll's own first photograph, not its newest — see `firstShots`.
+    expect(PAGE).toMatch(/firstShots\(db, shared\.map/);
   });
 
   it('says which kind of nothing it is', () => {
@@ -583,25 +586,51 @@ describe('the rolls on somebody’s page', () => {
     expect(album!.photoCount).toBe(2);
   });
 
-  it('stands the newest photograph in for a cover nobody chose', async () => {
+  it('stands the first photograph in for a cover nobody chose', async () => {
     /*
      * An open album with photographs and no chosen cover drew as the empty
      * outline — "Phone test", six photographs in it, looked like nothing was.
-     * The group shelf already had the rule, and this is the same one.
+     *
+     * The first one added, not the newest: that is what the roll itself leads
+     * with, and a profile that changed its picture every time somebody added
+     * one was showing the home screen's rule in the place for a steady one.
+     * Added order, not taken time — the second here was taken earlier.
      */
     const me = await person('me');
     const them = await person('wren');
     const open = await event(them, 'Phone test', 'public');
     await db.insert(schema.photos).values([
-      { eventId: open.id, storageKey: 'older', status: 'ready', uploaderId: them,
-        byteSize: 1, mime: 'image/jpeg', uploadedAt: new Date('2026-09-01') },
-      { eventId: open.id, storageKey: 'newer', status: 'ready', uploaderId: them,
+      { eventId: open.id, storageKey: 'first', status: 'ready', uploaderId: them,
         byteSize: 1, mime: 'image/jpeg', uploadedAt: new Date('2026-09-02') },
+      { eventId: open.id, storageKey: 'second', status: 'ready', uploaderId: them,
+        byteSize: 1, mime: 'image/jpeg', uploadedAt: new Date('2026-09-01') },
     ] as never);
 
     const [album] = await albumsBy(db, me, them);
     expect(album).toMatchObject({ locked: false, coverKey: null });
-    expect(album!.shot?.storageKey).toBe('newer');
+    expect(album!.shot?.storageKey).toBe('first');
+  });
+
+  it('finds the first photograph of each shared roll in one query', async () => {
+    // The events-in-common list comes from the home screen's listings, which
+    // carry only the newest photographs — so the profile asks for these.
+    const me = await person('me');
+    const them = await person('wren');
+    const a = await event(them, 'One', 'public');
+    const b = await event(them, 'Two', 'public');
+    await db.insert(schema.photos).values([
+      { eventId: a.id, storageKey: 'a-first', status: 'ready', uploaderId: them,
+        byteSize: 1, mime: 'image/jpeg' },
+      { eventId: b.id, storageKey: 'b-first', status: 'ready', uploaderId: them,
+        byteSize: 1, mime: 'image/jpeg' },
+      { eventId: a.id, storageKey: 'a-later', status: 'ready', uploaderId: them,
+        byteSize: 1, mime: 'image/jpeg' },
+    ] as never);
+
+    const leads = await firstShots(db, [a.id, b.id], me);
+    expect(leads.get(a.id)?.storageKey).toBe('a-first');
+    expect(leads.get(b.id)?.storageKey).toBe('b-first');
+    expect(await firstShots(db, [], me)).toEqual(new Map());
   });
 
   it('stands nothing in for a locked one', async () => {
