@@ -15,8 +15,8 @@
     "sms:test": "tsx scripts/send-test-sms.ts"
   },
   "devDependencies": {
-    "react": "19.2.3",
-    "tsx": "^4.20.6",
+    "react": "19.3.0",
+    "tsx": "^4.23.15",
     "typescript": "^5.9.3"
   }
 }
