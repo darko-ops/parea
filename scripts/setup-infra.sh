@@ -299,6 +299,8 @@ MAIL_API_KEY=
 MAIL_FROM=
 MAIL_API_URL=
 RESEND_WEBHOOK_SECRET=
+# Upload-failure patterns become GitHub issues for the fixing agent (Issues: read and write on darko-ops/parea).
+GITHUB_ISSUES_TOKEN=
 DERIVER_SCAN_URL=
 DERIVER_SCAN_TOKEN=
 

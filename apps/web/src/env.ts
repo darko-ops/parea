@@ -190,6 +190,14 @@ export function describeConfig(): ConfigItem[] {
       requiredInProduction: false,
     },
     {
+      name: 'GITHUB_ISSUES_TOKEN',
+      // Upload-failure patterns become issues, and the issue starts the agent
+      // that tries to fix them. Without it the check still runs and logs.
+      present: has('GITHUB_ISSUES_TOKEN'),
+      consequence: 'upload-failure patterns are logged but never filed, so no agent looks at them',
+      requiredInProduction: false,
+    },
+    {
       name: 'SMS_PROVIDER',
       // Reported the way MAIL_PROVIDER is: unset is fine and means the default,
       // and false here means somebody set it to a carrier no transport exists

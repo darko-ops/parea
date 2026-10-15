@@ -418,6 +418,7 @@ Generate with `openssl rand -base64 32`.
 | `DERIVER_SCAN_URL` | ● | | the deriver's `/scan` (`https://parea-deriver.fly.dev/scan`). With `DERIVER_SCAN_TOKEN`, the web app's own images are hashed by the deriver and only the PhotoDNA Edge Hash leaves |
 | `DERIVER_SCAN_TOKEN` | ● | | shared with the deriver (the same value as its `DERIVER_SCAN_TOKEN` secret), 32+ characters |
 | `RESEND_WEBHOOK_SECRET` | ● | | Resend's webhook signing secret (`whsec_…`) for `/api/webhooks/resend`: bounces, complaints and suppressed sends are recorded and alerted on, loudly when it is an alert address |
+| `GITHUB_ISSUES_TOKEN` | ● | | fine-grained GitHub token, Issues: read and write on `darko-ops/parea`. `/api/cron/upload-failures` files upload-failure patterns as issues labelled `upload-failure`, which start `.github/workflows/upload-failure-fix.yml` (needs the `ANTHROPIC_API_KEY` repository secret); `GITHUB_ISSUES_REPO` overrides the repository |
 | `SMS_PROVIDER` | ● | | `twilio`, `messagebird` or `vonage`; default `twilio` |
 | `SMS_API_KEY` | ● | | confirming a phone number. One value: `<sid>:<token>` for Twilio, `<key>:<secret>` for Vonage, the access key alone for MessageBird |
 | `SMS_FROM` | ● | | the number or sender ID texts come from |

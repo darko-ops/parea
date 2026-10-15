@@ -16,6 +16,10 @@
     {
       "path": "/api/cron/requeue-stranded",
       "schedule": "50 * * * *"
+    },
+    {
+      "path": "/api/cron/upload-failures",
+      "schedule": "5 * * * *"
     }
   ]
 }
