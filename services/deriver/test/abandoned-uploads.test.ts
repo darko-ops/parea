@@ -77,13 +77,16 @@ const row = async (id: string) =>
   (await db.select().from(schema.photos).where(sql`id = ${id}`))[0];
 
 describe('sweeping abandoned uploads', () => {
-  it('gives up on an upload that never arrived, and removes its file', async () => {
+  it('makes an upload that never arrived a draft, rather than deleting it', async () => {
     const id = await upload('up/never-sent', 'pending', 25);
     const objects = store();
     expect(await sweepAbandoned(db, objects)).toBe(1);
     expect(objects.deleted).toEqual(['up/never-sent']);
-    // Tombstoned, so it stops counting against the album's cap.
-    expect((await row(id)).deletedAt).not.toBeNull();
+    // Failed with no file, which is what stops it counting against the cap;
+    // kept, so whoever added it can see it and try again.
+    expect(await row(id)).toMatchObject({ status: 'failed', failureReason: 'never_arrived', bytesAt: null, deletedAt: null });
+    // And not swept a second time.
+    expect(await sweepAbandoned(db, store())).toBe(0);
   });
 
   it('leaves an upload still inside its day alone', async () => {
@@ -100,12 +103,19 @@ describe('sweeping abandoned uploads', () => {
     expect((await row(id)).deletedAt).toBeNull();
   });
 
-  it('removes a failure after a week, and not before', async () => {
-    await upload('up/failed-recently', 'failed', 24);
-    const old = await upload('up/failed-long-ago', 'failed', 8 * 24);
+  it('removes a failed photo’s file after a week, and not before, keeping the draft', async () => {
+    await upload('up/failed-recently', 'failed', 24, true);
+    const old = await upload('up/failed-long-ago', 'failed', 8 * 24, true);
     const objects = store();
     expect(await sweepAbandoned(db, objects)).toBe(1);
     expect(objects.deleted).toEqual(['up/failed-long-ago']);
+    expect(await row(old)).toMatchObject({ status: 'failed', bytesAt: null, deletedAt: null });
+  });
+
+  it('lets a draft with no file go after thirty days', async () => {
+    await upload('up/draft-recent', 'failed', 20 * 24);
+    const old = await upload('up/draft-old', 'failed', 31 * 24);
+    expect(await sweepAbandoned(db, store())).toBe(1);
     expect((await row(old)).deletedAt).not.toBeNull();
   });
 

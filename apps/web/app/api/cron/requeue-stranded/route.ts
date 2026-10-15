@@ -19,8 +19,9 @@ import { NextResponse } from 'next/server';
 
 import { cronGuard } from '@/cron';
 import { getDb } from '@/db';
-import { strandedPhotos } from '@/deriveBacklog';
+import { rescueUnconfirmed, strandedPhotos } from '@/deriveBacklog';
 import { publishDerive } from '@/queue';
+import { getStorage } from '@/storage';
 
 export const runtime = 'nodejs';
 
@@ -32,6 +33,12 @@ export async function GET(request: Request) {
 
   const db = getDb();
   const now = new Date();
+
+  // Files that arrived without anybody saying so: recorded as arrived, then
+  // sent below with the other stranded photos. See `rescueUnconfirmed`.
+  const rescued = await rescueUnconfirmed(db, getStorage(), now);
+  if (rescued > 0) console.warn(`requeue stranded: ${rescued} unconfirmed uploads found in storage`);
+
   const ids = await strandedPhotos(db, now);
 
   // One resend key per run, so a photo stranded for several hours is sent
@@ -61,5 +68,5 @@ export async function GET(request: Request) {
     .values({ name: NAME, ...outcome })
     .onConflictDoUpdate({ target: schema.jobRuns.name, set: outcome });
 
-  return NextResponse.json({ ok: refused === 0, stranded: ids.length, sent, refused });
+  return NextResponse.json({ ok: refused === 0, rescued, stranded: ids.length, sent, refused });
 }

@@ -48,6 +48,8 @@ import { AlbumRequests } from './AlbumRequests';
 import { AddRefused } from './AddRefused';
 import { RailIcon } from './RailIcon';
 import { useUploads } from './useUploads';
+import { useDrafts, type Draft, type DraftsView } from './useDrafts';
+import { DraftTile } from './DraftTile';
 
 /** Faces in the head before the count takes over. Three, as on the cards. */
 const HEAD_FACES = 4;
@@ -400,6 +402,27 @@ export function EventView({
     running: uploads.running,
   });
 
+  /*
+   * Your own photographs that are not in the roll yet, from the server — the
+   * ones this tab's queue does not know about. See `useDrafts`. Asked again
+   * whenever a run settles or the feed moves.
+   */
+  const localPhotoIds = useMemo(
+    () =>
+      new Set([
+        ...uploads.items.flatMap((item) => (item.photoId ? [item.photoId] : [])),
+        ...previews.flatMap((p) => (p.photoId ? [p.photoId] : [])),
+      ]),
+    [uploads.items, previews],
+  );
+  const drafts = useDrafts(eventId, localPhotoIds, `${uploads.running}:${feed.photos.length}:${feed.arriving}`);
+  // "Choose again" on a draft: the next single photograph picked completes it.
+  const draftTarget = useRef<string | null>(null);
+  const chooseAgain = useCallback((id: string) => {
+    draftTarget.current = id;
+    inputRef.current?.click();
+  }, []);
+
   /**
    * Handing somebody the camera, or taking it back.
    *
@@ -595,7 +618,9 @@ export function EventView({
       const { kept, dropped } = capSelection(0, usable, MAX_PER_SELECTION);
       setOverLimit(dropped > 0 ? selectionNote(kept.length, MAX_PER_SELECTION) : null);
 
-      if (kept.length > 0) await uploads.add(kept);
+      const draftId = kept.length === 1 ? (draftTarget.current ?? undefined) : undefined;
+      draftTarget.current = null;
+      if (kept.length > 0) await uploads.add(kept, { draftId });
       if (inputRef.current) inputRef.current.value = '';
     },
     [uploads],
@@ -1078,6 +1103,16 @@ export function EventView({
             is not happening, so when nothing has arrived since you got here
             this is one gallery, as it always was.
           */}
+          {drafts.drafts.length > 0 && (
+            <>
+              <SectionHead
+                label="Your drafts"
+                caption="Only you can see these. They haven’t finished uploading."
+              />
+              <DraftGrid view={drafts} onChooseAgain={chooseAgain} />
+            </>
+          )}
+
           {(fresh.length > 0 || previews.length > 0) && (
             <>
               <SectionHead
@@ -1424,6 +1459,43 @@ function columnsFor(width: number): number {
  * the first frame — which is right for the widest windows and corrected on
  * the next frame for the rest.
  */
+/**
+ * Your drafts, in columns like the gallery's — see `DraftTile`. All one shape,
+ * so they are dealt across the columns rather than packed.
+ */
+function DraftGrid({ view, onChooseAgain }: { view: DraftsView; onChooseAgain: (id: string) => void }) {
+  const count = useColumnCount();
+  const columns = useMemo(() => {
+    const out: Draft[][] = Array.from({ length: count }, () => []);
+    view.drafts.forEach((draft, i) => out[i % count]!.push(draft));
+    return out;
+  }, [count, view.drafts]);
+
+  return (
+    <div className="masonry" style={{ gridTemplateColumns: `repeat(${count}, minmax(0, 1fr))` }}>
+      {columns.map((column, i) => (
+        <div className="masonry-column" key={i}>
+          {column.map((draft) => (
+            <DraftTile
+              key={draft.id}
+              draft={draft}
+              busy={view.busy === draft.id}
+              onRetry={() =>
+                void view.retry(draft.id).then((ok) => {
+                  // Nothing left on the server to try again with.
+                  if (!ok) onChooseAgain(draft.id);
+                })
+              }
+              onChooseAgain={() => onChooseAgain(draft.id)}
+              onRemove={() => void view.remove(draft.id)}
+            />
+          ))}
+        </div>
+      ))}
+    </div>
+  );
+}
+
 function useColumnCount(): number {
   const [count, setCount] = useState(4);
   useEffect(() => {

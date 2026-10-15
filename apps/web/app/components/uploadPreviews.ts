@@ -32,6 +32,8 @@ export type PreviewState = 'uploading' | 'processing' | 'failed' | 'stale';
 export type UploadPreview = {
   id: string;
   name: string;
+  /** The server's photo, once there is one — what a draft is called. */
+  photoId?: string;
   status: QueueItem['status'];
   state: PreviewState;
   /** The preview, null where none could be made, undefined while it is. */
@@ -83,7 +85,7 @@ export function outstandingUploads(
 type Made = { src: string | null; ratio: number | null };
 
 /** A tile owed: a queue item, or a kept preview the queue no longer has. */
-type Owed = Pick<QueueItem, 'id' | 'name' | 'status'>;
+type Owed = Pick<QueueItem, 'id' | 'name' | 'status' | 'photoId'>;
 
 const ids = (key: string) => (key ? key.split('\n') : []);
 
@@ -149,6 +151,7 @@ export function useUploadPreviews({
       id: record.itemId,
       name: record.name,
       status: 'done' as const,
+      photoId: record.photoId,
     })),
   ];
   const key = wanted.map((item) => item.id).join('\n');
@@ -328,6 +331,7 @@ export function useUploadPreviews({
     return {
       id: item.id,
       name: item.name,
+      photoId: item.photoId,
       status: item.status,
       state: previewState(item.status),
       src: preview ? preview.src : undefined,

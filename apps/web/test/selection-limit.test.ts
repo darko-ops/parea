@@ -52,7 +52,7 @@ describe('both pickers apply it', () => {
   });
 
   it('the event page uploads only what was kept', () => {
-    expect(read('../app/components/EventView.tsx')).toMatch(/uploads\.add\(kept\)/);
+    expect(read('../app/components/EventView.tsx')).toMatch(/uploads\.add\(kept[,)]/);
   });
 
   it('is fifty', () => {

@@ -1050,3 +1050,51 @@ describe('telling the server what went wrong', () => {
     expect(queue.doneCount).toBe(1);
   });
 });
+
+describe('completing the photo it already started', () => {
+  it('asks for the same row when it goes back for a new grant', async () => {
+    const asked: { draftId?: string }[][] = [];
+    let puts = 0;
+    const h = harness({
+      async presign(_eventId, files) {
+        asked.push(files.map((f) => ({ draftId: f.draftId })));
+        return files.map((f, i) => ({
+          photoId: f.draftId ?? `photo-${i}`,
+          url: 'https://storage.example/put',
+          headers: {},
+          expiresAt: new Date(Date.now() + 900_000).toISOString(),
+        }));
+      },
+      async upload() {
+        puts += 1;
+        if (puts === 1) throw new Error('upload failed: 500');
+      },
+    });
+    const queue = new UploadQueue(h.deps);
+    queue.add('event-1', [file(1)]);
+    await queue.run();
+
+    expect(asked[0]).toEqual([{ draftId: undefined }]);
+    expect(asked[1]).toEqual([{ draftId: 'photo-0' }]);
+    expect(queue.doneCount).toBe(1);
+  });
+
+  it('can be pointed at a draft from the start', async () => {
+    const asked: (string | undefined)[] = [];
+    const h = harness({
+      async presign(_eventId, files) {
+        asked.push(...files.map((f) => f.draftId));
+        return files.map((f) => ({
+          photoId: f.draftId!,
+          url: 'https://storage.example/put',
+          headers: {},
+          expiresAt: new Date(Date.now() + 900_000).toISOString(),
+        }));
+      },
+    });
+    const queue = new UploadQueue(h.deps);
+    queue.add('event-1', [{ ...file(1), photoId: 'draft-7' }]);
+    await queue.run();
+    expect(asked).toEqual(['draft-7']);
+  });
+});

@@ -26,7 +26,7 @@ export type UploadsView = {
   running: boolean;
   /** True when this tab picked up work a previous one left behind. */
   resumed: boolean;
-  add(files: File[]): Promise<void>;
+  add(files: File[], opts?: { draftId?: string }): Promise<void>;
   /**
    * Persist a batch for another page to send. See below. `cover` is the one of
    * them the roll's cover was cut from, if any — see `coverPending`.
@@ -309,10 +309,16 @@ export function useUploads(eventId: string, onProgress?: () => void): UploadsVie
   );
 
   const add = useCallback(
-    async (picked: File[]) => {
+    /**
+     * `draftId` names the draft one chosen photograph completes — "Choose
+     * again" on a draft's tile. Several files at once are matched to drafts by
+     * the server instead, by type and size.
+     */
+    async (picked: File[], opts: { draftId?: string } = {}) => {
       if (picked.length === 0) return;
 
       const described = picked.map((file) => describe(eventId, file));
+      if (opts.draftId && described.length === 1) described[0]!.item.photoId = opts.draftId;
       for (const { item, file } of described) files.current.set(item.id, file);
 
       let q = queue.current;

@@ -62,6 +62,8 @@ const PURGE_GRACE_DAYS = 30;
 const ABANDONED_AFTER_HOURS = 24;
 /** How long a photo that failed processing is kept before its file goes. */
 const FAILED_KEPT_DAYS = 7;
+/** How long a draft with no file waits to be retried before it is let go. */
+const DRAFT_KEPT_DAYS = 30;
 /** Dormancy before a spoken code returns to the pool. */
 const CODE_DORMANCY_DAYS = 90;
 
@@ -137,22 +139,27 @@ export async function autoHide(
 }
 
 /**
- * Uploads that never became photos: given up on, and their files removed.
+ * Uploads that never became photos: made drafts, their files removed, and
+ * after a month let go.
  *
- * Two kinds, and neither was ever cleaned up. An upload whose URL was handed
- * out and whose bytes never arrived — or arrived and were never confirmed —
- * sat `pending` for good. A photo that failed processing sat `failed` for
- * good. Both kept the original in storage, unserved but whole: the file as the
- * camera wrote it, GPS and all, which the privacy page had to admit to. Both
- * also kept counting against the album's cap, so a few accounts could fill an
- * album by asking for uploads and never sending them.
+ * An upload whose URL was handed out and whose file never arrived used to be
+ * tombstoned after a day, and one that failed processing after a week — so a
+ * photograph somebody added simply vanished, with nothing to say so and
+ * nothing to retry. Now each is a draft (see `apps/web/src/drafts.ts`), shown
+ * to whoever added it and nobody else, until they retry it, remove it, or a
+ * month passes:
  *
- * So: a day for an upload to arrive — its URL lives fifteen minutes, so a day
- * is generous — and a week for a failure to be looked at. Then the stored file
- * is deleted at once, because nothing was ever shown from it and there is
- * nothing to hold it for, and the row is tombstoned, which takes it out of the
- * cap; `purge` removes the row itself later. Anything under a child-safety
- * hold is left exactly where it is.
+ * - **Never arrived, after a day.** Its URL lives fifteen minutes, and the
+ *   hourly requeue has spent the day looking in storage for a file that came
+ *   without a confirmation; this one did not. It becomes `failed` with
+ *   `never_arrived`, and stops counting against the album's cap.
+ * - **Failed processing, after a week.** The file goes — it is the original,
+ *   GPS and all, and nothing was ever shown from it — and `bytesAt` with it,
+ *   so the draft asks for the photograph to be chosen again.
+ * - **A draft with no file, after thirty days.** Tombstoned, which `purge`
+ *   finishes later.
+ *
+ * Anything under a child-safety hold is left exactly where it is.
  */
 export async function sweepAbandoned(
   database: ReturnType<typeof db>,
@@ -161,6 +168,8 @@ export async function sweepAbandoned(
 ): Promise<number> {
   const abandonedBefore = new Date(now.getTime() - ABANDONED_AFTER_HOURS * 3600_000);
   const failedBefore = new Date(now.getTime() - FAILED_KEPT_DAYS * 24 * 3600_000);
+  const draftsBefore = new Date(now.getTime() - DRAFT_KEPT_DAYS * 24 * 3600_000);
+  const since = sql`coalesce(${schema.photos.failedAt}, ${schema.photos.uploadedAt})`;
   const rows = await database
     .select({
       id: schema.photos.id,
@@ -168,6 +177,7 @@ export async function sweepAbandoned(
       eventId: schema.photos.eventId,
       uploaderId: schema.photos.uploaderId,
       status: schema.photos.status,
+      bytesAt: schema.photos.bytesAt,
       failureReason: schema.photos.failureReason,
       mime: schema.photos.mime,
       byteSize: schema.photos.byteSize,
@@ -185,7 +195,8 @@ export async function sweepAbandoned(
             isNull(schema.photos.bytesAt),
             lt(schema.photos.uploadedAt, abandonedBefore),
           ),
-          and(eq(schema.photos.status, 'failed'), lt(schema.photos.uploadedAt, failedBefore)),
+          and(eq(schema.photos.status, 'failed'), isNotNull(schema.photos.bytesAt), lt(since, failedBefore)),
+          and(eq(schema.photos.status, 'failed'), isNull(schema.photos.bytesAt), lt(since, draftsBefore)),
         ),
         notExists(
           database
@@ -199,14 +210,28 @@ export async function sweepAbandoned(
 
   for (const row of rows) {
     await objects.delete(row.storageKey).catch(() => {});
+
+    if (row.status === 'failed' && !row.bytesAt) {
+      // A month as a draft, and nobody came back for it.
+      await database
+        .update(schema.photos)
+        .set({ deletedAt: now })
+        .where(eq(schema.photos.id, row.id));
+      continue;
+    }
+
+    const abandoned = row.status === 'pending';
     await database
       .update(schema.photos)
-      .set({ status: 'failed', deletedAt: now })
+      .set(
+        abandoned
+          ? { status: 'failed', failedAt: now, failureReason: 'never_arrived' }
+          : { bytesAt: null },
+      )
       .where(eq(schema.photos.id, row.id));
-    // The last word on it, before the row goes. A grant nobody confirmed is
+    // What happened, for the upload-failure log. A grant nobody confirmed is
     // `abandoned` — what the browser saw, if it said, is the client's report
     // beside it; a photo processing gave up on keeps the deriver's reason.
-    const abandoned = row.status === 'pending';
     await database
       .insert(schema.uploadFailures)
       .values({

@@ -90,7 +90,18 @@ export type QueueItem = {
 
 export type QueueState = { items: QueueItem[] };
 
-export type PresignRequest = { name: string; size: number; type: string };
+export type PresignRequest = {
+  name: string;
+  size: number;
+  type: string;
+  /**
+   * The photo row this upload completes, when it has one: a retry of an
+   * attempt that was already granted, or a draft chosen again. Without it a
+   * retry left an empty row behind at every attempt. See the server's
+   * `claimDrafts`.
+   */
+  draftId?: string;
+};
 export type PresignResponse = {
   photoId: string;
   url: string;
@@ -592,7 +603,12 @@ export class UploadQueue {
         try {
           const granted = await this.deps.presign(
             eventId,
-            chunk.map((i) => ({ name: i.name, size: i.size, type: i.mime })),
+            chunk.map((i) => ({
+              name: i.name,
+              size: i.size,
+              type: i.mime,
+              ...(i.photoId ? { draftId: i.photoId } : {}),
+            })),
           );
           chunk.forEach((item, index) => {
             const grant = granted[index];

@@ -18,11 +18,13 @@
 
 import { PGlite } from '@electric-sql/pglite';
 import { newLinkToken, schema } from '@parea/core';
-import { and, count, eq, isNull, sql, sum } from 'drizzle-orm';
+import { and, count, eq, sql, sum } from 'drizzle-orm';
 import { drizzle } from 'drizzle-orm/pglite';
 import { migrate } from 'drizzle-orm/pglite/migrator';
 import { fileURLToPath } from 'node:url';
 import { beforeAll, beforeEach, describe, expect, it } from 'vitest';
+
+import { countsTowardCap } from '@/drafts';
 
 const MIGRATIONS = fileURLToPath(
   new URL('../../../packages/core/drizzle', import.meta.url),
@@ -53,7 +55,7 @@ async function used(eventId: string, actorId: string) {
       and(
         eq(schema.photos.eventId, eventId),
         eq(schema.photos.uploaderId, actorId),
-        isNull(schema.photos.deletedAt),
+        countsTowardCap(),
       ),
     );
   return { photos: row?.photos ?? 0, bytes: Number(row?.bytes ?? 0) };

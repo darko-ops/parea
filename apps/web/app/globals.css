@@ -2840,6 +2840,13 @@ fieldset.field > legend { padding: 0; margin-bottom: 8px; }
   position: absolute; left: 0; right: 0; bottom: 0; height: 3px;
   background: rgba(20, 23, 28, .18);
 }
+/* A draft: yours, not in the roll yet, and with no picture to show — see
+   `DraftTile`. What the server knows of it sits where the picture would. */
+.tile-draft-body {
+  display: flex; align-items: flex-start; justify-content: flex-start;
+  padding: 14px; color: var(--dim); font-size: 13px; line-height: 1.4;
+}
+.tile-draft .tile-pending-state { flex-wrap: wrap; row-gap: 6px; }
 
 /* The overlay: on hover, on focus-within, and on a first tap — which is what
    focus-within gives on touch, where there is no hover to have. */

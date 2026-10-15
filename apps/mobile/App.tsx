@@ -55,6 +55,7 @@ import {
   type CoHost,
   type ContributePolicy,
   type EventListing,
+  type Draft,
   type Feed,
   type RollGroup,
   type FeedPhoto,
@@ -2454,8 +2455,11 @@ const NO_PREVIEWS: readonly Preview[] = [];
  * field added to either can never make one look like the other.
  */
 type StandIn = Preview & { standIn: true };
-type GridTile = FeedPhoto | StandIn;
+/** One of your own photographs that is not in the roll yet — see `EventScreen`'s drafts. */
+type DraftTile = Draft & { draftTile: true };
+type GridTile = FeedPhoto | StandIn | DraftTile;
 const isStandIn = (tile: GridTile): tile is StandIn => 'standIn' in tile;
+const isDraftTile = (tile: GridTile): tile is DraftTile => 'draftTile' in tile;
 
 /**
  * What a stand-in tile draws: the phone's own copy of the photograph.
@@ -2773,7 +2777,22 @@ function EventScreen({
 
   const [feedError, setFeedError] = useState<string | null>(null);
 
+  /*
+   * Your drafts: photographs of yours in this roll that are not in it yet,
+   * from any device — one that never finished sending, or failed processing.
+   * Nobody else sees them. Asked for with the feed; a failure leaves the last
+   * answer standing, since they are a nicety beside the photos themselves.
+   */
+  const [drafts, setDrafts] = useState<Draft[]>([]);
+  const loadDrafts = useCallback(() => {
+    api
+      .drafts(event.id)
+      .then((body) => setDrafts(body.drafts))
+      .catch(() => {});
+  }, [api, event.id]);
+
   const refresh = useCallback(async () => {
+    loadDrafts();
     try {
       setFeed(await api.feed(event.id, event.linkToken));
       // The server has spoken, so the local guess is no longer needed. Left
@@ -2793,7 +2812,7 @@ function EventScreen({
           : 'Could not load the photos.',
       );
     }
-  }, [api, event]);
+  }, [api, event, loadDrafts]);
 
   useEffect(() => {
     void refresh();
@@ -4354,12 +4373,112 @@ function EventScreen({
    * feed's photographs alone; and the count under the cover is the server's.
    * A stand-in is a promise, and none of those are places to count one.
    */
+  // A draft this phone's queue is still working on already has a stand-in.
+  const draftTiles = useMemo(() => {
+    const local = new Set(uploads.items.flatMap((item) => (item.photoId ? [item.photoId] : [])));
+    const shown = new Set((feed?.photos ?? []).map((photo) => photo.id));
+    return drafts
+      .filter((draft) => !local.has(draft.id) && !shown.has(draft.id))
+      .map((draft) => ({ ...draft, draftTile: true as const }));
+  }, [drafts, uploads, feed]);
+
   const gridTiles = useMemo<GridTile[]>(
     () => [
       ...pendingTiles.map((preview) => ({ ...preview, standIn: true as const })),
+      ...draftTiles,
       ...(feed?.photos ?? []),
     ],
-    [pendingTiles, feed],
+    [pendingTiles, draftTiles, feed],
+  );
+
+  /**
+   * What a draft can do, asked on a tap: there is no room on a 130-point
+   * square for two buttons, and both are rare enough to be a question.
+   *
+   * "Choose again" opens the picker; the server recognises the same photograph
+   * by its type and size and completes this draft with it rather than adding
+   * another.
+   */
+  const actOnDraft = useCallback(
+    (draft: Draft) => {
+      const remove = {
+        text: 'Remove',
+        style: 'destructive' as const,
+        onPress: () => {
+          setDrafts((list) => list.filter((d) => d.id !== draft.id));
+          void api.removeDraft(draft.id).catch(() => {}).finally(loadDrafts);
+        },
+      };
+      const chooseAgain = { text: 'Choose again', onPress: () => void pickFromLibrary() };
+      const what = `${draft.mime.replace('image/', '').toUpperCase()} · ${
+        draft.size >= 1_000_000 ? `${(draft.size / 1_000_000).toFixed(1)} MB` : `${Math.max(1, Math.round(draft.size / 1000))} KB`
+      }, added ${new Date(draft.addedAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}.`;
+
+      if (draft.state === 'failed') {
+        Alert.alert('Couldn’t be processed', `${what} Only you can see this draft.`, [
+          {
+            text: 'Try again',
+            onPress: () =>
+              void api
+                .retryDraft(draft.id, event.linkToken)
+                .catch((err) => {
+                  if (err instanceof ApiError && err.code === 'needs_file') {
+                    Alert.alert('Choose it again', 'The photo is no longer on our side. Pick it from your library to finish adding it.', [
+                      chooseAgain,
+                      { text: 'Cancel', style: 'cancel' },
+                    ]);
+                  }
+                })
+                .finally(loadDrafts),
+          },
+          remove,
+          { text: 'Cancel', style: 'cancel' },
+        ]);
+        return;
+      }
+      Alert.alert('Didn’t upload', `${what} Choose it again to finish adding it. Only you can see this draft.`, [
+        chooseAgain,
+        remove,
+        { text: 'Cancel', style: 'cancel' },
+      ]);
+    },
+    [api, event.linkToken, loadDrafts, pickFromLibrary],
+  );
+
+  const renderDraft = useCallback(
+    (item: DraftTile) => {
+      const stuck = item.state === 'failed' || item.state === 'needs_file';
+      const label =
+        item.state === 'sending'
+          ? 'Uploading'
+          : item.state === 'processing'
+            ? 'Processing'
+            : item.state === 'failed'
+              ? 'Tap to retry'
+              : 'Didn’t upload';
+      return (
+        <Pressable
+          style={{ width: gridTile, height: gridTile }}
+          disabled={!stuck}
+          onPress={() => actOnDraft(item)}
+          accessibilityRole={stuck ? 'button' : 'image'}
+          accessibilityLabel={`A draft only you can see. ${label}`}
+        >
+          <View style={styles.gridShot} />
+          <View pointerEvents="none" style={styles.standInVeil}>
+            {stuck && (
+              <View style={styles.standInMark}>
+                <Text style={styles.standInMarkText}>!</Text>
+              </View>
+            )}
+            <Text style={styles.standInLabel} numberOfLines={1}>
+              {label}
+            </Text>
+          </View>
+        </Pressable>
+      );
+    },
+    [gridTile, actOnDraft],
   );
 
   /**
@@ -4433,6 +4552,7 @@ function EventScreen({
   const renderTile = useCallback(
     ({ item }: { item: GridTile }) => {
       if (isStandIn(item)) return renderStandIn(item);
+      if (isDraftTile(item)) return renderDraft(item);
       const who = item.by ? byline.get(item.by) : undefined;
       return (
         <Pressable
@@ -4529,7 +4649,7 @@ function EventScreen({
         </Pressable>
       );
     },
-    [byline, gridTile, renderStandIn],
+    [byline, gridTile, renderStandIn, renderDraft],
   );
 
 
@@ -4963,7 +5083,9 @@ function EventScreen({
                   columnWrapperStyle={styles.gridRow}
                   getItemLayout={gridLayout}
                   data={gridTiles}
-                  keyExtractor={(tile) => (isStandIn(tile) ? `local:${tile.id}` : tile.id)}
+                  keyExtractor={(tile) =>
+                    isStandIn(tile) ? `local:${tile.id}` : isDraftTile(tile) ? `draft:${tile.id}` : tile.id
+                  }
                   contentContainerStyle={styles.gridContent}
                   refreshControl={
                     <RefreshControl

@@ -243,11 +243,15 @@ const APP = read('App.tsx');
 describe('the roll’s grid', () => {
   const grid = APP.slice(APP.indexOf('ref={gridList}'), APP.indexOf('ref={keptList}'));
 
-  it('leads with the stand-ins and then the feed', () => {
+  it('leads with the stand-ins, then your drafts, then the feed', () => {
     expect(grid).toMatch(/data=\{gridTiles\}/);
     expect(APP).toMatch(
-      /\.\.\.pendingTiles\.map\(\(preview\) => \(\{ \.\.\.preview, standIn: true as const \}\)\),\s*\.\.\.\(feed\?\.photos \?\? \[\]\),/,
+      /\.\.\.pendingTiles\.map\(\(preview\) => \(\{ \.\.\.preview, standIn: true as const \}\)\),\s*\.\.\.draftTiles,\s*\.\.\.\(feed\?\.photos \?\? \[\]\),/,
     );
+  });
+
+  it('leaves out a draft this phone is still sending, or one now in the feed', () => {
+    expect(APP).toMatch(/\.filter\(\(draft\) => !local\.has\(draft\.id\) && !shown\.has\(draft\.id\)\)/);
   });
 
   it('drops a stand-in in the same render its photograph arrives', () => {

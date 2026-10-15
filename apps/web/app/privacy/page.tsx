@@ -87,10 +87,12 @@ export default function PrivacyPage() {
             Between the moment you upload and the moment that processing
             finishes, the untouched original is in storage. Nothing serves it or
             lists it during that window, but it is honest to say that it exists.
-            An upload that is never finished is removed after a day, and one
-            that fails processing after a week; neither is shown to anyone in
-            the meantime. A moment you start and never post is removed after a
-            day as well.
+            A photo that does not finish uploading, or fails processing, stays
+            in the roll as a draft that only you can see &mdash; its type, its
+            size and when you added it, never a picture &mdash; so you can try
+            again or remove it. The original of one that failed processing is
+            deleted after a week, and a draft you leave is removed after 30
+            days. A moment you start and never post is removed after a day.
           </p>
 
           <h3>Moments you share</h3>

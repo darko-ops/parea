@@ -1264,6 +1264,17 @@ export function isStaleSignIn(err: unknown): boolean {
 export const STALE_SIGN_IN_NOTE =
   'For this, sign in again first: sign out, then back in with a code.';
 
+/** One of your photographs not in the roll yet. Mirrors `Draft` in the web app's `src/drafts.ts`. */
+export type Draft = {
+  id: string;
+  state: 'sending' | 'processing' | 'failed' | 'needs_file';
+  mime: string;
+  size: number;
+  addedAt: string;
+  capturedAt: string | null;
+  reason: string | null;
+};
+
 export class ApiError extends Error {
   constructor(
     readonly status: number,
@@ -1429,6 +1440,26 @@ export class Api {
     });
     this.token = actorToken;
     return actorToken;
+  }
+
+  /**
+   * Your photographs in this roll that are not in it yet — see the server's
+   * `src/drafts.ts`. Nobody else's, ever.
+   */
+  drafts(eventId: string): Promise<{ drafts: Draft[] }> {
+    return this.call<{ drafts: Draft[] }>(`/api/events/${eventId}/drafts`);
+  }
+
+  /** Try a draft again from what the server holds; `needs_file` (409) means choose it again. */
+  retryDraft(photoId: string, linkToken: string): Promise<{ state: string }> {
+    return this.call(`/api/photos/${photoId}/draft`, {
+      method: 'POST',
+      body: JSON.stringify({ linkToken }),
+    });
+  }
+
+  removeDraft(photoId: string): Promise<unknown> {
+    return this.call(`/api/photos/${photoId}/draft`, { method: 'DELETE' });
   }
 
   feed(eventId: string, linkToken: string): Promise<Feed> {

@@ -16,6 +16,7 @@ import { isHostOf } from '@/hosts';
 import { isBlockedBy } from '@/moderation';
 import { PRESIGN_LIMIT, PRESIGN_NETWORK_LIMIT, withinLimit, withinLimitFor } from '@/ratelimit';
 import { currentAccountActorId, ensureActor, requesterFor } from '@/session';
+import { claimDrafts, countsTowardCap } from '@/drafts';
 import { getStorage, objectKey } from '@/storage';
 
 export const runtime = 'nodejs';
@@ -52,7 +53,9 @@ const MAX_BYTES_PER_ACTOR_PER_EVENT = 5 * 1024 * 1024 * 1024;
 const MAX_PHOTOS_PER_EVENT = 20_000;
 const MAX_BYTES_PER_EVENT = 100 * 1024 * 1024 * 1024;
 
-type FileRequest = { name: string; size: number; type: string };
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+type FileRequest = { name: string; size: number; type: string; draftId?: string };
 
 export async function POST(
   request: Request,
@@ -188,7 +191,36 @@ export async function POST(
   const storage = getStorage();
 
   /*
-   * One insert for the whole batch, in the order the files were picked.
+   * Drafts first: a photograph retried, or chosen again, completes the draft
+   * it left rather than adding a row beside it — which is what every retry
+   * used to do, each empty row counting against the caps until it was swept.
+   * A taken-over draft keeps its key and its place in the roll.
+   */
+  const claimed = await claimDrafts(db, event.id, actorId, files);
+  const keys: string[] = [];
+  const idFor = new Map<string, string>();
+  for (const [i, file] of files.entries()) {
+    const draft = claimed[i];
+    if (!draft) continue;
+    const [row] = await db
+      .update(schema.photos)
+      .set({
+        status: 'pending',
+        byteSize: file.size,
+        mime: file.type,
+        uploadedAt: new Date(),
+        bytesAt: null,
+        failedAt: null,
+        failureReason: null,
+      })
+      .where(and(eq(schema.photos.id, draft), eq(schema.photos.uploaderId, actorId)))
+      .returning({ id: schema.photos.id, storageKey: schema.photos.storageKey });
+    keys[i] = row!.storageKey;
+    idFor.set(row!.storageKey, row!.id);
+  }
+
+  /*
+   * One insert for the rest, in the order the files were picked.
    *
    * A roll is drawn as a stack — each addition on top, and the first pick of
    * one lowest in it — and `addedSeq` is what says that. Its values are taken
@@ -200,22 +232,25 @@ export async function POST(
    * be asked to hash 200 files on a phone, and the deriver rewrites the key to
    * a content-addressed one once it has actually read the bytes.
    */
-  const keys = files.map(() => objectKey(event.id, `${crypto.randomUUID()}`));
-  const rows = await db
-    .insert(schema.photos)
-    .values(
-      files.map((file, i) => ({
-        eventId: event.id,
-        uploaderId: actorId,
-        storageKey: keys[i]!,
-        byteSize: file.size,
-        mime: file.type,
-        status: 'pending' as const,
-      })),
-    )
-    .returning({ id: schema.photos.id, storageKey: schema.photos.storageKey });
-  // Matched on the key rather than trusted to come back in the order sent.
-  const idFor = new Map(rows.map((row) => [row.storageKey, row.id]));
+  const fresh = files.flatMap((file, i) => (claimed[i] ? [] : [{ file, i }]));
+  for (const { i } of fresh) keys[i] = objectKey(event.id, `${crypto.randomUUID()}`);
+  if (fresh.length > 0) {
+    const rows = await db
+      .insert(schema.photos)
+      .values(
+        fresh.map(({ file, i }) => ({
+          eventId: event.id,
+          uploaderId: actorId,
+          storageKey: keys[i]!,
+          byteSize: file.size,
+          mime: file.type,
+          status: 'pending' as const,
+        })),
+      )
+      .returning({ id: schema.photos.id, storageKey: schema.photos.storageKey });
+    // Matched on the key rather than trusted to come back in the order sent.
+    for (const row of rows) idFor.set(row.storageKey, row.id);
+  }
 
   const uploads = await Promise.all(
     files.map(async (file, i) => {
@@ -243,7 +278,12 @@ export async function POST(
  * Counts pending rows as well as ready ones: a presign that was never followed
  * by an upload still reserved a row, and ignoring those would let someone
  * bypass the cap by never completing. Tombstoned photos do not count, because
- * removing your own upload should give the space back.
+ * removing your own upload should give the space back — and nor do drafts
+ * whose file never arrived, which the hourly sweep makes of a grant unused
+ * for a day. See `countsTowardCap`.
+ *
+ * A request that takes over drafts is charged in full, drafts included: at
+ * worst a few photographs early, at the edge of a cap set far above real use.
  *
  * One function for both bounds so they cannot come to disagree about what
  * counts. The accounting rules above are the subtle part, and they are the
@@ -261,7 +301,7 @@ async function used(
       and(
         eq(schema.photos.eventId, eventId),
         actorId ? eq(schema.photos.uploaderId, actorId) : undefined,
-        isNull(schema.photos.deletedAt),
+        countsTowardCap(),
       ),
     );
   return { photos: row?.photos ?? 0, bytes: Number(row?.bytes ?? 0) };
@@ -327,7 +367,15 @@ function parseFiles(value: unknown): FileRequest[] | Refused {
     if (typeof type !== 'string') return { reason: 'no_type', at, name: named };
     const mime = acceptedMime(type);
     if (!mime) return { reason: 'unacceptable_type', at, name: named };
-    out.push({ name, size, type: mime });
+    // A draft of yours this upload completes — see `claimDrafts`. Only ever a
+    // request: an id that is not your draft is ignored, not refused.
+    const draftId = (raw as Record<string, unknown>).draftId;
+    out.push({
+      name,
+      size,
+      type: mime,
+      ...(typeof draftId === 'string' && UUID.test(draftId) ? { draftId: draftId.toLowerCase() } : {}),
+    });
   }
   return out;
 }

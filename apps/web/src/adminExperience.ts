@@ -330,9 +330,14 @@ export async function experience(db: Db, days: ExperiencePeriod) {
                            and p."bytes_at" < now() - make_interval(mins => ${STUCK_AFTER_MINUTES}))::int as "stuck",
         min(p."bytes_at") filter (where p."status" = 'pending' and p."bytes_at" is not null) as "oldestProcessing",
         count(*) filter (where p."uploaded_at" > ${since} and ${CONTRIBUTED})::int as "arrived",
-        count(*) filter (where p."uploaded_at" > ${since} and p."status" = 'failed')::int as "failed",
-        count(*) filter (where p."uploaded_at" > ${since} and p."status" = 'pending' and p."bytes_at" is null
-                           and p."uploaded_at" < now() - interval '1 day')::int as "abandoned"
+        count(*) filter (where p."uploaded_at" > ${since} and p."status" = 'failed'
+                           and p."failure_reason" is distinct from 'never_arrived')::int as "failed",
+        -- Never arrived: the sweep makes these failed drafts after a day, so
+        -- they are counted here and not as processing failures.
+        count(*) filter (where p."uploaded_at" > ${since}
+                           and ((p."status" = 'pending' and p."bytes_at" is null
+                                 and p."uploaded_at" < now() - interval '1 day')
+                                or (p."status" = 'failed' and p."failure_reason" = 'never_arrived')))::int as "abandoned"
         from "photo" p
        where p."deleted_at" is null
     `),
