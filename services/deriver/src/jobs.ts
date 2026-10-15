@@ -169,6 +169,8 @@ export async function sweepAbandoned(
   const abandonedBefore = new Date(now.getTime() - ABANDONED_AFTER_HOURS * 3600_000);
   const failedBefore = new Date(now.getTime() - FAILED_KEPT_DAYS * 24 * 3600_000);
   const draftsBefore = new Date(now.getTime() - DRAFT_KEPT_DAYS * 24 * 3600_000);
+  // A raw expression has no column type to map a Date through, and postgres-js
+  // refuses a Date it cannot map — so the bounds go in as ISO strings, cast.
   const since = sql`coalesce(${schema.photos.failedAt}, ${schema.photos.uploadedAt})`;
   const rows = await database
     .select({
@@ -195,8 +197,8 @@ export async function sweepAbandoned(
             isNull(schema.photos.bytesAt),
             lt(schema.photos.uploadedAt, abandonedBefore),
           ),
-          and(eq(schema.photos.status, 'failed'), isNotNull(schema.photos.bytesAt), lt(since, failedBefore)),
-          and(eq(schema.photos.status, 'failed'), isNull(schema.photos.bytesAt), lt(since, draftsBefore)),
+          and(eq(schema.photos.status, 'failed'), isNotNull(schema.photos.bytesAt), sql`${since} < ${failedBefore.toISOString()}::timestamptz`),
+          and(eq(schema.photos.status, 'failed'), isNull(schema.photos.bytesAt), sql`${since} < ${draftsBefore.toISOString()}::timestamptz`),
         ),
         notExists(
           database
