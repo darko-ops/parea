@@ -505,6 +505,13 @@
       "when": 1791593581280,
       "tag": "0071_mail_event",
       "breakpoints": true
+    },
+    {
+      "idx": 72,
+      "version": "7",
+      "when": 1792010387034,
+      "tag": "0072_upload_failure",
+      "breakpoints": true
     }
   ]
 }

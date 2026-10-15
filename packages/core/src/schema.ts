@@ -95,6 +95,53 @@ export const mailEvents = pgTable(
   (t) => [index('mail_event_created_idx').on(t.createdAt)],
 );
 
+/**
+ * Uploads that did not go through, and why.
+ *
+ * A `photo` row records the end of a failed upload and then disappears: the
+ * hourly sweep tombstones it a day after its bytes never arrived, and the
+ * purge takes the row. What went wrong in between was only ever in somebody's
+ * browser. A new account's first twelve photographs were granted, never sent
+ * and swept, and nothing anywhere said why.
+ *
+ * Written from both ends. `source = 'client'` is the upload queue's own report
+ * (`/api/uploads/failures`): which step, what threw, and the note under
+ * "waiting for a connection". `source = 'server'` is what the server saw —
+ * `complete` finding no object, the sweep giving up on a grant nobody used or
+ * a photo the deriver could not process. No foreign key to `photo`, because
+ * outliving that row is the point. Never the file's name. Kept 30 days, by the
+ * hourly job; erased with the account.
+ */
+export const uploadFailures = pgTable(
+  'upload_failure',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    actorId: uuid('actor_id').references(() => actors.id, { onDelete: 'cascade' }),
+    eventId: uuid('event_id'),
+    photoId: uuid('photo_id'),
+    source: text('source', { enum: ['client', 'server'] }).notNull(),
+    /** `presign`, `put` or `complete` from a client; `complete`, `abandoned` or `derive` from the server. */
+    stage: text('stage').notNull(),
+    /** For a client report, how its queue read the error: `Offline`, `SourceGone`, `Error`. */
+    kind: text('kind'),
+    error: text('error').notNull(),
+    cause: text('cause'),
+    attempts: integer('attempts'),
+    /** What the failure left the upload as: `pending` and `presigned` will be tried again. */
+    status: text('status'),
+    /** `web`, `ios` or `android`. */
+    client: text('client'),
+    userAgent: text('user_agent'),
+    mime: text('mime'),
+    byteSize: bigint('byte_size', { mode: 'number' }),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    index('upload_failure_created_idx').on(t.createdAt),
+    index('upload_failure_actor_idx').on(t.actorId, t.createdAt),
+  ],
+);
+
 export const accounts = pgTable('account', {
   id: uuid('id').primaryKey().defaultRandom(),
   /** Normalised before it gets here — see `normaliseEmail`. */

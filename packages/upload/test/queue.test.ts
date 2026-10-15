@@ -21,6 +21,7 @@ import {
   type Deps,
   type QueueItem,
   type QueueState,
+  type UploadFailureReport,
 } from '../src/index';
 
 function file(n: number) {
@@ -969,5 +970,83 @@ describe('presigning more files than one request may carry', () => {
      * been spent by photographs that never left the phone.
      */
     expect(h.completed).toHaveLength(MAX_FILES_PER_PRESIGN * 2);
+  });
+});
+
+describe('telling the server what went wrong', () => {
+  it('reports a refused PUT with its stage, photo and reason', async () => {
+    const reports: UploadFailureReport[] = [];
+    const h = harness({
+      async upload() {
+        throw new Error('upload failed: 403');
+      },
+      report: (r) => reports.push(r),
+    });
+    const queue = new UploadQueue(h.deps);
+    queue.add('event-1', [file(1)]);
+    await queue.run();
+
+    expect(reports.length).toBeGreaterThan(0);
+    expect(reports[0]).toMatchObject({
+      eventId: 'event-1',
+      stage: 'put',
+      kind: 'Error',
+      error: 'upload failed: 403',
+      mime: 'image/heic',
+    });
+    expect(reports[0]!.photoId).toBeTruthy();
+    expect(reports.at(-1)!.status).toBe('failed');
+  });
+
+  it('reports what lay under "waiting for a connection", once', async () => {
+    const reports: UploadFailureReport[] = [];
+    const h = harness({
+      async upload() {
+        throw new Offline('Load failed');
+      },
+      report: (r) => reports.push(r),
+    });
+    const queue = new UploadQueue(h.deps);
+    queue.add('event-1', [file(1)]);
+    await queue.run();
+    await queue.run();
+
+    expect(reports).toHaveLength(1);
+    expect(reports[0]).toMatchObject({ kind: 'Offline', cause: 'Load failed', status: 'presigned' });
+  });
+
+  it('reports a presign that failed, with no photo yet', async () => {
+    const reports: UploadFailureReport[] = [];
+    const h = harness({
+      async presign() {
+        throw new Error('presign failed: 413 too_large');
+      },
+      report: (r) => reports.push(r),
+    });
+    const queue = new UploadQueue(h.deps);
+    queue.add('event-1', [file(1)]);
+    await queue.run();
+
+    expect(reports[0]).toMatchObject({ stage: 'presign', error: 'presign failed: 413 too_large' });
+    expect(reports[0]!.photoId).toBeUndefined();
+  });
+
+  it('carries on uploading when the report itself throws', async () => {
+    let calls = 0;
+    const h = harness({
+      async complete(photoId) {
+        calls += 1;
+        if (calls === 1) throw new Error('complete failed: 500');
+        h.completed.push(photoId);
+      },
+      report: () => {
+        throw new Error('no');
+      },
+    });
+    const queue = new UploadQueue(h.deps);
+    queue.add('event-1', [file(1)]);
+    await queue.run();
+
+    expect(queue.doneCount).toBe(1);
   });
 });

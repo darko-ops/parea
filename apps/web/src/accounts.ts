@@ -608,6 +608,9 @@ async function eraseActors(
     where id in (${list})
   `);
 
+  // Why their uploads failed — kept for ops, and nobody's business once they've gone.
+  await db.execute(sql`delete from "upload_failure" where actor_id in (${list})`);
+
   // The groups they were in, before the memberships go — see below.
   const groupsRows = (await db.execute(sql`
     select distinct group_id from "group_member" where actor_id in (${list})

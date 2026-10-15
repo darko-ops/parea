@@ -162,7 +162,16 @@ export async function sweepAbandoned(
   const abandonedBefore = new Date(now.getTime() - ABANDONED_AFTER_HOURS * 3600_000);
   const failedBefore = new Date(now.getTime() - FAILED_KEPT_DAYS * 24 * 3600_000);
   const rows = await database
-    .select({ id: schema.photos.id, storageKey: schema.photos.storageKey })
+    .select({
+      id: schema.photos.id,
+      storageKey: schema.photos.storageKey,
+      eventId: schema.photos.eventId,
+      uploaderId: schema.photos.uploaderId,
+      status: schema.photos.status,
+      failureReason: schema.photos.failureReason,
+      mime: schema.photos.mime,
+      byteSize: schema.photos.byteSize,
+    })
     .from(schema.photos)
     .where(
       and(
@@ -194,6 +203,25 @@ export async function sweepAbandoned(
       .update(schema.photos)
       .set({ status: 'failed', deletedAt: now })
       .where(eq(schema.photos.id, row.id));
+    // The last word on it, before the row goes. A grant nobody confirmed is
+    // `abandoned` — what the browser saw, if it said, is the client's report
+    // beside it; a photo processing gave up on keeps the deriver's reason.
+    const abandoned = row.status === 'pending';
+    await database
+      .insert(schema.uploadFailures)
+      .values({
+        actorId: row.uploaderId,
+        eventId: row.eventId,
+        photoId: row.id,
+        source: 'server',
+        stage: abandoned ? 'abandoned' : 'derive',
+        error: abandoned ? 'never_confirmed' : (row.failureReason ?? 'failed'),
+        status: 'failed',
+        mime: row.mime,
+        byteSize: row.byteSize,
+        createdAt: now,
+      })
+      .catch((err) => console.error(`could not record an upload failure: ${err}`));
   }
   return rows.length;
 }
@@ -348,6 +376,23 @@ export async function expireObservations(
  * promise. Long enough to see a pattern and to answer somebody asking why
  * their codes stopped arriving; nothing in it is needed after that.
  */
+/**
+ * Why uploads failed, after 30 days — the privacy page's promise, and the
+ * same span as `mail_event`: enough to see a pattern and to answer somebody
+ * asking where their photos went.
+ */
+export async function expireUploadFailures(
+  database: ReturnType<typeof db>,
+  now = new Date(),
+): Promise<number> {
+  const cutoff = new Date(now.getTime() - 30 * 24 * 3600_000);
+  const removed = await database
+    .delete(schema.uploadFailures)
+    .where(lt(schema.uploadFailures.createdAt, cutoff))
+    .returning({ id: schema.uploadFailures.id });
+  return removed.length;
+}
+
 export async function expireMailEvents(
   database: ReturnType<typeof db>,
   now = new Date(),
@@ -751,6 +796,7 @@ async function runAll(
   await run('expire-rate-limits', () => expireRateLimits(database));
   await run('expire-observations', () => expireObservations(database));
   await run('expire-mail-events', () => expireMailEvents(database));
+  await run('expire-upload-failures', () => expireUploadFailures(database));
   await run('expire-sign-in-codes', () => expireSignInCodes(database));
   await run('expire-webauthn-challenges', () => expireWebauthnChallenges(database));
   await run('expire-phone-codes', () => expirePhoneCodes(database));

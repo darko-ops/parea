@@ -7,7 +7,12 @@
  * a bearer token out of the keychain.
  */
 
-import { Offline, type PresignRequest, type PresignResponse } from '@parea/upload';
+import {
+  Offline,
+  type PresignRequest,
+  type PresignResponse,
+  type UploadFailureReport,
+} from '@parea/upload';
 
 /**
  * Who may add photographs to an album.
@@ -1664,6 +1669,28 @@ export class Api {
       body: JSON.stringify({ linkToken }),
     });
   }
+
+  /**
+   * What went wrong with an upload, for the server to keep — see
+   * `upload_failure`. Batched a moment after the first, because a refused
+   * selection fails fifty photographs at once; never awaited, never thrown.
+   */
+  reportUploadFailure(failure: UploadFailureReport): void {
+    this.failureOutbox.push(failure);
+    if (this.failureFlush) return;
+    this.failureFlush = setTimeout(() => {
+      this.failureFlush = null;
+      const failures = this.failureOutbox.splice(0, 50);
+      if (this.failureOutbox.length > 0) this.reportUploadFailure(this.failureOutbox.shift()!);
+      this.call('/api/uploads/failures', {
+        method: 'POST',
+        body: JSON.stringify({ client: this.client, failures }),
+      }).catch(() => {});
+    }, 1000);
+  }
+
+  private failureOutbox: UploadFailureReport[] = [];
+  private failureFlush: ReturnType<typeof setTimeout> | null = null;
 
   /**
    * On native the natural terminal action is the camera roll, not a zip — but

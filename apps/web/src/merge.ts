@@ -228,6 +228,8 @@ const OWNED: {
   // person's, so they move; a reaction both devices left is one.
   { table: 'moment_comment', column: 'actor_id' },
   { table: 'moment_reaction', column: 'actor_id', uniqueWith: ['moment_id', 'emoji'] },
+  // Why their uploads failed follows them, as the photos they uploaded do.
+  { table: 'upload_failure', column: 'actor_id' },
 ];
 
 export const MERGED_TABLES = OWNED;

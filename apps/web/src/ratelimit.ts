@@ -595,3 +595,16 @@ export const PHONE_VERIFY_LIMIT: Limit = {
   windowSeconds: 3600,
   failClosed: true,
 };
+
+/**
+ * Reports of uploads that did not go through, per source.
+ *
+ * The browser batches them, up to fifty a request, so a whole selection that
+ * failed twice over is a handful of requests. Two hundred an hour is a queue
+ * stuck in a loop or somebody filling a table; either way the rest can go.
+ */
+export const UPLOAD_FAILURE_LIMIT: Limit = {
+  name: 'upload_failure',
+  max: 200,
+  windowSeconds: 3600,
+};

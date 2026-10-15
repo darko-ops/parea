@@ -166,6 +166,40 @@ export type Deps = {
    * seconds. Defaults to `setTimeout`.
    */
   sleep?(ms: number): Promise<void>;
+  /**
+   * Tell the server an attempt did not go through. Optional and never awaited.
+   *
+   * Without it the server sees only the end of a failed upload: a grant it
+   * handed out, then nothing, then the hourly sweep throwing the row away a
+   * day later. What actually went wrong — a refused PUT, a file the browser
+   * could no longer read, a fetch that rejected and was read as no signal —
+   * lived and died in somebody's tab. That is how a new account's first
+   * twelve photographs vanished with nothing to say why.
+   *
+   * Best effort by nature: an `Offline` report is often sent into the same
+   * missing network. The implementation must swallow its own failures.
+   */
+  report?(failure: UploadFailureReport): void;
+};
+
+/** Where in the upload an attempt failed. */
+export type UploadFailureStage = 'presign' | 'put' | 'complete';
+
+export type UploadFailureReport = {
+  eventId: string;
+  /** Absent when the failure was asking for the grant. */
+  photoId?: string;
+  stage: UploadFailureStage;
+  /** `Offline`, `SourceGone` or `Error`: how the queue read it. */
+  kind: string;
+  /** The note the queue kept, and what actually threw beneath it. */
+  error: string;
+  cause?: string;
+  attempts: number;
+  /** The state the failure left the item in: `pending` will be tried again. */
+  status: QueueItemStatus;
+  mime: string;
+  size: number;
 };
 
 /** Higher hurts throughput on cellular and multiplies memory pressure. */
@@ -232,6 +266,12 @@ export class UploadQueue {
    * case and the answer that makes `waitingFor` behave as it always did.
    */
   private scope: string | undefined;
+
+  /**
+   * Failures already reported by this queue, so a queue resumed on every
+   * return to the tab says "still offline" once rather than each time.
+   */
+  private reported = new Set<string>();
 
   constructor(
     private readonly deps: Deps,
@@ -571,7 +611,7 @@ export class UploadQueue {
            * queued for the album, including the hundred the server never saw.
            * A chunk that fails is a chunk that failed.
            */
-          for (const item of chunk) this.fail(item, err);
+          for (const item of chunk) this.fail(item, err, 'presign');
           // No signal: the next chunk would fail the same way, and each would
           // cost a real attempt against a network that is not there.
           if (this.paused) {
@@ -618,7 +658,7 @@ export class UploadQueue {
       try {
         await this.deps.upload(item);
       } catch (err) {
-        this.fail(item, err);
+        this.fail(item, err, 'put');
         await this.deps.save(this.state);
         return;
       }
@@ -635,13 +675,48 @@ export class UploadQueue {
       // the bytes are up and only the word about them did not get through, so
       // the next attempt is another `complete`. `pending` would presign again
       // and re-upload a photograph that is already there.
-      if (this.fail(item, err) === 'pending') item.status = 'uploaded';
+      if (this.fail(item, err, 'complete') === 'pending') item.status = 'uploaded';
     }
     await this.deps.save(this.state);
   }
 
-  /** Records the failure and returns the state it left the item in. */
-  private fail(item: QueueItem, err: unknown): QueueItemStatus {
+  /** Records the failure, reports it, and returns the state it left the item in. */
+  private fail(item: QueueItem, err: unknown, stage: UploadFailureStage): QueueItemStatus {
+    const status = this.settle(item, err);
+    this.report(item, err, stage, status);
+    return status;
+  }
+
+  private report(
+    item: QueueItem,
+    err: unknown,
+    stage: UploadFailureStage,
+    status: QueueItemStatus,
+  ): void {
+    if (!this.deps.report) return;
+    const error = item.error ?? 'unknown';
+    const key = `${item.id}:${stage}:${status}:${error}:${item.cause ?? ''}`;
+    if (this.reported.has(key)) return;
+    this.reported.add(key);
+    try {
+      this.deps.report({
+        eventId: item.eventId,
+        photoId: item.photoId,
+        stage,
+        kind: err instanceof Error ? err.name : typeof err,
+        error,
+        cause: item.cause,
+        attempts: item.attempts,
+        status,
+        mime: item.mime,
+        size: item.size,
+      });
+    } catch {
+      // Reporting a failure must never become one.
+    }
+  }
+
+  private settle(item: QueueItem, err: unknown): QueueItemStatus {
     if (err instanceof Offline) {
       // No attempt was spent, because none was made. The item is untouched
       // apart from the note, and the run stops rather than eating the retry

@@ -681,6 +681,7 @@ export default function App() {
             upload: uploadItem,
             complete: (photoId, eventId) => api.complete(photoId, token(eventId)),
             save,
+            report: (failure) => api.reportUploadFailure(failure),
           },
           await loadQueue(),
         );

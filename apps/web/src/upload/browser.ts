@@ -15,6 +15,7 @@ import {
   type Deps,
   type QueueItem,
   type QueueState,
+  type UploadFailureReport,
 } from '@parea/upload';
 
 import { readable, type UploadStore } from './store';
@@ -73,6 +74,10 @@ export function describe(eventId: string, file: File): NewFile & {
   };
 }
 
+/** Matches `MAX_REPORTS` on the server. */
+const MAX_FAILURES_PER_REPORT = 50;
+const REPORT_DELAY_MS = 1000;
+
 export type WebQueueDeps = {
   eventId: string;
   store: SaveTarget | null;
@@ -88,7 +93,34 @@ export function browserDeps({
   files,
   fetch: doFetch = globalThis.fetch,
 }: WebQueueDeps): Deps {
+  /*
+   * Failures go to the server in batches, a moment after the first.
+   *
+   * A presign refused for a selection of fifty is fifty failures in the same
+   * instant; one request carries them. `keepalive` because the likeliest time
+   * for an upload to stall is just before somebody gives up and closes the tab.
+   */
+  const outbox: UploadFailureReport[] = [];
+  let flushing: ReturnType<typeof setTimeout> | null = null;
+  const flush = () => {
+    flushing = null;
+    const failures = outbox.splice(0, MAX_FAILURES_PER_REPORT);
+    if (outbox.length > 0) flushing = setTimeout(flush, 0);
+    if (failures.length === 0) return;
+    void doFetch('/api/uploads/failures', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ client: 'web', failures }),
+      keepalive: true,
+    }).catch(() => {});
+  };
+
   return {
+    report(failure) {
+      outbox.push(failure);
+      if (!flushing) flushing = setTimeout(flush, REPORT_DELAY_MS);
+    },
+
     async presign(id, batch) {
       const res = await doFetch(`/api/events/${id}/uploads`, {
         method: 'POST',

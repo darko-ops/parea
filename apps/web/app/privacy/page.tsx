@@ -344,7 +344,11 @@ export default function PrivacyPage() {
             bounced or was marked as spam &mdash; which kind of email it was,
             the reason our email provider gave, and a coded fingerprint of the
             address rather than the address itself &mdash; kept for 30 days, so
-            we notice when mail stops arriving.
+            we notice when mail stops arriving. That a photo you added did not
+            upload &mdash; which step failed, the error your browser or phone
+            gave, the photo&rsquo;s type and size (never its name), and your
+            browser&rsquo;s or app&rsquo;s description of itself &mdash; kept for
+            30 days, so we can find out why.
           </p>
           <p className="muted">
             None of it is a feed and none of it is shown to anyone it is not

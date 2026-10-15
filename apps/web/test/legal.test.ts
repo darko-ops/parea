@@ -249,6 +249,8 @@ describe('the closed list of what is collected', () => {
       block: /blocked somebody/,
       // A keyed hash of the address, never the address, and 30 days.
       mail_event: /email we sent you\s+bounced or was marked as spam/,
+      // What failed and the error the client gave; never the file's name.
+      upload_failure: /That a photo you added did not\s+upload/,
       // Kept because the law requires it, and described at length in its own
       // section rather than in the list of ordinary collection.
       safety_incident: /Child safety scanning/,

@@ -38,6 +38,7 @@ import { getDb } from '@/db';
 import { currentActorId, requesterFor } from '@/session';
 import { publishDerive } from '@/queue';
 import { getStorage } from '@/storage';
+import { recordServerFailure } from '@/uploadFailures';
 
 export const runtime = 'nodejs';
 
@@ -104,8 +105,19 @@ export async function POST(
   if (!head) {
     await db
       .update(schema.photos)
-      .set({ status: 'failed' })
+      .set({ status: 'failed', failedAt: new Date(), failureReason: 'object_missing' })
       .where(eq(schema.photos.id, photo.id));
+    await recordServerFailure(db, {
+      actorId,
+      eventId: event.id,
+      photoId: photo.id,
+      stage: 'complete',
+      error: 'object_missing',
+      status: 'failed',
+      userAgent: request.headers.get('user-agent')?.slice(0, 300) ?? null,
+      mime: photo.mime,
+      byteSize: photo.byteSize,
+    });
     return NextResponse.json({ error: 'object_missing' }, { status: 409 });
   }
 
