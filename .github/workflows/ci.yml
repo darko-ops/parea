@@ -17,7 +17,7 @@ jobs:
     timeout-minutes: 20
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - uses: actions/setup-node@v4
         with:
@@ -79,7 +79,7 @@ jobs:
     # the probe and the app disagree, the coverage measurement that gates a
     # feature is measuring something else.
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       # No cache and no lock file: this is a throwaway measurement tool, not a
       # shipped artefact, and pinning it would mean carrying a half-megabyte
@@ -103,7 +103,7 @@ jobs:
     timeout-minutes: 10
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Install exiftool
         run: |
