@@ -19,7 +19,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: 22
           cache: npm
@@ -84,7 +84,7 @@ jobs:
       # No cache and no lock file: this is a throwaway measurement tool, not a
       # shipped artefact, and pinning it would mean carrying a half-megabyte
       # Expo lock file for something that runs a handful of times.
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: 22
 
