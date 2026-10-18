@@ -77,7 +77,7 @@ describe('the gesture', () => {
   it('returns to fit, and to centre, together', () => {
     // A photograph left at 1x but nudged off-centre reads as a bug long
     // before anybody works out what is wrong with it.
-    expect(GESTURE).toMatch(/if \(next <= 1\) \{[\s\S]{0,400}toValue: \{ x: 0, y: 0 \}/);
+    expect(GESTURE).toMatch(/if \(next < FIT_SNAP\) \{[\s\S]{0,400}toValue: \{ x: 0, y: 0 \}/);
   });
 
 
@@ -657,7 +657,7 @@ describe('the pager', () => {
      * 3×.
      */
     expect(GESTURE).toMatch(/scrollEnabled=\{!zoomed\}/);
-    expect(GESTURE).toMatch(/if \(now\.current\.scale > 1\) return false;/);
+    expect(GESTURE).toMatch(/if \(magnified\.current\) return false;/);
   });
 
   it('keeps a vertical gesture even at fit', () => {
@@ -679,9 +679,22 @@ describe('the pager', () => {
   });
 
   it('tells the pager about zoom on a change, not on every frame', () => {
-    // The listener runs per animation frame; a `setState` there re-renders
-    // the whole viewer for every frame of every pinch.
-    expect(GESTURE).toMatch(/if \(zoomed !== told\.current\)/);
+    // The pinch sets it per frame; a `setState` there re-renders the whole
+    // viewer for every frame of every pinch.
+    expect(GESTURE).toMatch(/if \(next === magnified\.current\) return;/);
+  });
+
+  it('goes back to paging when the zoom-out starts, not when the spring ends', () => {
+    /*
+     * Read off the animated scale, a swipe during the half second the picture
+     * sprang back to fit — the tail of it at 1.001× — was a pan, and the pager
+     * was told it could not page. The double tap is the decision; the spring
+     * only catches the picture up.
+     */
+    expect(GESTURE).toMatch(/magnify\(next > 1\);/);
+    expect(GESTURE).toMatch(/if \(next < FIT_SNAP\) \{\s*magnify\(false\);/);
+    expect(GESTURE).toMatch(/settle\(magnified\.current \? now\.current\.scale : 1\);/);
+    expect(GESTURE).not.toMatch(/now\.current\.scale [<>]=? 1/);
   });
 
   it('reports where it landed once it has stopped', () => {
@@ -728,7 +741,7 @@ describe('one page of the pager', () => {
   it('reads a tap as a release with nothing in it', () => {
     expect(GESTURE).toMatch(/if \(Math\.hypot\(g\.dx, g\.dy\) <= TAP_SLOP\)/);
     expect(GESTURE).toMatch(/at - lastTap\.current < DOUBLE_TAP_MS/);
-    expect(GESTURE).toMatch(/zoomTo\(now\.current\.scale > 1 \? 1 : TAP_SCALE\)/);
+    expect(GESTURE).toMatch(/zoomTo\(magnified\.current \? 1 : TAP_SCALE\)/);
     expect(GESTURE).toMatch(/if \(lastTap\.current === at\) onChrome\(\);/);
   });
 

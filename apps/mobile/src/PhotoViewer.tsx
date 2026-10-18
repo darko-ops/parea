@@ -95,6 +95,14 @@ const MAX_SCALE = 4;
 /** Where a double tap lands, and where the second one comes back from. */
 const TAP_SCALE = 2.5;
 
+/**
+ * A pinch let go of below this goes back to fit.
+ *
+ * At 1.05× there is nothing to look around and everything to get in the way:
+ * the picture is magnified, so a sideways finger pans it instead of paging.
+ */
+const FIT_SNAP = 1.1;
+
 /** Two taps closer together than this are one gesture. */
 const DOUBLE_TAP_MS = 280;
 
@@ -209,18 +217,9 @@ function Page({
    * component is a leak that only shows up after a hundred photographs.
    */
   const now = useRef({ scale: 1, x: 0, y: 0 });
-  /** The last thing the pager was told, so it is told only on a change. */
-  const told = useRef(false);
   useEffect(() => {
     const s = scale.addListener(({ value }) => {
       now.current.scale = value;
-      // A `setState` per animation frame would re-render the viewer for every
-      // frame of every pinch. The pager only cares which side of 1× this is.
-      const zoomed = value > 1;
-      if (zoomed !== told.current) {
-        told.current = zoomed;
-        onZoomed(zoomed);
-      }
     });
     const p = pan.addListener(({ x, y }) => {
       now.current.x = x;
@@ -230,7 +229,28 @@ function Page({
       scale.removeListener(s);
       pan.removeListener(p);
     };
-  }, [onZoomed, pan, scale]);
+  }, [pan, scale]);
+
+  /*
+   * Whether this page is magnified: where the picture is going, not where it is.
+   *
+   * This used to be read off the scale as it animated, and a spring back to
+   * fit spends half a second above 1× — the last of it at 1.001, too little to
+   * see. A swipe to the next photograph in that time was a pan, the pager was
+   * told it could not page, and the picture slid about instead. So the double
+   * tap that zooms out is the moment the finger goes back to paging, and the
+   * spring is only the picture catching up.
+   */
+  const magnified = useRef(false);
+  const magnify = useCallback(
+    (next: boolean) => {
+      // Told on a change only: the pinch sets this on every frame.
+      if (next === magnified.current) return;
+      magnified.current = next;
+      onZoomed(next);
+    },
+    [onZoomed],
+  );
 
   /** What the gesture started from, set on the first move of each kind. */
   const from = useRef<{ scale: number; x: number; y: number; span: number } | null>(null);
@@ -245,7 +265,8 @@ function Page({
        * not quite return to where it started, which reads as a bug long before
        * anybody works out what is wrong with it.
        */
-      if (next <= 1) {
+      if (next < FIT_SNAP) {
+        magnify(false);
         Animated.parallel([
           Animated.spring(scale, { toValue: 1, useNativeDriver: true, bounciness: 0 }),
           Animated.spring(pan, { toValue: { x: 0, y: 0 }, useNativeDriver: true, bounciness: 0 }),
@@ -267,17 +288,18 @@ function Page({
         Animated.spring(pan, { toValue: { x, y }, useNativeDriver: true, bounciness: 0 }).start();
       }
     },
-    [height, pan, scale, width],
+    [height, magnify, pan, scale, width],
   );
 
   const zoomTo = useCallback(
     (next: number) => {
+      magnify(next > 1);
       Animated.parallel([
         Animated.spring(scale, { toValue: next, useNativeDriver: true, bounciness: 0 }),
         Animated.spring(pan, { toValue: { x: 0, y: 0 }, useNativeDriver: true, bounciness: 0 }),
       ]).start();
     },
-    [pan, scale],
+    [magnify, pan, scale],
   );
 
   const responder = useMemo(
@@ -323,7 +345,7 @@ function Page({
          * the vertical — past the same slop a tap is allowed — keeps it here.
          */
         onPanResponderTerminationRequest: (_evt, g) => {
-          if (now.current.scale > 1) return false;
+          if (magnified.current) return false;
           return !(Math.abs(g.dy) > Math.abs(g.dx) && Math.abs(g.dy) > TAP_SLOP);
         },
         // A second finger arriving mid-drag turns a pan into a pinch.
@@ -344,6 +366,7 @@ function Page({
               Math.min(MAX_SCALE, (from.current.scale * span) / from.current.span),
             );
             scale.setValue(next);
+            if (next > 1) magnify(true);
             return;
           }
 
@@ -356,7 +379,7 @@ function Page({
            * third of the distance: not for the animation, but so somebody
            * finds out mid-drag that the gesture exists and which way it goes.
            */
-          if (now.current.scale <= 1) {
+          if (!magnified.current) {
             /*
              * Only once the finger has committed to the vertical.
              *
@@ -385,7 +408,7 @@ function Page({
            * internally consistent is one where the first swipe does the wrong
            * thing to everybody who has ever used a phone.
            */
-          if (now.current.scale <= 1 && Math.abs(g.dy) > Math.abs(g.dx)) {
+          if (!magnified.current && Math.abs(g.dy) > Math.abs(g.dx)) {
             const far = Math.abs(g.dy) > SWIPE;
             const flung = Math.abs(g.vy) > FLING;
             if (far || flung) {
@@ -409,7 +432,7 @@ function Page({
             const at = Date.now();
             if (at - lastTap.current < DOUBLE_TAP_MS) {
               lastTap.current = 0;
-              zoomTo(now.current.scale > 1 ? 1 : TAP_SCALE);
+              zoomTo(magnified.current ? 1 : TAP_SCALE);
             } else {
               lastTap.current = at;
               // Only if no second tap follows. A single tap that hid the
@@ -421,15 +444,16 @@ function Page({
             return;
           }
 
-          settle(now.current.scale);
+          // On its way back to fit is at fit, wherever the spring has got to.
+          settle(magnified.current ? now.current.scale : 1);
         },
         onPanResponderTerminate: () => {
           // The pager took it. Whatever this was doing, put the picture back.
           from.current = null;
-          settle(now.current.scale);
+          settle(magnified.current ? now.current.scale : 1);
         },
       }),
-    [onChrome, onClose, onTalk, pan, scale, settle, zoomTo],
+    [magnify, onChrome, onClose, onTalk, pan, scale, settle, zoomTo],
   );
 
   return (
