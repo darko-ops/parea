@@ -30,6 +30,23 @@ describe('a chat swiped left', () => {
     expect(ROW).toMatch(/onPanResponderTerminationRequest: \(\) => false/);
   });
 
+  it('moves the row by layout, so a press on Pin or Delete lands', () => {
+    // A native `translateX` moved the picture of the row and not where React
+    // thought it was, and presses on the buttons were taken by the row.
+    expect(ROW).toMatch(/left: x,/);
+    expect(ROW).not.toMatch(/translateX: x/);
+    expect(ROW).not.toMatch(/useNativeDriver: true/);
+  });
+
+  it('acts on a quick tap, not only a held press', () => {
+    // A `Pressable` in the list lost quick taps to the gesture system. The
+    // buttons claim the touch on landing and keep it from the list.
+    expect(ROW).not.toMatch(/<Pressable/);
+    expect(ROW).toMatch(/onStartShouldSetResponder=\{\(\) => true\}/);
+    expect(ROW).toMatch(/onResponderTerminationRequest=\{\(\) => false\}/);
+    expect(ROW).toMatch(/if \(moved < ACTION \/ 2\) action\.onPress\(\);/);
+  });
+
   it('keeps one row open, and a tap or a scroll puts it away', () => {
     expect(EVENTS).toMatch(/onPress=\{\(\) => \(openId \? setOpenId\(null\) : onOpenGroupThread\(group\)\)\}/);
     expect(EVENTS).toMatch(/onScrollBeginDrag=\{\(\) => setOpenId\(null\)\}/);

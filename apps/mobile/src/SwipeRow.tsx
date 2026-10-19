@@ -14,21 +14,23 @@
  * not keep it. Up and down is never taken: that is the list scrolling. Once
  * claimed it is not handed back, so the list cannot take a swipe half done.
  *
+ * ## Moved by layout, not by a transform
+ *
+ * The row slides by its `left`, on the JS driver, rather than by a native
+ * `translateX`. With the transform the buttons were drawn where they should
+ * be but a press on them often did nothing: the row was moved on the native
+ * side alone, and where touches land is decided against the layout React
+ * knows — which still had the row across the buttons. A row moved by layout
+ * is where it looks, so the buttons under it are where they look too.
+ *
  * ## One open at a time
  *
  * Whether a row is open is the caller's: it holds which one, so opening a
  * second closes the first, and a tap anywhere on the list can put it away.
  */
 
-import { type ReactNode, useEffect, useMemo, useRef } from "react";
-import {
-  Animated,
-  PanResponder,
-  Pressable,
-  StyleSheet,
-  Text,
-  View,
-} from "react-native";
+import { type ReactNode, useEffect, useMemo, useRef, useState } from "react";
+import { Animated, PanResponder, StyleSheet, Text, View } from "react-native";
 
 import { Glyph, type GlyphName } from "./Glyph";
 
@@ -80,7 +82,7 @@ export function SwipeRow({
   useEffect(() => {
     Animated.spring(x, {
       toValue: open ? -width : 0,
-      useNativeDriver: true,
+      useNativeDriver: false,
       bounciness: 0,
       speed: 18,
     }).start();
@@ -115,7 +117,7 @@ export function SwipeRow({
         // already had, the effect above will not run again.
         Animated.spring(x, {
           toValue: opening ? -w : 0,
-          useNativeDriver: true,
+          useNativeDriver: false,
           bounciness: 0,
           speed: 18,
         }).start();
@@ -125,7 +127,7 @@ export function SwipeRow({
       onPanResponderTerminate: () => {
         Animated.spring(x, {
           toValue: live.current.open ? -live.current.width : 0,
-          useNativeDriver: true,
+          useNativeDriver: false,
           bounciness: 0,
         }).start();
       },
@@ -140,19 +142,7 @@ export function SwipeRow({
         importantForAccessibility="no-hide-descendants"
       >
         {actions.map((action) => (
-          <Pressable
-            key={action.label}
-            onPress={action.onPress}
-            accessibilityRole="button"
-            accessibilityLabel={action.label}
-            style={({ pressed }) => [
-              styles.action,
-              { backgroundColor: action.color, opacity: pressed ? 0.7 : 1 },
-            ]}
-          >
-            <Glyph name={action.glyph} size={20} color="#fff" />
-            <Text style={styles.actionLabel}>{action.label}</Text>
-          </Pressable>
+          <ActionButton key={action.label} action={action} />
         ))}
       </View>
       {/* VoiceOver cannot swipe: the caller puts the same actions on the row. */}
@@ -160,12 +150,59 @@ export function SwipeRow({
         style={{
           backgroundColor: background,
           paddingHorizontal: inset,
-          transform: [{ translateX: x }],
+          left: x,
         }}
         {...responder.panHandlers}
       >
         {children}
       </Animated.View>
+    </View>
+  );
+}
+
+/**
+ * One button behind the row, answering a quick tap.
+ *
+ * Not a `Pressable`. That one let a press held for a moment through and lost
+ * a quick tap: in a scroll view, a touch is not the button's until the
+ * gesture system has decided nobody else wants it, and a tap can be over
+ * before that. This claims the touch the instant the finger lands, refuses to
+ * hand it to the list, and acts on release — unless the finger slid well off
+ * first, which is somebody changing their mind.
+ */
+function ActionButton({ action }: { action: SwipeAction }) {
+  const [down, setDown] = useState(false);
+  const start = useRef({ x: 0, y: 0 });
+  return (
+    <View
+      accessible
+      accessibilityRole="button"
+      accessibilityLabel={action.label}
+      onAccessibilityTap={action.onPress}
+      onStartShouldSetResponder={() => true}
+      onResponderTerminationRequest={() => false}
+      onResponderGrant={(e) => {
+        start.current = { x: e.nativeEvent.pageX, y: e.nativeEvent.pageY };
+        setDown(true);
+      }}
+      onResponderRelease={(e) => {
+        setDown(false);
+        const moved = Math.hypot(
+          e.nativeEvent.pageX - start.current.x,
+          e.nativeEvent.pageY - start.current.y,
+        );
+        if (moved < ACTION / 2) action.onPress();
+      }}
+      onResponderTerminate={() => setDown(false)}
+      style={[
+        styles.action,
+        { backgroundColor: action.color, opacity: down ? 0.7 : 1 },
+      ]}
+    >
+      <View pointerEvents="none" style={styles.actionInner}>
+        <Glyph name={action.glyph} size={20} color="#fff" />
+        <Text style={styles.actionLabel}>{action.label}</Text>
+      </View>
     </View>
   );
 }
@@ -185,5 +222,6 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     gap: 4,
   },
+  actionInner: { alignItems: "center", gap: 4 },
   actionLabel: { color: "#fff", fontSize: 12.5, fontWeight: "600" },
 });
