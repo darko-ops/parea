@@ -97,6 +97,7 @@ import { Glyph, LIKED } from './Glyph';
 import type { GroupTheme } from './Groups';
 import { useKeyboardUp } from './keyboard';
 import { initialOf, lensFor } from './lens';
+import { RoundButton } from './RoundButton';
 import { Waiting } from './Waiting';
 
 /**
@@ -1445,9 +1446,9 @@ export function People({
    */
   group,
   /**
-   * Add members, at the top of the list — for whoever runs a roll that is
-   * not in a group (in one, the group decides who is in it). See
-   * `AddMembers.tsx`.
+   * Invite people, the pill at the top of the list — for whoever runs a roll
+   * that is not in a group (in one, the group decides who is in it). Opens
+   * the Add members page; see `AddMembers.tsx`.
    */
   onAdd,
 }: {
@@ -1463,6 +1464,7 @@ export function People({
   group?: { name: string; onOpen: () => void };
   onAdd?: () => void;
 }) {
+  const joined = roster.filter((person) => person.role !== 'invited').length;
   return (
     <FlatList
       data={roster}
@@ -1485,21 +1487,32 @@ export function People({
             </Text>
             <Text style={[styles.groupNoteLink, { color: t.fg }]}>Open {group.name} ›</Text>
           </Pressable>
-        ) : onAdd ? (
-          <Pressable
-            onPress={onAdd}
-            accessibilityRole="button"
-            style={({ pressed }) => [
-              styles.addMembers,
-              { backgroundColor: t.card, borderColor: t.line, opacity: pressed ? 0.7 : 1 },
-            ]}
-          >
-            <View style={[styles.addMembersDisc, { backgroundColor: t.fg }]}>
-              <Glyph name="plus" size={16} color={t.bg} />
+        ) : (
+          /*
+            How many are in, and — for whoever runs the roll — the way to ask
+            more: the product's round chrome widened into a pill, the web's
+            control on the same row. The count is the web's: everybody but the
+            ones still only asked.
+          */
+          <View style={styles.peopleHead}>
+            <View style={{ minWidth: 0, flex: 1 }}>
+              <Text style={[styles.personName, { color: t.fg }]}>
+                {joined} {joined === 1 ? 'person has' : 'people have'} joined
+              </Text>
+              {onAdd && (
+                <Text style={[styles.personHandle, { color: t.dim, marginTop: 2 }]}>
+                  Invite everyone who was there.
+                </Text>
+              )}
             </View>
-            <Text style={[styles.addMembersText, { color: t.fg }]}>Add members</Text>
-          </Pressable>
-        ) : null
+            {onAdd && (
+              <RoundButton t={t} wide onPress={onAdd} accessibilityLabel="Invite people">
+                <Glyph name="add-person" size={18} color={t.fg} />
+                <Text style={[styles.invitePillText, { color: t.fg }]}>Invite people</Text>
+              </RoundButton>
+            )}
+          </View>
+        )
       }
       renderItem={({ item }) => {
         const lens = lensFor(item.actorId ?? item.name);
@@ -1953,23 +1966,14 @@ const styles = StyleSheet.create({
   groupNote: { borderWidth: 1, borderRadius: 12, padding: 12, gap: 6, marginBottom: 8 },
   groupNoteText: { fontSize: 13.5, lineHeight: 19 },
   groupNoteLink: { fontSize: 13.5, fontWeight: '600' },
-  addMembers: {
+  peopleHead: {
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'space-between',
     gap: 12,
-    borderWidth: 1,
-    borderRadius: 12,
-    padding: 12,
-    marginBottom: 8,
+    paddingBottom: 12,
   },
-  addMembersDisc: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  addMembersText: { fontSize: 15, fontWeight: '600' },
+  invitePillText: { fontSize: 13.5, fontWeight: '600' },
   personRow: { gap: 8, paddingVertical: 11, borderBottomWidth: 1 },
   personTop: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   /* Under the words, lined up with them rather than the face: 38 of face and

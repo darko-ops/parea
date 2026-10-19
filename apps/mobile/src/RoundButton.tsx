@@ -47,6 +47,7 @@ export function RoundButton({
   accessibilityLabel,
   children,
   style,
+  wide = false,
 }: {
   t: GroupTheme;
   onPress: () => void;
@@ -54,6 +55,11 @@ export function RoundButton({
   children: React.ReactNode;
   /** Where it sits. The shape is this component's; the position is not. */
   style?: object;
+  /**
+   * The same disc widened into a pill, for a glyph and a word — the People
+   * pane's "Invite people". Same height, fill, line and glass.
+   */
+  wide?: boolean;
 }) {
   return (
     <Pressable
@@ -65,6 +71,7 @@ export function RoundButton({
       accessibilityLabel={accessibilityLabel}
       style={({ pressed }) => [
         styles.round,
+        wide && styles.wide,
         { backgroundColor: t.card, borderColor: t.line, opacity: pressed ? 0.7 : 1 },
         style,
       ]}
@@ -142,6 +149,13 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   /* Inside the 1pt border, so a point less round than the disc. */
+  wide: {
+    width: undefined,
+    flexDirection: 'row',
+    gap: 7,
+    paddingLeft: 11,
+    paddingRight: 14,
+  },
   tint: {
     position: 'absolute',
     top: 0,

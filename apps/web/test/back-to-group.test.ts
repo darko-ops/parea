@@ -56,7 +56,7 @@ describe("a roll in a group's people tab", () => {
 
   it('has no Invite button, since nobody is invited to the roll itself', () => {
     const view = read('app/components/EventView.tsx');
-    expect(view).toMatch(/\{!group && \(\s*<button type="button" onClick=\{onInvite\}>/);
+    expect(view).toMatch(/\{!group && \([\s\S]{0,200}?<button type="button" className="people-invite" onClick=\{onInvite\}>/);
   });
 });
 

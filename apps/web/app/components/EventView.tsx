@@ -1701,8 +1701,11 @@ function People({
           )}
         </div>
         {!group && (
-          <button type="button" onClick={onInvite}>
-            Invite
+          /* The round chrome widened into a pill, not the global filled
+             button: it was the only filled control on the page. */
+          <button type="button" className="people-invite" onClick={onInvite}>
+            <RailIcon glyph="add-person" />
+            Invite people
           </button>
         )}
       </div>

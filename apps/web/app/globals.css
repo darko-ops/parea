@@ -2943,6 +2943,20 @@ fieldset.field > legend { padding: 0; margin-bottom: 8px; }
   gap: 16px; margin-bottom: 10px;
 }
 .people-head h2 { font-size: 19px; font-weight: 700; margin: 0; }
+/* `.round` widened into a pill: the same card, line and hover as the `+` and
+   `···` beside it, overriding the global `button` slab. 2px down lines the 36px
+   pill up with the 19px heading in a flex-start row. */
+.people-invite {
+  flex: 0 0 auto;
+  display: inline-flex; align-items: center; gap: 7px;
+  height: 36px; padding: 0 15px 0 11px; margin-top: 2px;
+  border-radius: 999px;
+  background: var(--card); border: 1px solid var(--line); color: var(--fg);
+  font-size: 14px; font-weight: 600; line-height: 1; white-space: nowrap;
+}
+.people-invite:hover { background: var(--track); border-color: var(--dim-soft); }
+.people-invite:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+.people-invite .rail-icon { width: 18px; height: 18px; }
 /* A roll in a group: who is in it is the group's to change, and this says where. */
 .people-group-note {
   margin: 4px 0 8px; padding: 12px 14px; border: 1px solid var(--line); border-radius: 12px;

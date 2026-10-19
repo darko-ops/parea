@@ -17,8 +17,8 @@ const PAGE = read('src/AddMembers.tsx');
 
 describe('add members', () => {
   it('heads the People pane, for whoever runs a roll not in a group', () => {
-    expect(PEOPLE).toMatch(/\) : onAdd \? \(/);
-    expect(PEOPLE).toMatch(/>Add members<\/Text>/);
+    expect(PEOPLE).toMatch(/<RoundButton t={t} wide onPress={onAdd} accessibilityLabel="Invite people">/);
+    expect(PEOPLE).toMatch(/>Invite people<\/Text>/);
     expect(APP).toMatch(/feed\?\.event\.canAdminister && !feed\.event\.groupId\s*\? \(\) => setAddingMembers\(true\)/);
   });
 
