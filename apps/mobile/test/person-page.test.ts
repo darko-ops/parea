@@ -312,7 +312,8 @@ describe('leaving a roll opened from somebody’s page', () => {
   });
 
   it('is told so by both ways the profile opens one', () => {
-    expect(APP).toMatch(/openListing\(listing, undefined, undefined, \{\s*\n\s*screen: 'person',\s*\n\s*handle: route\.handle,/);
-    expect(APP).toMatch(/openAlbum\(id, \{ screen: 'person', handle: route\.handle \}\)/);
+    // The route itself, so the profile it comes back to keeps its own Back.
+    expect(APP).toMatch(/openListing\(listing, undefined, undefined, route\)/);
+    expect(APP).toMatch(/openAlbum\(id, route\)/);
   });
 });

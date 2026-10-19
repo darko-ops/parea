@@ -33,14 +33,9 @@ const code = (source: string) =>
 const SCREEN = code(
   PROFILE.slice(PROFILE.indexOf('export function ProfileScreen'), PROFILE.indexOf('function Settings(')),
 );
-/* The friends sheet, its own component now — your profile and somebody
-   else's open the same one. */
-const SHEET = code(
-  PROFILE.slice(
-    PROFILE.indexOf('export function FriendsSheet'),
-    PROFILE.indexOf('const styles = StyleSheet.create'),
-  ),
-);
+/* The friends page, its own screen — your profile and somebody else's both
+   push it. */
+const LIST = code(read('src/Friends.tsx'));
 
 describe('the two corners', () => {
   it('puts settings behind the same glyph a roll uses', () => {
@@ -94,7 +89,7 @@ describe('the friends', () => {
      * albums, and a photograph lives in one. A friend was the one thing this
      * line counted that the app could not then show you.
      */
-    expect(SCREEN).toMatch(/onPress=\{friends\?\.length \? \(\) => setShowFriends\(true\) : undefined\}/);
+    expect(SCREEN).toMatch(/onPress=\{friends\?\.length \? onOpenFriends : undefined\}/);
     // A button to a screen reader, and not drawn as a link: since profile
     // links went blue, the address under the counts is the one thing on the
     // page that looks like one.
@@ -108,26 +103,33 @@ describe('the friends', () => {
     expect(SCREEN).toMatch(/friends === null \? '—' : friends\.length/);
   });
 
-  it('opens somebody’s own profile, by handle', () => {
-    expect(SHEET).toMatch(/onOpenPerson\(friend\.handle\)/);
-    expect(APP).toMatch(/onOpenPerson=\{\(handle\) => setRoute\(\{ screen: 'person', handle \}\)\}/);
-    // And closes the sheet on the way, so there is no list behind the profile.
-    expect(SHEET).toMatch(/onClose\(\);\s*if \(friend\.handle\)/);
-    expect(SCREEN).toMatch(/<FriendsSheet[\s\S]*?onClose=\{\(\) => setShowFriends\(false\)\}/);
+  it('is a page of its own, not a sheet', () => {
+    // Somewhere to browse and come back to: Back from it lands on the profile
+    // it was opened from, and Back from a friend lands on it.
+    expect(PROFILE).not.toMatch(/FriendsSheet/);
+    expect(APP).toMatch(/screen: 'friends'; handle: string \| null; title: string; back: Route/);
+    expect(APP).toMatch(/<SwipeBack onBack=\{\(\) => setRoute\(route\.back\)\}>\s*<FriendsScreen/);
+    expect(APP).toMatch(/title: 'Your friends', back: \{ screen: 'tabs' \}/);
+  });
+
+  it('opens somebody’s own profile, by handle, with Back to the list', () => {
+    expect(LIST).toMatch(/if \(friend\.handle\) onOpenPerson\(friend\.handle\)/);
+    expect(APP).toMatch(/onOpenPerson=\{\(handle\) => setRoute\(\{ screen: 'person', handle, back: route \}\)\}/);
+    expect(APP).toMatch(/onBack=\{\(\) => setRoute\(route\.back \?\? \{ screen: 'tabs' \}\)\}/);
   });
 
   it("opens somebody else's friends from the count on their profile", () => {
     const PERSON = code(read('src/Person.tsx'));
-    expect(PERSON).toMatch(/onPress=\{person\.counts\.friends > 0 \? \(\) => void openFriends\(\) : undefined\}/);
-    expect(PERSON).toMatch(/api\.friendsOf\(handle\)/);
-    expect(PERSON).toMatch(/<FriendsSheet/);
+    expect(PERSON).toMatch(/onOpenFriends\(`\$\{person\.displayName\?\.trim\(\) \|\| person\.handle\}’s friends`\)/);
+    expect(LIST).toMatch(/api\.friendsOf\(handle\)/);
+    expect(APP).toMatch(/setRoute\(\{ screen: 'friends', handle: route\.handle, title, back: route \}\)/);
   });
 
   it('lists somebody with no handle without pretending to be a way through', () => {
     // A profile is reached by handle, and not everybody has chosen one. They
     // are still a friend.
-    expect(SHEET).toMatch(/const reachable = friend\.handle != null/);
-    expect(SHEET).toMatch(/disabled=\{!reachable\}/);
+    expect(LIST).toMatch(/const reachable = friend\.handle != null/);
+    expect(LIST).toMatch(/disabled=\{!reachable\}/);
   });
 });
 

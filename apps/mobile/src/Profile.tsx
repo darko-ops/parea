@@ -101,6 +101,7 @@ export function ProfileScreen({
   active,
   onOpen,
   onOpenPerson,
+  onOpenFriends,
   onCreateEvent,
   onCreateGroup,
   onCreateMoment,
@@ -130,6 +131,8 @@ export function ProfileScreen({
   onOpen: (event: EventListing) => void;
   /** A friend's own profile, reached by handle — the same route Find uses. */
   onOpenPerson: (handle: string) => void;
+  /** Your friends, as a page of their own. See `FriendsScreen`. */
+  onOpenFriends: () => void;
   /** The `+` in the corner: the album half. Opens the full create screen. */
   onCreateEvent: () => void;
   /**
@@ -167,8 +170,6 @@ export function ProfileScreen({
    * about somebody whose request is still in flight.
    */
   const [friends, setFriends] = useState<InvitablePerson[] | null>(null);
-  /** The list, as a sheet over the profile. */
-  const [showFriends, setShowFriends] = useState(false);
   const [editing, setEditing] = useState(false);
   const [settings, setSettings] = useState(false);
   useEffect(() => {
@@ -367,7 +368,7 @@ export function ProfileScreen({
             {events.length} {events.length === 1 ? 'roll' : 'rolls'} · {photos}{' '}
             {photos === 1 ? 'photo' : 'photos'} ·{' '}
             <Text
-              onPress={friends?.length ? () => setShowFriends(true) : undefined}
+              onPress={friends?.length ? onOpenFriends : undefined}
               suppressHighlighting
               accessibilityRole={friends?.length ? 'button' : undefined}
               accessibilityLabel={
@@ -629,24 +630,6 @@ export function ProfileScreen({
             </Pressable>
           </Pressable>
         </Modal>
-      )}
-
-      {/*
-        Your friends, as a sheet over your own profile.
-
-        A sheet rather than a route, because it is a list you came to from a
-        number and will leave again immediately — pushing a screen for it would
-        put a back arrow between somebody and the profile they were reading.
-        Tapping one *is* a route, and closes this on the way.
-      */}
-      {showFriends && friends && (
-        <FriendsSheet
-          friends={friends}
-          t={t}
-          Button={Button}
-          onClose={() => setShowFriends(false)}
-          onOpenPerson={onOpenPerson}
-        />
       )}
 
       {creating && (
@@ -1148,111 +1131,6 @@ function EditProfile({
   );
 }
 
-/**
- * A list of friends, as a sheet over a profile — yours, or somebody else's.
- *
- * A sheet rather than a route, because it is a list you came to from a number
- * and will leave again immediately — pushing a screen for it would put a back
- * arrow between somebody and the profile they were reading. Tapping one *is*
- * a route, and closes this on the way.
- */
-export function FriendsSheet({
-  friends,
-  title,
-  t,
-  Button,
-  onClose,
-  onOpenPerson,
-}: {
-  friends: InvitablePerson[];
-  /** Defaults to the count — "12 friends". */
-  title?: string;
-  t: GroupTheme;
-  Button: ButtonEl;
-  onClose: () => void;
-  onOpenPerson: (handle: string) => void;
-}) {
-  return (
-    <Modal
-      visible
-      animationType="slide"
-      transparent
-      onRequestClose={onClose}
-    >
-      <Pressable style={styles.backdrop} onPress={onClose}>
-        <Pressable style={[styles.panel, { backgroundColor: t.bg }]} onPress={() => {}}>
-          <ScrollView contentContainerStyle={styles.panelScroll}>
-            <Text style={[styles.panelTitle, { color: t.fg }]}>
-              {title ?? `${friends.length} ${friends.length === 1 ? 'friend' : 'friends'}`}
-            </Text>
-
-            {friends.map((friend) => {
-              const lens = lensFor(friend.handle ?? friend.actorId);
-              /*
-               * Somebody with no handle cannot be opened.
-               *
-               * A profile is reached by handle — it is the half of a person
-               * that is an address — and not everybody has chosen one. The
-               * row still lists them, because they are a friend either way;
-               * it simply does not pretend to be a way through.
-               */
-              const reachable = friend.handle != null;
-              return (
-                <Pressable
-                  key={friend.actorId}
-                  disabled={!reachable}
-                  onPress={() => {
-                    onClose();
-                    if (friend.handle) onOpenPerson(friend.handle);
-                  }}
-                  accessibilityRole={reachable ? 'button' : undefined}
-                  accessibilityLabel={
-                    reachable
-                      ? `${friend.displayName ?? friend.handle}, open their profile`
-                      : undefined
-                  }
-                  style={({ pressed }) => [
-                    styles.friendRow,
-                    { borderBottomColor: t.line, opacity: pressed ? 0.6 : 1 },
-                  ]}
-                >
-                  {friend.avatar ? (
-                    <Image
-                      source={{ uri: friend.avatar }}
-                      style={[styles.friendFace, { backgroundColor: t.line }]}
-                      contentFit="cover"
-                      transition={120}
-                    />
-                  ) : (
-                    <View style={[styles.friendFace, styles.friendBlank, { backgroundColor: lens.fill }]}>
-                      <Text style={[styles.friendLetter, { color: lens.ink }]}>
-                        {initialOf(friend.displayName ?? friend.handle)}
-                      </Text>
-                    </View>
-                  )}
-                  <View style={{ flex: 1, minWidth: 0 }}>
-                    <Text style={[styles.friendName, { color: t.fg }]} numberOfLines={1}>
-                      {friend.displayName?.trim() || friend.handle || 'Someone'}
-                    </Text>
-                    {friend.displayName && friend.handle && (
-                      <Text style={[styles.friendHandle, { color: t.dim }]} numberOfLines={1}>
-                        {friend.handle}
-                      </Text>
-                    )}
-                  </View>
-                  {reachable && <Text style={[styles.friendGo, { color: t.dim }]}>›</Text>}
-                </Pressable>
-              );
-            })}
-
-            <Button label="Close" t={t} onPress={onClose} />
-          </ScrollView>
-        </Pressable>
-      </Pressable>
-    </Modal>
-  );
-}
-
 const styles = StyleSheet.create({
   /* 72 rather than the design's 26: the mockup draws the status bar as a row
      of its own and measures from under it, and there is no safe-area library
@@ -1307,24 +1185,6 @@ const styles = StyleSheet.create({
   /* One line at the handle's size and in the handle's colour: three figures
      set larger than the name they belong to is a dashboard. */
   counts: { textAlign: 'center', fontSize: 14.5, fontWeight: '600', marginTop: 8 },
-  /* Underlined rather than accented: an accent word inside a grey line reads as
-     a link in prose, and this is a line of facts. */
-  /* One friend. A rule between rows and none under the last, which is the same
-     shape the event chats use. */
-  friendRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    paddingVertical: 10,
-    borderBottomWidth: 1,
-  },
-  // A rounded square, like every other face in this product (`Groups.tsx`).
-  friendFace: { width: 38, height: 38, borderRadius: 10, overflow: 'hidden' },
-  friendBlank: { alignItems: 'center', justifyContent: 'center' },
-  friendLetter: { fontSize: 15, fontWeight: '700' },
-  friendName: { fontSize: 15.5, fontWeight: '600' },
-  friendHandle: { fontSize: 13 },
-  friendGo: { fontSize: 20 },
   /*
    * Pulled up against the header above it.
    *

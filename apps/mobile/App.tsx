@@ -70,6 +70,7 @@ import { initialOf, lensFor } from './src/lens';
 import { People, Thread } from './src/Thread';
 import { AccountCard, ChatsTab, HomeTab, RoomMark, SearchTab } from './src/Events';
 import { FindFriends } from './src/FindFriends';
+import { FriendsScreen } from './src/Friends';
 import { Launch } from './src/Launch';
 import { FIELD_BASE } from './src/MarkField';
 import { ContributeChoice } from './src/ContributeChoice';
@@ -294,7 +295,17 @@ type Route =
         photoUrl?: string | null;
       };
     }
-  | { screen: 'person'; handle: string }
+  /**
+   * Somebody's profile. `back` is where its arrow goes when that is not the
+   * tabs — the friends page it was opened from, so the next friend is one
+   * Back away.
+   */
+  | { screen: 'person'; handle: string; back?: Route }
+  /**
+   * A friends list, its own page: yours (`handle` null) or somebody's. `back`
+   * is the profile it was opened from. See `Friends.tsx`.
+   */
+  | { screen: 'friends'; handle: string | null; title: string; back: Route }
   /**
    * Lately, pushed over the tabs from the envelope in the Groups heading.
    *
@@ -1922,27 +1933,40 @@ export default function App() {
         </SwipeBack>
       )}
 
+      {route.screen === 'friends' && (
+        <SwipeBack onBack={() => setRoute(route.back)}>
+          <FriendsScreen
+            api={api}
+            handle={route.handle}
+            title={route.title}
+            t={t}
+            onBack={() => setRoute(route.back)}
+            onOpenPerson={(handle) => setRoute({ screen: 'person', handle, back: route })}
+          />
+        </SwipeBack>
+      )}
+
       {route.screen === 'person' && (
-        <SwipeBack onBack={leaveToTabs}>
+        <SwipeBack onBack={() => setRoute(route.back ?? { screen: 'tabs' })}>
           <PersonScreen
             api={api}
             handle={route.handle}
             events={events}
             t={t}
-            onBack={leaveToTabs}
+            onBack={() => setRoute(route.back ?? { screen: 'tabs' })}
             onOpenPerson={(handle) => setRoute({ screen: 'person', handle })}
+            onOpenFriends={(title) =>
+              setRoute({ screen: 'friends', handle: route.handle, title, back: route })
+            }
             /* Albums opened from here come back here: `back` names this
                profile, so Back from the album is not Back to Find. */
             onOpenEvent={(listing) =>
-              void openListing(listing, undefined, undefined, {
-                screen: 'person',
-                handle: route.handle,
-              })
+              void openListing(listing, undefined, undefined, route)
             }
             /* The same landing the making screens get: into the conversation,
                with the tab behind it refreshed. See `openMadeRoom`. */
             onOpenChat={(id) => void openMadeRoom(id)}
-            onOpenAlbum={(id) => openAlbum(id, { screen: 'person', handle: route.handle })}
+            onOpenAlbum={(id) => openAlbum(id, route)}
             Button={Button}
           />
         </SwipeBack>
@@ -1961,7 +1985,7 @@ export default function App() {
         A tab sets the tab *and* drops this page, so pressing Albums lands on
         albums rather than on this page with the bar lit underneath it.
       */}
-      {route.screen === 'person' && (
+      {(route.screen === 'person' || route.screen === 'friends') && (
         <TabBar
           tab={tab}
           t={t}
@@ -2196,6 +2220,9 @@ export default function App() {
                 onSettingsOpened={() => setOpenSettings(false)}
                 onOpen={openListing}
                 onOpenPerson={(handle) => setRoute({ screen: 'person', handle })}
+                onOpenFriends={() =>
+                  setRoute({ screen: 'friends', handle: null, title: 'Your friends', back: { screen: 'tabs' } })
+                }
                 onCreateEvent={() => setRoute({ screen: 'pick' })}
                 onCreateMoment={() => setRoute({ screen: 'moment' })}
                 onCreateGroup={() => {
