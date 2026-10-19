@@ -62,6 +62,7 @@ import type {
 
 import { ClusterCard } from './CreateGroup';
 import { Glyph } from './Glyph';
+import { SwipeRow } from './SwipeRow';
 import { Notifications, PageHead } from './PageHead';
 import { ROUND, RoundButton } from './RoundButton';
 import { MomentsBar, MomentsViewer, useMoments } from './Moments';
@@ -1317,10 +1318,67 @@ export function ChatsTab({
    * like for the first second.
    */
   const [seeking, setSeeking] = useState(false);
+  /** The row swiped open to its Pin and Delete, if one is. One at a time. */
+  const [openId, setOpenId] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setGroups(await api.myGroupsDetailed().catch(() => []));
   }, [api]);
+
+  /*
+   * Pin and Delete, said on the row at once and then to the server. A refusal
+   * puts the list back as the server has it.
+   */
+  const pin = useCallback(
+    (group: MyGroupDetail) => {
+      const pinned = !group.pinnedAt;
+      setOpenId(null);
+      setGroups((was) =>
+        (was ?? []).map((g) =>
+          g.id === group.id ? { ...g, pinnedAt: pinned ? new Date().toISOString() : null } : g,
+        ),
+      );
+      api.pinChat(group.id, pinned).catch(() => {
+        void load();
+        Alert.alert(
+          pinned ? 'Could not pin that chat' : 'Could not unpin that chat',
+          'Try again in a moment.',
+        );
+      });
+    },
+    [api, load],
+  );
+  const deleteChat = useCallback(
+    (group: MyGroupDetail) => {
+      setOpenId(null);
+      Alert.alert(
+        'Delete this chat?',
+        'Its messages are deleted for you only. Everyone else keeps them, and you stay in the chat — anything new said in it brings it back.',
+        [
+          { text: 'Cancel', style: 'cancel' },
+          {
+            text: 'Delete',
+            style: 'destructive',
+            onPress: () => {
+              const at = new Date().toISOString();
+              setGroups((was) =>
+                (was ?? []).map((g) =>
+                  g.id === group.id
+                    ? { ...g, clearedAt: at, pinnedAt: null, lastMessage: null, unreadCount: 0 }
+                    : g,
+                ),
+              );
+              api.deleteChat(group.id).catch(() => {
+                void load();
+                Alert.alert('Could not delete that chat', 'Try again in a moment.');
+              });
+            },
+          },
+        ],
+      );
+    },
+    [api, load],
+  );
 
   // On arrival, and on every return to the tab. Not on the switches away.
   useEffect(() => {
@@ -1372,16 +1430,30 @@ export function ChatsTab({
    * behind every group that has one — `lastActiveAt` would sort it by album
    * activity, which is the other tab's subject and not this one's.
    */
-  const groupChats = useMemo(
+  /*
+   * Pinned ones first, newest pin on top — the server's `chatsInOrder`, which
+   * the web's list keeps too. A chat deleted with nothing said since is not
+   * here at all.
+   */
+  const chats = useMemo(
     () =>
       (groups ?? [])
-        .filter((group) =>
-          // `title` and not `name`: most rooms have none, and what somebody
-          // types is what the row says — which for a chat is a person's name.
-          matches(group.title, group.lastMessage?.body, group.lastMessage?.author),
-        )
-        .sort((a, b) => (b.lastMessage?.at ?? '').localeCompare(a.lastMessage?.at ?? '')),
-    [groups, matches],
+        .filter((group) => !(group.clearedAt && !group.lastMessage))
+        .sort(
+          (a, b) =>
+            (b.pinnedAt ?? '').localeCompare(a.pinnedAt ?? '') ||
+            (b.lastMessage?.at ?? '').localeCompare(a.lastMessage?.at ?? ''),
+        ),
+    [groups],
+  );
+  const groupChats = useMemo(
+    () =>
+      chats.filter((group) =>
+        // `title` and not `name`: most rooms have none, and what somebody
+        // types is what the row says — which for a chat is a person's name.
+        matches(group.title, group.lastMessage?.body, group.lastMessage?.author),
+      ),
+    [chats, matches],
   );
 
   /*
@@ -1415,7 +1487,7 @@ export function ChatsTab({
     );
   }
 
-  const nothing = groups.length === 0 && looking === '';
+  const nothing = chats.length === 0 && looking === '';
 
 
   return (
@@ -1426,6 +1498,8 @@ export function ChatsTab({
       // A search field sits at the top of this tab; dragging the list puts the
       // keyboard away, as it does in Messages.
       keyboardDismissMode="on-drag"
+      // Scrolling the list puts away a row left open.
+      onScrollBeginDrag={() => setOpenId(null)}
       refreshControl={
         <RefreshControl refreshing={refreshing} onRefresh={refresh} tintColor={t.dim} />
       }
@@ -1605,12 +1679,44 @@ export function ChatsTab({
           {groupChats.length > 0 && (
             <View style={{ gap: 2 }}>
               {groupChats.map((group, i) => {
+                const pinned = Boolean(group.pinnedAt);
                 return (
-                  <Pressable
+                  /*
+                    Swiped left: Pin and Delete, both this person's alone. See
+                    `SwipeRow`, and `clearChat` on the server for what Delete
+                    does — which is not leaving.
+                  */
+                  <SwipeRow
                     key={group.id}
-                    onPress={() => onOpenGroupThread(group)}
+                    open={openId === group.id}
+                    onOpen={() => setOpenId(group.id)}
+                    onClose={() => setOpenId((id) => (id === group.id ? null : id))}
+                    background={t.bg}
+                    inset={20}
+                    actions={[
+                      {
+                        label: pinned ? 'Unpin' : 'Pin',
+                        glyph: 'pin',
+                        color: '#8E8E93',
+                        onPress: () => pin(group),
+                      },
+                      { label: 'Delete', glyph: 'trash', color: '#FF3B30', onPress: () => deleteChat(group) },
+                    ]}
+                  >
+                  <Pressable
+                    // With a row open, a tap anywhere on the list closes it
+                    // rather than opening a chat underneath somebody's thumb.
+                    onPress={() => (openId ? setOpenId(null) : onOpenGroupThread(group))}
                     accessibilityRole="button"
-                    accessibilityLabel={`${group.title}, conversation`}
+                    accessibilityLabel={`${group.title}, conversation${pinned ? ', pinned' : ''}`}
+                    accessibilityActions={[
+                      { name: 'pin', label: pinned ? 'Unpin' : 'Pin' },
+                      { name: 'delete', label: 'Delete' },
+                    ]}
+                    onAccessibilityAction={(event) => {
+                      if (event.nativeEvent.actionName === 'pin') pin(group);
+                      if (event.nativeEvent.actionName === 'delete') deleteChat(group);
+                    }}
                     style={({ pressed }) => [
                       styles.chatRow,
                       // No rule under the last one: a divider at the foot of a
@@ -1624,9 +1730,15 @@ export function ChatsTab({
                   >
                     <RoomMark room={group} size={40} t={t} />
                     <View style={{ flex: 1, minWidth: 0, gap: 2 }}>
-                      <Text style={[styles.chatName, { color: t.fg }]} numberOfLines={1}>
-                        {group.title}
-                      </Text>
+                      <View style={styles.chatNameRow}>
+                        <Text
+                          style={[styles.chatName, { color: t.fg, flexShrink: 1 }]}
+                          numberOfLines={1}
+                        >
+                          {group.title}
+                        </Text>
+                        {pinned && <Glyph name="pin" size={13} weight={2.2} color={t.dim} />}
+                      </View>
                       {/* A count rather than a dot: a group is busy, and the
                           number is the useful part. */}
                       <ConversationLine
@@ -1637,6 +1749,7 @@ export function ChatsTab({
                       />
                     </View>
                   </Pressable>
+                  </SwipeRow>
                 );
               })}
             </View>
@@ -4513,6 +4626,7 @@ const styles = StyleSheet.create({
   chatLetter: { alignItems: 'center', justifyContent: 'center' },
   chatInitial: { fontSize: 17, fontWeight: '600' },
   chatName: { fontSize: 15, fontWeight: '600' },
+  chatNameRow: { flexDirection: 'row', alignItems: 'center', gap: 5 },
   /* --- Find -------------------------------------------------------------
      One field, three chips, and rows under a hairline. Everything here
      replaced three bordered cards with a heading and a paragraph each. */

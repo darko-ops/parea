@@ -19,7 +19,7 @@ import { avatarUrl } from './accounts';
 import type { Db } from './db';
 import { blockedBetween } from './moderation';
 import { invitable } from './friends';
-import { EMPTY_SUMMARY, groupThreadSummaries } from './groupMessages';
+import { EMPTY_SUMMARY, groupThreadSummaries, markGroupThreadRead } from './groupMessages';
 import { imageSrc } from './images';
 import { getStorage } from './storage';
 import { crownGroups } from './succession';
@@ -563,6 +563,14 @@ export type MyGroup = {
   eventCount: number;
   /** ISO, from the newest event in it. Null for a group with no events yet. */
   lastActiveAt: string | null;
+  /** ISO. This viewer pinned it to the top of their Chats; null if not. */
+  pinnedAt: string | null;
+  /**
+   * ISO. This viewer deleted the chat then: nothing said before it is theirs
+   * to see, and with nothing said since, it is not on their Chats. Only the
+   * Chats list hides it — the room is still on Groups. See `chatsInOrder`.
+   */
+  clearedAt: string | null;
 };
 
 /**
@@ -1094,6 +1102,64 @@ export async function myGroupsDetailed(
   );
 }
 
+/**
+ * The Chats list: one viewer's rooms as conversations.
+ *
+ * Pinned first, the most recently pinned on top; then the rest by when
+ * something was last said, and a room nobody has spoken in last. A chat this
+ * viewer deleted is left out until somebody says something new in it — its
+ * `lastMessage` is already only what came after.
+ *
+ * The app's Chats tab keeps the same rule; the two lists are one list.
+ */
+export function chatsInOrder<
+  T extends Pick<MyGroup, 'pinnedAt' | 'clearedAt'> & { lastMessage: { at: string } | null },
+>(groups: T[]): T[] {
+  return groups
+    .filter((group) => !(group.clearedAt && !group.lastMessage))
+    .sort(
+      (a, b) =>
+        (b.pinnedAt ?? '').localeCompare(a.pinnedAt ?? '') ||
+        (b.lastMessage?.at ?? '').localeCompare(a.lastMessage?.at ?? ''),
+    );
+}
+
+/**
+ * Pins a chat to the top of one member's Chats, or unpins it. Nobody else in
+ * the room is told or sees it. False when they are not in it.
+ */
+export async function pinChat(
+  db: Db,
+  groupId: string,
+  actorId: string,
+  pinned: boolean,
+): Promise<boolean> {
+  const rows = await db
+    .update(schema.groupMembers)
+    .set({ pinnedAt: pinned ? sql`now()` : null })
+    .where(and(eq(schema.groupMembers.groupId, groupId), eq(schema.groupMembers.actorId, actorId)))
+    .returning({ groupId: schema.groupMembers.groupId });
+  return rows.length > 0;
+}
+
+/**
+ * Deletes a chat for one member: everything said in it so far is gone for
+ * them and nobody else, and it leaves their Chats until something new is said.
+ * They stay in the room. Unpinned with it — a pinned chat that is not on the
+ * list would come back pinned, which nobody asked for — and read, so nothing
+ * they can no longer see is counted as waiting. False when they are not in it.
+ */
+export async function clearChat(db: Db, groupId: string, actorId: string): Promise<boolean> {
+  const rows = await db
+    .update(schema.groupMembers)
+    .set({ clearedAt: sql`now()`, pinnedAt: null })
+    .where(and(eq(schema.groupMembers.groupId, groupId), eq(schema.groupMembers.actorId, actorId)))
+    .returning({ groupId: schema.groupMembers.groupId });
+  if (rows.length === 0) return false;
+  await markGroupThreadRead(db, groupId, actorId);
+  return true;
+}
+
 export async function myGroups(db: Db, actorId: string | null): Promise<MyGroup[]> {
   if (!actorId) return [];
 
@@ -1103,6 +1169,8 @@ export async function myGroups(db: Db, actorId: string | null): Promise<MyGroup[
       name: schema.groups.name,
       photoKey: schema.groups.photoKey,
       role: schema.groupMembers.role,
+      pinnedAt: schema.groupMembers.pinnedAt,
+      clearedAt: schema.groupMembers.clearedAt,
       /*
        * Correlated subselects rather than joins.
        *
@@ -1140,6 +1208,8 @@ export async function myGroups(db: Db, actorId: string | null): Promise<MyGroup[
       ...titleFor(row.name, others.get(row.id) ?? []),
       photoUrl: await groupPhotoUrl(photoKey),
       lastActiveAt: row.lastActiveAt ? new Date(row.lastActiveAt).toISOString() : null,
+      pinnedAt: row.pinnedAt ? new Date(row.pinnedAt).toISOString() : null,
+      clearedAt: row.clearedAt ? new Date(row.clearedAt).toISOString() : null,
     })),
   );
   return titled

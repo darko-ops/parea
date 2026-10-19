@@ -636,6 +636,16 @@ export type MyGroupDetail = ThreadLine & {
   eventCount: number;
   lastActiveAt: string | null;
   /**
+   * ISO: pinned to the top of this person's Chats. Optional, as is the next,
+   * because a server from before either does not send it.
+   */
+  pinnedAt?: string | null;
+  /**
+   * ISO: when this person deleted the chat. Only what was said after it
+   * reaches them, and with nothing said since it is not on Chats.
+   */
+  clearedAt?: string | null;
+  /**
    * Up to three member pictures, admins first, presigned by the server.
    *
    * People, never photographs: a group has no cover of its own, and borrowing
@@ -2767,6 +2777,22 @@ export class Api {
    */
   joinGroup(id: string): Promise<{ member?: boolean; requested?: boolean }> {
     return this.call(`/api/groups/${id}/requests`, { method: 'POST', body: '{}' });
+  }
+
+  /** Pins a chat to the top of this person's Chats, or unpins it. Theirs alone. */
+  pinChat(id: string, pinned: boolean): Promise<{ pinned: boolean }> {
+    return this.call(`/api/groups/${encodeURIComponent(id)}/chat`, {
+      method: 'PATCH',
+      body: JSON.stringify({ pinned }),
+    });
+  }
+
+  /**
+   * Deletes a chat for this person only: what has been said goes for them,
+   * they stay in it, and it is back on Chats when somebody says something new.
+   */
+  deleteChat(id: string): Promise<{ cleared: true }> {
+    return this.call(`/api/groups/${encodeURIComponent(id)}/chat`, { method: 'DELETE' });
   }
 
   leaveGroup(id: string): Promise<unknown> {

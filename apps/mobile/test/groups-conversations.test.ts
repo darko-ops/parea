@@ -214,7 +214,7 @@ describe('where a row goes', () => {
     expect(searchTab).not.toMatch(/onOpenGroupThread/);
     // And on Chats a row is only ever the conversation — the room itself is a
     // page you reach from Find.
-    expect(TAB).toMatch(/onPress=\{\(\) => onOpenGroupThread\(group\)\}/);
+    expect(TAB).toMatch(/onPress=\{\(\) => \(openId \? setOpenId\(null\) : onOpenGroupThread\(group\)\)\}/);
   });
 
   it('still opens a link on the photographs, always', () => {
@@ -425,7 +425,8 @@ describe('finding one', () => {
     // that cannot succeed — and it would now be a disc in the corner sitting
     // over the paragraph saying why there is nothing here.
     expect(TAB).toMatch(/left=\{\s*!nothing && \(/);
-    expect(TAB).toMatch(/const nothing = groups\.length === 0 && looking === ''/);
+    // Chats deleted with nothing said since are not on the tab, so not counted.
+    expect(TAB).toMatch(/const nothing = chats\.length === 0 && looking === ''/);
   });
 
   it('is a disc until somebody wants it, and then the whole row', () => {

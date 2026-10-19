@@ -519,6 +519,13 @@
       "when": 1792368525496,
       "tag": "0073_moment_caption",
       "breakpoints": true
+    },
+    {
+      "idx": 74,
+      "version": "7",
+      "when": 1792377038715,
+      "tag": "0074_chat_pin_clear",
+      "breakpoints": true
     }
   ]
 }

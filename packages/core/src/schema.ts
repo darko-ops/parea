@@ -707,6 +707,18 @@ export const groupMembers = pgTable(
     handedByActorId: uuid('handed_by_actor_id').references(() => actors.id, {
       onDelete: 'set null',
     }),
+    /**
+     * Pinned to the top of this member's Chats, and when. Theirs alone —
+     * nobody else in the room sees it. Newest pin first among the pinned.
+     */
+    pinnedAt: timestamp('pinned_at', { withTimezone: true }),
+    /**
+     * When this member deleted the chat: everything said up to here is gone
+     * for them, and only for them — the room, its people and everybody else's
+     * history are as they were. The chat leaves their list until somebody says
+     * something new, and comes back holding only that.
+     */
+    clearedAt: timestamp('cleared_at', { withTimezone: true }),
   },
   (t) => [primaryKey({ columns: [t.groupId, t.actorId] })],
 );

@@ -48,6 +48,8 @@ export type GlyphName =
   | 'send'
   | 'download'
   | 'trash'
+  /** A pushpin: a chat held at the top of the list. */
+  | 'pin'
   | 'door'
   | 'grid'
   | 'portrait'
@@ -368,6 +370,16 @@ function paths(name: GlyphName, weight: number) {
           <Path d="M12 3.5v11" />
           <Path d="M8.5 11 12 14.5 15.5 11" />
           <Path d="M4 15.5v3.5a1.5 1.5 0 0 0 1.5 1.5h13a1.5 1.5 0 0 0 1.5-1.5v-3.5" />
+        </>
+      );
+
+    case 'pin':
+      // A head, a collar and the point under them, upright.
+      return (
+        <>
+          <Path d="M9 3.5h6" />
+          <Path d="M10 3.5v5.2L7 12v1.5h10V12l-3-3.3V3.5" />
+          <Path d="M12 13.5v7" />
         </>
       );
 

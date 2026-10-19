@@ -49,7 +49,7 @@ import { SiteFooter } from '@/../app/components/SiteFooter';
 import { accountFor } from '@/accounts';
 import { getDb } from '@/db';
 import { greetingFor, partOfDay } from '@/greeting';
-import { lensFor, myGroupsDetailed } from '@/groups';
+import { chatsInOrder, lensFor, myGroupsDetailed } from '@/groups';
 import { invitesSeenAtFor } from '@/invites';
 import { currentAccountActorId } from '@/session';
 import { readerZone } from '@/zone';
@@ -122,8 +122,8 @@ export default async function GroupsPage() {
         */}
         <ChatView
           greeting={greeting}
-          chats={[...groups]
-            .sort((a, b) => (b.lastMessage?.at ?? '').localeCompare(a.lastMessage?.at ?? ''))
+          // Pinned first, and a chat deleted with nothing new said is not here.
+          chats={chatsInOrder(groups)
             .map((group): ChatRow => ({
               id: group.id,
               // What the room is called to whoever is reading, which for most

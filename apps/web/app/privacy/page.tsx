@@ -420,6 +420,16 @@ export default function PrivacyPage() {
             and blocking work exactly as they do in a roll&rsquo;s thread.
           </p>
 
+          <h3>Pinning and deleting a chat</h3>
+          <p className="muted">
+            Pinning a chat keeps it at the top of your list; we store when you
+            pinned it. Deleting a chat stores when you deleted it, and from
+            then on nothing said before that time is shown to you. It is for
+            you only: the messages are not erased, everyone else in the chat
+            still has them, and you stay in it. Neither is ever shown to
+            anybody else.
+          </p>
+
           <h3>How far you have read</h3>
           <p className="muted">
             So that a conversation can tell you something is waiting, we keep

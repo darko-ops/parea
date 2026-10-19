@@ -345,7 +345,11 @@ describe('what a row shows', () => {
      * than being dropped: a silent room is one somebody might be the first to
      * speak in.
      */
-    expect(PAGE).toMatch(/\.sort\(\(a, b\) => \(b\.lastMessage\?\.at \?\? ''\)/);
+    // In `chatsInOrder`, which pins first and leaves out only a chat this
+    // reader deleted with nothing said since — never a silent room.
+    expect(PAGE).toMatch(/chats=\{chatsInOrder\(groups\)/);
+    expect(GROUPS_SRC).toMatch(/\(b\.lastMessage\?\.at \?\? ''\)\.localeCompare\(a\.lastMessage\?\.at \?\? ''\)/);
+    expect(GROUPS_SRC).toMatch(/\.filter\(\(group\) => !\(group\.clearedAt && !group\.lastMessage\)\)/);
     expect(PAGE).not.toMatch(/lastActiveAt/);
     expect(PAGE).not.toMatch(/filter\([^)]*lastMessage/);
   });

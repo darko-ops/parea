@@ -158,6 +158,15 @@ export async function groupMessagesFor(
     .where(
       and(
         eq(schema.groupMessages.groupId, groupId),
+        // Nothing from before this viewer deleted the chat, if they did.
+        viewerId
+          ? sql`not exists (
+              select 1 from "group_member" cm
+              where cm.group_id = ${groupId} and cm.actor_id = ${viewerId}
+                and cm.cleared_at is not null
+                and ${schema.groupMessages.createdAt} <= cm.cleared_at
+            )`
+          : undefined,
         // Both directions, matching how blocks work everywhere else.
         viewerId
           ? not(
@@ -666,6 +675,19 @@ export async function eventThreadSummaries(
 }
 
 /** The same two questions about group threads. See `eventThreadSummaries`. */
+/**
+ * Only what was said after this viewer deleted the chat, if they did — a
+ * condition on `m`, a `group_message`. Nothing for nobody.
+ */
+function afterCleared(viewerId: string | null) {
+  if (!viewerId) return sql``;
+  return sql`and not exists (
+    select 1 from "group_member" cm
+    where cm.group_id = m.group_id and cm.actor_id = ${viewerId}
+      and cm.cleared_at is not null and m.created_at <= cm.cleared_at
+  )`;
+}
+
 export async function groupThreadSummaries(
   db: Db,
   groupIds: string[],
@@ -692,6 +714,7 @@ export async function groupThreadSummaries(
     from "group_message" m
     join "actor" a on a.id = m.author_actor_id
     where m.group_id in (${idList(groupIds)})
+      ${afterCleared(viewerId)}
     order by m.group_id, m.created_at desc, m.id desc
   `));
 
@@ -728,6 +751,7 @@ export async function groupThreadSummaries(
       where m.group_id in (${idList(groupIds)})
         and m.author_actor_id <> ${viewerId}
         and (r.read_at is null or m.created_at > r.read_at)
+        ${afterCleared(viewerId)}
       group by m.group_id
     `));
     for (const row of counts) {
@@ -845,6 +869,7 @@ export async function unreadChats(
         on r.group_id = m.group_id and r.actor_id = ${actorId}
       where m.author_actor_id <> ${actorId}
         and (r.read_at is null or m.created_at > r.read_at)
+        and (gm.cleared_at is null or m.created_at > gm.cleared_at)
     ) as any_unread
   `));
 
