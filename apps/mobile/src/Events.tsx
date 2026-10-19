@@ -2162,6 +2162,24 @@ const GROUPS_SHOWN = GROUP_COLUMNS * 2;
  *   - **Events and photographs are never searchable.** That is the sentence at
  *     the foot, and it is the product's line rather than this screen's.
  */
+/** The handles of the people in a recent list, as one stable key. */
+function facesKey(recent: RecentSearch[]): string {
+  return recent
+    .filter((entry) => entry.kind === 'person')
+    .map((entry) => (entry as { handle: string }).handle.toLowerCase())
+    .sort()
+    .join(',');
+}
+
+/** What `facesFor` answers, as a face per lowercased handle. */
+function facesFrom(people: InvitablePerson[]): Record<string, string | null> {
+  return Object.fromEntries(
+    people
+      .filter((person) => person.handle)
+      .map((person) => [person.handle!.toLowerCase(), person.avatar]),
+  );
+}
+
 export function SearchTab({
   api,
   events,
@@ -2261,8 +2279,46 @@ export function SearchTab({
    * with everything else.
    */
   const [recent, setRecent] = useState<RecentSearch[]>([]);
+  /** Faces for the people in `recent`, by lowercased handle. See `wantedFaces`. */
+  const [faces, setFaces] = useState<Record<string, string | null>>({});
+  const askedFaces = useRef('');
+  /**
+   * The recent row is ready to draw — the list, and the faces on it.
+   *
+   * The list is on the phone and back at once; the rooms and suggestions are a
+   * round trip. Drawn as each arrived, the recent row showed first, under the
+   * spinner, and was then shoved down the page by everything landing above
+   * and around it. So the page at rest waits for both and arrives as one —
+   * see `ready` below — and the faces come with the first load rather than a
+   * moment after it, so no row swaps a letter for a picture as it appears.
+   */
+  const [recentReady, setRecentReady] = useState(false);
   useEffect(() => {
-    void loadSearches().then(setRecent);
+    let alive = true;
+    void (async () => {
+      const list = await loadSearches().catch(() => [] as RecentSearch[]);
+      if (!alive) return;
+      setRecent(list);
+      const handles = facesKey(list);
+      if (handles) {
+        askedFaces.current = handles;
+        // Bounded: a face is decoration, and the page does not wait on one
+        // that is slow to answer — the letter is drawn and the effect below
+        // does not ask again.
+        const people = await Promise.race([
+          api.facesFor(handles.split(',')).catch(() => []),
+          new Promise<InvitablePerson[]>((done) => setTimeout(() => done([]), 1500)),
+        ]);
+        if (!alive) return;
+        setFaces(facesFrom(people));
+      }
+      setRecentReady(true);
+    })();
+    return () => {
+      alive = false;
+    };
+    // Once, on mount, as the list always was.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   /*
@@ -2422,6 +2478,13 @@ export function SearchTab({
 
   const unplaced = events.filter((event) => !event.place).length;
   const asked = query.trim().length >= 2;
+  /**
+   * The page at rest has everything it is going to draw: the rooms and the
+   * suggestions (one request, `loadMine`) and the recent row with its faces.
+   * Until then it is one spinner, and then it is the page — not the page
+   * assembling itself in front of somebody.
+   */
+  const ready = mine !== null && recentReady;
 
   /*
    * The faces for those rows, asked for rather than remembered.
@@ -2438,13 +2501,7 @@ export function SearchTab({
    * `asked` hides the section — because a request for faces nobody is looking
    * at is disclosure bought for nothing.
    */
-  const [faces, setFaces] = useState<Record<string, string | null>>({});
-  const wantedFaces = recent
-    .filter((entry) => entry.kind === 'person')
-    .map((entry) => (entry as { handle: string }).handle.toLowerCase())
-    .sort()
-    .join(',');
-  const askedFaces = useRef('');
+  const wantedFaces = facesKey(recent);
 
   useEffect(() => {
     if (asked || !wantedFaces || askedFaces.current === wantedFaces) return;
@@ -2454,13 +2511,7 @@ export function SearchTab({
       .facesFor(wantedFaces.split(','))
       .then((people) => {
         if (!alive) return;
-        setFaces(
-          Object.fromEntries(
-            people
-              .filter((person) => person.handle)
-              .map((person) => [person.handle!.toLowerCase(), person.avatar]),
-          ),
-        );
+        setFaces(facesFrom(people));
       })
       // A face is decoration on a row that already has a name. Nothing is said
       // about a lookup that did not answer; the letter is what stays.
@@ -2680,7 +2731,7 @@ export function SearchTab({
         So this is the page at rest: the groups you have, and a field for the
         ones you do not.
       */}
-      {!asked && mine === null && (
+      {!asked && !ready && (
         <View style={styles.groupsLoading}>
           <Waiting size={40} />
         </View>
@@ -2698,7 +2749,7 @@ export function SearchTab({
         back with everything else on sign-out. "Clear" is beside the label
         because a phone passed around is the ordinary reason to want it gone.
       */}
-      {!asked && recent.length > 0 && (
+      {!asked && ready && recent.length > 0 && (
         <View style={{ gap: 6 }}>
           <View style={styles.headRow}>
             <Text style={[styles.sectionLabel, { color: t.dim }]}>RECENT</Text>
@@ -2783,7 +2834,7 @@ export function SearchTab({
         many of your own people know them, and a button. Sideways is what says
         "some of these, not all of these".
       */}
-      {!asked && (scope === 'all' || scope === 'people') && suggested !== null &&
+      {!asked && ready && (scope === 'all' || scope === 'people') && suggested !== null &&
         suggested.length > 0 && (
           <View style={{ gap: 6 }}>
             <Text style={[styles.sectionLabel, { color: t.dim }]}>PEOPLE YOU MAY KNOW</Text>
@@ -2908,7 +2959,7 @@ export function SearchTab({
         * yet has none by arithmetic rather than by anything being wrong. The
         * box above is the way out of that, which is what this says.
         */}
-      {!asked && scope === 'people' && suggested !== null && suggested.length === 0 && (
+      {!asked && ready && scope === 'people' && suggested !== null && suggested.length === 0 && (
         <Text style={[styles.small, { color: t.dim }]}>
           Nobody to suggest yet. These are friends of your friends, so they
           start appearing once you have a few — search a handle above to add the
@@ -2916,7 +2967,7 @@ export function SearchTab({
         </Text>
       )}
 
-      {!asked && scope !== 'places' && scope !== 'people' && mine !== null && (
+      {!asked && ready && scope !== 'places' && scope !== 'people' && mine !== null && (
         <>
           {/*
             The rooms, as a shelf of doors.

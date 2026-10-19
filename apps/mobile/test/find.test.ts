@@ -136,8 +136,8 @@ describe('the page before a question', () => {
   });
 
   it('shows each half under its own filter, and both under All', () => {
-    expect(TAB).toMatch(/\{!asked && \(scope === 'all' \|\| scope === 'people'\) && suggested !== null/);
-    expect(TAB).toMatch(/\{!asked && scope !== 'places' && scope !== 'people' && mine !== null/);
+    expect(TAB).toMatch(/\{!asked && ready && \(scope === 'all' \|\| scope === 'people'\) && suggested !== null/);
+    expect(TAB).toMatch(/\{!asked && ready && scope !== 'places' && scope !== 'people' && mine !== null/);
   });
 
   it('searches both namespaces under All', () => {
@@ -346,7 +346,7 @@ describe('what the box remembers', () => {
   });
 
   it('shows it only while nothing is typed, and offers to forget it', () => {
-    expect(TAB).toMatch(/\{!asked && recent\.length > 0 && \(/);
+    expect(TAB).toMatch(/\{!asked && ready && recent\.length > 0 && \(/);
     expect(TAB).toMatch(/onPress=\{forgetAll\}/);
   });
 });
@@ -388,5 +388,19 @@ describe('asking somebody from a result', () => {
   it('knows where the two of you stand before anybody presses', () => {
     const API = read('src/api.ts');
     expect(API).toMatch(/standing\?: Standing;/);
+  });
+});
+
+describe('the page at rest arrives as one', () => {
+  it('waits for the rooms, the suggestions and the recent row together', () => {
+    // The recent row is on the phone and was drawn first, under the spinner,
+    // then shoved down by everything that came back from the server.
+    expect(TAB).toMatch(/const ready = mine !== null && recentReady;/);
+    expect(TAB).toMatch(/\{!asked && !ready && \(/);
+  });
+
+  it('brings the faces with the first load, bounded', () => {
+    expect(TAB).toMatch(/askedFaces\.current = handles;/);
+    expect(TAB).toMatch(/setTimeout\(\(\) => done\(\[\]\), 1500\)/);
   });
 });
