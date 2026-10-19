@@ -3712,8 +3712,13 @@ function EventScreen({
     </View>
   ) : null;
 
-  const unread = seen === null ? 0 : Math.max(0, messages.length - seen);
-  const latest = messages[messages.length - 1] ?? null;
+  /*
+   * Only other people's. A comment of your own lands in this same thread, and
+   * counting it drew a banner announcing to you what you had just said.
+   */
+  const theirs = seen === null ? [] : messages.slice(seen).filter((m) => !m.author.mine);
+  const unread = theirs.length;
+  const latest = theirs[theirs.length - 1] ?? null;
 
   /*
    * The banner drops in and takes itself away.

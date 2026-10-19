@@ -294,6 +294,12 @@ describe('somebody said something while you were looking at the photographs', ()
     expect(SCREEN).toMatch(/if \(feed && seen === null\) setSeen\(feed\.messages\.length\)/);
   });
 
+  it('is only ever somebody else', () => {
+    // Your own comment lands in the same thread; it is not news to you.
+    expect(SCREEN).toMatch(/messages\.slice\(seen\)\.filter\(\(m\) => !m\.author\.mine\)/);
+    expect(SCREEN).toMatch(/const latest = theirs\[theirs\.length - 1\]/);
+  });
+
   it('takes itself away', () => {
     // A notification, not the conversation: it drops in and goes, and the
     // count stays on the Talk tab.
