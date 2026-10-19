@@ -1250,12 +1250,10 @@ const styles = StyleSheet.create({
     paddingTop: 14,
     paddingBottom: 34,
   },
+  /* The glyph alone, no frame round it; still a 44-point target. */
   addAgain: {
     width: 44,
     height: 44,
-    borderRadius: 12,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: 'rgba(255,255,255,0.35)',
     alignItems: 'center',
     justifyContent: 'center',
   },
