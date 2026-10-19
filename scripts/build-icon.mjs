@@ -331,6 +331,45 @@ for (const px of [1024, 512, 256, 128]) {
   console.log(`${name.padEnd(30)} ${px}x${px}`);
 }
 
+/*
+ * The website's raster icons, beside its `icon.svg`.
+ *
+ * The SVG is enough for a browser tab and nothing else: iMessage, Slack and
+ * most link unfurlers ask for `apple-touch-icon` or `/favicon.ico` and draw a
+ * letter in a grey square when there is no bitmap — which is what a link to
+ * the site looked like. Next serves both from `app/` by name.
+ *
+ * Files with extensions, deliberately: the proxy lets anything with a dot past
+ * the sign-in gate, and a generated `apple-icon` route would have none.
+ */
+const WEB = join(HERE, '..', 'apps', 'web', 'app');
+const raster = (px) =>
+  sharp(Buffer.from(iconSvg), { density: 384 }).resize(px, px).png({ compressionLevel: 9 }).toBuffer();
+
+await writeFile(join(WEB, 'apple-icon.png'), await raster(180));
+console.log(`${'apps/web/app/apple-icon.png'.padEnd(30)} 180x180`);
+
+/** An .ico is a directory of PNGs: a six-byte header, sixteen bytes per entry, then the images. */
+const sizes = [16, 32, 48];
+const pngs = await Promise.all(sizes.map(raster));
+const header = Buffer.alloc(6 + 16 * sizes.length);
+header.writeUInt16LE(0, 0);
+header.writeUInt16LE(1, 2);
+header.writeUInt16LE(sizes.length, 4);
+let offset = header.length;
+for (const [i, px] of sizes.entries()) {
+  const at = 6 + 16 * i;
+  header.writeUInt8(px, at);
+  header.writeUInt8(px, at + 1);
+  header.writeUInt16LE(1, at + 4);
+  header.writeUInt16LE(32, at + 6);
+  header.writeUInt32LE(pngs[i].length, at + 8);
+  header.writeUInt32LE(offset, at + 12);
+  offset += pngs[i].length;
+}
+await writeFile(join(WEB, 'favicon.ico'), Buffer.concat([header, ...pngs]));
+console.log(`${'apps/web/app/favicon.ico'.padEnd(30)} ${sizes.join(', ')}`);
+
 console.log('');
 console.log('radius', R, ' centroid offset', D, ' angles', ANGLES.join(', '));
 for (const [i, c] of CIRCLES.entries()) {
