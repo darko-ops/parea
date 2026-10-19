@@ -1444,6 +1444,12 @@ export function People({
    * go to change it rather than leaving somebody looking for a control here.
    */
   group,
+  /**
+   * Add members, at the top of the list — for whoever runs a roll that is
+   * not in a group (in one, the group decides who is in it). See
+   * `AddMembers.tsx`.
+   */
+  onAdd,
 }: {
   roster: Roster[];
   t: GroupTheme;
@@ -1455,6 +1461,7 @@ export function People({
   dark?: boolean;
   onPerson?: (person: Roster) => void;
   group?: { name: string; onOpen: () => void };
+  onAdd?: () => void;
 }) {
   return (
     <FlatList
@@ -1477,6 +1484,20 @@ export function People({
               in this roll. To add or remove people, do it in the group.
             </Text>
             <Text style={[styles.groupNoteLink, { color: t.fg }]}>Open {group.name} ›</Text>
+          </Pressable>
+        ) : onAdd ? (
+          <Pressable
+            onPress={onAdd}
+            accessibilityRole="button"
+            style={({ pressed }) => [
+              styles.addMembers,
+              { backgroundColor: t.card, borderColor: t.line, opacity: pressed ? 0.7 : 1 },
+            ]}
+          >
+            <View style={[styles.addMembersDisc, { backgroundColor: t.fg }]}>
+              <Glyph name="plus" size={16} color={t.bg} />
+            </View>
+            <Text style={[styles.addMembersText, { color: t.fg }]}>Add members</Text>
           </Pressable>
         ) : null
       }
@@ -1932,6 +1953,23 @@ const styles = StyleSheet.create({
   groupNote: { borderWidth: 1, borderRadius: 12, padding: 12, gap: 6, marginBottom: 8 },
   groupNoteText: { fontSize: 13.5, lineHeight: 19 },
   groupNoteLink: { fontSize: 13.5, fontWeight: '600' },
+  addMembers: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    borderWidth: 1,
+    borderRadius: 12,
+    padding: 12,
+    marginBottom: 8,
+  },
+  addMembersDisc: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  addMembersText: { fontSize: 15, fontWeight: '600' },
   personRow: { gap: 8, paddingVertical: 11, borderBottomWidth: 1 },
   personTop: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   /* Under the words, lined up with them rather than the face: 38 of face and

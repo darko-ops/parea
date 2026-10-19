@@ -100,16 +100,19 @@ describe('the gesture', () => {
 
 describe('the screens it wraps', () => {
   it('is on every screen pushed over the tabs', () => {
-    for (const back of ['leaveEvent', 'leaveGroup', 'leaveToTabs', 'leaveLately']) {
+    for (const back of ['leaveGroup', 'leaveToTabs', 'leaveLately']) {
       expect(APP).toMatch(new RegExp(`<SwipeBack onBack=\\{${back}\\}>`));
     }
+    // The roll's stands down while a page of its own is over it.
+    expect(APP).toMatch(/<SwipeBack onBack=\{leaveEvent\} enabled=\{!eventCovered\}>/);
     // Event, group, group thread, person, friends, door, Lately and Find Friends —
+    // and Add members, over a roll —
     // every screen pushed over the tabs that has an arrow in its corner — plus
     // the four below, which are the album flow's first step, the account gate
     // in front of it, and the two pages a room is made on: a group, which is
     // asked for a name, and a chat, which is asked only who — and adding a
     // moment, which holds a picture and nothing typed.
-    expect(APP.match(/<SwipeBack /g) ?? []).toHaveLength(13);
+    expect(APP.match(/<SwipeBack /g) ?? []).toHaveLength(14);
   });
 
   it('is on the photographs and on the gate in front of them', () => {
@@ -161,7 +164,7 @@ describe('the screens it wraps', () => {
       /const leaveGroup = useCallback\(\(\) => \{\s*void refreshGroups\(\);\s*void refreshEvents\(\);/,
     );
     // Both ways out of the event screen are the same callback, not two copies.
-    expect(APP).toMatch(/<SwipeBack onBack=\{leaveEvent\}>/);
+    expect(APP).toMatch(/<SwipeBack onBack=\{leaveEvent\} enabled=\{!eventCovered\}>/);
     expect(APP).toMatch(/onBack=\{leaveEvent\}/);
   });
 });

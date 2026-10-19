@@ -71,6 +71,7 @@ import { People, Thread } from './src/Thread';
 import { AccountCard, ChatsTab, HomeTab, RoomMark, SearchTab } from './src/Events';
 import { FindFriends } from './src/FindFriends';
 import { FriendsScreen } from './src/Friends';
+import { AddMembers } from './src/AddMembers';
 import { Launch } from './src/Launch';
 import { FIELD_BASE } from './src/MarkField';
 import { ContributeChoice } from './src/ContributeChoice';
@@ -409,6 +410,11 @@ export default function App() {
   const [remembered, setRemembered] = useState<SavedEvent[]>([]);
   const [groups, setGroups] = useState<MyGroup[]>([]);
   const [route, setRoute] = useState<Route>({ screen: 'tabs' });
+  /**
+   * A page is up over the roll — Add members — and an edge swipe is that
+   * page's Back, not the roll's.
+   */
+  const [eventCovered, setEventCovered] = useState(false);
   const [tab, setTab] = useState<Tab>('home');
   /**
    * Pressing the tab you are on scrolls it to the top — every tab, as Home
@@ -1623,10 +1629,11 @@ export default function App() {
     <View style={[styles.root, { backgroundColor: t.bg }]}>
       <StatusBar style={launched ? (dark ? 'light' : 'dark') : 'light'} />
       {route.screen === 'event' && (
-        <SwipeBack onBack={leaveEvent}>
+        <SwipeBack onBack={leaveEvent} enabled={!eventCovered}>
           <EventScreen
             api={api}
             event={route.event}
+            onCovered={setEventCovered}
             initialPane={route.pane}
             initialPhoto={route.photo}
             initialUpload={route.upload}
@@ -2508,6 +2515,7 @@ function previewUri(item: QueueItem): string {
 function EventScreen({
   api,
   event,
+  onCovered,
   initialPane,
   initialPhoto,
   initialUpload,
@@ -2569,6 +2577,8 @@ function EventScreen({
    * the status line, so it is said once.
    */
   coverTrouble: boolean;
+  /** A page of the roll's own is over it, so the roll's swipe-back stands down. */
+  onCovered?: (covered: boolean) => void;
   onCoverTroubleSeen: () => void;
   /**
    * What the phone's one upload queue is holding, and how to ask it to run.
@@ -2733,6 +2743,12 @@ function EventScreen({
   const landed = useRef(false);
   /** The `⋯` sheet inside the viewer: remove, ask down, report, block. */
   const [actionsFor, setActionsFor] = useState<FeedPhoto | null>(null);
+  /** The Add members page, over the roll — see `AddMembers.tsx`. */
+  const [addingMembers, setAddingMembers] = useState(false);
+  useEffect(() => {
+    onCovered?.(addingMembers);
+    return () => onCovered?.(false);
+  }, [addingMembers, onCovered]);
   const [access, setAccess] = useState<LibraryAccess>('undetermined');
   /**
    * Which of the three panes is up.
@@ -5247,6 +5263,11 @@ function EventScreen({
             onRemove={mayRemove ? removeFromRoll : undefined}
             dark={dark}
             onPerson={personActions}
+            onAdd={
+              feed?.event.canAdminister && !feed.event.groupId
+                ? () => setAddingMembers(true)
+                : undefined
+            }
             group={
               feed?.event.groupId
                 ? {
@@ -5766,6 +5787,24 @@ function EventScreen({
         </Modal>
       )}
 
+      {/*
+        Add members, a page over the roll rather than a route: Back lands on
+        the People pane exactly as it was, with whoever was just asked on it.
+      */}
+      {addingMembers && (
+        <View style={[StyleSheet.absoluteFill, { zIndex: 20 }]}>
+          <SwipeBack onBack={() => setAddingMembers(false)}>
+            <AddMembers
+              api={api}
+              t={t}
+              eventId={event.id}
+              roster={feed?.roster ?? []}
+              onBack={() => setAddingMembers(false)}
+              onAsked={() => void refresh()}
+            />
+          </SwipeBack>
+        </View>
+      )}
     </View>
   );
 }

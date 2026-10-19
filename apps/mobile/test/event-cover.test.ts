@@ -337,7 +337,7 @@ describe('after the change', () => {
       /const leaveEvent = useCallback\(\(\) => \{\s*void refreshEvents\(\);/,
     );
     expect(APP).toMatch(/onBack=\{leaveEvent\}/);
-    expect(APP).toMatch(/<SwipeBack onBack=\{leaveEvent\}>/);
+    expect(APP).toMatch(/<SwipeBack onBack=\{leaveEvent\} enabled=\{!eventCovered\}>/);
   });
 });
 
