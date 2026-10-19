@@ -98,7 +98,7 @@ describe('moments', () => {
 
   it('rings the unseen in the app icon’s field, and the seen in a hairline', () => {
     expect(MOMENTS).toMatch(
-      /moment\.seen \? \(\s*<IconRing size=\{RING\} radius=\{RING_RADIUS\} thickness=\{SEEN_LINE\} color=\{hairline\} \/>\s*\) : \(\s*<IconRing size=\{RING\} radius=\{RING_RADIUS\} thickness=\{RING_LINE\} \/>/,
+      /moment\.seen \? \(\s*<IconRing size=\{size\} radius=\{g\.radius\} thickness=\{SEEN_LINE\} color=\{hairline\} \/>\s*\) : \(\s*<IconRing size=\{size\} radius=\{g\.radius\} thickness=\{RING_LINE\} \/>/,
     );
   });
 
@@ -206,7 +206,7 @@ describe('moments', () => {
     // and the emoji picker all hold it.
     expect(MOMENTS).toMatch(/progress\.setValue\(0\);\s*\}, \[progress, showing\]\);/);
     // Held, too, while the moment is being sent into a chat.
-    expect(MOMENTS).toMatch(/if \(!showing \|\| options \|\| engaged \|\| sendingMoment\) \{\s*progress\.stopAnimation\(\);/);
+    expect(MOMENTS).toMatch(/if \(!showing \|\| options \|\| engaged \|\| sendingMoment \|\| held\) \{\s*progress\.stopAnimation\(\);/);
     expect(VIEWER).toMatch(/onEngaged\?\.\(talking\);/);
     // At the foot: the tiles, then the line, then the reaction and comment bar.
     expect(VIEWER).toMatch(/tiles: \{ position: 'absolute', bottom: TILES_BOTTOM, left: 0, right: 0 \}/);
@@ -250,5 +250,36 @@ describe('a caption', () => {
 
   it('is shown over the foot of the viewer, only when there is one', () => {
     expect(MOMENTS).toMatch(/\{moment\.caption \? \(\s*<Text style=\{styles\.caption\}/);
+  });
+});
+
+describe('the clock', () => {
+  it('keeps running when a tap takes the chrome away', () => {
+    /*
+     * The strip was inside the chrome and went with it. The clock is an
+     * animation drawn in the strip, and React Native stops an animation when
+     * the last view drawing it unmounts — so a tap stopped the clock, and
+     * nothing started it again when the chrome came back.
+     */
+    expect(VIEWER).toMatch(/style=\{\[styles\.tiles, !chrome && styles\.hidden\]\}/);
+    expect(VIEWER.indexOf('styles.tiles, !chrome')).toBeLessThan(VIEWER.indexOf('{chrome && ('));
+  });
+
+  it('stops while a finger is held on the picture, and only then', () => {
+    expect(VIEWER).toMatch(/const HOLD_MS = 250;/);
+    // Started on every touch, called off by moving or a second finger.
+    expect(VIEWER).toMatch(/holdTimer\.current = setTimeout\(\(\) => \{[\s\S]{0,200}onHold\?\.\(true\);/);
+    expect(VIEWER).toMatch(/touches\.length >= 2 \|\| Math\.hypot\(g\.dx, g\.dy\) > TAP_SLOP/);
+    // Letting go of a hold is not a tap, so it does not take the chrome away.
+    expect(VIEWER).toMatch(/if \(held\) return;/);
+    expect(MOMENTS).toMatch(/onHold=\{setHeld\}/);
+  });
+});
+
+describe('the viewer’s tiles', () => {
+  it('are smaller than a page’s, and the same drawing', () => {
+    expect(MOMENTS).toMatch(/const NAV_RING = 50;/);
+    expect(MOMENTS).toMatch(/size=\{NAV_RING\}/);
+    expect(MOMENTS).toMatch(/const k = size \/ RING;/);
   });
 });

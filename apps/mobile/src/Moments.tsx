@@ -661,6 +661,7 @@ function MomentTile({
   dark = false,
   active,
   plain = false,
+  size = RING,
 }: {
   moment: Moment;
   t: GroupTheme;
@@ -678,7 +679,15 @@ function MomentTile({
    * anywhere a tile is not a position in something.
    */
   active?: boolean;
+  /**
+   * The tile's outer edge. `RING` on a page; the viewer's strip is smaller,
+   * because there it is a map over somebody's photograph, not the thing
+   * itself. Everything else — the corners, the face — scales with it, so the
+   * smaller tile is the same drawing.
+   */
+  size?: number;
 }) {
+  const g = tileGeometry(size);
   const who = moment.mine ? 'You' : first(moment.author.name);
   // The page's colours, or the glass's: a hairline and a gap that are the
   // page's white would be a white box drawn on somebody's photograph.
@@ -699,25 +708,25 @@ function MomentTile({
       accessibilityLabel={`${moment.mine ? 'Your' : `${who}'s`} moment${moment.seen ? '' : ', new'}`}
       style={({ pressed }) => [
         styles.tile,
-        { opacity: pressed ? 0.5 : faded ? 0.55 : 1 },
+        { width: size + g.hang, opacity: pressed ? 0.5 : faded ? 0.55 : 1 },
       ]}
     >
-      <View style={styles.frame}>
+      <View style={{ width: size, height: size }}>
         {moment.seen ? (
-          <IconRing size={RING} radius={RING_RADIUS} thickness={SEEN_LINE} color={hairline} />
+          <IconRing size={size} radius={g.radius} thickness={SEEN_LINE} color={hairline} />
         ) : (
-          <IconRing size={RING} radius={RING_RADIUS} thickness={RING_LINE} />
+          <IconRing size={size} radius={g.radius} thickness={RING_LINE} />
         )}
         <ExpoImage
           source={{ uri: moment.thumb }}
-          style={[styles.shot, { backgroundColor: t.card }]}
+          style={[styles.shot, g.shot, { backgroundColor: t.card }]}
           contentFit="cover"
           transition={120}
         />
         {/* Whose, on the corner: a face, ringed in the page's colour so it
             reads as sitting on the photograph rather than being part of it. */}
         {!plain && (
-          <View style={[styles.badge, { borderColor: ground, backgroundColor: t.card }]}>
+          <View style={[styles.badge, g.badge, { borderColor: ground, backgroundColor: t.card }]}>
             {moment.author.avatar ? (
               <ExpoImage
                 source={{ uri: moment.author.avatar }}
@@ -734,12 +743,17 @@ function MomentTile({
         )}
       </View>
       {!plain && (
-        <Text style={[styles.name, { color: ink }]} numberOfLines={1}>
+        <Text style={[styles.name, { color: ink, width: size }]} numberOfLines={1}>
           {who}
         </Text>
       )}
       {active !== undefined && (
-        <View style={[styles.here, { backgroundColor: active ? ink : 'transparent' }]} />
+        <View
+          style={[
+            styles.here,
+            { marginRight: g.hang, backgroundColor: active ? ink : 'transparent' },
+          ]}
+        />
       )}
     </Pressable>
   );
@@ -766,12 +780,13 @@ function MomentsNav({
 }) {
   const { width } = useWindowDimensions();
   const scroller = useRef<ScrollView>(null);
-  const step = RING + BADGE_HANG + NAV_GAP;
+  const outer = NAV_RING + tileGeometry(NAV_RING).hang;
+  const step = outer + NAV_GAP;
 
   useEffect(() => {
-    const offset = ROW_PAD + at * step - (width / 2 - (RING + BADGE_HANG) / 2);
+    const offset = ROW_PAD + at * step - (width / 2 - outer / 2);
     scroller.current?.scrollTo({ x: Math.max(0, offset), animated: true });
-  }, [at, step, width]);
+  }, [at, outer, step, width]);
 
   return (
     <ScrollView
@@ -787,6 +802,7 @@ function MomentsNav({
           t={t}
           dark
           active={i === at}
+          size={NAV_RING}
           onPress={() => onJump(i)}
         />
       ))}
@@ -857,6 +873,8 @@ export function MomentsViewer({
   /** The comment sheet is open. See `onEngaged`. */
   const [engaged, setEngaged] = useState(false);
   const [confirming, setConfirming] = useState(false);
+  /** A finger is held on the photograph. The clock stops until it lets go. */
+  const [held, setHeld] = useState(false);
 
   /*
    * Comments and reactions, through the moment's own routes. Each re-reads
@@ -915,7 +933,9 @@ export function MomentsViewer({
    * own clock from empty. The clock holds while the ⋯ sheet, the comment
    * sheet is open — somebody deciding what to do about a
    * picture, or saying something about it, should not have it taken away
-   * mid-sentence — and carries on from where it was when they shut.
+   * mid-sentence — and carries on from where it was when they shut. It holds
+   * too while a finger is held on the picture, and only then: a tap, which
+   * takes the chrome away, leaves it running.
    */
   const progress = useRef(new Animated.Value(0)).current;
   const showing = moment?.id ?? null;
@@ -924,7 +944,7 @@ export function MomentsViewer({
     progress.setValue(0);
   }, [progress, showing]);
   useEffect(() => {
-    if (!showing || options || engaged || sendingMoment) {
+    if (!showing || options || engaged || sendingMoment || held) {
       progress.stopAnimation();
       return;
     }
@@ -944,7 +964,7 @@ export function MomentsViewer({
       else onClose();
     });
     return () => run.stop();
-  }, [at, engaged, last, onClose, options, progress, sendingMoment, showing]);
+  }, [at, engaged, held, last, onClose, options, progress, sendingMoment, showing]);
 
   if (!photo || !moment) return null;
   const owner = moment.author;
@@ -959,6 +979,7 @@ export function MomentsViewer({
       <PhotoViewer
         talk={talk}
         onEngaged={setEngaged}
+        onHold={setHeld}
         api={api}
         eventId=""
         comments={moment.comments}
@@ -1120,7 +1141,37 @@ const BADGE_HANG = 5;
  */
 const ROW_PAD = BADGE_HANG + 3;
 /** Between tiles in the viewer's strip, which is also the step it scrolls by. */
-const NAV_GAP = 12;
+const NAV_GAP = 10;
+/** A tile in the viewer's strip: smaller than a page's, over the photograph. */
+const NAV_RING = 50;
+
+/**
+ * A tile's corners, inset and face at one size, scaled from `RING`'s. The
+ * ring's strokes stay as they are: a thinner ring on a smaller tile reads as
+ * "seen".
+ */
+function tileGeometry(size: number) {
+  const k = size / RING;
+  const radius = Math.round(RING_RADIUS * k);
+  const badge = Math.round(BADGE * k);
+  const hang = Math.round(BADGE_HANG * k);
+  return {
+    radius,
+    hang,
+    shot: {
+      width: size - SHOT_INSET * 2,
+      height: size - SHOT_INSET * 2,
+      borderRadius: radius - SHOT_INSET,
+    },
+    badge: {
+      width: badge,
+      height: badge,
+      right: -hang,
+      bottom: -hang,
+      borderRadius: Math.round(8 * k),
+    },
+  };
+}
 
 const styles = StyleSheet.create({
   /*
@@ -1133,7 +1184,6 @@ const styles = StyleSheet.create({
   rowOuter: { flexShrink: 0, marginTop: -ROW_PAD, marginBottom: -24, marginHorizontal: -ROW_PAD },
   row: { gap: 12, padding: ROW_PAD },
   tile: { width: RING + BADGE_HANG, alignItems: 'flex-start', gap: 6 },
-  frame: { width: RING, height: RING },
   shot: {
     position: 'absolute',
     top: SHOT_INSET,

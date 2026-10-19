@@ -110,6 +110,13 @@ const DOUBLE_TAP_MS = 280;
 const TAP_SLOP = 8;
 
 /**
+ * A finger down and still for this long is holding, not tapping: a moment's
+ * clock stops for as long as it stays. Long enough that a tap never pauses,
+ * short enough that a hold is felt at once.
+ */
+const HOLD_MS = 250;
+
+/**
  * How many names the corner shows before it stops.
  *
  * A photograph everybody liked would otherwise put a column of twenty handles
@@ -193,6 +200,7 @@ function Page({
   onTalk,
   onChrome,
   onZoomed,
+  onHold,
 }: {
   photo: FeedPhoto;
   width: number;
@@ -204,6 +212,8 @@ function Page({
   onChrome: () => void;
   /** Whether this page is magnified, which is what stops the pager paging. */
   onZoomed: (zoomed: boolean) => void;
+  /** A finger is held still on the picture, and then let go. */
+  onHold?: (holding: boolean) => void;
 }) {
   const scale = useRef(new Animated.Value(1)).current;
   const pan = useRef(new Animated.ValueXY({ x: 0, y: 0 })).current;
@@ -255,6 +265,29 @@ function Page({
   /** What the gesture started from, set on the first move of each kind. */
   const from = useRef<{ scale: number; x: number; y: number; span: number } | null>(null);
   const lastTap = useRef(0);
+
+  /*
+   * A hold: the finger came down and stayed. Started on every touch and
+   * called off by moving, a second finger or letting go first — so a tap, a
+   * swipe and a pinch never pause anything.
+   */
+  const holdTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const holding = useRef(false);
+  /** Calls off a hold not yet begun, and ends one that has. Says whether one had. */
+  const letGo = useCallback((): boolean => {
+    if (holdTimer.current) clearTimeout(holdTimer.current);
+    holdTimer.current = null;
+    if (!holding.current) return false;
+    holding.current = false;
+    onHold?.(false);
+    return true;
+  }, [onHold]);
+  useEffect(
+    () => () => {
+      letGo();
+    },
+    [letGo],
+  );
 
   const settle = useCallback(
     (next: number) => {
@@ -351,9 +384,20 @@ function Page({
         // A second finger arriving mid-drag turns a pan into a pinch.
         onPanResponderGrant: () => {
           from.current = null;
+          letGo();
+          holdTimer.current = setTimeout(() => {
+            holdTimer.current = null;
+            holding.current = true;
+            onHold?.(true);
+          }, HOLD_MS);
         },
         onPanResponderMove: (evt, g) => {
           const touches = evt.nativeEvent.touches;
+          // Moving before the hold began means it was never a hold.
+          if (holdTimer.current && (touches.length >= 2 || Math.hypot(g.dx, g.dy) > TAP_SLOP)) {
+            clearTimeout(holdTimer.current);
+            holdTimer.current = null;
+          }
 
           if (touches.length >= 2) {
             const span = distance(touches as never);
@@ -398,6 +442,7 @@ function Page({
         },
         onPanResponderRelease: (_evt, g) => {
           from.current = null;
+          const held = letGo();
 
           /*
            * Down leaves, up talks.
@@ -429,6 +474,8 @@ function Page({
            * to be nothing.
            */
           if (Math.hypot(g.dx, g.dy) <= TAP_SLOP) {
+            // Letting go of a hold is the end of the hold, not a tap.
+            if (held) return;
             const at = Date.now();
             if (at - lastTap.current < DOUBLE_TAP_MS) {
               lastTap.current = 0;
@@ -450,10 +497,11 @@ function Page({
         onPanResponderTerminate: () => {
           // The pager took it. Whatever this was doing, put the picture back.
           from.current = null;
+          letGo();
           settle(magnified.current ? now.current.scale : 1);
         },
       }),
-    [magnify, onChrome, onClose, onTalk, pan, scale, settle, zoomTo],
+    [letGo, magnify, onChrome, onClose, onHold, onTalk, pan, scale, settle, zoomTo],
   );
 
   return (
@@ -509,6 +557,7 @@ export function PhotoViewer({
   onIndex,
   talk,
   onEngaged,
+  onHold,
   strip,
 }: {
   api: Api;
@@ -642,6 +691,11 @@ export function PhotoViewer({
    */
   onEngaged?: (engaged: boolean) => void;
   /**
+   * A finger held still on the photograph, and let go. A moment's clock
+   * stops for as long as it is held.
+   */
+  onHold?: (holding: boolean) => void;
+  /**
    * Something to draw under the top chrome, shown and hidden with it.
    *
    * Moments put their row of tiles here, as the way through the stream: where
@@ -739,9 +793,10 @@ export function PhotoViewer({
         onTalk={() => setTalking(true)}
         onChrome={() => setChrome((on) => !on)}
         onZoomed={setZoomed}
+        onHold={onHold}
       />
     ),
-    [height, onClose, width],
+    [height, onClose, onHold, width],
   );
 
   /** This device's like or unlike, before the server has answered. */
@@ -916,6 +971,24 @@ export function PhotoViewer({
         renderItem={renderPage}
       />
 
+      {/*
+        The strip is hidden with the chrome but never unmounted. A moment's
+        clock is an animation drawn in it, and React Native stops an animation
+        when the last view drawing it goes — so taking the chrome away with a
+        tap stopped the clock, and nothing started it again when it came back.
+      */}
+      {strip && (
+        <View
+          style={[styles.tiles, !chrome && styles.hidden]}
+          pointerEvents={chrome ? 'box-none' : 'none'}
+          accessibilityElementsHidden={!chrome}
+          importantForAccessibility={chrome ? 'auto' : 'no-hide-descendants'}
+          onLayout={(e) => setStripHeight(e.nativeEvent.layout.height)}
+        >
+          {strip}
+        </View>
+      )}
+
       {chrome && (
         <>
           <View style={styles.top} pointerEvents="box-none">
@@ -1054,16 +1127,6 @@ export function PhotoViewer({
             )}
             </View>
           </View>
-
-          {strip && (
-            <View
-              style={styles.tiles}
-              pointerEvents="box-none"
-              onLayout={(e) => setStripHeight(e.nativeEvent.layout.height)}
-            >
-              {strip}
-            </View>
-          )}
 
           {/*
             Who liked it, newest first, above the bar — a heart and a name per
@@ -1388,6 +1451,7 @@ const styles = StyleSheet.create({
      picture keeps the top, and the way through the stream is where the thumb
      already is. */
   tiles: { position: 'absolute', bottom: TILES_BOTTOM, left: 0, right: 0 },
+  hidden: { opacity: 0 },
   top: {
     position: 'absolute',
     top: 58,
