@@ -36,6 +36,8 @@ export type MomentSubject = {
   reactions: PhotoReaction[];
   comments: MomentComment[];
   src: string;
+  /** What its author wrote under it, or null. */
+  caption: string | null;
   mine: boolean;
   by: string;
   byAvatar: string | null;
@@ -252,6 +254,8 @@ export function MomentView({
         <div className="moment-time" aria-hidden="true">
           <div className="moment-time-fill" style={{ width: `${Math.round(elapsed * 1000) / 10}%` }} />
         </div>
+        {/* The author's line, just above what you can do with it. */}
+        {moment.caption && <p className="moment-caption">{moment.caption}</p>}
         <div className="photo-verbs">
           <PhotoReactions
             photoId={moment.id}

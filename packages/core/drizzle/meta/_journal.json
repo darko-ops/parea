@@ -512,6 +512,13 @@
       "when": 1792010387034,
       "tag": "0072_upload_failure",
       "breakpoints": true
+    },
+    {
+      "idx": 73,
+      "version": "7",
+      "when": 1792368525496,
+      "tag": "0073_moment_caption",
+      "breakpoints": true
     }
   ]
 }

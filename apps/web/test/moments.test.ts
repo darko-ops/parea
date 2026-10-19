@@ -7,7 +7,7 @@
  */
 
 import { PGlite } from '@electric-sql/pglite';
-import { newLinkToken, schema } from '@parea/core';
+import { MOMENT_CAPTION_MAX, momentCaption, newLinkToken, schema } from '@parea/core';
 import { eq, sql } from 'drizzle-orm';
 import { drizzle } from 'drizzle-orm/pglite';
 import { migrate } from 'drizzle-orm/pglite/migrator';
@@ -321,7 +321,32 @@ describe('adding one', () => {
     // Straight to storage, then the key: the origin cannot take a phone
     // photograph as a request body.
     expect(add).toMatch(/fetch\('\/api\/moments\/uploads'/);
-    expect(add).toMatch(/JSON\.stringify\(\{ key \}\)/);
+    expect(add).toMatch(/JSON\.stringify\(\{ key, caption \}\)/);
+  });
+
+  it('keeps a caption trimmed, refuses one too long, and treats nothing as none', () => {
+    expect(momentCaption(undefined)).toBeNull();
+    expect(momentCaption('   ')).toBeNull();
+    expect(momentCaption('  the lake at six  ')).toBe('the lake at six');
+    expect(momentCaption('one\r\n\n\n\ntwo')).toBe('one\n\ntwo');
+    expect(momentCaption('x'.repeat(MOMENT_CAPTION_MAX))).toHaveLength(MOMENT_CAPTION_MAX);
+    // Refused rather than cut: a sentence somebody wrote is not shortened for them.
+    expect(momentCaption('x'.repeat(MOMENT_CAPTION_MAX + 1))).toBeUndefined();
+    expect(momentCaption(42)).toBeUndefined();
+  });
+
+  it('sends the caption with the moment, and none as null', async () => {
+    const me = await person('me');
+    const a = await person('a');
+    await befriend(db, me, a);
+    const plain = await moment(a, ago(2));
+    const [said] = await db
+      .insert(schema.moments)
+      .values({ actorId: a, key: 'k', width: 10, height: 10, caption: 'the lake at six' })
+      .returning();
+    const stream = await momentStream(db, me);
+    expect(stream.find((m) => m.id === said!.id)?.caption).toBe('the lake at six');
+    expect(stream.find((m) => m.id === plain)?.caption).toBeNull();
   });
 });
 

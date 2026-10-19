@@ -13,7 +13,8 @@
  *   opens exactly what pressing a photograph in a roll opens, and swiping walks
  *   the strip in its own order. Each one that comes on screen is marked seen.
  * - `AddMoment`, the screen the `+` sheet's third choice opens: one picture
- *   off the camera roll, shown, then put straight to storage.
+ *   off the camera roll, shown, captioned if somebody wants to, then put
+ *   straight to storage.
  *
  * The strip and the sheet live on different tabs, so a posted moment is
  * announced through `momentsChanged` rather than by threading a refresh
@@ -30,11 +31,15 @@ import {
   Alert,
   Animated,
   Easing,
+  Keyboard,
+  KeyboardAvoidingView,
   Modal,
+  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
   Text,
+  TextInput,
   View,
   useWindowDimensions,
   type StyleProp,
@@ -48,6 +53,7 @@ import { ApiError, type Api, type FeedPhoto, type Moment } from './api';
 import type { GroupTheme } from './Groups';
 import { IconRing } from './IconField';
 import { ChatPicker } from './ChatPicker';
+import { Glyph } from './Glyph';
 import { PhotoViewer } from './PhotoViewer';
 import { reportContent } from './report';
 import { describeFile, fetchForMoment, putToStorage, saveToCameraRoll } from './platform';
@@ -59,6 +65,12 @@ type ButtonComponent = (props: {
   primary?: boolean;
   disabled?: boolean;
 }) => React.ReactElement;
+
+/**
+ * The longest caption. The server's `MOMENT_CAPTION_MAX` — it refuses past
+ * this rather than cutting, so the box stops here first.
+ */
+const CAPTION_MAX = 200;
 
 const listeners = new Set<() => Promise<void>>();
 
@@ -158,6 +170,11 @@ async function pickOne(): Promise<{ uri: string; mimeType: string } | null> {
  * picker is asked for, a frame showing what is about to go up, and a Share
  * that is the only thing that sends it. Picking the wrong photo is a tap on
  * the frame, not a moment somebody has to go and delete.
+ *
+ * Under the frame, once there is a photo: the photo stack on the left, which
+ * chooses again — it was a line of text, "Choose a different photo", which
+ * said in five words what one glyph says — and beside it the caption, said
+ * over the foot of the viewer for everybody who opens it.
  */
 export function AddMoment({
   api,
@@ -177,9 +194,9 @@ export function AddMoment({
    */
   seed?: { id: string; url: string; mime: string };
 }) {
-  const { width } = useWindowDimensions();
   const [picked, setPicked] = useState<{ uri: string; mimeType: string } | null>(null);
   const uri = picked?.uri ?? null;
+  const [caption, setCaption] = useState('');
   const [sharing, setSharing] = useState(false);
   const [fetching, setFetching] = useState(Boolean(seed));
 
@@ -223,17 +240,25 @@ export function AddMoment({
       if (!exists || byteSize === 0) throw new Error('unreadable');
       const slot = await api.momentUpload(byteSize, picked.mimeType);
       await putToStorage(slot.url, slot.headers, picked.uri);
-      await api.finishMoment(slot.key);
+      await api.finishMoment(slot.key, caption);
       momentsChanged();
       onShared();
     } catch (err) {
       setSharing(false);
       Alert.alert('Could not share that moment', shareFailure(err));
     }
-  }, [api, onShared, picked, sharing]);
+  }, [api, caption, onShared, picked, sharing]);
 
   return (
-    <View style={[styles.addRoot, { backgroundColor: '#000' }]}>
+    /*
+     * Lifted by the keyboard, and the frame is what gives way: it takes
+     * whatever height is left, so typing a caption shrinks the photograph
+     * rather than putting the box behind the keys.
+     */
+    <KeyboardAvoidingView
+      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      style={[styles.addRoot, { backgroundColor: '#000' }]}
+    >
       <View style={styles.addBar}>
         <Pressable onPress={onCancel} hitSlop={12} accessibilityRole="button" disabled={sharing}>
           <Text style={styles.addCancel}>Cancel</Text>
@@ -257,11 +282,12 @@ export function AddMoment({
       {/* `contain`, as in the roll's picker: this frame is for judging a
           photograph, and it is shared whole. */}
       <Pressable
-        onPress={() => void choose()}
+        // With the keyboard up, a tap on the picture puts it away first.
+        onPress={() => (Keyboard.isVisible() ? Keyboard.dismiss() : void choose())}
         disabled={sharing}
         accessibilityRole="button"
         accessibilityLabel={uri ? 'Choose a different photo' : 'Choose a photo'}
-        style={[styles.addFrame, { height: width * 1.25 }]}
+        style={styles.addFrame}
       >
         {!uri && fetching ? (
           <ActivityIndicator color="#fff" />
@@ -285,14 +311,32 @@ export function AddMoment({
         )}
       </Pressable>
 
-      {uri && !sharing && (
-        <Pressable onPress={() => void choose()} hitSlop={10} accessibilityRole="button">
-          <Text style={styles.addAgain}>
-            Choose a different photo
-          </Text>
-        </Pressable>
+      {uri && (
+        <View style={styles.addUnder}>
+          <Pressable
+            onPress={() => void choose()}
+            disabled={sharing}
+            hitSlop={8}
+            accessibilityRole="button"
+            accessibilityLabel="Choose a different photo"
+            style={({ pressed }) => [styles.addAgain, { opacity: pressed ? 0.6 : 1 }]}
+          >
+            <Glyph name="photos" size={22} color="#e3e6ea" />
+          </Pressable>
+          <TextInput
+            value={caption}
+            onChangeText={setCaption}
+            placeholder="Add a caption"
+            placeholderTextColor="rgba(255,255,255,0.45)"
+            accessibilityLabel="Caption"
+            maxLength={CAPTION_MAX}
+            multiline
+            editable={!sharing}
+            style={styles.addCaption}
+          />
+        </View>
       )}
-    </View>
+    </KeyboardAvoidingView>
   );
 }
 
@@ -978,6 +1022,12 @@ export function MomentsViewer({
                 ]}
               />
             </View>
+            {/* The author's line, just above the reaction and comment bar. */}
+            {moment.caption ? (
+              <Text style={styles.caption} numberOfLines={5}>
+                {moment.caption}
+              </Text>
+            ) : null}
           </View>
         }
       />
@@ -1131,6 +1181,16 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(255,255,255,0.25)',
   },
   timeFill: { height: '100%', backgroundColor: '#fff' },
+  /* White over the picture, so a shadow under it for a bright one. */
+  caption: {
+    color: '#fff',
+    fontSize: 15.5,
+    lineHeight: 21,
+    marginHorizontal: 16,
+    marginTop: 10,
+    textShadowColor: 'rgba(0,0,0,0.6)',
+    textShadowRadius: 6,
+  },
   bar: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1165,7 +1225,7 @@ const styles = StyleSheet.create({
   addCancel: { color: '#fff', fontSize: 15.5 },
   addTitle: { color: '#fff', fontSize: 16, fontWeight: '600' },
   addShare: { color: '#fff', fontSize: 15.5, fontWeight: '700' },
-  addFrame: { width: '100%', alignItems: 'center', justifyContent: 'center' },
+  addFrame: { flex: 1, width: '100%', alignItems: 'center', justifyContent: 'center' },
   addEmpty: { alignItems: 'center', gap: 10, padding: 32 },
   addPlus: {
     width: 64,
@@ -1180,7 +1240,35 @@ const styles = StyleSheet.create({
   addPlusGlyph: { color: '#fff', fontSize: 28, fontWeight: '300' },
   addWhy: { color: '#fff', fontSize: 17, fontWeight: '600' },
   addWhySmall: { color: 'rgba(255,255,255,0.7)', fontSize: 14, textAlign: 'center' },
-  /* The glass blue the photo viewer uses: the accent that reads on white is a
-     navy on black. */
-  addAgain: { color: '#e3e6ea', fontSize: 15, fontWeight: '600', textAlign: 'center', marginTop: 18 },
+  /* Under the frame: the photo stack on the left, the caption beside it. The
+     bottom allowance is the home indicator's, as under the viewer's bar. */
+  addUnder: {
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+    gap: 10,
+    paddingHorizontal: 16,
+    paddingTop: 14,
+    paddingBottom: 34,
+  },
+  addAgain: {
+    width: 44,
+    height: 44,
+    borderRadius: 12,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: 'rgba(255,255,255,0.35)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  addCaption: {
+    flex: 1,
+    minHeight: 44,
+    maxHeight: 110,
+    paddingHorizontal: 14,
+    paddingTop: 12,
+    paddingBottom: 12,
+    borderRadius: 12,
+    backgroundColor: 'rgba(255,255,255,0.1)',
+    color: '#fff',
+    fontSize: 15.5,
+  },
 });

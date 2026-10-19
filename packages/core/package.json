@@ -11,7 +11,8 @@
     "./policy": "./src/policy.ts",
     "./tokens": "./src/tokens.ts",
     "./settings": "./src/settings.ts",
-    "./handles": "./src/handles.ts"
+    "./handles": "./src/handles.ts",
+    "./moments": "./src/moments.ts"
   },
   "scripts": {
     "test": "vitest run",

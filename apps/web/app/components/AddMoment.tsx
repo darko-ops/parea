@@ -9,8 +9,13 @@
  * about to go in front of everybody, and no way to change your mind short of
  * finding it on Home and deleting it. Here the frame shows it, pressing the
  * frame chooses again, and Share is the only thing that sends.
+ *
+ * Under the frame, once there is a photo: the photo stack on the left, which
+ * chooses again, and beside it a line for a caption — said over the foot of
+ * the viewer for everybody who opens it.
  */
 
+import { MOMENT_CAPTION_MAX } from '@parea/core/moments';
 import { useEffect, useRef, useState } from 'react';
 
 import { useImageFailure } from './useImageFailure';
@@ -19,6 +24,7 @@ export function AddMoment() {
   const picker = useRef<HTMLInputElement>(null);
   const [file, setFile] = useState<File | null>(null);
   const [preview, setPreview] = useState<string | null>(null);
+  const [caption, setCaption] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   // A file the browser cannot draw — a HEIC in Chrome, say — still has a name
@@ -37,7 +43,7 @@ export function AddMoment() {
     if (!file || busy) return;
     setBusy(true);
     setError(null);
-    const res = await upload(file).catch(() => null);
+    const res = await upload(file, caption).catch(() => null);
     if (res?.ok) {
       // Home, where it is now the first square in the row.
       location.assign('/events');
@@ -116,14 +122,37 @@ export function AddMoment() {
             }}
           />
 
-          {file && !busy && (
-            <button
-              type="button"
-              className="link-button add-moment-again"
-              onClick={() => picker.current?.click()}
-            >
-              Choose a different photo
-            </button>
+          {file && (
+            <div className="add-moment-under">
+              <button
+                type="button"
+                className="photo-icon"
+                onClick={() => picker.current?.click()}
+                disabled={busy}
+                aria-label="Choose a different photo"
+                title="Choose a different photo"
+              >
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  <rect x="8" y="4" width="12.5" height="12.5" rx="2" />
+                  <path d="M16 20H5.5a2 2 0 0 1-2-2V8" />
+                  <circle cx="12" cy="8" r="1.05" strokeWidth={1.6} />
+                  <path d="M8.2 15.1l3.4-3.2 2.3 2.1 1.9-1.6 4.7 4.1" strokeWidth={1.6} />
+                </svg>
+              </button>
+              <input
+                type="text"
+                className="add-moment-caption"
+                placeholder="Add a caption"
+                aria-label="Caption"
+                value={caption}
+                maxLength={MOMENT_CAPTION_MAX}
+                disabled={busy}
+                onChange={(e) => setCaption(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') void share();
+                }}
+              />
+            </div>
           )}
           {error && <p className="photo-said">{error}</p>}
         </div>
@@ -139,7 +168,7 @@ export function AddMoment() {
  * body over about 4.5MB, and a photograph from a phone is often more. Answers
  * with whichever response says how it went, so the page reads one status.
  */
-async function upload(file: File): Promise<Response> {
+async function upload(file: File, caption: string): Promise<Response> {
   const slot = await fetch('/api/moments/uploads', {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
@@ -158,6 +187,6 @@ async function upload(file: File): Promise<Response> {
   return fetch('/api/moments', {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ key }),
+    body: JSON.stringify({ key, caption }),
   });
 }

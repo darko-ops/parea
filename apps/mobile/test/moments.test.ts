@@ -153,7 +153,7 @@ describe('moments', () => {
     // A request body to the server is capped at about 4.5MB; a phone
     // photograph is larger, so the bytes never go through it.
     expect(API).toMatch(/this\.call\('\/api\/moments\/uploads'/);
-    expect(API).toMatch(/JSON\.stringify\(\{ key \}\)/);
+    expect(API).toMatch(/JSON\.stringify\(\{ key, caption \}\)/);
     expect(MOMENTS).toMatch(/await putToStorage\(slot\.url, slot\.headers, picked\.uri\)/);
     expect(MOMENTS).not.toMatch(/uploadCover/);
     expect(API).toMatch(/JSON\.stringify\(\{ momentId \}\)/);
@@ -228,5 +228,27 @@ describe('moments', () => {
     expect(APP).toMatch(/onOpenMoment=\{openMoment\}/);
     // And the push for one opens that chat.
     expect(APP).toMatch(/if \(target\.screen === 'chat'\) \{/);
+  });
+});
+
+describe('a caption', () => {
+  it('chooses again with an icon on the left, and writes the caption beside it', () => {
+    // It was a line of text under the frame, "Choose a different photo".
+    expect(MOMENTS).not.toMatch(/<Text style=\{styles\.addAgain\}>/);
+    expect(MOMENTS).toMatch(/<Glyph name="photos"/);
+    expect(MOMENTS).toMatch(/accessibilityLabel="Choose a different photo"/);
+    expect(MOMENTS).toMatch(/placeholder="Add a caption"/);
+    // The server refuses past 200 rather than cutting; the box stops there first.
+    expect(MOMENTS).toMatch(/const CAPTION_MAX = 200;/);
+    expect(MOMENTS).toMatch(/maxLength=\{CAPTION_MAX\}/);
+  });
+
+  it('goes up with the moment', () => {
+    expect(MOMENTS).toMatch(/api\.finishMoment\(slot\.key, caption\)/);
+    expect(API).toMatch(/JSON\.stringify\(\{ key, caption \}\)/);
+  });
+
+  it('is shown over the foot of the viewer, only when there is one', () => {
+    expect(MOMENTS).toMatch(/\{moment\.caption \? \(\s*<Text style=\{styles\.caption\}/);
   });
 });

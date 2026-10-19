@@ -138,6 +138,11 @@ export type Moment = {
   thumb: string;
   width: number;
   height: number;
+  /**
+   * What its author wrote under it, or null. Optional because a server from
+   * before captions does not send it.
+   */
+  caption?: string | null;
   createdAt: string;
   /** Opened by this viewer, or theirs. Decides the ring. */
   seen: boolean;
@@ -2065,11 +2070,11 @@ export class Api {
     });
   }
 
-  /** The original is in storage; make it a moment. */
-  finishMoment(key: string): Promise<{ id: string }> {
+  /** The original is in storage; make it a moment, with its caption if any. */
+  finishMoment(key: string, caption = ''): Promise<{ id: string }> {
     return this.call('/api/moments', {
       method: 'POST',
-      body: JSON.stringify({ key }),
+      body: JSON.stringify({ key, caption }),
     });
   }
 

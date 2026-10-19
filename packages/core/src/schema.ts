@@ -2506,6 +2506,11 @@ export const moments = pgTable(
     thumbKey: text('thumb_key'),
     width: integer('width').notNull(),
     height: integer('height').notNull(),
+    /**
+     * A line its author wrote under it, shown over the foot of the viewer.
+     * Null for none; never an empty string. At most `MOMENT_CAPTION_MAX`.
+     */
+    caption: text('caption'),
     createdAt: createdAt(),
     deletedAt: timestamp('deleted_at', { withTimezone: true }),
   },

@@ -124,7 +124,7 @@ export {
   type ModerationAction,
   type ModerationRecord,
 } from './audit';
-export { MOMENT_GRACE_HOURS, MOMENT_HOURS } from './moments';
+export { MOMENT_CAPTION_MAX, MOMENT_GRACE_HOURS, MOMENT_HOURS, momentCaption } from './moments';
 export {
   RATE_LIMIT_DEFAULT_WINDOW_SECONDS,
   RATE_LIMIT_LONG_WINDOWS,

@@ -82,6 +82,8 @@ export type StreamMoment = {
   thumbKey: string | null;
   width: number;
   height: number;
+  /** What its author wrote under it, or null. */
+  caption: string | null;
   createdAt: Date;
   /** Opened by this viewer — or theirs, which counts the same. */
   seen: boolean;
@@ -173,7 +175,7 @@ export async function momentStream(
              bool_or(why = 'group') as grp
         from links group by id
     )
-    select m.id, m.key, m.thumb_key as "thumbKey", m.width, m.height,
+    select m.id, m.key, m.thumb_key as "thumbKey", m.width, m.height, m.caption,
            m.created_at as "createdAt",
            (m.actor_id = ${viewer} or v.moment_id is not null) as seen,
            m.actor_id as "actorId",
@@ -206,6 +208,7 @@ export async function momentStream(
     thumbKey: string | null;
     width: number;
     height: number;
+    caption: string | null;
     createdAt: Date | string;
     seen: boolean;
     actorId: string;
@@ -223,6 +226,7 @@ export async function momentStream(
     thumbKey: row.thumbKey,
     width: Number(row.width),
     height: Number(row.height),
+    caption: row.caption ?? null,
     createdAt: new Date(row.createdAt),
     seen: Boolean(row.seen),
     mine: row.actorId === viewer,
@@ -488,6 +492,8 @@ export type WireMoment = {
   thumb: string;
   width: number;
   height: number;
+  /** What its author wrote under it, or null. */
+  caption: string | null;
   createdAt: string;
   seen: boolean;
   mine: boolean;
@@ -549,6 +555,7 @@ export async function momentsResponse(
         thumb: thumb ?? src,
         width: m.width,
         height: m.height,
+        caption: m.caption,
         createdAt: m.createdAt.toISOString(),
         seen: m.seen,
         mine: m.mine,

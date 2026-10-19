@@ -1,0 +1,1 @@
+ALTER TABLE "moment" ADD COLUMN "caption" text;

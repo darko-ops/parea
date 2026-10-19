@@ -105,7 +105,8 @@ export default function PrivacyPage() {
             they are also your friends. After that it
             is no longer shown to anybody, and within about an hour more the
             photo and its record are deleted. You can remove it sooner at any
-            time.
+            time. A caption you write under it is part of that record: shown
+            to the same people, and deleted with it.
           </p>
           <p className="muted">
             Comments and likes left on a moment are kept with it, seen by

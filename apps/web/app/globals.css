@@ -1120,7 +1120,13 @@ button.secondary {
 }
 .add-moment-why { font-size: 17px; font-weight: 600; color: var(--fg); }
 .add-moment-small { font-size: 14px; color: var(--dim); }
-.add-moment-again { align-self: center; font-size: 14px; color: var(--accent); }
+.add-moment-under { display: flex; align-items: center; gap: 10px; }
+.add-moment-caption {
+  flex: 1; min-width: 0; height: 34px; padding: 0 12px;
+  border: 1px solid var(--line); border-radius: 10px;
+  background: transparent; color: var(--fg); font: inherit; font-size: 15px;
+}
+.add-moment-caption:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
 
 /* Moments on Home: one bar above the rolls — a light card on this white
    page, a live layer rather than a slab. Near-white glass with a soft edge
@@ -1249,6 +1255,12 @@ button.secondary {
   margin: 2px 0 10px; background: var(--line);
 }
 .moment-time-fill { height: 100%; background: var(--accent); }
+/* Its author's line, between the time going and the bar. Kept as written,
+   line breaks and all, and never cut: the server holds it to 200. */
+.moment-caption {
+  margin: 0 0 10px; font-size: 15px; line-height: 1.4; color: var(--fg);
+  white-space: pre-line; overflow-wrap: anywhere;
+}
 .moment-nav .moment-tile { opacity: 0.62; transition: opacity 120ms; }
 .moment-nav .moment-tile:hover { opacity: 0.9; }
 .moment-nav .moment-current { opacity: 1; }

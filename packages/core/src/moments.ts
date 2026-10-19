@@ -17,3 +17,23 @@ export const MOMENT_HOURS = 24;
  * the length of that link.
  */
 export const MOMENT_GRACE_HOURS = 1;
+
+/**
+ * The longest caption, in characters. A line or two under a photograph — the
+ * picture is the moment, and the words are only there to say what it is.
+ * Here because the server refuses past it and both clients stop typing at it.
+ */
+export const MOMENT_CAPTION_MAX = 200;
+
+/**
+ * A caption as stored: trimmed, runs of blank lines folded to one, and null
+ * for nothing at all. `undefined` for one that is not a string or is too long,
+ * which the route refuses rather than quietly cutting somebody's sentence.
+ */
+export function momentCaption(raw: unknown): string | null | undefined {
+  if (raw === undefined || raw === null) return null;
+  if (typeof raw !== 'string') return undefined;
+  const text = raw.replace(/\r\n?/g, '\n').replace(/\n{3,}/g, '\n\n').trim();
+  if (!text) return null;
+  return text.length > MOMENT_CAPTION_MAX ? undefined : text;
+}

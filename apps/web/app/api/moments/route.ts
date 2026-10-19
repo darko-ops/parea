@@ -13,7 +13,7 @@
  * that is on the launch checklist rather than implied to be handled here.
  */
 
-import { schema } from '@parea/core';
+import { momentCaption, schema } from '@parea/core';
 import { eq, sql } from 'drizzle-orm';
 import { NextResponse } from 'next/server';
 
@@ -66,6 +66,9 @@ export async function GET(request: Request) {
  * Raw bytes as the body is the original way, kept for a client that has not
  * updated: it still works for anything under the platform's cap.
  *
+ * Either JSON way may carry `caption`, the line its author wrote under it —
+ * refused, not cut, past `MOMENT_CAPTION_MAX`.
+ *
  * Reading the upload back is not the egress the storage interface is built to
  * prevent. That rule is about serving photographs *out* through this origin,
  * where one album can be gigabytes times every guest; this is one inbound
@@ -79,8 +82,23 @@ export async function POST(request: Request) {
 
   let incoming: Buffer;
   let staged: string | null = null;
+  /** Only the JSON ways in carry one; raw bytes have nowhere to put it. */
+  let caption: string | null = null;
   if (json) {
-    const body = (await request.json().catch(() => ({}))) as { key?: unknown; photoId?: unknown };
+    const body = (await request.json().catch(() => ({}))) as {
+      key?: unknown;
+      photoId?: unknown;
+      caption?: unknown;
+    };
+    const said = momentCaption(body.caption);
+    if (said === undefined) {
+      // The staged original is not read again; it goes now rather than waiting.
+      if (typeof body.key === 'string' && body.key.startsWith(incomingPrefix(actorId))) {
+        await getStorage().delete(body.key).catch(() => {});
+      }
+      return NextResponse.json({ error: 'caption_too_long' }, { status: 400 });
+    }
+    caption = said;
     /*
      * Or a roll's photograph, made a moment where it is — the web's ripple,
      * which cannot fetch the picture into the browser to upload it again (the
@@ -97,7 +115,7 @@ export async function POST(request: Request) {
         console.warn('moment refused', { error: read.error });
         return NextResponse.json({ error: read.error }, { status: read.status });
       }
-      return makeMoment(actorId, read.bytes);
+      return makeMoment(actorId, read.bytes, caption);
     }
     if (typeof body.key !== 'string' || !body.key.startsWith(incomingPrefix(actorId))) {
       return NextResponse.json({ error: 'not_found' }, { status: 404 });
@@ -117,7 +135,7 @@ export async function POST(request: Request) {
     incoming = Buffer.from(await request.arrayBuffer());
   }
 
-  const made = await makeMoment(actorId, incoming);
+  const made = await makeMoment(actorId, incoming, caption);
   // The staged original goes whether or not it became a moment: it is either
   // copied, or refused, and in neither case read again.
   if (staged) await getStorage().delete(staged).catch(() => {});
@@ -172,7 +190,11 @@ async function readStaged(
   return { ok: true, bytes: Buffer.from(await res.arrayBuffer()) };
 }
 
-async function makeMoment(actorId: string, incoming: Buffer): Promise<NextResponse> {
+async function makeMoment(
+  actorId: string,
+  incoming: Buffer,
+  caption: string | null,
+): Promise<NextResponse> {
   const admitted = admit(incoming, MOMENT_MAX_BYTES);
   if (!admitted.ok) {
     console.warn('moment refused', { error: admitted.error });
@@ -230,6 +252,7 @@ async function makeMoment(actorId: string, incoming: Buffer): Promise<NextRespon
       key: '',
       width: out.info.width,
       height: out.info.height,
+      caption,
     })
     .returning({ id: schema.moments.id });
 
