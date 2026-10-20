@@ -28,7 +28,14 @@
  * noticed for months, because a link card is the one surface a developer never
  * looks at.
  *
- * Cached hard: it never changes, and every unfurl of every link asks for it.
+ * ## Pages link to `/og.png`, not here
+ *
+ * This is the drawing; `scripts/build-og.mts` runs it once and commits the
+ * bytes as `public/og.png`, which is what every `og:image` names. Rendered per
+ * request it failed: `next/og` rasterises through sharp, and the upload code's
+ * `restrictDecoders` blocks sharp's SVG loader for the whole process, so any
+ * instance that had handled a photo answered the card with a 500. Rerun the
+ * script after changing anything here.
  */
 
 import { ImageResponse } from 'next/og';

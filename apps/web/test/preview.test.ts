@@ -78,7 +78,7 @@ describe('what the card says', () => {
     // The mark, not a photograph. Whatever is in the image is handed to every
     // scanner that touches the URL, and a photograph is the one thing this
     // product exists to keep among the people who were there.
-    expect(card).toContain('content="https://www.parea.photos/api/og"');
+    expect(card).toContain('content="https://www.parea.photos/og.png"');
   });
 
   it('escapes a name somebody typed, in the tag and in the attribute', () => {

@@ -59,13 +59,13 @@ export const metadata: Metadata = {
      */
     title: TITLE,
     description: DESCRIPTION,
-    images: [{ url: '/api/og', width: 640, height: 640, alt: 'Parea' }],
+    images: [{ url: '/og.png', width: 640, height: 640, alt: 'Parea' }],
   },
   twitter: {
     card: 'summary',
     title: TITLE,
     description: DESCRIPTION,
-    images: ['/api/og'],
+    images: ['/og.png'],
   },
 };
 
@@ -98,7 +98,7 @@ const STRUCTURED = JSON.stringify({
       '@id': `${SITE}/#organization`,
       name: 'Parea',
       url: SITE,
-      logo: `${SITE}/api/og`,
+      logo: `${SITE}/og.png`,
     },
     {
       '@type': 'WebSite',

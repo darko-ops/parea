@@ -101,7 +101,7 @@ export function previewHtml(event: { name: string; url: string }): string {
   const title = escapeHtml(event.name);
   const description = 'Everyone’s photos from this, in one place.';
   const url = escapeHtml(event.url);
-  const image = escapeHtml(new URL('/api/og', event.url).toString());
+  const image = escapeHtml(new URL('/og.png', event.url).toString());
 
   return `<!doctype html>
 <html lang="en">
