@@ -114,11 +114,12 @@ describe('the photo queue alarm', () => {
     expect(captured).toHaveLength(0);
   });
 
-  it('is on the fifteen-minute schedule', () => {
+  it('runs hourly, on the same minute as every other cron, so the database wakes once an hour', () => {
     const vercel = JSON.parse(
       readFileSync(fileURLToPath(new URL('../vercel.json', import.meta.url)), 'utf8'),
     ) as { crons: { path: string; schedule: string }[] };
-    expect(vercel.crons).toContainEqual({ path: '/api/cron/derive-backlog', schedule: '*/15 * * * *' });
+    expect(vercel.crons).toContainEqual({ path: '/api/cron/derive-backlog', schedule: '0 * * * *' });
+    expect(new Set(vercel.crons.map((c) => c.schedule))).toEqual(new Set(['0 * * * *']));
   });
 });
 

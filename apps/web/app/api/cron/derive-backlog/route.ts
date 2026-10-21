@@ -1,9 +1,12 @@
 /**
- * The alarm on the photo queue — run every fifteen minutes by Vercel's cron.
+ * The alarm on the photo queue — run hourly by Vercel's cron, on the hour.
  *
- * Fifteen rather than five because each run wakes the database, and at five
- * the database never got to sleep: Neon suspends after five idle minutes, so a
- * check that often kept it awake all month for nothing.
+ * Hourly, and at the same minute as every other cron in vercel.json, because
+ * each run wakes the database and Neon suspends only after five idle minutes.
+ * At five minutes it never slept; at fifteen, staggered against four hourly
+ * crons at :05, :20, :40 and :50, it was awake forty minutes of every hour and
+ * an idle month spent the compute budget. One shared minute is one wake an
+ * hour. An upload burst still raises this within the hour.
  *
  * The deriver works through photographs in the order they arrive, a few at a
  * time. When more arrive than it can keep up with, nothing fails: photographs
@@ -14,7 +17,7 @@
  *
  * Said through Sentry and, when `OPS_ALERT_EMAIL` is set, by email, the same
  * as the jobs heartbeat; once, and then again at most hourly while it lasts,
- * so a long backlog is one alert an hour rather than one every fifteen minutes.
+ * so a long backlog is one alert an hour rather than one every run.
  *
  * Recorded in `job_run` as `derive_backlog`, so the admin page lists it beside
  * the hourly clean-up: succeeded when the queue was healthy, failed with the
@@ -47,7 +50,8 @@ export const runtime = 'nodejs';
 const NAME = 'derive_backlog';
 /** How long the oldest photograph may wait before it is a problem. */
 const BACKLOG_AFTER_MS = 5 * 60 * 1000;
-const REALERT_AFTER_MS = 60 * 60 * 1000;
+/** Just under the hourly cron, so a run a few seconds early still counts as an hour on. */
+const REALERT_AFTER_MS = 55 * 60 * 1000;
 const FAILURES = 'derive_failures';
 /** How far back the very first run looks, before there is an alert to count from. */
 const FIRST_LOOK_MS = 24 * 60 * 60 * 1000;

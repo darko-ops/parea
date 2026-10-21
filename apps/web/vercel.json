@@ -3,23 +3,23 @@
   "crons": [
     {
       "path": "/api/cron/jobs-heartbeat",
-      "schedule": "20 * * * *"
+      "schedule": "0 * * * *"
     },
     {
       "path": "/api/cron/safety-deadlines",
-      "schedule": "40 * * * *"
+      "schedule": "0 * * * *"
     },
     {
       "path": "/api/cron/derive-backlog",
-      "schedule": "*/15 * * * *"
+      "schedule": "0 * * * *"
     },
     {
       "path": "/api/cron/requeue-stranded",
-      "schedule": "50 * * * *"
+      "schedule": "0 * * * *"
     },
     {
       "path": "/api/cron/upload-failures",
-      "schedule": "5 * * * *"
+      "schedule": "0 * * * *"
     }
   ]
 }
