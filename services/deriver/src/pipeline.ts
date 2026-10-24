@@ -82,7 +82,7 @@ export async function processPhoto(
     return {
       status: 'ready',
       photoId,
-      contentHash: photo.contentHash?.toString('hex') ?? '',
+      contentHash: photo.contentHash ? Buffer.from(photo.contentHash).toString('hex') : '',
       derivatives: 0,
     };
   }
@@ -607,7 +607,7 @@ export async function backfillDerivative(
   const original = await objects.get(photo.storageKey);
   if (!original) return 'failed';
 
-  const hex = photo.contentHash.toString('hex');
+  const hex = Buffer.from(photo.contentHash).toString('hex');
   const made = await buildDerivatives(original, [kind]).catch(() => null);
   if (!made || made.length === 0) return 'failed';
 
@@ -808,7 +808,7 @@ export async function backfillAvif(
   const made = await buildDerivatives(original, missing, ['avif']).catch(() => null);
   if (!made || made.length === 0) return 'failed';
 
-  const hex = photo.contentHash.toString('hex');
+  const hex = Buffer.from(photo.contentHash).toString('hex');
   await Promise.all(
     made.map((d) => objects.put(derivativeKey(photo.eventId, hex, d.kind, d.format), d.bytes, d.mime)),
   );

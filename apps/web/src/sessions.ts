@@ -26,7 +26,7 @@
  * current actor, because a merge moves the row.
  */
 
-import { clientLabel, describeClient, schema, type ClientKind } from '@parea/core';
+import { clientLabel, describeClient, expiredSession, schema, type ClientKind } from '@parea/core';
 import { and, desc, eq, inArray, isNull, sql } from 'drizzle-orm';
 
 import type { Db } from './db';
@@ -168,10 +168,25 @@ export async function resolveSession(
 ): Promise<{ actorId: string } | null> {
   const stale = sql.raw(`interval '${TOUCH_AFTER_SECONDS} seconds'`);
   const rows: any = await db.execute(sql`
-    with live as (
+    with ended as (
+      -- Past its time: see SESSION_IDLE_DAYS in @parea/core. Revoked here, so
+      -- from now on it is refused, unlisted and unadoptable exactly as a
+      -- signed-out one is, and the app clears itself (\`presentedSignedOut\`).
+      update "session"
+         set "revoked_at" = now()
+       where "id" = ${sessionId} and ${expiredSession}
+      returning "id"
+    ), unpushed as (
+      -- As \`revokeSession\` does: a session that has ended sends no more
+      -- notifications to the phone that held it.
+      delete from "device" where "session_id" in (select "id" from ended)
+      returning 1
+    ), live as (
       select "id", "actor_id"
         from "session"
        where "id" = ${sessionId} and "revoked_at" is null
+         -- The update above is not visible to this select; this is.
+         and "id" not in (select "id" from ended)
          -- A suspended person is signed out everywhere, here, for every
          -- route at once. See \`suspension\` in the schema.
          and not exists (
@@ -277,7 +292,10 @@ export async function listSessions(
       createdAt: schema.sessions.createdAt,
     })
     .from(schema.sessions)
-    .where(and(eq(schema.sessions.actorId, actorId), isNull(schema.sessions.revokedAt)))
+    // An expired session is only marked revoked when it is next presented,
+    // and a device in a drawer never is: left in, it would be listed as signed
+    // in when it is not.
+    .where(and(eq(schema.sessions.actorId, actorId), isNull(schema.sessions.revokedAt), sql`not ${expiredSession}`))
     .orderBy(desc(schema.sessions.lastSeenAt));
 
   // Rows arrive newest first, so the first of each label sets the group's
@@ -433,4 +451,4 @@ export async function revokeOtherSessions(
  * silently. See `@parea/core`'s `sessions.ts` for the two cutoffs and why each
  * is later than it could be.
  */
-export { SESSION_RETENTION_DAYS, staleSessions } from '@parea/core';
+export { SESSION_IDLE_DAYS, SESSION_MAX_DAYS, SESSION_RETENTION_DAYS, staleSessions } from '@parea/core';

@@ -107,6 +107,6 @@ describe('the stranded-photo resend', () => {
     const vercel = JSON.parse(
       readFileSync(fileURLToPath(new URL('../vercel.json', import.meta.url)), 'utf8'),
     ) as { crons: { path: string; schedule: string }[] };
-    expect(vercel.crons).toContainEqual({ path: '/api/cron/requeue-stranded', schedule: '50 * * * *' });
+    expect(vercel.crons).toContainEqual({ path: '/api/cron/requeue-stranded', schedule: '0 * * * *' });
   });
 });

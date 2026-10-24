@@ -39,6 +39,8 @@ import {
   revokeOtherSessions,
   revokeSession,
   RECENT_SIGN_IN_SECONDS,
+  SESSION_IDLE_DAYS,
+  SESSION_MAX_DAYS,
   signedInRecently,
   startSession,
   staleSessions,
@@ -499,6 +501,78 @@ describe('deleting an account', () => {
 });
 
 // --- tidying -----------------------------------------------------------------
+
+/**
+ * A sign-in does not last forever.
+ *
+ * Before this a session ended only when somebody revoked it, so a phone in a
+ * drawer or a copied cookie stayed signed in for good. Now ninety days unused,
+ * or a year since signing in, ends it — for somebody with an account. A guest
+ * has no way back in, so theirs is left alone.
+ */
+describe('a session past its time', () => {
+  const DAY = 24 * 60 * 60 * 1000;
+  const daysAgo = (n: number) => new Date(Date.now() - n * DAY);
+
+  async function withAccount() {
+    const [account] = await db
+      .insert(schema.accounts)
+      .values({ email: `${crypto.randomUUID()}@example.test` })
+      .returning();
+    const [row] = await db.insert(schema.actors).values({ kind: 'user', accountId: account!.id }).returning();
+    return row!.id;
+  }
+
+  async function signedIn(actorId: string, at: { lastSeen: Date; signedIn?: Date }) {
+    const session = await startSession(db, { actorId, kind: 'ios', method: 'code' });
+    await db
+      .update(schema.sessions)
+      .set({ lastSeenAt: at.lastSeen, signedInAt: at.signedIn ?? at.lastSeen, createdAt: at.signedIn ?? at.lastSeen })
+      .where(eq(schema.sessions.id, session.id));
+    return session;
+  }
+
+  it('ends after ninety days unused, and is revoked so it stays ended', async () => {
+    const me = await withAccount();
+    const fresh = await signedIn(me, { lastSeen: daysAgo(SESSION_IDLE_DAYS - 1) });
+    const idle = await signedIn(me, { lastSeen: daysAgo(SESSION_IDLE_DAYS + 1) });
+
+    expect(await resolveSession(db, fresh.id)).toEqual({ actorId: me });
+    expect(await resolveSession(db, idle.id)).toBeNull();
+    const [row] = await db.select().from(schema.sessions).where(eq(schema.sessions.id, idle.id));
+    expect(row!.revokedAt).not.toBeNull();
+    // Signing in again on that device mints rather than reviving it.
+    expect(await adoptSession(db, idle.id, me, 'code')).toBe(false);
+  });
+
+  it('ends a year after signing in, however often it is used', async () => {
+    const me = await withAccount();
+    const busy = await signedIn(me, { lastSeen: new Date(), signedIn: daysAgo(SESSION_MAX_DAYS + 1) });
+    expect(await resolveSession(db, busy.id)).toBeNull();
+  });
+
+  it('leaves a guest signed in however long it has been', async () => {
+    const guest = await actor();
+    const session = await signedIn(guest, { lastSeen: daysAgo(SESSION_MAX_DAYS * 2) });
+    expect(await resolveSession(db, session.id)).toEqual({ actorId: guest });
+  });
+
+  it('stops the notifications to the phone that held it', async () => {
+    const me = await withAccount();
+    const idle = await signedIn(me, { lastSeen: daysAgo(SESSION_IDLE_DAYS + 1) });
+    await db.insert(schema.devices).values({ actorId: me, platform: 'ios', pushToken: 'tok', sessionId: idle.id });
+    await resolveSession(db, idle.id);
+    expect(await db.select().from(schema.devices)).toEqual([]);
+  });
+
+  it('is not listed as somewhere you are signed in, even before it is next presented', async () => {
+    const me = await withAccount();
+    const fresh = await signedIn(me, { lastSeen: new Date() });
+    await signedIn(me, { lastSeen: daysAgo(SESSION_IDLE_DAYS + 1) });
+    const listed = await listSessions(db, me, fresh.id);
+    expect(listed.map((d) => d.id)).toEqual([fresh.id]);
+  });
+});
 
 describe('what the purge job drops', () => {
   it('keeps a freshly revoked row, so the screen can show it worked', async () => {

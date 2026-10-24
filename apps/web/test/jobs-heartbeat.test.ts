@@ -82,7 +82,7 @@ describe('the jobs heartbeat', () => {
 
   it('is scheduled on Vercel, away from the job it watches', () => {
     const config = JSON.parse(readFileSync(fileURLToPath(new URL('../vercel.json', import.meta.url)), 'utf8'));
-    expect(config.crons).toContainEqual({ path: '/api/cron/jobs-heartbeat', schedule: '20 * * * *' });
+    expect(config.crons).toContainEqual({ path: '/api/cron/jobs-heartbeat', schedule: '0 * * * *' });
   });
 
   describe('the off-site backup', () => {

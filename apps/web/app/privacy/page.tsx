@@ -167,6 +167,14 @@ export default function PrivacyPage() {
             opened; rotating the roll&rsquo;s link is what ends that, and the
             person who made the roll can do it.
           </p>
+          <p className="muted">
+            A device also signs itself out after ninety days without being
+            used, and every sign-in ends a year after it was made, so a phone
+            left in a drawer or a browser you forgot about does not stay signed
+            in to your account for good. Signing in again is a code to your
+            inbox. If you added photos without ever signing in, nothing ends:
+            that browser is the only way back to them.
+          </p>
 
           <h3>Passkeys, which we no longer offer</h3>
           <p className="muted">
@@ -770,9 +778,10 @@ export default function PrivacyPage() {
             </li>
             <li>
               <strong>Where you are signed in</strong> &mdash; until you sign
-              that device out, or it goes unused for longer than the sign-in
-              itself lasts. A device you sign out stays on the list, marked, for
-              a week, so you can see that it worked.
+              that device out, it goes ninety days unused, or the sign-in is a
+              year old, whichever comes first. A device signed out, by you or by
+              time, stays on the list, marked, for a week, so you can see that
+              it worked.
             </li>
             <li>
               <strong>Passkeys</strong> &mdash; no longer added. Any saved

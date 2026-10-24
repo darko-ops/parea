@@ -18,6 +18,7 @@
 
 import {
   codeWordTriples,
+  expiredSession,
   MOMENT_GRACE_HOURS,
   MOMENT_HOURS,
   RATE_LIMIT_LONG_WINDOWS,
@@ -503,6 +504,27 @@ export async function expireWebauthnChallenges(
 export async function expireSessions(
   database: ReturnType<typeof db>,
 ): Promise<number> {
+  /*
+   * First, signed-in sessions past their time (`SESSION_IDLE_DAYS` in core).
+   * The web app revokes one when it is next presented; a phone in a drawer
+   * never presents it, and would go on receiving notifications. Revoked here
+   * instead, with its push rows, and dropped by the line below a week later
+   * like any other sign-out.
+   */
+  const ended = await database
+    .update(schema.sessions)
+    .set({ revokedAt: new Date() })
+    .where(expiredSession)
+    .returning({ id: schema.sessions.id });
+  if (ended.length > 0) {
+    await database.delete(schema.devices).where(
+      inArray(
+        schema.devices.sessionId,
+        ended.map((row) => row.id),
+      ),
+    );
+  }
+
   const removed = await database
     .delete(schema.sessions)
     .where(staleSessions(new Date()))

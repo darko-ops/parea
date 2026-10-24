@@ -12,6 +12,7 @@ import { NextResponse } from 'next/server';
 
 import { findEventById, guard, recordParticipant, toResponse } from '@/access';
 import { getDb } from '@/db';
+import { wasRemovedFrom } from '@/groups';
 import { isHostOf } from '@/hosts';
 import { isBlockedBy } from '@/moderation';
 import { PRESIGN_LIMIT, PRESIGN_NETWORK_LIMIT, withinLimit, withinLimitFor } from '@/ratelimit';
@@ -131,9 +132,11 @@ export async function POST(
   /*
    * In by right once they have added to a roll in a group, so leaving the
    * group later does not shut them out of a roll with their photographs in
-   * it. See `admitted` on the participant row.
+   * it. See `admitted` on the participant row. Not for somebody an admin took
+   * out of the group: an upload through the roll's link is not a way back in.
    */
-  await recordParticipant(db, event.id, actorId, 'member', event.groupId !== null);
+  const inByRight = event.groupId !== null && !(await wasRemovedFrom(db, event.groupId, actorId));
+  await recordParticipant(db, event.id, actorId, 'member', inByRight);
 
   // Per-request limits alone bound nothing: a thousand requests of fifty files
   // is still a thousand requests. The cap that matters is cumulative.

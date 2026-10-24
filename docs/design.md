@@ -393,6 +393,16 @@ fifteen minutes and folded into the same statement, because the column exists to
 render "2 hours ago" and writing it per request would put a write in front of
 every read in the product.
 
+**A sign-in ends on its own.** Ninety days unused, or a year after it was made
+however busy, and the session is revoked — on its next request by the web app,
+and by the deriver's hourly purge for a device never used again, which also
+drops its push rows (`SESSION_IDLE_DAYS` and `SESSION_MAX_DAYS` in
+`@parea/core`). Before this a session ended only when somebody revoked it, and a
+phone token has no expiry of its own, so a stolen or forgotten credential was
+good for as long as nobody looked. Guests are exempt: a guest's session is the
+only way back to the photographs they added, and there is no sign-in to return
+to.
+
 Two things it does not do. A credential issued before the table existed has no
 session id, still works, and cannot be listed or revoked — refusing those would
 have signed out everybody to add a screen listing who is signed in, so
