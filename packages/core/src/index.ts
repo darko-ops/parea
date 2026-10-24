@@ -92,7 +92,10 @@ export {
   type ClientKind,
 } from './clients';
 export {
+  expiredSession,
   REVOKED_RETENTION_DAYS,
+  SESSION_IDLE_DAYS,
+  SESSION_MAX_DAYS,
   SESSION_RETENTION_DAYS,
   staleSessions,
 } from './sessions';

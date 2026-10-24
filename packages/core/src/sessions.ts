@@ -15,7 +15,7 @@
  * two different clocks, so it lives in one place.
  */
 
-import { lt, or } from 'drizzle-orm';
+import { lt, or, sql } from 'drizzle-orm';
 
 import { sessions } from './schema';
 
@@ -49,3 +49,42 @@ export function staleSessions(now: Date) {
     lt(sessions.lastSeenAt, new Date(now.getTime() - SESSION_RETENTION_DAYS * DAY_MS)),
   );
 }
+
+/**
+ * How long a signed-in session lasts: ninety days unused, or a year in all.
+ *
+ * Before these a session ended only when somebody revoked it. The cookie
+ * lasts four hundred days and an app's token has no end at all, so a phone in
+ * a drawer, or a credential copied off a laptop, stayed signed in until its
+ * owner thought to look at the Devices screen. Idle does the work — a device
+ * in use is touched every quarter of an hour and never comes near it — and the
+ * absolute bound means no one sign-in is good forever, however busy. Signing
+ * in again is an emailed code, which is what makes asking once a year cheap.
+ *
+ * Only for somebody with an account. A guest — somebody who added photographs
+ * and never signed in — has no way to sign back in: their session *is* who
+ * they are, and ending it would orphan their photographs with nobody left who
+ * can delete them. They hold nothing but the rolls they took part in.
+ *
+ * Both the web app (on the next request) and the deriver's hourly purge (for
+ * devices never used again) revoke on this, so it is written once, here.
+ */
+export const SESSION_IDLE_DAYS = 90;
+export const SESSION_MAX_DAYS = 365;
+
+/**
+ * A live session of somebody with an account that is past either bound.
+ * Raw SQL over the `session` table, unaliased, for the statements that need
+ * it inside a CTE as well as for the query builder.
+ */
+export const expiredSession = sql`(
+  "session"."revoked_at" is null
+  and exists (
+    select 1 from "actor"
+     where "actor"."id" = "session"."actor_id" and "actor"."account_id" is not null
+  )
+  and (
+    "session"."last_seen_at" < now() - ${sql.raw(`interval '${SESSION_IDLE_DAYS} days'`)}
+    or coalesce("session"."signed_in_at", "session"."created_at") < now() - ${sql.raw(`interval '${SESSION_MAX_DAYS} days'`)}
+  )
+)`;
