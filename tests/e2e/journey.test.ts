@@ -48,7 +48,7 @@ import { resolveArchive } from '../../apps/web/src/archive';
 import { crc32 } from '../../services/deriver/src/crc32';
 import { seedCodes } from '../../services/deriver/src/jobs';
 import { LocalObjectStore } from '../../services/deriver/src/objects';
-import { processPhoto } from '../../services/deriver/src/pipeline';
+import { backfillAvif, processPhoto } from '../../services/deriver/src/pipeline';
 import { } from '../../services/deriver/src/safety';
 
 const run = promisify(execFile);
@@ -207,6 +207,10 @@ describe('a party, from link to download', () => {
       // The URL the image Worker would resolve must name an object that exists.
       expect(await objects.get(objectKeyFor(check.ref))).not.toBeNull();
     }
+
+    // Ingest makes JPEG only, so a photo appears as soon as it can; the AVIF
+    // versions come from the deriver's backfill once nothing is arriving.
+    expect(await backfillAvif({ db, objects }, first.id)).toBe('done');
 
     // Both encodings, both reachable. The deriver names these objects and the
     // Worker names them again from a signed path; the two never meet, so an
