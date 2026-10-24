@@ -18,20 +18,17 @@ it is built.
 
 Every feature in the v1 design exists and is tested. **Nothing has been
 deployed, and nothing has met a real device, a real R2 bucket or a real user.**
-Two things gate launch and neither is code:
-
-- the geotag coverage measurement (`tools/geotag-probe`), which decides how well
-  auto-selection actually works;
-- the child-safety launch checklist in [`docs/csam-runbook.md`](docs/csam-runbook.md)
-  — a scanning provider onboarded, credentials in place *before* the first
-  detection, counsel briefed, and a named human who receives alerts.
+One thing gates launch and it is not code: the child-safety launch checklist in
+[`docs/csam-runbook.md`](docs/csam-runbook.md) — a scanning provider onboarded,
+credentials in place *before* the first detection, counsel briefed, and a named
+human who receives alerts.
 
 [`docs/launch.md`](docs/launch.md) is the ordered checklist — what is blocked
 on what, and which items are not code at all. [`docs/deploy.md`](docs/deploy.md)
 is the reference for each piece, including the three secrets that are shared
 between services and fail silently when they disagree.
 
-[`docs/sms-a2p.md`](docs/sms-a2p.md) is a third thing that is not code: phone
+[`docs/sms-a2p.md`](docs/sms-a2p.md) is a second thing that is not code: phone
 verification is built and has never sent a real text, because a US number cannot
 send one until a carrier campaign is registered. That note holds the state of the
 account, the wording the campaign was approved or refused on, and what is left.
@@ -78,7 +75,6 @@ services/deriver     ingest: strip, scan, derive, dedup; plus scheduled jobs
 services/image-worker  Cloudflare Worker serving images from R2
 services/zip-worker    Cloudflare Worker streaming archives from R2
 tests/e2e            one photo, all the way through
-tools/geotag-probe   measures whether auto-selection will work
 ```
 
 The control plane and the data plane are deliberately separate. Next.js serves
