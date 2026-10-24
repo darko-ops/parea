@@ -187,7 +187,41 @@ export async function removeMember(
     .insert(schema.groupRemovals)
     .values({ groupId, actorId: target, removedBy: admin })
     .onConflictDoNothing();
+  /*
+   * And out of the group's rolls. Adding to a roll in a group lets somebody in
+   * by right (`admitted` on the participant row), so that leaving the group
+   * does not shut them out of a roll with their photographs in it. Being taken
+   * out by an admin is not leaving: left standing, the flag would keep a
+   * removed member in every roll they ever added to, including photographs
+   * added after. An invitation they accepted or a request approved is a
+   * separate grant and is not touched here.
+   */
+  await db
+    .update(schema.eventParticipants)
+    .set({ admitted: false })
+    .where(
+      and(
+        eq(schema.eventParticipants.actorId, target),
+        inArray(
+          schema.eventParticipants.eventId,
+          db.select({ id: schema.events.id }).from(schema.events).where(eq(schema.events.groupId, groupId)),
+        ),
+      ),
+    );
   return 'removed';
+}
+
+/**
+ * Whether an admin has taken somebody out of a group (and nobody has let them
+ * back in since). Adding to one of its rolls does not earn them a way back.
+ */
+export async function wasRemovedFrom(db: Db, groupId: string, actorId: string): Promise<boolean> {
+  const [row] = await db
+    .select({ actorId: schema.groupRemovals.actorId })
+    .from(schema.groupRemovals)
+    .where(and(eq(schema.groupRemovals.groupId, groupId), eq(schema.groupRemovals.actorId, actorId)))
+    .limit(1);
+  return row !== undefined;
 }
 
 /**

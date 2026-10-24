@@ -21,7 +21,7 @@ import { beforeAll, beforeEach, describe, expect, it } from 'vitest';
 
 import { decide, findEventById, lockedOutByRotation, recordParticipant } from '@/access';
 import type { Db } from '@/db';
-import { outsideGroup, rollGroupSummary, takeOutOfGroup } from '@/groups';
+import { addMember, outsideGroup, removeMember, rollGroupSummary, takeOutOfGroup, wasRemovedFrom } from '@/groups';
 
 const MIGRATIONS = fileURLToPath(new URL('../../../packages/core/drizzle', import.meta.url));
 
@@ -35,7 +35,7 @@ beforeAll(async () => {
 beforeEach(async () => {
   const { sql } = await import('drizzle-orm');
   await db.execute(sql`
-    truncate "account", "actor", "event", "event_participant", "group_member", "groups", "photo"
+    truncate "account", "actor", "event", "event_participant", "group_member", "group_removal", "groups", "photo"
     restart identity cascade
   `);
 });
@@ -137,6 +137,53 @@ describe('leaving a group after adding to one of its rolls', () => {
   });
 });
 
+/**
+ * Being taken out by an admin is not leaving. The right an upload earned was
+ * so that leaving does not shut somebody out of their own photographs; kept
+ * through a removal, it would leave a removed member in every roll they had
+ * ever added to, and in everything added to them since.
+ */
+describe('removed from a group after adding to one of its rolls', () => {
+  it('takes them out of the group’s rolls and leaves everybody else in', async () => {
+    const { group, roll, creator, member, other } = await setting();
+    await recordParticipant(db, roll.id, member, 'member', true);
+    await recordParticipant(db, roll.id, other, 'member', true);
+
+    expect(await removeMember(db, group.id, creator, member)).toBe('removed');
+    expect(await sees(roll.id, member)).toBe(false);
+    expect(await sees(roll.id, other)).toBe(true);
+    expect(await wasRemovedFrom(db, group.id, member)).toBe(true);
+  });
+
+  it('does not let them back in when the roll later leaves the group', async () => {
+    const { group, roll, creator, member } = await setting();
+    await recordParticipant(db, roll.id, member, 'member', true);
+    await removeMember(db, group.id, creator, member);
+    await takeOutOfGroup(db, roll.id);
+    expect(await sees(roll.id, member)).toBe(false);
+  });
+
+  it('leaves rolls outside the group alone', async () => {
+    const { group, creator, member } = await setting();
+    const [elsewhere] = await db
+      .insert(schema.events)
+      .values({ name: 'Solo', linkToken: newLinkToken(), createdBy: creator, accessPolicy: 'private' })
+      .returning();
+    await recordParticipant(db, elsewhere!.id, member, 'member', true);
+    await removeMember(db, group.id, creator, member);
+    expect(await sees(elsewhere!.id, member)).toBe(true);
+  });
+
+  it('is undone by an admin letting them back into the group', async () => {
+    const { group, roll, creator, member } = await setting();
+    await recordParticipant(db, roll.id, member, 'member', true);
+    await removeMember(db, group.id, creator, member);
+    await addMember(db, group.id, member);
+    expect(await wasRemovedFrom(db, group.id, member)).toBe(false);
+    expect(await sees(roll.id, member)).toBe(true);
+  });
+});
+
 describe('the route', () => {
   const ROUTE = readFileSync(
     fileURLToPath(new URL('../app/api/events/[id]/group/route.ts', import.meta.url)),
@@ -147,8 +194,10 @@ describe('the route', () => {
     'utf8',
   );
 
-  it('lets an uploader to a roll in a group in by right', () => {
-    expect(UPLOADS).toMatch(/recordParticipant\(db, event\.id, actorId, 'member', event\.groupId !== null\)/);
+  it('lets an uploader to a roll in a group in by right, unless an admin took them out of it', () => {
+    expect(UPLOADS).toMatch(
+      /const inByRight = event\.groupId !== null && !\(await wasRemovedFrom\(db, event\.groupId, actorId\)\);\s*await recordParticipant\(db, event\.id, actorId, 'member', inByRight\);/,
+    );
   });
 });
 
