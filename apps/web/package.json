@@ -19,7 +19,7 @@
     "@parea/upload": "*",
     "@parea/urls": "*",
     "@parea/zip": "*",
-    "@sentry/nextjs": "^10.70.0",
+    "@sentry/nextjs": "^10.75.2",
     "@simplewebauthn/browser": "^14.0.0",
     "@simplewebauthn/server": "^14.0.2",
     "@upstash/qstash": "^2.11.3",
