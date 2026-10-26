@@ -12,7 +12,14 @@ import * as MediaLibrary from 'expo-media-library';
 import * as SecureStore from 'expo-secure-store';
 import { Platform } from 'react-native';
 
-import { Offline, SourceGone, type QueueItem, type QueueState } from '@parea/upload';
+import {
+  GrantExpired,
+  Offline,
+  Refused,
+  SourceGone,
+  type QueueItem,
+  type QueueState,
+} from '@parea/upload';
 
 import { ApiError } from './api';
 import { inOutbox, isLibraryAsset, sandboxCopy } from './library';
@@ -419,7 +426,19 @@ export async function uploadItem(item: QueueItem): Promise<void> {
   }
 
   if (result.status < 200 || result.status >= 300) {
-    throw new Error(`upload failed: ${result.status}`);
+    const message = `upload failed: ${result.status}`;
+    const detail = storageSaid(result.body);
+    /*
+     * A 403 after the grant's own expiry is that expiry, whatever else it
+     * might have been: a background session that found no network waited for
+     * one, and sent a request signed for a window that had closed. The clock
+     * is asked as well as R2 because R2's wording is not a contract.
+     */
+    const lapsed = item.expiresAt !== undefined && item.expiresAt <= Date.now();
+    if (result.status === 403 && (/expired/i.test(detail ?? '') || lapsed)) {
+      throw new GrantExpired(message, detail);
+    }
+    throw new Refused(message, detail);
   }
 
   /*
@@ -436,6 +455,22 @@ export async function uploadItem(item: QueueItem): Promise<void> {
    * is drawing it — `releaseCopies` — and a sweep at launch takes whatever was
    * still here when the app last stopped. See `src/previews.ts`.
    */
+}
+
+/**
+ * What storage said when it refused, as `Code: Message` and nothing more.
+ *
+ * Only those two elements of R2's XML. The rest is not for keeping: a
+ * `SignatureDoesNotMatch` answers with the canonical request it computed,
+ * which spells out the object's key, and a storage key is the one thing the
+ * failure log promises never to hold.
+ */
+function storageSaid(body: string | null | undefined): string | undefined {
+  if (!body) return undefined;
+  const code = /<Code>([^<]{1,100})<\/Code>/.exec(body)?.[1];
+  const said = /<Message>([^<]{1,200})<\/Message>/.exec(body)?.[1];
+  if (!code && !said) return undefined;
+  return [code, said].filter(Boolean).join(': ');
 }
 
 /**

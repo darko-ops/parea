@@ -156,6 +156,39 @@ export class SourceGone extends Error {
   }
 }
 
+/**
+ * Storage answered, and said no.
+ *
+ * `detail` is the start of what it said. A bare "upload failed: 403" could be
+ * a grant that expired or a signature that did not match, and the two want
+ * opposite fixes; R2's reply names which. The queue keeps it as `cause`.
+ */
+export class Refused extends Error {
+  constructor(
+    message: string,
+    readonly detail?: string,
+  ) {
+    super(message);
+    this.name = 'Refused';
+  }
+}
+
+/**
+ * Refused because the grant ran out before the request reached storage.
+ *
+ * The queue checks the expiry before it hands an item over, and that is not
+ * enough on a phone: an iOS background session that finds no network waits
+ * for one rather than failing, so a PUT started inside the window can arrive
+ * after it. Like a grant that went stale while the phone was locked, this is
+ * not the photo's fault and costs no attempt — the item goes back for a new one.
+ */
+export class GrantExpired extends Refused {
+  constructor(message: string, detail?: string) {
+    super(message, detail);
+    this.name = 'GrantExpired';
+  }
+}
+
 export type Deps = {
   presign(eventId: string, files: PresignRequest[]): Promise<PresignResponse[]>;
   upload(item: QueueItem): Promise<void>;
@@ -201,7 +234,7 @@ export type UploadFailureReport = {
   /** Absent when the failure was asking for the grant. */
   photoId?: string;
   stage: UploadFailureStage;
-  /** `Offline`, `SourceGone` or `Error`: how the queue read it. */
+  /** `Offline`, `SourceGone`, `Refused`, `GrantExpired` or `Error`: how the queue read it. */
   kind: string;
   /** The note the queue kept, and what actually threw beneath it. */
   error: string;
@@ -674,6 +707,20 @@ export class UploadQueue {
       try {
         await this.deps.upload(item);
       } catch (err) {
+        if (err instanceof GrantExpired) {
+          // The same as the check above, found out from storage instead of
+          // the clock. Reported, so the hub shows how often the window is too
+          // short; not counted, so it never uses up a photograph's attempts.
+          item.status = 'pending';
+          delete item.uploadUrl;
+          delete item.expiresAt;
+          item.error = err.message;
+          if (err.detail) item.cause = err.detail;
+          this.needsRepresign = true;
+          this.report(item, err, 'put', item.status);
+          await this.deps.save(this.state);
+          return;
+        }
         this.fail(item, err, 'put');
         await this.deps.save(this.state);
         return;
@@ -747,6 +794,7 @@ export class UploadQueue {
 
     item.attempts += 1;
     item.error = err instanceof Error ? err.message : String(err);
+    if (err instanceof Refused && err.detail) item.cause = err.detail;
     if (err instanceof SourceGone) {
       // No attempt will find the bytes again, so do not spend three more.
       item.status = 'stale';

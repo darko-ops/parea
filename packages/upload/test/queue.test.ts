@@ -14,7 +14,9 @@ import {
   MAX_ATTEMPTS,
   MAX_FILES_PER_PRESIGN,
   MAX_REPRESIGN_ROUNDS,
+  GrantExpired,
   Offline,
+  Refused,
   RETRY_BACKOFF_MS,
   SourceGone,
   UploadQueue,
@@ -996,6 +998,68 @@ describe('telling the server what went wrong', () => {
     });
     expect(reports[0]!.photoId).toBeTruthy();
     expect(reports.at(-1)!.status).toBe('failed');
+  });
+
+  it('keeps what storage said beneath a refusal as its cause', async () => {
+    const reports: UploadFailureReport[] = [];
+    const h = harness({
+      async upload() {
+        throw new Refused('upload failed: 403', 'SignatureDoesNotMatch: The request signature we calculated does not match');
+      },
+      report: (r) => reports.push(r),
+    });
+    const queue = new UploadQueue(h.deps);
+    queue.add('event-1', [file(1)]);
+    await queue.run();
+
+    expect(reports[0]).toMatchObject({
+      kind: 'Refused',
+      error: 'upload failed: 403',
+      cause: 'SignatureDoesNotMatch: The request signature we calculated does not match',
+    });
+    expect(reports.at(-1)!.status).toBe('failed');
+  });
+
+  it('sends a grant storage found expired back for a new one, spending no attempt', async () => {
+    const reports: UploadFailureReport[] = [];
+    let puts = 0;
+    const h = harness({
+      async upload(item) {
+        // The first PUT reached R2 after its window closed; the next is fine.
+        if (++puts === 1) throw new GrantExpired('upload failed: 403', 'AccessDenied: Request has expired');
+        h.uploaded.push(item.source);
+      },
+      report: (r) => reports.push(r),
+    });
+    const queue = new UploadQueue(h.deps);
+    queue.add('event-1', [file(1)]);
+    await queue.run();
+
+    expect(h.presignCalls, 'presigned again for a fresh grant').toBe(2);
+    expect(h.completed).toHaveLength(1);
+    expect(queue.state.items[0]).toMatchObject({ status: 'done', attempts: 0 });
+    expect(reports).toHaveLength(1);
+    expect(reports[0]).toMatchObject({
+      kind: 'GrantExpired',
+      stage: 'put',
+      cause: 'AccessDenied: Request has expired',
+      attempts: 0,
+      status: 'pending',
+    });
+  });
+
+  it('stops re-presigning when every fresh grant is found expired too', async () => {
+    const h = harness({
+      async upload() {
+        throw new GrantExpired('upload failed: 403');
+      },
+    });
+    const queue = new UploadQueue(h.deps);
+    queue.add('event-1', [file(1)]);
+    await queue.run();
+
+    expect(h.presignCalls).toBe(MAX_REPRESIGN_ROUNDS + 1);
+    expect(queue.state.items[0]).toMatchObject({ status: 'pending', attempts: 0 });
   });
 
   it('reports what lay under "waiting for a connection", once', async () => {
