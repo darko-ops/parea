@@ -352,7 +352,11 @@ credentials work, 401 means they do not. It is the newest line and it exists
 because everything else in the probe verified that the container could process
 a photograph and nothing verified it could reach one.
 
-Jobs run hourly from the same image, as one scheduled machine. Created once:
+Jobs run hourly from the same image, as one stopped machine that Vercel's cron
+starts at :00 (`/api/cron/start-jobs`, with `FLY_JOBS_TOKEN`, a deploy token
+scoped to `parea-jobs`). Fly's own `--schedule hourly` started it until 27
+October 2026, when it skipped three hours without a log line; the schedule is
+off the machine now, so the two cannot both start it. Created once:
 
 ```
 flyctl deploy . --config services/deriver/fly.jobs.toml \

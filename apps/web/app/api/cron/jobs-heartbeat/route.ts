@@ -56,9 +56,11 @@ const JOBS: Watched[] = [
     staleAfterMs: 3 * 60 * 60 * 1000,
     title: 'The hourly clean-up',
     where: [
-      'It runs on Fly as the scheduled machine parea-jobs-hourly. Check its',
-      'logs with `flyctl logs -a parea-jobs`, and its secrets against',
-      'parea-deriver with `flyctl secrets list`.',
+      'It runs on Fly as the machine 80e903db077048 in parea-jobs, started',
+      'at :00 by the Vercel cron /api/cron/start-jobs — a start Fly refused',
+      'is its own Sentry error. Check the logs with `flyctl logs -a',
+      'parea-jobs`, and its secrets against parea-deriver with',
+      '`flyctl secrets list`.',
     ],
   },
   {

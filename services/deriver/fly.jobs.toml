@@ -1,6 +1,7 @@
 # The scheduled jobs, as a separate app so they cannot be starved by ingest.
 #
-# It runs as ONE scheduled machine (`parea-jobs-hourly`), not as a Fly Launch
+# It runs as ONE machine, started hourly by the Vercel cron
+# /api/cron/start-jobs (Fly's own schedule is off it), not as a Fly Launch
 # app — so do NOT `fly deploy` this file: that creates always-on "jobs"
 # machines that crash-loop, and leaves the scheduled one on the old code. To
 # ship new code, build and push an image, then point the machine at it:
