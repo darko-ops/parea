@@ -16,22 +16,33 @@ it is built.
 
 ## Status
 
-Every feature in the v1 design exists and is tested. **Nothing has been
-deployed, and nothing has met a real device, a real R2 bucket or a real user.**
-One thing gates launch and it is not code: the child-safety launch checklist in
-[`docs/csam-runbook.md`](docs/csam-runbook.md) — a scanning provider onboarded,
-credentials in place *before* the first detection, counsel briefed, and a named
-human who receives alerts.
+The web app is live at [parea.photos](https://parea.photos). The iOS app is in App
+Store review.
+
+Built alone in two months, 700+ commits: an npm workspaces monorepo in TypeScript
+across a Next.js web app and API, an Expo React Native client, six shared packages
+and three services on Cloudflare Workers and Fly.io, with 75 PostgreSQL migrations
+and 223 test files, each test given an in-memory Postgres through PGlite so the
+suite needs nothing running. CI typechecks, tests, verifies the migrations still
+match the schema, and builds the web app; a second workflow reproduces a known
+upload failure against a fixture, collects the patch as an artifact, and opens a
+pull request with the diagnosis.
+
+The child-safety requirement in [`docs/csam-runbook.md`](docs/csam-runbook.md) is
+standing rather than one-off — a scanning provider onboarded, credentials in place
+*before* the first detection, counsel briefed, and a named human who receives
+alerts.
 
 [`docs/launch.md`](docs/launch.md) is the ordered checklist — what is blocked
 on what, and which items are not code at all. [`docs/deploy.md`](docs/deploy.md)
 is the reference for each piece, including the three secrets that are shared
 between services and fail silently when they disagree.
 
-[`docs/sms-a2p.md`](docs/sms-a2p.md) is a second thing that is not code: phone
-verification is built and has never sent a real text, because a US number cannot
-send one until a carrier campaign is registered. That note holds the state of the
-account, the wording the campaign was approved or refused on, and what is left.
+[`docs/sms-a2p.md`](docs/sms-a2p.md) covers the one thing still outstanding that is
+not code: phone verification is built and has never sent a real text, because a US
+number cannot send one until a carrier campaign is registered. That note holds the
+state of the account, the wording the campaign was approved or refused on, and what
+is left.
 
 ## Running it
 
