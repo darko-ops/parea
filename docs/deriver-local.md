@@ -103,6 +103,20 @@ the log as a missing executable rather than anywhere you are looking.
 The log **does not rotate**. It is a few lines per pass, so it is fine for a
 development machine for months, and `rm` is the maintenance.
 
+## It stops on its own
+
+`watch` exits once thirty minutes pass with nothing pending, because each poll
+is a query and a query every five seconds keeps Neon's development compute from
+ever suspending — left running from 21 October it spent more compute than
+production. The exit is clean, so `SuccessfulExit false` leaves it stopped. It
+starts again at the next login, or now:
+
+```sh
+launchctl kickstart gui/$UID/com.parea.deriver
+```
+
+`DERIVER_IDLE_MS` changes the wait; `0` polls forever, as it used to.
+
 ## Stopping it
 
 ```sh

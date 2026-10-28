@@ -6,7 +6,8 @@
  *   probe   verify this container can actually do the job, and exit non-zero
  *           if it cannot
  *   once    drain the pending queue and stop
- *   watch   poll for pending photos forever
+ *   watch   poll for pending photos, and stop once there have been none for
+ *           DERIVER_IDLE_MS (thirty minutes; 0 polls forever)
  *   serve   listen for deliveries and derive what they name, which is the
  *           same work without the asking — see `serve.ts`
  *   backfill <kind>
@@ -70,6 +71,19 @@ import {
 
 const run = promisify(execFile);
 const POLL_INTERVAL_MS = Number(process.env.DERIVER_POLL_MS ?? 5000);
+
+/**
+ * How long `watch` goes on asking after the last photograph it found.
+ *
+ * Every poll is a query, and a query every five seconds is a compute that
+ * never reaches Neon's five idle minutes. Left running under launchd on a
+ * laptop from 21 October, it kept the development database awake for most of
+ * a billing period with nobody uploading anything — more compute than
+ * production. So it stops, cleanly, once nothing has arrived for this long:
+ * exit 0, which the launch agent's `SuccessfulExit false` leaves stopped.
+ * `launchctl kickstart gui/$UID/com.parea.deriver` starts it again.
+ */
+const IDLE_EXIT_MS = Number(process.env.DERIVER_IDLE_MS ?? 30 * 60_000);
 
 /**
  * The production database endpoint. See `apps/web/src/db.ts`, which carries
@@ -610,12 +624,23 @@ async function main(): Promise<void> {
   // Refuse to start rather than fail one photo at a time.
   if ((await probe(scanner, moderator)) !== 0) process.exit(1);
   const deps = ingest();
-  console.log(`watching, every ${POLL_INTERVAL_MS}ms`);
+  console.log(
+    `watching, every ${POLL_INTERVAL_MS}ms` +
+      (IDLE_EXIT_MS > 0 ? `, until ${Math.round(IDLE_EXIT_MS / 60_000)} minutes pass with nothing` : ''),
+  );
+  let lastWork = Date.now();
   for (;;) {
     try {
-      await drain(50, deps);
+      if ((await drain(50, deps)) > 0) lastWork = Date.now();
     } catch (err) {
+      // A failing drain is not idleness, or a database that is down would
+      // quietly stop the watcher meant to tell you about it.
+      lastWork = Date.now();
       console.error('drain failed:', err);
+    }
+    if (IDLE_EXIT_MS > 0 && Date.now() - lastWork >= IDLE_EXIT_MS) {
+      console.log(`nothing pending for ${Math.round(IDLE_EXIT_MS / 60_000)} minutes; stopping`);
+      process.exit(0);
     }
     await new Promise((resolve) => setTimeout(resolve, POLL_INTERVAL_MS));
   }
