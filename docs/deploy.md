@@ -158,6 +158,19 @@ Note the deployed URLs — the app needs them as `IMAGE_BASE_URL` and
 Deploy `apps/web` to Vercel with the environment below. The build fails without
 `SESSION_SECRET` and `DATABASE_URL`, which is intentional.
 
+A push builds the web app only when it changes something the app is built
+from: `apps/web`, the `packages/` it depends on, the root `package.json` and
+lockfile, `.nvmrc`, `.vercelignore` and `scripts/migrate-on-deploy.mjs`. That
+is `ignoreCommand` in `apps/web/vercel.json`, compared against the last
+deployed commit. Vercel's own monorepo skipping (on for this project) already
+passes over a push confined to `services/` or `apps/mobile`, but anything
+outside the workspaces — `docs/`, `.github/`, the other `scripts/` — counts
+for it as a change to everything; this cancels those, one build in seven in
+October. Give the app a new `@parea/*` dependency and
+`test/ignore-build.test.ts` fails until the list has it too. A Redeploy from
+the dashboard runs the same check, so to redeploy the same commit for a changed
+environment variable, untick "Use project's Ignore Build Step" in its dialog.
+
 Then check it:
 
 ```

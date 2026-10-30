@@ -1,5 +1,6 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
+  "ignoreCommand": "sh ../../scripts/ignore-web-build.sh",
   "crons": [
     {
       "path": "/api/cron/start-jobs",
