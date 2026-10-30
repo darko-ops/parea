@@ -1,6 +1,6 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
-  "ignoreCommand": "[ -n \"$VERCEL_GIT_PREVIOUS_SHA\" ] && git diff --quiet \"$VERCEL_GIT_PREVIOUS_SHA\" HEAD -- . ../../packages/cards ../../packages/core ../../packages/push ../../packages/upload ../../packages/urls ../../packages/zip ../../package.json ../../package-lock.json ../../.nvmrc ../../.vercelignore ../../scripts/migrate-on-deploy.mjs || exit 1",
+  "ignoreCommand": "sh ../../scripts/ignore-web-build.sh",
   "crons": [
     {
       "path": "/api/cron/start-jobs",

@@ -8,14 +8,25 @@ import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 
-const read = (path: string) => JSON.parse(readFileSync(fileURLToPath(new URL(path, import.meta.url)), 'utf8'));
+const text = (path: string) => readFileSync(fileURLToPath(new URL(path, import.meta.url)), 'utf8');
 
-const { ignoreCommand } = read('../vercel.json') as { ignoreCommand: string };
-const watched = ignoreCommand.split(' -- ')[1]!.split(' || ')[0]!.split(' ');
+const { ignoreCommand } = JSON.parse(text('../vercel.json')) as { ignoreCommand: string };
+const script = text('../../../scripts/ignore-web-build.sh');
+const watched = script
+  .split(' -- \\\n')[1]!
+  .split(' || ')[0]!
+  .split(/\s*\\\n\s*/)
+  .map((path) => path.trim());
 
 describe('which changes build the web app', () => {
+  it('runs the script, in a command Vercel accepts', () => {
+    // Vercel refuses the whole deployment over a longer one.
+    expect(ignoreCommand.length).toBeLessThanOrEqual(256);
+    expect(ignoreCommand).toBe('sh ../../scripts/ignore-web-build.sh');
+  });
+
   it('watches every workspace package the app depends on', () => {
-    const pkg = read('../package.json') as Record<string, Record<string, string> | undefined>;
+    const pkg = JSON.parse(text('../package.json')) as Record<string, Record<string, string> | undefined>;
     const workspaces = Object.keys({ ...pkg.dependencies, ...pkg.devDependencies }).filter((name) => name.startsWith('@parea/'));
     expect(workspaces.length).toBeGreaterThan(0);
     for (const name of workspaces) expect(watched).toContain(`../../packages/${name.slice('@parea/'.length)}`);
@@ -26,7 +37,7 @@ describe('which changes build the web app', () => {
   });
 
   it('builds when there is nothing to compare with, or the comparison fails', () => {
-    expect(ignoreCommand).toMatch(/^\[ -n "\$VERCEL_GIT_PREVIOUS_SHA" \] && /);
-    expect(ignoreCommand).toMatch(/ \|\| exit 1$/);
+    expect(script).toContain('[ -n "$VERCEL_GIT_PREVIOUS_SHA" ] || exit 1');
+    expect(script.trimEnd()).toMatch(/ \|\| exit 1$/);
   });
 });
