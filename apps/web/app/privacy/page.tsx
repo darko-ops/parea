@@ -315,6 +315,13 @@ export default function PrivacyPage() {
             other&rsquo;s moments.
           </p>
           <p className="muted">
+            Every account starts out friends with @parea, Parea&rsquo;s own
+            account. That friendship does none of those three things: Parea
+            does not see your moments, cannot add you to anything without
+            asking, and is never counted as a friend you have in common with
+            anybody. You can unfriend it like anyone else.
+          </p>
+          <p className="muted">
             Your handle can be searched for &mdash; by the whole of it or the
             start of it, by anybody signed in. That is a change from how this
             worked before, when nobody could be found at all. What a search

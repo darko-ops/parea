@@ -32,6 +32,7 @@ import { and, desc, eq, gt, inArray, isNull, lt, sql } from 'drizzle-orm';
 import { createHmac, timingSafeEqual } from 'node:crypto';
 
 import type { Db } from './db';
+import { befriendParea } from './friends';
 import { mergeActor } from './merge';
 import { revokePhotoLinks } from './revoke';
 import { notifyGroupHanded, notifyRollHanded } from './notify';
@@ -300,6 +301,12 @@ export async function signIn(
 ): Promise<SignInResult> {
   const result = await bindAccount(db, email, actorId, created.ageConfirmedAt ?? null);
   await ensureHandle(db, result.actorId);
+  /*
+   * Every new account starts friends with Parea — in name only; see
+   * `0075_parea_friends.sql` for what that leaves out. Only on creation, so
+   * somebody who unfriends it is not befriended again at their next sign-in.
+   */
+  if (result.created) await befriendParea(db, result.actorId);
   return result;
 }
 

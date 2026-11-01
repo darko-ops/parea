@@ -526,6 +526,13 @@
       "when": 1792377038715,
       "tag": "0074_chat_pin_clear",
       "breakpoints": true
+    },
+    {
+      "idx": 75,
+      "version": "7",
+      "when": 1793569890516,
+      "tag": "0075_parea_friends",
+      "breakpoints": true
     }
   ]
 }

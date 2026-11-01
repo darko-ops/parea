@@ -46,6 +46,7 @@ import { avatarUrl } from './accounts';
 import { type Db, getDb } from './db';
 import { addMember, directChatWith } from './groups';
 import { blockedBetween } from './moderation';
+import { PAREA_ACTOR_ID } from './parea';
 import { getStorage } from './storage';
 
 /** How long a moment is shown for. Shared with the deriver's clean-up. */
@@ -165,6 +166,9 @@ export async function momentStream(
     with links as (
       select f.friend_actor_id as id, 'friend' as why
         from "friendship" f where f.actor_id = ${viewer}
+        -- Parea is everybody's friend in name only, and seeing moments is the
+        -- thing a friendship is for. Neither way round.
+        and f.actor_id <> ${PAREA_ACTOR_ID} and f.friend_actor_id <> ${PAREA_ACTOR_ID}
       union all
       select ${viewer}::uuid, 'self'
     ),

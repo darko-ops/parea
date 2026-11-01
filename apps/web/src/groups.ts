@@ -21,6 +21,7 @@ import { blockedBetween } from './moderation';
 import { invitable } from './friends';
 import { EMPTY_SUMMARY, groupThreadSummaries, markGroupThreadRead } from './groupMessages';
 import { imageSrc } from './images';
+import { PAREA_ACTOR_ID } from './parea';
 import { getStorage } from './storage';
 import { crownGroups } from './succession';
 
@@ -525,6 +526,8 @@ export async function suggestedGroupsFor(
     join "groups" g on g.id = gm.group_id
     join "actor" a on a.id = mine.friend_actor_id
     where mine.actor_id = ${actorId}
+      -- Everybody's friend, so never a reason to suggest anything.
+      and mine.friend_actor_id <> ${PAREA_ACTOR_ID}
       and g.findable = true
       and g.deleted_at is null
       -- Somewhere you already are is not somewhere to discover.

@@ -19,6 +19,7 @@ import { and, eq, isNotNull, isNull, ne, not, or, sql } from 'drizzle-orm';
 
 import type { Db } from './db';
 import { blockedBetween } from './moderation';
+import { PAREA_ACTOR_ID } from './parea';
 import { hashPhone, normalisePhone } from './phone';
 
 /**
@@ -291,6 +292,9 @@ export async function suggestionsFor(
     join "actor" a on a.id = theirs.friend_actor_id
     where mine.actor_id = ${actorId}
       and theirs.friend_actor_id <> ${actorId}
+      -- Parea is a friend of everybody, so as a mutual it would suggest
+      -- everybody to everybody.
+      and mine.friend_actor_id <> ${PAREA_ACTOR_ID}
       -- An account, not a device: the same test everything here uses for "a
       -- person", and the same one the handle search applies.
       and a.account_id is not null
@@ -614,6 +618,8 @@ export async function recommendationsFor(
       join "friendship" theirs on theirs.actor_id = mine.friend_actor_id
       where mine.actor_id = ${actorId}
         and theirs.friend_actor_id <> ${actorId}
+        -- As in suggestionsFor: a friend of everybody is nobody's mutual.
+        and mine.friend_actor_id <> ${PAREA_ACTOR_ID}
       group by theirs.friend_actor_id
     ),
     together as (
@@ -659,6 +665,7 @@ export async function recommendationsFor(
             on theirs.actor_id = mine.friend_actor_id and theirs.friend_actor_id = a.id
           join "actor" f on f.id = mine.friend_actor_id
           where mine.actor_id = ${actorId}
+            and mine.friend_actor_id <> ${PAREA_ACTOR_ID}
           order by f.handle
           limit 3
         ) x
@@ -791,6 +798,28 @@ export async function befriend(db: Db, a: string, b: string): Promise<void> {
       ])
       .onConflictDoNothing();
   });
+}
+
+/**
+ * Make somebody friends with Parea — in name only; see `0075_parea_friends.sql`.
+ *
+ * Not `befriend`, because Parea's actor is allowed not to exist: 0037 inserts
+ * nothing on a database where the address or handle was already taken, and a
+ * foreign key failing there would fail the sign-in it is part of. Selecting
+ * the actor makes absence insert nothing.
+ */
+export async function befriendParea(db: Db, actorId: string): Promise<void> {
+  if (actorId === PAREA_ACTOR_ID) return;
+  await db.execute(sql`
+    insert into "friendship" (actor_id, friend_actor_id)
+    select pair.actor_id, pair.friend_actor_id
+    from "actor" p
+    cross join lateral (
+      values (${actorId}::uuid, p.id), (p.id, ${actorId}::uuid)
+    ) as pair(actor_id, friend_actor_id)
+    where p.id = ${PAREA_ACTOR_ID}
+    on conflict do nothing
+  `);
 }
 
 /** Both directions, because being unfriended by half is not a state either. */

@@ -31,6 +31,7 @@ import {
   directChatOffer,
 } from '@/groups';
 import { notifyGroupAdded, notifyGroupInvite } from '@/notify';
+import { PAREA_ACTOR_ID } from '@/parea';
 import { CREATE_GROUP_LIMIT, withinLimitFor } from '@/ratelimit';
 import { currentAccountActorId, requesterFor } from '@/session';
 
@@ -205,7 +206,10 @@ async function fromPeople(
   const added: string[] = [];
   const asked: string[] = [];
   for (const id of targets) {
-    if (await areFriends(db, actorId, id)) added.push(id);
+    // Parea is everybody's friend without anybody having chosen it, so it is
+    // no consent either way: asked like a stranger, and asks like one.
+    const parea = actorId === PAREA_ACTOR_ID || id === PAREA_ACTOR_ID;
+    if (!parea && (await areFriends(db, actorId, id))) added.push(id);
     else asked.push(id);
   }
 
