@@ -165,6 +165,14 @@ export type EventListing = {
    */
   mine: boolean;
   /**
+   * On this list only because Parea's public rolls are shown to its friends —
+   * not in it, and not through a group.
+   *
+   * The home screen draws these; a profile does not, because a profile is the
+   * rolls somebody has been in, and they have not been in this one.
+   */
+  viaParea: boolean;
+  /**
    * Uploaded and not through the deriver yet.
    *
    * The difference between an event that is being added to right now and one
@@ -340,6 +348,16 @@ export async function eventsFor(
       creatorHandle: schema.actors.handle,
       creatorAvatarKey: schema.actors.avatarKey,
       mine: sql<boolean>`"event".created_by = ${actorId}`,
+      viaParea: sql<boolean>`(
+        not exists (
+          select 1 from "event_participant" ep
+          where ep.event_id = "event".id and ep.actor_id = ${actorId}
+        )
+        and not exists (
+          select 1 from "group_member" gm
+          where gm.group_id = "event".group_id and gm.actor_id = ${actorId}
+        )
+      )`,
     })
     .from(schema.events)
     .leftJoin(schema.groups, eq(schema.groups.id, schema.events.groupId))

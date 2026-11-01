@@ -184,6 +184,24 @@ describe("Parea's rolls on everybody's home screen", () => {
     expect(await listed(me)).toEqual([welcome]);
     const [card] = await eventsFor(db, me);
     expect(card!.memberCount).toBe(0);
+    // Home only: the profiles leave out what somebody was never in.
+    expect(card!.viaParea).toBe(true);
+  });
+
+  it('stops being only Parea\'s once somebody is in it', async () => {
+    const welcome = await roll();
+    const me = await person('me');
+    await befriend(db, me, PAREA_ACTOR_ID);
+    await db.insert(schema.eventParticipants).values({ eventId: welcome, actorId: me });
+    const [card] = await eventsFor(db, me);
+    expect(card!.viaParea).toBe(false);
+  });
+
+  it('is left off both profiles', () => {
+    const read = (path: string) => readFileSync(new URL(path, import.meta.url), 'utf8');
+    expect(read('../app/components/AccountView.tsx')).toMatch(/\.filter\(\(event\) => !event\.viaParea\)/);
+    expect(read('../../mobile/App.tsx')).toMatch(/events=\{profileEvents\}/);
+    expect(read('../src/people.ts')).toMatch(/!listing\.viaParea && inCommon\.has\(listing\.id\)/);
   });
 
   it('lists nothing to somebody who is not its friend', async () => {

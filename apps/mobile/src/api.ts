@@ -702,6 +702,11 @@ export type EventListing = {
   /** Yours, so the card can say "You" rather than your own name back at you. */
   mine: boolean;
   /**
+   * On the list only because Parea's public rolls are shown to its friends.
+   * Home draws these; the profile does not. Absent from an older server.
+   */
+  viaParea?: boolean;
+  /**
    * The one image the card leads with: the cover, or its newest photograph.
    *
    * `grid`-sized and presigned by the server — this client has no image secret

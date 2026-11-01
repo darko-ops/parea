@@ -78,6 +78,8 @@ type EventListing = {
   faces: { actorId: string; name: string; avatarUrl: string | null }[];
   /** Whether this person made it, decided by the server. Drives the filter. */
   mine: boolean;
+  /** Listed on home because it is Parea's, not because they were in it. */
+  viaParea?: boolean;
   /** `private` or `public` — the card's padlock. `/api/events` sends it. */
   accessPolicy?: string;
   /** Whose event it is. The URL is presigned by the route; null is normal. */
@@ -146,7 +148,8 @@ export function AccountView() {
       fetch('/api/friends').then((r) => r.json()).catch(() => ({ friends: [] })),
     ]);
     setAccount(session.account ?? null);
-    setEvents(mine.events ?? []);
+    // A profile is the rolls somebody has been in; Parea's are home's alone.
+    setEvents(((mine.events ?? []) as EventListing[]).filter((event) => !event.viaParea));
     setFriends(mates.friends?.length ?? 0);
     setStage(session.account ? 'in' : 'email');
     // Yours, by your handle, so pressing one steps through only yours.
