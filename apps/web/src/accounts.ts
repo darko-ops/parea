@@ -650,6 +650,7 @@ async function eraseActors(
     'event_thread_read',
     'group_thread_read',
     'hidden_activity',
+    'event_dismissal',
     'observation',
   ]) {
     await db.execute(sql`delete from ${sql.identifier(table)} where actor_id in (${list})`);

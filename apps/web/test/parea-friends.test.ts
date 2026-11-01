@@ -8,7 +8,7 @@
  */
 
 import { PGlite } from '@electric-sql/pglite';
-import { schema } from '@parea/core';
+import { newLinkToken, schema } from '@parea/core';
 import { and, eq, sql } from 'drizzle-orm';
 import { drizzle } from 'drizzle-orm/pglite';
 import { migrate } from 'drizzle-orm/pglite/migrator';
@@ -18,6 +18,7 @@ import { beforeAll, beforeEach, describe, expect, it } from 'vitest';
 
 import { signIn } from '@/accounts';
 import type { Db } from '@/db';
+import { eventsFor, leaveEvent } from '@/events';
 import { areFriends, befriend, recommendationsFor, suggestionsFor } from '@/friends';
 import { momentStream } from '@/moments';
 import { PAREA_ACCOUNT_ID, PAREA_ACTOR_ID, PAREA_EMAIL, PAREA_HANDLE } from '@/parea';
@@ -38,7 +39,7 @@ beforeAll(async () => {
 
 beforeEach(async () => {
   await db.execute(sql`
-    truncate "account", "actor", "block", "friendship", "moment"
+    truncate "account", "actor", "block", "friendship", "moment", "event"
     restart identity cascade
   `);
   await db.insert(schema.accounts).values({ id: PAREA_ACCOUNT_ID, email: PAREA_EMAIL });
@@ -161,5 +162,45 @@ describe('what the friendship does not do', () => {
     expect(route).toMatch(
       /const parea = actorId === PAREA_ACTOR_ID \|\| id === PAREA_ACTOR_ID;\s*if \(!parea && \(await areFriends\(db, actorId, id\)\)\) added\.push\(id\);/,
     );
+  });
+});
+
+describe("Parea's rolls on everybody's home screen", () => {
+  async function roll(accessPolicy: 'public' | 'private' = 'public') {
+    const [row] = await db
+      .insert(schema.events)
+      .values({ name: 'Welcome', linkToken: newLinkToken(), createdBy: PAREA_ACTOR_ID, accessPolicy })
+      .returning();
+    return row!.id;
+  }
+  const listed = async (viewer: string) => (await eventsFor(db, viewer)).map((e) => e.id);
+
+  it('lists the public ones to its friends, without making them members', async () => {
+    const welcome = await roll();
+    await roll('private');
+    const me = await guest();
+    await signIn(db, 'new@example.test', me);
+
+    expect(await listed(me)).toEqual([welcome]);
+    const [card] = await eventsFor(db, me);
+    expect(card!.memberCount).toBe(0);
+  });
+
+  it('lists nothing to somebody who is not its friend', async () => {
+    await roll();
+    expect(await listed(await person('stranger'))).toEqual([]);
+  });
+
+  it('takes one off the list for good when somebody leaves it, until they open it again', async () => {
+    const welcome = await roll();
+    const me = await person('me');
+    await befriend(db, me, PAREA_ACTOR_ID);
+
+    expect(await leaveEvent(db, welcome, me)).toMatchObject({ left: true });
+    expect(await listed(me)).toEqual([]);
+
+    // Opening the link again is what being in a public roll is.
+    await db.insert(schema.eventParticipants).values({ eventId: welcome, actorId: me });
+    expect(await listed(me)).toEqual([welcome]);
   });
 });

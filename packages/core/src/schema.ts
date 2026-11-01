@@ -1758,6 +1758,30 @@ export const suggestionDismissals = pgTable(
 );
 
 /**
+ * A roll of Parea's that somebody took off their list.
+ *
+ * Parea's public rolls are on the home screen of everybody friends with it,
+ * worked out when the list is read rather than written as a participant row
+ * per person — a row each would make every account a face in the roll and a
+ * name in its People tab. So leaving one has no row to delete, and this is
+ * what leaving writes instead. Opening the link again writes a participant
+ * row, which lists it the ordinary way: the door "you can come back" promises.
+ */
+export const eventDismissals = pgTable(
+  'event_dismissal',
+  {
+    actorId: uuid('actor_id')
+      .notNull()
+      .references(() => actors.id, { onDelete: 'cascade' }),
+    eventId: uuid('event_id')
+      .notNull()
+      .references(() => events.id, { onDelete: 'cascade' }),
+    createdAt: createdAt(),
+  },
+  (t) => [primaryKey({ columns: [t.actorId, t.eventId] })],
+);
+
+/**
  * Somebody asking to be somebody else's friend.
  *
  * The same shape as the two other requests in this product — group and event —

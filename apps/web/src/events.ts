@@ -25,6 +25,7 @@ import { and, desc, eq, isNull, not, or, sql } from 'drizzle-orm';
 
 import type { Db } from './db';
 import { blockedBetween } from './moderation';
+import { PAREA_ACTOR_ID } from './parea';
 
 /** Enough of a photo to build a signed thumbnail URL from, and no more. */
 export type MosaicPhoto = {
@@ -360,6 +361,30 @@ export async function eventsFor(
             select 1 from "group_member" gm
             where gm.group_id = ${schema.events.groupId} and gm.actor_id = ${actorId}
           )`,
+          /*
+           * Parea's public rolls, for everybody friends with it — which is
+           * every account from the day it is made, so a new one opens on
+           * something rather than nothing.
+           *
+           * Read here rather than written as a participant row per person: a
+           * row each would put every account's face on the card and name in
+           * the People tab. Public only, because a public roll is one anybody
+           * with the link may open, and the link is all this hands over.
+           * Unfriending Parea takes them off; leaving one writes the
+           * dismissal that takes off just that one. See `eventDismissals`.
+           */
+          sql`(
+            "event".created_by = ${PAREA_ACTOR_ID}
+            and "event".access_policy = 'public'
+            and exists (
+              select 1 from "friendship" f
+              where f.actor_id = ${actorId} and f.friend_actor_id = ${PAREA_ACTOR_ID}
+            )
+            and not exists (
+              select 1 from "event_dismissal" d
+              where d.event_id = "event".id and d.actor_id = ${actorId}
+            )
+          )`,
         ),
       ),
     )
@@ -453,13 +478,28 @@ export async function leaveEvent(
    * guessed an id that a 404 does not already tell them.
    */
   const [row] = await db
-    .select({ mine: eq(schema.events.createdBy, actorId), groupId: schema.events.groupId })
+    .select({
+      mine: eq(schema.events.createdBy, actorId),
+      groupId: schema.events.groupId,
+      parea: eq(schema.events.createdBy, PAREA_ACTOR_ID),
+    })
     .from(schema.events)
     .where(eq(schema.events.id, eventId))
     .limit(1);
 
   if (!row) return { left: false, reason: 'not_found' };
   if (row.mine) return { left: false, reason: 'host' };
+
+  /*
+   * A roll of Parea's is on the list through the friendship, not through a
+   * row, so taking the row alone would leave it there. See `eventDismissals`.
+   */
+  if (row.parea) {
+    await db
+      .insert(schema.eventDismissals)
+      .values({ actorId, eventId })
+      .onConflictDoNothing();
+  }
 
   const [removed, inGroup] = await Promise.all([
     db

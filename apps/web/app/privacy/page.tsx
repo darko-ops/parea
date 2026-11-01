@@ -319,7 +319,10 @@ export default function PrivacyPage() {
             account. That friendship does none of those three things: Parea
             does not see your moments, cannot add you to anything without
             asking, and is never counted as a friend you have in common with
-            anybody. You can unfriend it like anyone else.
+            anybody. You can unfriend it like anyone else. What it does do is
+            put Parea&rsquo;s public rolls on your home screen. If you leave
+            one, we keep that you did, so it stays off your list; unfriending
+            Parea takes them all off.
           </p>
           <p className="muted">
             Your handle can be searched for &mdash; by the whole of it or the

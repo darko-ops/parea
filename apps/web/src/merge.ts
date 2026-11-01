@@ -128,6 +128,8 @@ const OWNED: {
   { table: 'block', column: 'blocked_actor_id', uniqueWith: ['blocker_actor_id'] },
   { table: 'suggestion_dismissal', column: 'actor_id', uniqueWith: ['dismissed_actor_id'] },
   { table: 'suggestion_dismissal', column: 'dismissed_actor_id', uniqueWith: ['actor_id'] },
+  // A roll of Parea's left on one phone stays left after signing in on another.
+  { table: 'event_dismissal', column: 'actor_id', uniqueWith: ['event_id'] },
   { table: 'observation', column: 'actor_id' },
   { table: 'friend_request', column: 'from_actor_id', uniqueWith: ['to_actor_id'] },
   { table: 'friend_request', column: 'to_actor_id', uniqueWith: ['from_actor_id'] },
