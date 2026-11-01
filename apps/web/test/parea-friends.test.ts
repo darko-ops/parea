@@ -188,13 +188,14 @@ describe("Parea's rolls on everybody's home screen", () => {
     expect(card!.viaParea).toBe(true);
   });
 
-  it('stops being only Parea\'s once somebody is in it', async () => {
+  it('stays off profiles once somebody is in it, and on Parea\'s own', async () => {
     const welcome = await roll();
     const me = await person('me');
     await befriend(db, me, PAREA_ACTOR_ID);
     await db.insert(schema.eventParticipants).values({ eventId: welcome, actorId: me });
-    const [card] = await eventsFor(db, me);
-    expect(card!.viaParea).toBe(false);
+    expect((await eventsFor(db, me))[0]!.viaParea).toBe(true);
+    await db.insert(schema.eventParticipants).values({ eventId: welcome, actorId: PAREA_ACTOR_ID });
+    expect((await eventsFor(db, PAREA_ACTOR_ID))[0]!.viaParea).toBe(false);
   });
 
   it('is left off both profiles', () => {

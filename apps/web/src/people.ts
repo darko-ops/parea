@@ -315,7 +315,7 @@ export async function eventsWithBoth(
     .where(eq(schema.eventParticipants.actorId, theirActorId));
 
   const inCommon = new Set(theirs.map((row) => row.eventId));
-  // Not Parea's rolls listed on the viewer's home: they were never in those.
+  // Not Parea's rolls: they are on everybody's home, and in common with nobody.
   return mine.filter((listing) => !listing.viaParea && inCommon.has(listing.id));
 }
 

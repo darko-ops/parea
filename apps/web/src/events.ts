@@ -165,11 +165,11 @@ export type EventListing = {
    */
   mine: boolean;
   /**
-   * On this list only because Parea's public rolls are shown to its friends —
-   * not in it, and not through a group.
+   * One of Parea's rolls, seen by somebody other than Parea.
    *
-   * The home screen draws these; a profile does not, because a profile is the
-   * rolls somebody has been in, and they have not been in this one.
+   * The home screen draws these; a profile does not, whether or not somebody
+   * has since joined or added to one. They arrive on everybody's list as the
+   * product's own, and a profile is somebody's own rolls.
    */
   viaParea: boolean;
   /**
@@ -349,14 +349,7 @@ export async function eventsFor(
       creatorAvatarKey: schema.actors.avatarKey,
       mine: sql<boolean>`"event".created_by = ${actorId}`,
       viaParea: sql<boolean>`(
-        not exists (
-          select 1 from "event_participant" ep
-          where ep.event_id = "event".id and ep.actor_id = ${actorId}
-        )
-        and not exists (
-          select 1 from "group_member" gm
-          where gm.group_id = "event".group_id and gm.actor_id = ${actorId}
-        )
+        "event".created_by = ${PAREA_ACTOR_ID} and ${actorId}::uuid <> ${PAREA_ACTOR_ID}
       )`,
     })
     .from(schema.events)
