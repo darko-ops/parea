@@ -475,6 +475,18 @@ describe('the two paths that still handed iOS a library file', () => {
     expect(APP).not.toMatch(/photo\.id === item\.photoId/);
   });
 
+  it('waits for the photograph to be queued before deciding it is gone', () => {
+    /*
+     * The cover is owed before the album has copied anything out of the
+     * library, and the runner ticks every five seconds. Treating "not in the
+     * queue" as "taken out" dropped every cover framed on the create screen
+     * at the first tick that beat the copy.
+     */
+    expect(APP).toMatch(/keep\.push\(\{ \.\.\.owed, queued: true \}\);/);
+    expect(APP).toMatch(/\} else if \(!owed\.queued\) looked\(owed\);/);
+    expect(read('src/platform.ts')).toMatch(/queued\?: boolean;/);
+  });
+
   it('gives up eventually, and says so when it does', () => {
     /*
      * A derivative that is never coming must not be asked after forever, and

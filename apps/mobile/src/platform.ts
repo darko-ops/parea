@@ -278,6 +278,14 @@ export type OwedCover = {
    */
   localId: string;
   photoId?: string;
+  /**
+   * Whether the queue has ever been seen holding `localId`.
+   *
+   * The cover is owed before the album has copied a single photograph out of
+   * the library, so "not in the queue" means "not there yet" until it has been
+   * there once — and only after that does it mean "gone".
+   */
+  queued?: boolean;
   framing: { x: number; y: number; zoom: number };
   /**
    * How many times this has been looked for and not found.

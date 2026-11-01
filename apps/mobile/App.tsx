@@ -807,22 +807,31 @@ export default function App() {
       };
       for (const owed of owedCovers.current) {
         /*
-         * No id yet, which is either "the presign has not come back" or
-         * "it never will".
+         * No id yet, which is "not queued yet", "the presign has not come
+         * back" or "it never will".
          *
-         * `nameOwedCovers` fills this in from the queue, so the queue still
-         * holding the item is what says the first one. If it does not — the
-         * photograph was taken out of the batch, or the app was killed after
-         * the item was pruned and before this was named — then nothing will
-         * ever name it, and keeping it is keeping a row that can only be
-         * skipped. Neither branch spends a look: nothing was looked at.
+         * The first is where every new roll starts: the cover is owed before
+         * the album has copied anything out of the library, and that copy —
+         * an iCloud download, sometimes — takes longer than one tick. Giving
+         * up on "not in the queue" then threw away every cover chosen on the
+         * create screen. So absence before the item has ever been seen spends
+         * a look, and the look count bounds a copy that never lands.
+         *
+         * `nameOwedCovers` fills the id in from the queue, so the queue still
+         * holding the item is what says the second. If it held it and no
+         * longer does — the app was killed after the item was pruned and
+         * before this was named — then nothing will ever name it, and keeping
+         * it is keeping a row that can only be skipped.
          */
         if (!owed.photoId) {
           const queued = await loadQueue().catch(() => ({ items: [] }));
           const stillQueued = queued.items.some(
             (i) => i.id === owed.localId && i.eventId === owed.eventId,
           );
-          if (stillQueued) keep.push(owed);
+          if (stillQueued) {
+            if (!owed.queued) changed = true;
+            keep.push({ ...owed, queued: true });
+          } else if (!owed.queued) looked(owed);
           else {
             changed = true;
             setCoverTrouble(owed.eventId);
