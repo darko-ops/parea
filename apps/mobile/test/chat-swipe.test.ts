@@ -49,7 +49,8 @@ describe('a chat swiped left', () => {
 
   it('keeps one row open, and a tap or a scroll puts it away', () => {
     expect(EVENTS).toMatch(/onPress=\{\(\) => \(openId \? setOpenId\(null\) : onOpenGroupThread\(group\)\)\}/);
-    expect(EVENTS).toMatch(/onScrollBeginDrag=\{\(\) => setOpenId\(null\)\}/);
+    // Composed with the pull to refresh's own, which a drag from the top starts.
+    expect(EVENTS).toMatch(/onScrollBeginDrag=\{\(\) => \{\s*setOpenId\(null\);\s*pull\.scrollProps\.onScrollBeginDrag\(\);/);
   });
 
   it('asks before deleting, and says it is for you only', () => {

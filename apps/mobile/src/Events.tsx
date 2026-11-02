@@ -35,7 +35,6 @@ import {
   Linking,
   Platform,
   Pressable,
-  RefreshControl,
   ScrollView,
   StyleSheet,
   Text,
@@ -45,6 +44,7 @@ import {
 } from 'react-native';
 
 import { useToTop } from './toTop';
+import { ConveyorDots, isDarkPage, useConveyorRefresh } from './ConveyorRefresh';
 import { useAppearance } from './appearance';
 import { ApiError, isStaleSignIn, STALE_SIGN_IN_NOTE } from './api';
 import type {
@@ -1013,11 +1013,11 @@ export function HomeTab({
    */
   openMoment?: { id: string; n: number } | null;
 }) {
-  const [refreshing, setRefreshing] = useState(false);
   const scroller = useToTop(top);
   // One gesture refreshes both: pulling the list down and finding the count
   // above it stale would make the count the thing nobody trusts.
   const [pulled, setPulled] = useState(0);
+  const { width: screenWidth } = useWindowDimensions();
   /** The `+`'s two choices. Nothing is made until one of them is picked. */
   const [starting, setStarting] = useState(false);
   const now = useNow();
@@ -1059,22 +1059,25 @@ export function HomeTab({
     (event) => event.photoCount > 0 || event.arrivingCount > 0,
   );
 
+  // The conveyor, not the system spinner. See `ConveyorRefresh.tsx`.
+  const pull = useConveyorRefresh({
+    onRefresh: async () => {
+      setPulled((n) => n + 1);
+      await Promise.all([onRefresh(), moments.refresh()]);
+    },
+    scroller,
+    dark: isDarkPage(t.bg),
+    width: screenWidth,
+    tint: t.dim,
+  });
+
   return (
+    <View style={styles.pullable}>
+    <ConveyorDots conveyor={pull.conveyor} />
     <ScrollView
       ref={scroller}
       contentContainerStyle={styles.scroll}
-      refreshControl={
-        <RefreshControl
-          refreshing={refreshing}
-          tintColor={t.dim}
-          onRefresh={async () => {
-            setRefreshing(true);
-            setPulled((n) => n + 1);
-            await Promise.all([onRefresh(), moments.refresh()]);
-            setRefreshing(false);
-          }}
-        />
-      }
+      {...pull.scrollProps}
     >
       {/*
         A title and the one thing you can make from here.
@@ -1206,6 +1209,7 @@ export function HomeTab({
           row above, and two buttons for one action on a scrolling list is
           furniture rather than affordance. */}
     </ScrollView>
+    </View>
   );
 }
 
@@ -1301,7 +1305,7 @@ export function ChatsTab({
 }) {
   const scroller = useToTop(top);
   const [groups, setGroups] = useState<MyGroupDetail[] | null>(null);
-  const [refreshing, setRefreshing] = useState(false);
+  const { width: screenWidth } = useWindowDimensions();
   /** What is being looked for on this tab, if anything. */
   const [query, setQuery] = useState('');
   /**
@@ -1397,11 +1401,14 @@ export function ChatsTab({
     }
   }, [active]);
 
-  const refresh = useCallback(async () => {
-    setRefreshing(true);
-    await load();
-    setRefreshing(false);
-  }, [load]);
+  // The conveyor, not the system spinner. See `ConveyorRefresh.tsx`.
+  const pull = useConveyorRefresh({
+    onRefresh: load,
+    scroller,
+    dark: isDarkPage(t.bg),
+    width: screenWidth,
+    tint: t.dim,
+  });
 
   /*
    * Searching this tab, over what it already holds.
@@ -1491,6 +1498,8 @@ export function ChatsTab({
 
 
   return (
+    <View style={styles.pullable}>
+    <ConveyorDots conveyor={pull.conveyor} />
     <ScrollView
       ref={scroller}
       contentContainerStyle={styles.groupsScroll}
@@ -1498,11 +1507,13 @@ export function ChatsTab({
       // A search field sits at the top of this tab; dragging the list puts the
       // keyboard away, as it does in Messages.
       keyboardDismissMode="on-drag"
-      // Scrolling the list puts away a row left open.
-      onScrollBeginDrag={() => setOpenId(null)}
-      refreshControl={
-        <RefreshControl refreshing={refreshing} onRefresh={refresh} tintColor={t.dim} />
-      }
+      {...pull.scrollProps}
+      // Scrolling the list puts away a row left open — and a drag from the
+      // top is also where a pull starts.
+      onScrollBeginDrag={() => {
+        setOpenId(null);
+        pull.scrollProps.onScrollBeginDrag();
+      }}
     >
       {/*
         The same head every tab has, with its controls in the same corners:
@@ -1774,6 +1785,7 @@ export function ChatsTab({
         </>
       )}
     </ScrollView>
+    </View>
   );
 }
 /**
@@ -4200,6 +4212,8 @@ const styles = StyleSheet.create({
    * floating tab bubble, which is 28 from the bottom and about 70 tall.
    */
   scroll: { padding: 20, paddingTop: 72, paddingBottom: BELOW_TABS, gap: 26, flexGrow: 1 },
+  /* Home and Chats: the list, with the pull's dots drawn behind it. */
+  pullable: { flex: 1 },
   headRow: { flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between' },
   /* Two of them now, so they need a row of their own rather than each being a
      child of the space-between. Wide enough apart to be two targets. */
