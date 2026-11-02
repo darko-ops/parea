@@ -10,10 +10,13 @@
  * ## How the list is held open
  *
  * iOS only, because only iOS overscrolls: the pull is the scroll view's own
- * rubber band, read off `contentOffset.y`. Releasing past the trigger sets
- * `contentInset.top` to the rest height — which is where the bounce now comes
- * back to — and the inset going to zero, with a scroll to the top, is the
- * return. Android has no pull past the top to read, so it keeps the system
+ * rubber band, read off `contentOffset.y`. Crossing the trigger with the
+ * finger still down sets `contentInset.top` to the rest height, so letting go
+ * springs back to it rather than to the top; coming back above the trigger
+ * before letting go takes it off again. It used to be set on release, which is
+ * too late: the bounce home has already begun by the time a prop from
+ * JavaScript arrives, and iOS does not re-aim it — the list went straight back
+ * up. A scroll to the top, and the inset going to zero, is the return. Android has no pull past the top to read, so it keeps the system
  * `RefreshControl`, which is what a pull there already looks like.
  *
  * ## Why the dots are not in the list
@@ -71,6 +74,9 @@ class Conveyor {
   pull = 0;
   /** Finger on the list. Only a drag starts a pull: the list springing back does not. */
   dragging = false;
+  /** Past the trigger with the finger down: hold the list open if let go here. */
+  armed = false;
+  onArm: ((armed: boolean) => void) | null = null;
   palette = 0;
   prev: number | null = null;
   loadStart = 0;
@@ -127,6 +133,11 @@ class Conveyor {
       this.palette = nextPalette(this.prev, this.allowed);
       this.prev = this.palette;
     }
+    const armed = this.phase === 'pulling' && this.dragging && this.pull >= SPEC.triggerPull;
+    if (armed !== this.armed) {
+      this.armed = armed;
+      this.onArm?.(armed);
+    }
     if (this.phase === 'pulling') {
       if (this.pull === 0) this.phase = 'idle';
       this.draw();
@@ -136,7 +147,12 @@ class Conveyor {
   /** Whether letting go here starts a refresh. */
   release(): boolean {
     this.dragging = false;
-    if (this.phase !== 'pulling' || this.pull < SPEC.triggerPull) return false;
+    const armed = this.armed;
+    this.armed = false;
+    if (this.phase !== 'pulling' || !armed) {
+      if (armed) this.onArm?.(false);
+      return false;
+    }
     this.phase = 'loading';
     this.loadStart = Date.now();
     if (this.raf === null) this.loop();
@@ -185,6 +201,8 @@ export function useConveyorRefresh({
   useEffect(() => () => conveyor.stop(), [conveyor]);
 
   const [holding, setHolding] = useState(false);
+  const [armed, setArmed] = useState(false);
+  conveyor.onArm = setArmed;
   const [refreshing, setRefreshing] = useState(false);
   const offset = useRef(0);
   const refresh = useRef(onRefresh);
@@ -214,15 +232,18 @@ export function useConveyorRefresh({
 
   const onScrollEndDrag = useCallback(() => {
     if (!conveyor.release()) return;
+    // The inset is already on — `armed` put it there — so the bounce is
+    // coming back to the rest height by itself. This keeps it on.
     setHolding(true);
-    scroller.current?.scrollTo({ y: -SPEC.restPull, animated: true });
+    setArmed(false);
     void (async () => {
       await run();
       conveyor.resolve();
-      setHolding(false);
       // Only if the list is still pulled down: somebody who scrolled into it
-      // while it loaded is not sent back to the top.
+      // while it loaded is not sent back to the top. Scrolled first, while
+      // the top is still inset, so the inset coming off moves nothing.
       if (offset.current < 0) scroller.current?.scrollTo({ y: 0, animated: true });
+      setTimeout(() => setHolding(false), SPEC.returnMs);
     })();
   }, [conveyor, run, scroller]);
 
@@ -243,7 +264,7 @@ export function useConveyorRefresh({
           onScrollBeginDrag,
           onScrollEndDrag,
           scrollEventThrottle: 16,
-          contentInset: { top: holding ? SPEC.restPull : 0, left: 0, bottom: 0, right: 0 },
+          contentInset: { top: holding || armed ? SPEC.restPull : 0, left: 0, bottom: 0, right: 0 },
         }
       : {
           onScrollBeginDrag,

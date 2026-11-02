@@ -98,6 +98,9 @@ describe('where it is', () => {
     expect(events.match(/\{\.\.\.pull\.scrollProps\}/g)).toHaveLength(2);
     const loader = read('src/ConveyorRefresh.tsx');
     expect(loader).toMatch(/Platform\.OS === 'ios'/);
-    expect(loader).toMatch(/contentInset: \{ top: holding \? SPEC\.restPull : 0/);
+    // On while the finger is still down past the trigger, so the bounce
+    // comes back to it — set on release, iOS had already aimed for the top.
+    expect(loader).toMatch(/contentInset: \{ top: holding \|\| armed \? SPEC\.restPull : 0/);
+    expect(loader).toMatch(/this\.phase === 'pulling' && this\.dragging && this\.pull >= SPEC\.triggerPull/);
   });
 });
