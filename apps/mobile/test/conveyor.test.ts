@@ -100,4 +100,11 @@ describe('where it is', () => {
     expect(loader).toMatch(/Platform\.OS === 'ios'/);
     expect(loader).toMatch(/contentInset: \{ top: holding \? SPEC\.restPull : 0/);
   });
+
+  it('taps once as the pull crosses the trigger', () => {
+    const loader = read('src/ConveyorRefresh.tsx');
+    expect(loader).toMatch(
+      /!this\.tapped && this\.pull >= SPEC\.triggerPull\) \{\s*this\.tapped = true;[\s\S]{0,200}Haptics\.impactAsync\(Haptics\.ImpactFeedbackStyle\.Light\)/,
+    );
+  });
 });
