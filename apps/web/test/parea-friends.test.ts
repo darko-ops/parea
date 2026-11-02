@@ -185,7 +185,7 @@ describe("Parea's rolls on everybody's home screen", () => {
     const [card] = await eventsFor(db, me);
     expect(card!.memberCount).toBe(0);
     // Home only: the profiles leave out what somebody was never in.
-    expect(card!.viaParea).toBe(true);
+    expect(card!.homeOnly).toBe(true);
   });
 
   it('stays off profiles once somebody is in it, and on Parea\'s own', async () => {
@@ -193,16 +193,16 @@ describe("Parea's rolls on everybody's home screen", () => {
     const me = await person('me');
     await befriend(db, me, PAREA_ACTOR_ID);
     await db.insert(schema.eventParticipants).values({ eventId: welcome, actorId: me });
-    expect((await eventsFor(db, me))[0]!.viaParea).toBe(true);
+    expect((await eventsFor(db, me))[0]!.homeOnly).toBe(true);
     await db.insert(schema.eventParticipants).values({ eventId: welcome, actorId: PAREA_ACTOR_ID });
-    expect((await eventsFor(db, PAREA_ACTOR_ID))[0]!.viaParea).toBe(false);
+    expect((await eventsFor(db, PAREA_ACTOR_ID))[0]!.homeOnly).toBe(false);
   });
 
   it('is left off both profiles', () => {
     const read = (path: string) => readFileSync(new URL(path, import.meta.url), 'utf8');
-    expect(read('../app/components/AccountView.tsx')).toMatch(/\.filter\(\(event\) => !event\.viaParea\)/);
+    expect(read('../app/components/AccountView.tsx')).toMatch(/\.filter\(\(event\) => !event\.homeOnly\)/);
     expect(read('../../mobile/App.tsx')).toMatch(/events=\{profileEvents\}/);
-    expect(read('../src/people.ts')).toMatch(/!listing\.viaParea && inCommon\.has\(listing\.id\)/);
+    expect(read('../src/people.ts')).toMatch(/!listing\.homeOnly && inCommon\.has\(listing\.id\)/);
   });
 
   it('lists nothing to somebody who is not its friend', async () => {
@@ -221,5 +221,45 @@ describe("Parea's rolls on everybody's home screen", () => {
     // Opening the link again is what being in a public roll is.
     await db.insert(schema.eventParticipants).values({ eventId: welcome, actorId: me });
     expect(await listed(me)).toEqual([welcome]);
+  });
+});
+
+describe("friends' public rolls on the home screen", () => {
+  async function rollBy(createdBy: string, accessPolicy: 'public' | 'private' = 'public') {
+    const [row] = await db
+      .insert(schema.events)
+      .values({ name: 'Party', linkToken: newLinkToken(), createdBy, accessPolicy })
+      .returning();
+    await db.insert(schema.eventParticipants).values({ eventId: row!.id, actorId: createdBy });
+    return row!.id;
+  }
+
+  it('lists a friend\'s public roll to somebody not in it, home only', async () => {
+    const me = await person('me');
+    const gia = await person('gia');
+    const stranger = await person('stranger');
+    await befriend(db, me, gia);
+    const party = await rollBy(gia);
+    await rollBy(gia, 'private');
+    await rollBy(stranger);
+
+    const home = await eventsFor(db, me);
+    expect(home.map((e) => e.id)).toEqual([party]);
+    expect(home[0]!.homeOnly).toBe(true);
+    // Hers, on her own profile.
+    expect((await eventsFor(db, gia)).every((e) => !e.homeOnly)).toBe(true);
+  });
+
+  it('is on the profile once somebody is in it, and off the list once they leave', async () => {
+    const me = await person('me');
+    const gia = await person('gia');
+    await befriend(db, me, gia);
+    const party = await rollBy(gia);
+
+    await db.insert(schema.eventParticipants).values({ eventId: party, actorId: me });
+    expect((await eventsFor(db, me))[0]!.homeOnly).toBe(false);
+
+    await leaveEvent(db, party, me);
+    expect(await eventsFor(db, me)).toEqual([]);
   });
 });

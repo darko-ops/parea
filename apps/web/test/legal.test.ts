@@ -258,7 +258,7 @@ describe('the closed list of what is collected', () => {
       friend_request: /asked somebody to be your friend, what they said/,
       friendship: /who is on your list/,
       suggestion_dismissal: /take somebody off\s+your suggestions/,
-      event_dismissal: /If you leave\s+one, we keep that you did/,
+      event_dismissal: /If you\s+leave one, we keep that you did/,
       event_invite: /somebody invited you into a roll/,
       group_invite: /invited you into a roll, or\s+into a group/,
       event_message: /anything you post in it/,

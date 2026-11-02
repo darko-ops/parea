@@ -1758,12 +1758,12 @@ export const suggestionDismissals = pgTable(
 );
 
 /**
- * A roll of Parea's that somebody took off their list.
+ * A roll somebody took off their list.
  *
- * Parea's public rolls are on the home screen of everybody friends with it,
- * worked out when the list is read rather than written as a participant row
- * per person — a row each would make every account a face in the roll and a
- * name in its People tab. So leaving one has no row to delete, and this is
+ * A friend's public rolls — Parea's among them, since everybody is its friend —
+ * are on the home screen whether or not somebody is in them, worked out when
+ * the list is read rather than written as a participant row per person: a row
+ * each would make every friend a face in the roll and a name in its People tab. So leaving one has no row to delete, and this is
  * what leaving writes instead. Opening the link again writes a participant
  * row, which lists it the ordinary way: the door "you can come back" promises.
  */

@@ -165,13 +165,14 @@ export type EventListing = {
    */
   mine: boolean;
   /**
-   * One of Parea's rolls, seen by somebody other than Parea.
+   * On the home screen and not on a profile.
    *
-   * The home screen draws these; a profile does not, whether or not somebody
-   * has since joined or added to one. They arrive on everybody's list as the
-   * product's own, and a profile is somebody's own rolls.
+   * A friend's public roll the viewer is not in — on the list because a
+   * friend made it, not because they were there — and any of Parea's, even
+   * one somebody has since joined: those arrive on everybody's list as the
+   * product's own. A profile is somebody's own rolls, and these are neither.
    */
-  viaParea: boolean;
+  homeOnly: boolean;
   /**
    * Uploaded and not through the deriver yet.
    *
@@ -348,8 +349,18 @@ export async function eventsFor(
       creatorHandle: schema.actors.handle,
       creatorAvatarKey: schema.actors.avatarKey,
       mine: sql<boolean>`"event".created_by = ${actorId}`,
-      viaParea: sql<boolean>`(
-        "event".created_by = ${PAREA_ACTOR_ID} and ${actorId}::uuid <> ${PAREA_ACTOR_ID}
+      homeOnly: sql<boolean>`(
+        ("event".created_by = ${PAREA_ACTOR_ID} and ${actorId}::uuid <> ${PAREA_ACTOR_ID})
+        or (
+          not exists (
+            select 1 from "event_participant" ep
+            where ep.event_id = "event".id and ep.actor_id = ${actorId}
+          )
+          and not exists (
+            select 1 from "group_member" gm
+            where gm.group_id = "event".group_id and gm.actor_id = ${actorId}
+          )
+        )
       )`,
     })
     .from(schema.events)
@@ -373,23 +384,22 @@ export async function eventsFor(
             where gm.group_id = ${schema.events.groupId} and gm.actor_id = ${actorId}
           )`,
           /*
-           * Parea's public rolls, for everybody friends with it — which is
-           * every account from the day it is made, so a new one opens on
-           * something rather than nothing.
+           * Your friends' public rolls, whether or not you are in them. Parea
+           * is everybody's friend from the day their account is made, so this
+           * is also what puts its rolls on a new account's home screen.
            *
            * Read here rather than written as a participant row per person: a
-           * row each would put every account's face on the card and name in
+           * row each would put every friend's face on the card and name in
            * the People tab. Public only, because a public roll is one anybody
            * with the link may open, and the link is all this hands over.
-           * Unfriending Parea takes them off; leaving one writes the
-           * dismissal that takes off just that one. See `eventDismissals`.
+           * Unfriending takes them off; leaving one writes the dismissal that
+           * takes off just that one. See `eventDismissals`.
            */
           sql`(
-            "event".created_by = ${PAREA_ACTOR_ID}
-            and "event".access_policy = 'public'
+            "event".access_policy = 'public'
             and exists (
               select 1 from "friendship" f
-              where f.actor_id = ${actorId} and f.friend_actor_id = ${PAREA_ACTOR_ID}
+              where f.actor_id = ${actorId} and f.friend_actor_id = "event".created_by
             )
             and not exists (
               select 1 from "event_dismissal" d
@@ -492,7 +502,6 @@ export async function leaveEvent(
     .select({
       mine: eq(schema.events.createdBy, actorId),
       groupId: schema.events.groupId,
-      parea: eq(schema.events.createdBy, PAREA_ACTOR_ID),
     })
     .from(schema.events)
     .where(eq(schema.events.id, eventId))
@@ -502,15 +511,16 @@ export async function leaveEvent(
   if (row.mine) return { left: false, reason: 'host' };
 
   /*
-   * A roll of Parea's is on the list through the friendship, not through a
-   * row, so taking the row alone would leave it there. See `eventDismissals`.
+   * A friend's public roll — Parea's included — is on the list through the
+   * friendship, not through a row, so taking the row alone would leave it
+   * there. Written whoever made it: whether they are a friend is a question
+   * about today, and somebody who leaves has answered the one that matters.
+   * See `eventDismissals`.
    */
-  if (row.parea) {
-    await db
-      .insert(schema.eventDismissals)
-      .values({ actorId, eventId })
-      .onConflictDoNothing();
-  }
+  await db
+    .insert(schema.eventDismissals)
+    .values({ actorId, eventId })
+    .onConflictDoNothing();
 
   const [removed, inGroup] = await Promise.all([
     db

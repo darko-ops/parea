@@ -149,6 +149,9 @@ export async function GET() {
         const { creator, coverKey, coverPhotoId, faces: faceRows, ...rest } = listing;
         return {
           ...rest,
+          // What `homeOnly` was called by the app build that shipped first;
+          // it filters its profile on this until the next update reaches it.
+          viaParea: listing.homeOnly,
           /*
            * The cover leads, here as on the web's own cards.
            *

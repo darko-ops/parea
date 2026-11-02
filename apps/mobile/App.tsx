@@ -483,8 +483,8 @@ export default function App() {
   /** Find Friends asked for the Find tab, on people, with its field focused. */
   const [searchHandle, setSearchHandle] = useState(false);
   const [events, setEvents] = useState<EventListing[]>([]);
-  /** The profile's rolls: the ones somebody has been in, so not Parea's. */
-  const profileEvents = useMemo(() => events.filter((event) => !event.viaParea), [events]);
+  /** The profile's rolls: the ones somebody has been in, not a friend's or Parea's. */
+  const profileEvents = useMemo(() => events.filter((event) => !event.homeOnly), [events]);
   /**
    * How many things are waiting on an answer, for the badge on the tray.
    *
