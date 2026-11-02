@@ -135,7 +135,8 @@ describe('a shelf with nothing on it', () => {
     // Guarded on the count rather than toggled by the press: a prompt that
     // hid itself would stay hidden for an album that failed to be made.
     expect(PROFILE).toMatch(/\{account && events\.length === 0 && \(/);
-    expect(PROFILE).toMatch(/\{events\.length > 0 && \(\s*\n\s*<View style=\{\[styles\.grid/);
+    // `shelf` is `events` in the order Organize Rolls left them.
+    expect(PROFILE).toMatch(/shelf\.length > 0 && \(\s*\n\s*<View style=\{\[styles\.grid/);
   });
 });
 

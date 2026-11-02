@@ -207,4 +207,21 @@ export function metaFor(
   return `${people} · ${second}`;
 }
 
+/**
+ * A profile's shelf, in the order its owner arranged it — "Organize Rolls".
+ *
+ * Rolls they have not placed go first, in the order they came in (the home
+ * list's: most recently active first), so a new one is never buried at the end
+ * of a shelf somebody once tidied; the placed ones follow by position. Both
+ * clients sort with this, so the app and the web agree about one person's
+ * shelf.
+ */
+export function shelfOrder<T extends { shelfPosition?: number | null }>(rolls: T[]): T[] {
+  const loose = rolls.filter((roll) => roll.shelfPosition == null);
+  const placed = rolls
+    .filter((roll) => roll.shelfPosition != null)
+    .sort((a, b) => a.shelfPosition! - b.shelfPosition!);
+  return [...loose, ...placed];
+}
+
 export { FROST_COLOURS, frostedGlass, type FrostLight, type FrostedPane } from './frost';

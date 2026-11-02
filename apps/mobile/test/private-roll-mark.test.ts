@@ -31,7 +31,8 @@ describe('a private roll wears a padlock', () => {
   });
 
   it('in front of the line under a tile on your own profile', () => {
-    const source = read('src/Profile.tsx');
+    // The shelf's tile is `RollTile`, beside the organizing that moves it.
+    const source = read('src/Shelf.tsx');
     expect(source).toMatch(/event\.accessPolicy === 'private' && \(\s*<View style=\{styles\.tileLock\}>/);
     expect(source).toMatch(LOCK);
   });

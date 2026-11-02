@@ -8,7 +8,7 @@
 
 import { describe, expect, it } from 'vitest';
 
-import { FROST_COLOURS, ago, frostedGlass, metaFor, mosaicLayout } from '../src';
+import { FROST_COLOURS, ago, frostedGlass, metaFor, mosaicLayout, shelfOrder } from '../src';
 
 const NOW = new Date('2026-08-11T21:00:00Z');
 const minutesAgo = (n: number) => new Date(NOW.getTime() - n * 60_000);
@@ -137,5 +137,17 @@ describe('frostedGlass', () => {
       expect(light.x).toBeLessThanOrEqual(1);
       expect(light.r).toBeGreaterThan(0.5);
     }
+  });
+});
+
+describe('shelfOrder', () => {
+  it('puts what was never placed first, as it came, then the placed by position', () => {
+    const rolls = [
+      { id: 'new', shelfPosition: null },
+      { id: 'b', shelfPosition: 1 },
+      { id: 'newer', shelfPosition: undefined },
+      { id: 'a', shelfPosition: 0 },
+    ];
+    expect(shelfOrder(rolls).map((r) => r.id)).toEqual(['new', 'newer', 'a', 'b']);
   });
 });

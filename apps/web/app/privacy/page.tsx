@@ -328,7 +328,8 @@ export default function PrivacyPage() {
             leave one, we keep that you did, so it stays off your list;
             unfriending somebody takes theirs off. If you hide a roll from your
             profile, we keep that you did too: it stays on your home screen and
-            off your profile, and nobody is told.
+            off your profile, and nobody is told. If you organize the rolls on
+            your profile, we keep the order you put them in.
           </p>
           <p className="muted">
             Your handle can be searched for &mdash; by the whole of it or the

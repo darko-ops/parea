@@ -16,7 +16,7 @@
  * no persistent place to put it, and this is that place.
  */
 
-import { ago, dateLabel, CARD_FACES, isLive } from '@parea/cards';
+import { ago, dateLabel, CARD_FACES, isLive, shelfOrder } from '@parea/cards';
 import { PRIVATE } from '@parea/core/settings';
 import { useCallback, useEffect, useState } from 'react';
 
@@ -80,6 +80,8 @@ type EventListing = {
   mine: boolean;
   /** On home because a friend or Parea made it, not because they were in it. */
   homeOnly?: boolean;
+  /** Where they put it with Organize Rolls in the app; null where they did not. */
+  shelfPosition?: number | null;
   /** `private` or `public` — the card's padlock. `/api/events` sends it. */
   accessPolicy?: string;
   /** Whose event it is. The URL is presigned by the route; null is normal. */
@@ -149,7 +151,8 @@ export function AccountView() {
     ]);
     setAccount(session.account ?? null);
     // A profile is the rolls somebody has been in; the rest are home's alone.
-    setEvents(((mine.events ?? []) as EventListing[]).filter((event) => !event.homeOnly));
+    // And in the order they arranged it in the app's Organize Rolls.
+    setEvents(shelfOrder(((mine.events ?? []) as EventListing[]).filter((event) => !event.homeOnly)));
     setFriends(mates.friends?.length ?? 0);
     setStage(session.account ? 'in' : 'email');
     // Yours, by your handle, so pressing one steps through only yours.

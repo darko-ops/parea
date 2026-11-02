@@ -44,6 +44,7 @@ import { Image } from 'expo-image';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
+  Alert,
   Animated,
   KeyboardAvoidingView,
   Linking,
@@ -60,7 +61,7 @@ import {
   useWindowDimensions,
 } from 'react-native';
 
-import { dateLabel } from '@parea/cards';
+import { shelfOrder } from '@parea/cards';
 
 import { useToTop } from './toTop';
 import { LinkIcon } from './LinkIcon';
@@ -77,6 +78,7 @@ import type { GroupTheme } from './Groups';
 import { initialOf, lensFor } from './lens';
 import { uploadCover } from './platform';
 import { Waiting } from './Waiting';
+import { OrganizeShelf, RollTile } from './Shelf';
 import { MomentsRow, MomentsViewer, useMoments } from './Moments';
 import { setAppearance, useAppearance } from './appearance';
 
@@ -96,6 +98,7 @@ type ButtonEl = (props: {
 export function ProfileScreen({
   api,
   events,
+  onShelfChanged,
   webBase,
   t,
   active,
@@ -128,6 +131,8 @@ export function ProfileScreen({
    * and there is no spinner on a revisit.
    */
   active: boolean;
+  /** The list again, after Organize Rolls saved — it carries the positions. */
+  onShelfChanged: () => void | Promise<void>;
   onOpen: (event: EventListing) => void;
   /** A friend's own profile, reached by handle — the same route Find uses. */
   onOpenPerson: (handle: string) => void;
@@ -179,6 +184,50 @@ export function ProfileScreen({
   }, [openSettings, onSettingsOpened]);
   /** The `+`'s two-line menu. Nothing is created until one of them is chosen. */
   const [creating, setCreating] = useState(false);
+
+  /*
+   * Organize Rolls.
+   *
+   * `held` is the roll a long press landed on, which opens the sheet that
+   * offers it. `organizing` is the mode itself; `arranged` is the order the
+   * shelf is in while it lasts, and after Done until the list comes back with
+   * the positions in it — so the shelf does not jump back for the length of a
+   * round trip. `dragging` holds the page still while a tile is in hand.
+   */
+  const [held, setHeld] = useState<EventListing | null>(null);
+  const [organizing, setOrganizing] = useState(false);
+  const [arranged, setArranged] = useState<string[] | null>(null);
+  const [dragging, setDragging] = useState(false);
+  const shelf = useMemo(() => {
+    const sorted = shelfOrder(events);
+    if (!arranged) return sorted;
+    const at = new Map(arranged.map((id, i) => [id, i]));
+    // Anything that arrived since keeps its place in front, as a new roll does.
+    return [
+      ...sorted.filter((event) => !at.has(event.id)),
+      ...sorted.filter((event) => at.has(event.id)).sort((a, b) => at.get(a.id)! - at.get(b.id)!),
+    ];
+  }, [arranged, events]);
+  useEffect(() => {
+    if (!organizing) setArranged(null);
+  }, [events]); // eslint-disable-line react-hooks/exhaustive-deps
+  const startOrganizing = useCallback(() => {
+    setHeld(null);
+    setArranged(shelf.map((event) => event.id));
+    setOrganizing(true);
+  }, [shelf]);
+  const doneOrganizing = useCallback(async () => {
+    setOrganizing(false);
+    setDragging(false);
+    if (!arranged) return;
+    try {
+      await api.saveShelf(arranged);
+      await onShelfChanged();
+    } catch {
+      Alert.alert('Could not save that order', 'Try again in a moment.');
+      setArranged(null);
+    }
+  }, [api, arranged, onShelfChanged]);
   const { width } = useWindowDimensions();
 
   /*
@@ -275,6 +324,8 @@ export function ProfileScreen({
     <ScrollView
       ref={scroller}
       contentContainerStyle={styles.scroll}
+      // Still while a tile is in hand, or the drag would scroll the page.
+      scrollEnabled={!dragging}
       keyboardShouldPersistTaps="handled"
       // Drives the retract above. 16ms is one frame; less is work nobody sees.
       scrollEventThrottle={16}
@@ -549,64 +600,45 @@ export function ProfileScreen({
         </View>
       )}
 
-      {events.length > 0 && (
+      {/* Organizing: what to do, where the bio's buttons end and the shelf begins. */}
+      {organizing && (
+        <Text style={[styles.organizeHint, { color: t.dim }]}>Drag to arrange your shelf.</Text>
+      )}
+
+      {organizing && shelf.length > 0 ? (
+        <View style={styles.gutter}>
+          <OrganizeShelf
+            events={shelf}
+            tile={tile}
+            gap={GAP}
+            t={t}
+            onOrder={setArranged}
+            onDragging={setDragging}
+          />
+        </View>
+      ) : (
+        shelf.length > 0 && (
         <View style={[styles.grid, styles.gutter]}>
-          {events.map((event) => {
-            /* When the album was made, which is what the card on the home
-               screen already leads with. It read `eventDate ?? firstPhotoAt`
-               — the evening it was about, falling back to when the earliest
-               photograph in it was taken — so one shelf dated albums by their
-               subject while every other surface dated them by themselves. */
-            const when = dateLabel(event.createdAt);
-            return (
+          {shelf.map((event) => (
               <Pressable
                 key={event.id}
                 onPress={() => onOpen(event)}
+                /* Hold for the shelf's own menu — 320ms, the hold every other
+                   long press in the app uses. */
+                onLongPress={() => setHeld(event)}
+                delayLongPress={320}
                 accessibilityRole="button"
                 accessibilityLabel={`${event.name}, ${
                   event.accessPolicy === 'private' ? 'private, ' : ''
                 }${event.photoCount} ${event.photoCount === 1 ? 'photo' : 'photos'}`}
-                style={{ width: tile }}
+                accessibilityHint="Hold to organize your rolls"
+                style={({ pressed }) => ({ width: tile, transform: [{ scale: pressed ? 0.96 : 1 }] })}
               >
-                {event.cover ? (
-                  <Image
-                    source={{ uri: event.cover.src }}
-                    style={styles.tile}
-                    contentFit="cover"
-                    transition={120}
-                  />
-                ) : (
-                  /*
-                    An album with nothing in it yet still belongs on the shelf —
-                    it is one of the things this person is in, and leaving it
-                    out would make the grid disagree with the count above it.
-                    Dashed, which reads as "nothing here" rather than as a very
-                    dark photograph.
-                  */
-                  <View style={[styles.tile, styles.tileEmpty, { borderColor: t.line }]} />
-                )}
-                <Text style={[styles.tileName, { color: t.fg }]} numberOfLines={1}>
-                  {event.name}
-                </Text>
-                {/* A private album wears the padlock its home card does, in front. */}
-                <View style={styles.tileMetaRow}>
-                  {event.accessPolicy === 'private' && (
-                    <View style={styles.tileLock}>
-                      <Glyph name="locked" size={11} weight={2.4} color={t.dim} />
-                    </View>
-                  )}
-                  <Text style={[styles.tileMeta, { color: t.dim, flexShrink: 1 }]} numberOfLines={1}>
-                    {event.photoCount === 0
-                      ? 'Nothing in it yet'
-                      : when
-                        ? `${when} · ${event.photoCount}`
-                        : `${event.photoCount} ${event.photoCount === 1 ? 'photo' : 'photos'}`}
-                  </Text>
-                </View>
+                <RollTile event={event} t={t} />
               </Pressable>
-            );
-          })}
+          ))}
         </View>
+        )
       )}
         </>
       )}
@@ -702,10 +734,53 @@ export function ProfileScreen({
         </RoundButton>
       </View>
       <View style={[styles.corner, styles.cornerRight]}>
-        <RoundButton t={t} onPress={() => setCreating(true)} accessibilityLabel="New roll, group or moment">
-          <Glyph name="plus" size={20} color={t.fg} />
-        </RoundButton>
+        {organizing ? (
+          /* While organizing, the corner that makes things keeps the order. */
+          <Pressable
+            onPress={() => void doneOrganizing()}
+            accessibilityRole="button"
+            accessibilityLabel="Done organizing"
+            style={({ pressed }) => [
+              styles.donePill,
+              { borderColor: t.line, backgroundColor: t.card, opacity: pressed ? 0.7 : 1 },
+            ]}
+          >
+            <Text style={[styles.doneText, { color: t.fg }]}>Done</Text>
+          </Pressable>
+        ) : (
+          <RoundButton t={t} onPress={() => setCreating(true)} accessibilityLabel="New roll, group or moment">
+            <Glyph name="plus" size={20} color={t.fg} />
+          </RoundButton>
+        )}
       </View>
+
+      {/*
+        What holding a roll offers: the roll it was, and Organize Rolls. A
+        sheet rather than a popover — the design's default — so it reads the
+        same whichever tile was held.
+      */}
+      {held && (
+        <Modal visible animationType="slide" transparent onRequestClose={() => setHeld(null)}>
+          <Pressable style={styles.backdrop} onPress={() => setHeld(null)}>
+            <Pressable style={[styles.panel, { backgroundColor: t.bg }]} onPress={() => {}}>
+              <View style={[styles.grabber, { backgroundColor: t.line }]} />
+              <Text style={[styles.heldName, { color: t.dim }]} numberOfLines={1}>
+                {held.name}
+              </Text>
+              <Pressable
+                onPress={startOrganizing}
+                accessibilityRole="button"
+                style={({ pressed }) => [styles.heldRow, { opacity: pressed ? 0.5 : 1 }]}
+              >
+                <Text style={[styles.heldTitle, { color: t.fg }]}>Organize Rolls</Text>
+                <Text style={[styles.heldNote, { color: t.dim }]}>
+                  Drag them into the order you want them on your shelf.
+                </Text>
+              </Pressable>
+            </Pressable>
+          </Pressable>
+        </Modal>
+      )}
     </View>
   );
 }
@@ -1248,17 +1323,22 @@ const styles = StyleSheet.create({
   /* Two across with gutters: these are cards of separate evenings, not one
      object the way a wall of photographs would be. */
   grid: { flexDirection: 'row', flexWrap: 'wrap', gap: GAP },
-  tile: { width: '100%', height: 150, borderRadius: 12, backgroundColor: '#8881' },
-  tileEmpty: { borderWidth: 1, borderStyle: 'dashed', backgroundColor: 'transparent' },
-  /* Under the picture rather than over it. A scrim block across the bottom of
-     every tile makes a shelf read as captioned stock photography, and there is
-     room here for the date as well — which is how somebody tells two dinners
-     with the same six people apart. */
-  tileName: { fontSize: 14, fontWeight: '600', marginTop: 6 },
-  tileMeta: { fontSize: 12.5 },
-  tileMetaRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
-  // Up 1pt onto the line's cap height; never the thing that gives way.
-  tileLock: { marginTop: -1, flexShrink: 0 },
+  /* Organize Rolls: the line over the shelf, the corner's Done, and the sheet. */
+  organizeHint: { textAlign: 'center', fontSize: 12.5, lineHeight: 17, paddingHorizontal: 20, marginBottom: -4 },
+  donePill: {
+    height: 36,
+    borderRadius: 18,
+    borderWidth: 1,
+    paddingHorizontal: 14,
+    justifyContent: 'center',
+  },
+  doneText: { fontSize: 15, fontWeight: '600' },
+  grabber: { alignSelf: 'center', width: 36, height: 4, borderRadius: 2, marginVertical: 8 },
+  heldName: { paddingHorizontal: 18, paddingTop: 12, paddingBottom: 6, fontSize: 12.5, lineHeight: 17 },
+  heldRow: { paddingHorizontal: 18, paddingVertical: 12, paddingBottom: 46, gap: 2 },
+  heldTitle: { fontSize: 16, fontWeight: '600' },
+  heldNote: { fontSize: 12.5, lineHeight: 17 },
+  /* The tiles themselves are drawn by `RollTile` — see `Shelf.tsx`. */
   /* The keyboard avoider around a sheet: full height, no colour of its own. */
   fill: { flex: 1 },
   backdrop: { flex: 1, justifyContent: 'flex-end', backgroundColor: '#000b' },

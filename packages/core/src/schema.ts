@@ -1804,6 +1804,30 @@ export const profileHiddenEvents = pgTable(
 );
 
 /**
+ * Where somebody put a roll on their profile's shelf — "Organize Rolls".
+ *
+ * Written whole when they tap Done, one row per roll they arranged; a roll with
+ * no row is one that arrived after, and goes in front of the arranged ones,
+ * newest first, so something new is never buried at the end of a shelf
+ * somebody once tidied. Theirs only: nobody else's shelf, home screen or roll
+ * moves.
+ */
+export const shelfPositions = pgTable(
+  'shelf_position',
+  {
+    actorId: uuid('actor_id')
+      .notNull()
+      .references(() => actors.id, { onDelete: 'cascade' }),
+    eventId: uuid('event_id')
+      .notNull()
+      .references(() => events.id, { onDelete: 'cascade' }),
+    position: integer('position').notNull(),
+    createdAt: createdAt(),
+  },
+  (t) => [primaryKey({ columns: [t.actorId, t.eventId] })],
+);
+
+/**
  * Somebody asking to be somebody else's friend.
  *
  * The same shape as the two other requests in this product — group and event —

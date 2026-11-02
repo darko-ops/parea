@@ -708,6 +708,8 @@ export type EventListing = {
   homeOnly?: boolean;
   /** "Hide from profile" is on for this roll. Absent from an older server. */
   hiddenFromProfile?: boolean;
+  /** Where Organize Rolls put it on the profile's shelf; null where it did not. */
+  shelfPosition?: number | null;
   /**
    * The one image the card leads with: the cover, or its newest photograph.
    *
@@ -1651,6 +1653,11 @@ export class Api {
    * "Hide from profile", or taking it back. The roll stays on the home screen
    * and this person stays in it; only their profile stops showing it.
    */
+  /** Organize Rolls, saved: the profile's shelf, first to last. */
+  saveShelf(order: string[]): Promise<unknown> {
+    return this.call('/api/account/shelf', { method: 'PUT', body: JSON.stringify({ order }) });
+  }
+
   setHiddenFromProfile(eventId: string, hidden: boolean): Promise<unknown> {
     return this.call(`/api/events/${eventId}/profile`, { method: hidden ? 'PUT' : 'DELETE' });
   }

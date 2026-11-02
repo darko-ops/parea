@@ -683,7 +683,8 @@ describe('what a card dates a roll by', () => {
      * The evening's own date has not gone anywhere: it is what the album's
      * own header says, where the subject *is* the evening.
      */
-    const PROFILE = read('src/Profile.tsx');
+    // The shelf's tile is `RollTile` in Shelf.tsx now; the profile draws it.
+    const PROFILE = read('src/Profile.tsx') + read('src/Shelf.tsx');
     expect(PROFILE).toMatch(/const when = dateLabel\(event\.createdAt\);/);
     expect(PROFILE).not.toMatch(/event\.firstPhotoAt/);
     // The same rule on somebody else's, and on a group's archive.

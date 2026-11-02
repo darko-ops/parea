@@ -33,18 +33,22 @@ describe('the grid', () => {
      * is an album, leading with the same cover its card leads with, and it
      * opens when tapped.
      */
-    expect(PROFILE).toMatch(/events\.map\(\(event\)/);
-    expect(PROFILE).toMatch(/uri: event\.cover\.src/);
+    // In the order Organize Rolls left them, each one a `RollTile`.
+    const SHELF = read('src/Shelf.tsx');
+    expect(PROFILE).toMatch(/shelf\.map\(\(event\)/);
+    expect(SHELF).toMatch(/uri: event\.cover\.src/);
     expect(PROFILE).toMatch(/onPress=\{\(\) => onOpen\(event\)\}/);
     // Never a photograph picked out of one: the mosaic is not consulted.
     expect(PROFILE).not.toMatch(/mosaic/);
+    expect(SHELF).not.toMatch(/mosaic/);
   });
 
   it('keeps an empty roll on the shelf', () => {
     // Leaving it out would make the grid disagree with the Albums count above
     // it — and it is still one of the things this person is in.
-    expect(PROFILE).toMatch(/tileEmpty/);
-    expect(PROFILE).toMatch(/borderStyle: 'dashed'/);
+    const SHELF = read('src/Shelf.tsx');
+    expect(SHELF).toMatch(/tileEmpty/);
+    expect(SHELF).toMatch(/borderStyle: 'dashed'/);
   });
 });
 

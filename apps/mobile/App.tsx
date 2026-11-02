@@ -2234,6 +2234,7 @@ export default function App() {
               <ProfileScreen
                 api={api}
                 events={profileEvents}
+                onShelfChanged={refreshEvents}
                 webBase={API_BASE}
                 t={t}
                 active={tab === 'profile'}

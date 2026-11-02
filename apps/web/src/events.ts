@@ -21,7 +21,7 @@
 
 import { CARD_FACES } from '@parea/cards';
 import { schema, type AccessPolicy } from '@parea/core';
-import { and, desc, eq, isNull, not, or, sql } from 'drizzle-orm';
+import { and, desc, eq, inArray, isNull, not, or, sql } from 'drizzle-orm';
 
 import type { Db } from './db';
 import { blockedBetween } from './moderation';
@@ -176,6 +176,12 @@ export type EventListing = {
   homeOnly: boolean;
   /** "Hide from profile" in the roll's sheet, which this says is on. */
   hiddenFromProfile: boolean;
+  /**
+   * Where the viewer put it on their profile's shelf with "Organize Rolls", or
+   * null for one they have not placed. The home screen ignores it; the
+   * profile sorts by it — see `shelfPositions`.
+   */
+  shelfPosition: number | null;
   /**
    * Uploaded and not through the deriver yet.
    *
@@ -373,6 +379,10 @@ export async function eventsFor(
         select 1 from "profile_hidden_event" h
         where h.event_id = "event".id and h.actor_id = ${actorId}
       )`,
+      shelfPosition: sql<number | null>`(
+        select s.position from "shelf_position" s
+        where s.event_id = "event".id and s.actor_id = ${actorId}
+      )`,
     })
     .from(schema.events)
     .leftJoin(schema.groups, eq(schema.groups.id, schema.events.groupId))
@@ -502,6 +512,39 @@ export async function eventsFor(
  * The roll stays on their home screen and they stay in it — see
  * `profileHiddenEvents`. False when there is no such event.
  */
+/** The most rolls one arrangement holds. A shelf, not an archive. */
+export const SHELF_MAX = 1000;
+
+/**
+ * "Organize Rolls", saved: the order somebody left their shelf in when they
+ * tapped Done, written whole over whatever was there.
+ *
+ * Scoped to the actor by its signature, like `leaveEvent`. The ids are the
+ * client's, so only ones that name a roll are kept — a foreign key would
+ * refuse the rest and the whole save with them — and nothing about any roll is
+ * read beyond that it exists. Positions are the order given, so a roll the
+ * client did not send has no row and goes in front, as a new one does.
+ */
+export async function saveShelf(db: Db, actorId: string, order: string[]): Promise<void> {
+  const ids = [...new Set(order)].slice(0, SHELF_MAX);
+  const real =
+    ids.length === 0
+      ? []
+      : await db
+          .select({ id: schema.events.id })
+          .from(schema.events)
+          .where(inArray(schema.events.id, ids));
+  const exists = new Set(real.map((row) => row.id));
+  const rows = ids
+    .filter((id) => exists.has(id))
+    .map((eventId, position) => ({ actorId, eventId, position }));
+
+  await db.transaction(async (tx) => {
+    await tx.delete(schema.shelfPositions).where(eq(schema.shelfPositions.actorId, actorId));
+    if (rows.length > 0) await tx.insert(schema.shelfPositions).values(rows);
+  });
+}
+
 /** Whether this actor has "Hide from profile" on for this roll. Their row only. */
 export async function isHiddenFromProfile(
   db: Db,

@@ -276,7 +276,8 @@ describe('the shape of somebody else’s page', () => {
      * under the second line. Neither is worth an argument on its own; together
      * they are the reason somebody's page does not quite look like yours.
      */
-    const OWN = read('src/Profile.tsx');
+    // The profile's tile is `RollTile` in Shelf.tsx; the grid around it is Profile's.
+    const OWN = read('src/Profile.tsx') + read('src/Shelf.tsx');
     for (const source of [PERSON, OWN]) {
       expect(source).toMatch(/import \{ Image \} from 'expo-image';/);
       expect(source).toMatch(/const COLUMNS = 2;/);

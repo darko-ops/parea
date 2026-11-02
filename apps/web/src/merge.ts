@@ -132,6 +132,8 @@ const OWNED: {
   { table: 'event_dismissal', column: 'actor_id', uniqueWith: ['event_id'] },
   // And one hidden from a profile stays hidden from it.
   { table: 'profile_hidden_event', column: 'actor_id', uniqueWith: ['event_id'] },
+  // And the shelf they arranged, where the surviving actor has not arranged one.
+  { table: 'shelf_position', column: 'actor_id', uniqueWith: ['event_id'] },
   { table: 'observation', column: 'actor_id' },
   { table: 'friend_request', column: 'from_actor_id', uniqueWith: ['to_actor_id'] },
   { table: 'friend_request', column: 'to_actor_id', uniqueWith: ['from_actor_id'] },

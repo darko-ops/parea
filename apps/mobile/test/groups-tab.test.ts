@@ -361,7 +361,8 @@ describe('what a group shows when you open it', () => {
       /tileMeta: \{ fontSize: 12\.5 \}/,
     ]) {
       expect(GROUPS, String(rule)).toMatch(rule);
-      expect(PROFILE, String(rule)).toMatch(rule);
+      // The profile's tile is `RollTile`, in Shelf.tsx.
+      expect(read('src/Shelf.tsx'), String(rule)).toMatch(rule);
     }
     // And what is in it, which the profile's tile also says.
     expect(GROUPS).toMatch(/'Nothing in it yet'/);
