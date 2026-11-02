@@ -171,8 +171,11 @@ export type EventListing = {
    * friend made it, not because they were there — and any of Parea's, even
    * one somebody has since joined: those arrive on everybody's list as the
    * product's own. A profile is somebody's own rolls, and these are neither.
+   * And any they hid from their profile themselves — see `hiddenFromProfile`.
    */
   homeOnly: boolean;
+  /** "Hide from profile" in the roll's sheet, which this says is on. */
+  hiddenFromProfile: boolean;
   /**
    * Uploaded and not through the deriver yet.
    *
@@ -351,6 +354,10 @@ export async function eventsFor(
       mine: sql<boolean>`"event".created_by = ${actorId}`,
       homeOnly: sql<boolean>`(
         ("event".created_by = ${PAREA_ACTOR_ID} and ${actorId}::uuid <> ${PAREA_ACTOR_ID})
+        or exists (
+          select 1 from "profile_hidden_event" h
+          where h.event_id = "event".id and h.actor_id = ${actorId}
+        )
         or (
           not exists (
             select 1 from "event_participant" ep
@@ -361,6 +368,10 @@ export async function eventsFor(
             where gm.group_id = "event".group_id and gm.actor_id = ${actorId}
           )
         )
+      )`,
+      hiddenFromProfile: sql<boolean>`exists (
+        select 1 from "profile_hidden_event" h
+        where h.event_id = "event".id and h.actor_id = ${actorId}
       )`,
     })
     .from(schema.events)
@@ -483,6 +494,45 @@ export async function eventsFor(
  * one with no way back in. Deleting it is the action they actually mean, and it
  * is one tap away in the same sheet.
  */
+/**
+ * "Hide from profile", and taking it back.
+ *
+ * Scoped to the actor by its signature, like `leaveEvent`: it writes or deletes
+ * one row that is theirs and reads nothing about the event but that it exists.
+ * The roll stays on their home screen and they stay in it — see
+ * `profileHiddenEvents`. False when there is no such event.
+ */
+export async function setHiddenFromProfile(
+  db: Db,
+  eventId: string,
+  actorId: string,
+  hidden: boolean,
+): Promise<boolean> {
+  const [event] = await db
+    .select({ id: schema.events.id })
+    .from(schema.events)
+    .where(and(eq(schema.events.id, eventId), isNull(schema.events.deletedAt)))
+    .limit(1);
+  if (!event) return false;
+
+  if (hidden) {
+    await db
+      .insert(schema.profileHiddenEvents)
+      .values({ actorId, eventId })
+      .onConflictDoNothing();
+  } else {
+    await db
+      .delete(schema.profileHiddenEvents)
+      .where(
+        and(
+          eq(schema.profileHiddenEvents.actorId, actorId),
+          eq(schema.profileHiddenEvents.eventId, eventId),
+        ),
+      );
+  }
+  return true;
+}
+
 export type LeftEvent =
   | { left: true; wasIn: boolean; throughGroup: string | null }
   | { left: false; reason: 'not_found' | 'host' };

@@ -1670,6 +1670,10 @@ export default function App() {
             onOpenGroupThread={(group) => setRoute({ screen: 'groupThread', group })}
             onOpenPerson={(handle) => setRoute({ screen: 'person', handle })}
             onGroupsChanged={refreshGroups}
+            hiddenFromProfile={
+              events.find((listing) => listing.id === route.event.id)?.hiddenFromProfile ?? false
+            }
+            onProfileChanged={refreshEvents}
           />
         </SwipeBack>
       )}
@@ -2549,6 +2553,8 @@ function EventScreen({
   onOpenGroupThread,
   onOpenPerson,
   onGroupsChanged,
+  hiddenFromProfile,
+  onProfileChanged,
 }: {
   api: Api;
   event: SavedEvent;
@@ -2632,8 +2638,35 @@ function EventScreen({
   /** A byline on a photograph is a person; pressing one opens them. */
   onOpenPerson: (handle: string) => void;
   onGroupsChanged: () => void;
+  /** "Hide from profile" is on, as the home list last said. */
+  hiddenFromProfile: boolean;
+  /** The home list again, which is where the profile reads its rolls from. */
+  onProfileChanged: () => void | Promise<void>;
 }) {
   const [feed, setFeed] = useState<Feed | null>(null);
+  /*
+   * The sheet's answer, ahead of the list catching up. Follows the list
+   * whenever it changes, so a toggle on another phone is not overridden here.
+   */
+  const [hiddenHere, setHiddenHere] = useState(hiddenFromProfile);
+  useEffect(() => setHiddenHere(hiddenFromProfile), [hiddenFromProfile]);
+  const [hidingBusy, setHidingBusy] = useState(false);
+  const toggleProfile = useCallback(async () => {
+    const next = !hiddenHere;
+    setHidingBusy(true);
+    try {
+      await api.setHiddenFromProfile(event.id, next);
+      setHiddenHere(next);
+      await onProfileChanged();
+    } catch {
+      Alert.alert(
+        next ? 'Could not hide it' : 'Could not show it',
+        'Try again in a moment.',
+      );
+    } finally {
+      setHidingBusy(false);
+    }
+  }, [api, event.id, hiddenHere, onProfileChanged]);
   const [refreshing, setRefreshing] = useState(false);
   const [queueStatus, setQueueStatus] = useState<string | null>(null);
   /** Which single photograph is on its way to the camera roll, if any. */
@@ -5352,6 +5385,9 @@ function EventScreen({
           onSaveFavourites={() => saveSet('favourites')}
           onDelete={deleteAlbum}
           onLeave={leaveAlbum}
+          hiddenFromProfile={hiddenHere}
+          hidingBusy={hidingBusy}
+          onToggleProfile={toggleProfile}
           onEditCover={framer}
           onRemoveCover={feed?.event.coverUrl ? removeCover : null}
           coverBusy={sendingCover}
@@ -6171,6 +6207,9 @@ function HostSheet({
   savingScope,
   onDelete,
   onLeave,
+  hiddenFromProfile,
+  hidingBusy,
+  onToggleProfile,
   onEditCover,
   onRemoveCover,
   coverBusy,
@@ -6208,6 +6247,9 @@ function HostSheet({
   savingScope: 'all' | 'favourites' | null;
   onDelete: () => void;
   onLeave: () => void;
+  hiddenFromProfile: boolean;
+  hidingBusy: boolean;
+  onToggleProfile: () => void;
   onEditCover: () => void;
   /**
    * Take the cover off, or null where there is nothing to take off.
@@ -6445,6 +6487,25 @@ function HostSheet({
                 <Action t={t} icon="door" label="Leave Roll" onPress={onLeave} danger />
               )}
             </View>
+
+            {/*
+              Under the three, for somebody in a group's roll who does not run
+              it: on their home screen through the group, and theirs to keep off
+              their profile. Nothing about the roll changes and nobody is told.
+            */}
+            {known && !host && feed?.event.groupId && (
+              <Row
+                t={t}
+                label={hiddenFromProfile ? 'Show on profile' : 'Hide from profile'}
+                note={
+                  hiddenFromProfile
+                    ? 'It is on your home screen and not on your profile.'
+                    : 'It stays on your home screen. Nobody is told.'
+                }
+                onPress={onToggleProfile}
+                disabled={hidingBusy}
+              />
+            )}
 
             {/*
               What the sheet looks like before it has been told anything.

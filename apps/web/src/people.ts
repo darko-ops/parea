@@ -309,12 +309,20 @@ export async function eventsWithBoth(
   const mine = await eventsFor(db, viewerId);
   if (mine.length === 0) return [];
 
-  const theirs = await db
-    .select({ eventId: schema.eventParticipants.eventId })
-    .from(schema.eventParticipants)
-    .where(eq(schema.eventParticipants.actorId, theirActorId));
+  const [theirs, hidden] = await Promise.all([
+    db
+      .select({ eventId: schema.eventParticipants.eventId })
+      .from(schema.eventParticipants)
+      .where(eq(schema.eventParticipants.actorId, theirActorId)),
+    // What they took off their own profile is off it for whoever is looking.
+    db
+      .select({ eventId: schema.profileHiddenEvents.eventId })
+      .from(schema.profileHiddenEvents)
+      .where(eq(schema.profileHiddenEvents.actorId, theirActorId)),
+  ]);
 
-  const inCommon = new Set(theirs.map((row) => row.eventId));
+  const off = new Set(hidden.map((row) => row.eventId));
+  const inCommon = new Set(theirs.map((row) => row.eventId).filter((id) => !off.has(id)));
   // Not what is on the viewer's home only because a friend or Parea made it.
   return mine.filter((listing) => !listing.homeOnly && inCommon.has(listing.id));
 }

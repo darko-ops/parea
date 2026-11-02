@@ -1782,6 +1782,28 @@ export const eventDismissals = pgTable(
 );
 
 /**
+ * A roll somebody keeps on their home screen and off their profile.
+ *
+ * "Hide from profile" in the roll's sheet. Nothing about the roll changes and
+ * nobody is told: it stays on their list, they stay in it, and it only stops
+ * being one of the rolls their profile shows — to them, and as a roll in
+ * common to anybody looking at it.
+ */
+export const profileHiddenEvents = pgTable(
+  'profile_hidden_event',
+  {
+    actorId: uuid('actor_id')
+      .notNull()
+      .references(() => actors.id, { onDelete: 'cascade' }),
+    eventId: uuid('event_id')
+      .notNull()
+      .references(() => events.id, { onDelete: 'cascade' }),
+    createdAt: createdAt(),
+  },
+  (t) => [primaryKey({ columns: [t.actorId, t.eventId] })],
+);
+
+/**
  * Somebody asking to be somebody else's friend.
  *
  * The same shape as the two other requests in this product — group and event —

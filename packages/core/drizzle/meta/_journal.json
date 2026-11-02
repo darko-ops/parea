@@ -547,6 +547,13 @@
       "when": 1793647584284,
       "tag": "0077_parea_phone",
       "breakpoints": true
+    },
+    {
+      "idx": 78,
+      "version": "7",
+      "when": 1793648811371,
+      "tag": "0078_profile_hidden_event",
+      "breakpoints": true
     }
   ]
 }

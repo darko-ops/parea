@@ -706,6 +706,8 @@ export type EventListing = {
    * it. Home draws these; the profile does not. Absent from an older server.
    */
   homeOnly?: boolean;
+  /** "Hide from profile" is on for this roll. Absent from an older server. */
+  hiddenFromProfile?: boolean;
   /**
    * The one image the card leads with: the cover, or its newest photograph.
    *
@@ -1645,6 +1647,14 @@ export class Api {
    * works. It is "take this off my list" rather than "never again" — blocking
    * is the tool for that, and it is about a person rather than a room.
    */
+  /**
+   * "Hide from profile", or taking it back. The roll stays on the home screen
+   * and this person stays in it; only their profile stops showing it.
+   */
+  setHiddenFromProfile(eventId: string, hidden: boolean): Promise<unknown> {
+    return this.call(`/api/events/${eventId}/profile`, { method: hidden ? 'PUT' : 'DELETE' });
+  }
+
   leaveEvent(
     eventId: string,
   ): Promise<{ left: boolean; wasIn: boolean; throughGroup: string | null }> {
