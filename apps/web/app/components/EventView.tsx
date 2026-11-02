@@ -322,6 +322,38 @@ export function EventView({
   };
 
   /*
+   * "Hide from profile", for somebody in a group's roll who does not run it —
+   * the app's sheet has it under Leave. The roll stays on their home list and
+   * they stay in it; only their profile stops showing it. Asked for once the
+   * menu could offer it, rather than with every feed.
+   */
+  const offersHiding =
+    session.account != null && feed.event.groupId != null && !feed.event.canAdminister;
+  const [hiddenFromProfile, setHiddenFromProfile] = useState<boolean | null>(null);
+  useEffect(() => {
+    if (!offersHiding) return;
+    let live = true;
+    fetch(`/api/events/${eventId}/profile`)
+      .then((res) => (res.ok ? res.json() : null))
+      .then((body: { hiddenFromProfile?: boolean } | null) => {
+        if (live && body) setHiddenFromProfile(body.hiddenFromProfile === true);
+      })
+      .catch(() => {});
+    return () => {
+      live = false;
+    };
+  }, [eventId, offersHiding]);
+  const toggleProfile = async () => {
+    const next = !hiddenFromProfile;
+    const res = await fetch(`/api/events/${eventId}/profile`, { method: next ? 'PUT' : 'DELETE' });
+    if (!res.ok) {
+      alert(next ? 'Could not hide it. Try again in a moment.' : 'Could not show it. Try again in a moment.');
+      return;
+    }
+    setHiddenFromProfile(next);
+  };
+
+  /*
    * What was already here when this page opened.
    *
    * "Just added" means *since you have been looking*, which is the only
@@ -903,6 +935,17 @@ export function EventView({
                       }}
                     >
                       Leave roll
+                    </button>
+                  )}
+                  {/* Unknown until asked, so not offered as the wrong one. */}
+                  {offersHiding && hiddenFromProfile !== null && (
+                    <button
+                      onClick={() => {
+                        close();
+                        void toggleProfile();
+                      }}
+                    >
+                      {hiddenFromProfile ? 'Show on profile' : 'Hide from profile'}
                     </button>
                   )}
                 </>

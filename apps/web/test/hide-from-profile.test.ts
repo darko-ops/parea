@@ -13,7 +13,7 @@ import { fileURLToPath } from 'node:url';
 import { beforeAll, beforeEach, describe, expect, it } from 'vitest';
 
 import type { Db } from '@/db';
-import { eventsFor, setHiddenFromProfile } from '@/events';
+import { eventsFor, isHiddenFromProfile, setHiddenFromProfile } from '@/events';
 import { eventsWithBoth } from '@/people';
 
 import { stripComments } from './support/source';
@@ -98,6 +98,27 @@ describe('hiding a roll from your profile', () => {
     expect((await eventsWithBoth(db, admin, me)).map((e) => e.id)).toEqual([party]);
     await setHiddenFromProfile(db, party, me, true);
     expect(await eventsWithBoth(db, admin, me)).toEqual([]);
+  });
+
+  it('says which it is, for that person only', async () => {
+    const admin = await person('admin');
+    const me = await person('me');
+    const party = await groupRoll(admin, me);
+    expect(await isHiddenFromProfile(db, party, me)).toBe(false);
+    await setHiddenFromProfile(db, party, me, true);
+    expect(await isHiddenFromProfile(db, party, me)).toBe(true);
+    expect(await isHiddenFromProfile(db, party, admin)).toBe(false);
+  });
+
+  it('is in the web roll menu too, beside Leave roll', () => {
+    const view = stripComments(
+      readFileSync(new URL('../app/components/EventView.tsx', import.meta.url), 'utf8'),
+    );
+    expect(view).toMatch(
+      /session\.account != null && feed\.event\.groupId != null && !feed\.event\.canAdminister/,
+    );
+    expect(view).toMatch(/hiddenFromProfile \? 'Show on profile' : 'Hide from profile'/);
+    expect(view).toMatch(/fetch\(`\/api\/events\/\$\{eventId\}\/profile`, \{ method: next \? 'PUT' : 'DELETE' \}\)/);
   });
 
   it('answers false for a roll that does not exist', async () => {

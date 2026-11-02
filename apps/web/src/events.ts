@@ -502,6 +502,25 @@ export async function eventsFor(
  * The roll stays on their home screen and they stay in it — see
  * `profileHiddenEvents`. False when there is no such event.
  */
+/** Whether this actor has "Hide from profile" on for this roll. Their row only. */
+export async function isHiddenFromProfile(
+  db: Db,
+  eventId: string,
+  actorId: string,
+): Promise<boolean> {
+  const [row] = await db
+    .select({ eventId: schema.profileHiddenEvents.eventId })
+    .from(schema.profileHiddenEvents)
+    .where(
+      and(
+        eq(schema.profileHiddenEvents.actorId, actorId),
+        eq(schema.profileHiddenEvents.eventId, eventId),
+      ),
+    )
+    .limit(1);
+  return row != null;
+}
+
 export async function setHiddenFromProfile(
   db: Db,
   eventId: string,
