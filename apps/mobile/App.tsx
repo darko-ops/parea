@@ -6489,11 +6489,12 @@ function HostSheet({
             </View>
 
             {/*
-              Under the three, for somebody in a group's roll who does not run
-              it: on their home screen through the group, and theirs to keep off
-              their profile. Nothing about the roll changes and nobody is told.
+              Under the three, for somebody in a roll they do not run — in a
+              group or not: theirs to keep off their profile while it stays on
+              their home screen. Nothing about the roll changes and nobody is
+              told.
             */}
-            {known && !host && feed?.event.groupId && (
+            {known && !host && (
               <Row
                 t={t}
                 label={hiddenFromProfile ? 'Show on profile' : 'Hide from profile'}

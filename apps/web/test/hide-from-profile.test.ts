@@ -115,7 +115,7 @@ describe('hiding a roll from your profile', () => {
       readFileSync(new URL('../app/components/EventView.tsx', import.meta.url), 'utf8'),
     );
     expect(view).toMatch(
-      /session\.account != null && feed\.event\.groupId != null && !feed\.event\.canAdminister/,
+      /session\.account != null && !feed\.event\.canAdminister;/,
     );
     expect(view).toMatch(/hiddenFromProfile \? 'Show on profile' : 'Hide from profile'/);
     expect(view).toMatch(/fetch\(`\/api\/events\/\$\{eventId\}\/profile`, \{ method: next \? 'PUT' : 'DELETE' \}\)/);
@@ -128,11 +128,11 @@ describe('hiding a roll from your profile', () => {
     ).toBe(false);
   });
 
-  it('is in the sheet, under the three, for somebody in a group roll they do not run', () => {
+  it('is in the sheet, under the three, for somebody in a roll they do not run', () => {
     const app = stripComments(
       readFileSync(new URL('../../mobile/App.tsx', import.meta.url), 'utf8'),
     );
-    expect(app).toMatch(/\{known && !host && feed\?\.event\.groupId && \(\s*<Row/);
+    expect(app).toMatch(/\{known && !host && \(\s*<Row/);
     expect(app).toMatch(/hiddenFromProfile \? 'Show on profile' : 'Hide from profile'/);
   });
 });

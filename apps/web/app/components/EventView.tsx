@@ -322,13 +322,13 @@ export function EventView({
   };
 
   /*
-   * "Hide from profile", for somebody in a group's roll who does not run it —
-   * the app's sheet has it under Leave. The roll stays on their home list and
+   * "Hide from profile", for somebody in a roll they do not run, in a group or
+   * not — the app's sheet has it under Leave. The roll stays on their home list and
    * they stay in it; only their profile stops showing it. Asked for once the
    * menu could offer it, rather than with every feed.
    */
   const offersHiding =
-    session.account != null && feed.event.groupId != null && !feed.event.canAdminister;
+    session.account != null && !feed.event.canAdminister;
   const [hiddenFromProfile, setHiddenFromProfile] = useState<boolean | null>(null);
   useEffect(() => {
     if (!offersHiding) return;
