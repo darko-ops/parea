@@ -15,8 +15,9 @@
  * and being added lands in Invites, which somebody can ignore, rather than
  * anywhere they have to look.
  *
- * The gate that remains is `administer`. This is a host's guest list, not a
- * way for anybody in an event to pull people into it.
+ * The gate that remains is `administer` — and, on a public roll outside any
+ * group, being in it: see `mayAskIn`. A private roll stays its host's guest
+ * list.
  *
  * Being invited is an offer, not a fact. It used to write the participant row
  * outright — defensible while only friends could be added, since they had
@@ -54,6 +55,36 @@ import { currentActorId, requesterFor } from '@/session';
 
 export const runtime = 'nodejs';
 
+/**
+ * Somebody in a public roll they do not run may ask people into it too.
+ *
+ * A public roll is open to anybody with an account already — anybody could be
+ * sent its link — so somebody who is in it asking a friend by name grants
+ * nothing the link would not. It is an invitation all the same: it lands in
+ * Invites, where it can be ignored, and blocks hold as they do for a host.
+ *
+ * Not on a private roll, where being in is the owner's to decide, and not on a
+ * roll in a group, where the group is.
+ */
+async function mayAskIn(
+  db: ReturnType<typeof getDb>,
+  event: { id: string; accessPolicy: string; groupId: string | null; deletedAt: Date | null },
+  actorId: string,
+): Promise<boolean> {
+  if (event.accessPolicy !== 'public' || event.groupId || event.deletedAt) return false;
+  const [row] = await db
+    .select({ actorId: schema.eventParticipants.actorId })
+    .from(schema.eventParticipants)
+    .where(
+      and(
+        eq(schema.eventParticipants.eventId, event.id),
+        eq(schema.eventParticipants.actorId, actorId),
+      ),
+    )
+    .limit(1);
+  return row != null;
+}
+
 /** How many people one request may add. A guest list, not a broadcast. */
 const MAX_PER_REQUEST = 50;
 
@@ -69,7 +100,8 @@ export async function POST(
 
   const actorId = await currentActorId();
   const decision = await decide(db, event, 'administer', await requesterFor(id));
-  if (!decision.allow || !actorId) {
+  const administers = decision.allow;
+  if (!actorId || (!administers && !(await mayAskIn(db, event, actorId)))) {
     return NextResponse.json({ error: 'not_found' }, { status: 404 });
   }
 
@@ -92,8 +124,13 @@ export async function POST(
    * second list has said everything it needs to, and both clients do exactly
    * that rather than repeating a name in both.
    */
-  const hostAsked = strings(body.hostActorIds);
-  const memberAsked = strings(body.actorIds).filter((id) => !hostAsked.includes(id));
+  // Holding the camera is the one who runs the roll's to promise.
+  const hostAsked = administers ? strings(body.hostActorIds) : [];
+  const memberAsked = [
+    ...strings(body.actorIds),
+    // Asked as co-hosts by somebody who cannot promise that: still asked in.
+    ...(administers ? [] : strings(body.hostActorIds)),
+  ].filter((id, i, all) => !hostAsked.includes(id) && all.indexOf(id) === i);
   const asked = [...hostAsked, ...memberAsked];
   /*
    * The cap counts everybody, once.

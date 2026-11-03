@@ -201,6 +201,10 @@ type Tab = 'home' | 'chats' | 'search' | 'profile';
  */
 type Pane = 'photos' | 'talk' | 'people';
 
+/** In a public roll somebody else runs — and so able to ask people into it. */
+const inPublicRoll = (roll: { accessPolicy: string; membership?: string }) =>
+  roll.accessPolicy === 'public' && roll.membership === 'member';
+
 /** Tiles per row in the album's grid. Three is the contact-sheet convention. */
 const GRID_COLUMNS = 3;
 /**
@@ -5308,8 +5312,16 @@ function EventScreen({
             onRemove={mayRemove ? removeFromRoll : undefined}
             dark={dark}
             onPerson={personActions}
+            /*
+              Whoever runs the roll, and on a public one anybody in it: it is
+              open to anyone with the link already, so asking a friend by name
+              lets in nobody the link would not. Never in a group's roll,
+              where the group decides.
+            */
             onAdd={
-              feed?.event.canAdminister && !feed.event.groupId
+              feed &&
+              !feed.event.groupId &&
+              (feed.event.canAdminister || inPublicRoll(feed.event))
                 ? () => setAddingMembers(true)
                 : undefined
             }

@@ -16,10 +16,13 @@ const PEOPLE = read('src/Thread.tsx');
 const PAGE = read('src/AddMembers.tsx');
 
 describe('add members', () => {
-  it('heads the People pane, for whoever runs a roll not in a group', () => {
+  it('heads the People pane, for whoever runs a roll not in a group, or is in a public one', () => {
     expect(PEOPLE).toMatch(/<RoundButton t={t} wide onPress={onAdd} accessibilityLabel="Invite people">/);
     expect(PEOPLE).toMatch(/>Invite people<\/Text>/);
-    expect(APP).toMatch(/feed\?\.event\.canAdminister && !feed\.event\.groupId\s*\? \(\) => setAddingMembers\(true\)/);
+    const gate = APP.slice(APP.indexOf('onAdd={'), APP.indexOf('? () => setAddingMembers(true)'));
+    expect(gate).toContain('!feed.event.groupId');
+    expect(gate).toContain('feed.event.canAdminister || inPublicRoll(feed.event)');
+    expect(APP).toContain("roll.accessPolicy === 'public' && roll.membership === 'member'");
   });
 
   it('is a page over the roll, with Back to the list', () => {
