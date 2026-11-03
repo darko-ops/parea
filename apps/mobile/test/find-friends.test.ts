@@ -85,6 +85,44 @@ describe('the address book stays on the phone', () => {
   });
 });
 
+describe('who in your contacts is already here', () => {
+  const INVITE = read('src/InviteContacts.tsx');
+
+  it('only on a build whose permission dialog does not promise "never uploaded"', async () => {
+    const { contactMatchingAllowed } = await import('../src/invite');
+    // Build 7 asked in those words; an update cannot change a dialog.
+    expect(contactMatchingAllowed('e506cf04f5fe512ee6a498b37177837d4dee35d9')).toBe(false);
+    expect(contactMatchingAllowed('a-later-build')).toBe(true);
+    expect(SCREEN).toMatch(/const CONTACT_MATCHING = contactMatchingAllowed\(Updates\.runtimeVersion\);/);
+    expect(SCREEN).toMatch(/onParea=\{\s*CONTACT_MATCHING\s*\?/);
+  });
+
+  it('sends numbers and nothing else, once, through the one callback', () => {
+    // Not names, not labels: the request is a list of numbers.
+    expect(INVITE).toMatch(/void find\(\[\.\.\.byNumber\.keys\(\)\]\)/);
+    expect(INVITE.match(/find\(/g)?.length).toBe(1);
+  });
+
+  it('reads a local number as belonging to this phone’s country, and refuses to guess otherwise', async () => {
+    const { toE164 } = await import('../src/invite');
+    expect(toE164('(555) 010-4477', '+1')).toBe('+15550104477');
+    expect(toE164('1 555 010 4477', '+1')).toBe('+15550104477');
+    expect(toE164('+44 7700 900123', '+1')).toBe('+447700900123');
+    expect(toE164('07700 900123', '+44')).toBe('+447700900123');
+    expect(toE164('0044 7700 900123', '+1')).toBe('+447700900123');
+    expect(toE164('07700 900123', '+1')).toBeNull();
+    expect(toE164('911', '+1')).toBeNull();
+  });
+
+  it('asks the server with a POST, so the numbers are never in a URL', async () => {
+    const calls = respond({ people: [] });
+    await new Api('https://api.test', 'a').matchContacts(['+15550104477']);
+    expect(calls[0]!.url).toBe('https://api.test/api/people/contacts');
+    expect(calls[0]!.init.method).toBe('POST');
+    expect(JSON.parse(String(calls[0]!.init.body))).toEqual({ numbers: ['+15550104477'] });
+  });
+});
+
 describe('an invite', () => {
   it('is one row per person with a number, texted at the mobile one', async () => {
     const { toRows } = await import('../src/invite');

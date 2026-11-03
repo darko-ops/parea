@@ -1123,6 +1123,9 @@ export type InvitablePerson = {
   standing?: Standing;
 };
 
+/** Somebody in your contacts who is on Parea, and the number that is theirs. */
+export type ContactMatch = InvitablePerson & { number: string };
+
 /**
  * One of them, with the reason they are being suggested.
  *
@@ -2601,6 +2604,18 @@ export class Api {
     return this.call('/api/friends', {
       method: 'POST',
       body: JSON.stringify({ actorId }),
+    });
+  }
+
+  /**
+   * Which of these numbers belong to people on Parea — your contacts, checked
+   * and not kept. See `/api/people/contacts`. Full international form only;
+   * `toE164` in `invite.ts` makes it.
+   */
+  matchContacts(numbers: string[]): Promise<{ people: ContactMatch[] }> {
+    return this.call('/api/people/contacts', {
+      method: 'POST',
+      body: JSON.stringify({ numbers }),
     });
   }
 

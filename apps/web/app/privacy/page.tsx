@@ -484,21 +484,31 @@ export default function PrivacyPage() {
             scrambled form, the two digits and the record that it was checked.
           </p>
           <p className="muted">
-            We never upload your contacts. The people the Find Friends page
-            suggests come from rolls you have both been in, groups you are both
-            in, and friends you have in common &mdash; records this product
-            already holds because you and they made them. A number is asked for
-            so that people who have yours can reach you, not so that we can
-            look through your phone.
+            The people the Find Friends page suggests come from rolls you have
+            both been in, groups you are both in, and friends you have in common
+            &mdash; records this product already holds because you and they made
+            them. A number is asked for so that people who have yours can reach
+            you, not so that we can look through your phone.
           </p>
 
           <p className="muted">
-            In the app, Find Friends can also list your contacts so you can
-            invite people who are not here yet &mdash; only if you allow it, in
-            the phone&rsquo;s own permission dialog. The list is read and shown
-            on your phone and never sent to us. Inviting somebody opens your own
-            messages app with a text and your profile link in it; you send it,
-            from your number, and we do not see who it went to.
+            In the app, Find Friends can also list your contacts &mdash; only if
+            you allow it, in the phone&rsquo;s own permission dialog &mdash; to
+            show which of them are already on Parea and let you invite the rest.
+            To tell who is here, the app sends the phone numbers in your
+            contacts to our server, and nothing else: no names, no labels. Each
+            number is scrambled the same way a number you give us is, compared,
+            and discarded. None of them is stored or logged, and a number that
+            belongs to nobody here is gone with the request. A contact is shown
+            to you as on Parea only if they proved their own number and left
+            &ldquo;Let people who have my phone number or email find me&rdquo;
+            on. Versions of the app whose permission dialog says your contacts
+            are never uploaded do not send them.
+          </p>
+          <p className="muted">
+            Inviting somebody opens your own messages app with a text and your
+            profile link in it; you send it, from your number, and we do not see
+            who it went to.
           </p>
 
           <p className="muted">

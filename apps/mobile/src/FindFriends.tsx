@@ -49,6 +49,7 @@
  */
 
 import { Image as ExpoImage } from 'expo-image';
+import * as Updates from 'expo-updates';
 import { useCallback, useEffect, useState } from 'react';
 import {
   ActionSheetIOS,
@@ -70,6 +71,7 @@ import { reasonFor } from './answers';
 import Svg, { Circle, Path, Rect } from 'react-native-svg';
 
 import { Glyph } from './Glyph';
+import { contactMatchingAllowed } from './invite';
 import { InviteContacts } from './InviteContacts';
 import type { GroupTheme } from './Groups';
 import { initialOf, lensFor } from './lens';
@@ -112,6 +114,12 @@ type ButtonComponent = (props: {
   primary?: boolean;
   disabled?: boolean;
 }) => React.ReactElement;
+
+/**
+ * Whether this build may check contacts against Parea — not build 7, whose
+ * permission dialog promised they would never be uploaded. See `invite.ts`.
+ */
+const CONTACT_MATCHING = contactMatchingAllowed(Updates.runtimeVersion);
 
 /** Suggestions drawn at a time. */
 const SUGGESTION_PAGE = 10;
@@ -484,9 +492,9 @@ export function FindFriends({
                       Find contacts
                     </Text>
                     <Text style={[styles.body, { color: t.dim }]}>
-                      Add your number so people who already have it can find you
-                      here. Your contacts never leave your phone, and the number
-                      is never shown to anybody.
+                      {CONTACT_MATCHING
+                        ? 'Add your number so people who already have it can find you here, and see which of your contacts are already on Parea. Nothing from your contacts is kept, and your number is never shown to anybody.'
+                        : 'Add your number so people who already have it can find you here. Your contacts never leave your phone, and the number is never shown to anybody.'}
                     </Text>
                   </View>
 
@@ -610,10 +618,9 @@ export function FindFriends({
                     Add your phone number
                   </Text>
                   <Text style={[styles.small, { color: t.dim }]}>
-                    So the people who already have your number can find you here.
-                    That is the whole of it — your contacts never leave your
-                    phone, and the number itself is never stored or shown to
-                    anybody.
+                    {CONTACT_MATCHING
+                      ? 'So the people who already have your number can find you here. Your contacts are checked and never kept, and the number itself is never stored or shown to anybody.'
+                      : 'So the people who already have your number can find you here. That is the whole of it — your contacts never leave your phone, and the number itself is never stored or shown to anybody.'}
                   </Text>
 
                   <Text style={[styles.small, { color: t.fg }]}>
@@ -832,6 +839,18 @@ export function FindFriends({
                     t={t}
                     Button={Button}
                     link={handle ? `${webBase}/u/${handle}` : webBase}
+                    onParea={
+                      CONTACT_MATCHING
+                        ? {
+                            dialCode: country.code,
+                            find: async (numbers) => (await api.matchContacts(numbers)).people,
+                            add: async (actorId) => {
+                              await api.askFriend(actorId);
+                            },
+                            open: onOpenPerson,
+                          }
+                        : undefined
+                    }
                   />
                 </>
               )}

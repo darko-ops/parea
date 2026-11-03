@@ -512,6 +512,19 @@ export const PEOPLE_SEARCH_LIMIT: Limit = {
 };
 
 /**
+ * Address book checks, per account — `/api/people/contacts`.
+ *
+ * Each one can carry thousands of numbers, so this is what keeps the door from
+ * being a way to ask about any number at all: the app checks once when the
+ * contacts are shown and again on a pull, and ten an hour is far past that.
+ */
+export const CONTACTS_MATCH_LIMIT: Limit = {
+  name: 'contacts-match',
+  max: 10,
+  windowSeconds: 3600,
+};
+
+/**
  * Verification codes, per source.
  *
  * The text-message twin of `SIGN_IN_LIMIT`, and the note there applies word for

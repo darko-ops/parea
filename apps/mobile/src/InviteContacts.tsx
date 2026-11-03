@@ -2,17 +2,20 @@
  * Your contacts, with an Invite beside each — under the suggestions on Find
  * Friends.
  *
- * ## The address book never leaves the phone
+ * ## Who is already here, and nothing kept
  *
- * Find Friends was built to refuse the usual address-book upload, and the
- * argument at the top of `FindFriends.tsx` still stands: an uploaded address
- * book is a list of people who never agreed to anything. So this file reads
- * the contacts to draw them and for nothing else. It does not import the API
- * client, it sends nothing, and a test holds it to that.
+ * An uploaded address book is a list of people who never agreed to anything,
+ * which is why this list used to stay on the phone and could not tell who was
+ * already on Parea. It can now, on these terms: the numbers go once, in one
+ * request (`onParea.find`), are matched against the people who proved a
+ * number and chose to be found by it, and are dropped — the server keeps
+ * none of them, and the people who matched nothing are simply not here.
  *
- * The cost is that the list cannot tell who is already here — that would take
- * the numbers to the server — so it says so in a line, and anybody it offers
- * an invite to may turn out to have an account.
+ * Only on a build whose permission dialog says so. Build 7 asked for contacts
+ * in the words "never uploaded", and an update cannot change a dialog, so
+ * there `onParea` is not passed and this is the invite list it always was.
+ * This file still does not import the API client: the one way out is the
+ * callback, and a test holds it to that.
  *
  * ## An invite is a text from you
  *
@@ -24,13 +27,14 @@
  */
 
 import * as Contacts from 'expo-contacts';
+import { Image as ExpoImage } from 'expo-image';
 import * as SMS from 'expo-sms';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Linking, Platform, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 
 import type { GroupTheme } from './Groups';
-import { inviteText, toRows, type PhoneContact } from './invite';
-import { initialOf } from './lens';
+import { inviteText, toE164, toRows, type PhoneContact } from './invite';
+import { initialOf, lensFor } from './lens';
 
 type ButtonComponent = (props: {
   label: string;
@@ -45,15 +49,37 @@ const PAGE = 40;
 
 type Access = 'checking' | 'ask' | 'denied' | 'granted';
 
+/** Somebody on Parea whose number is in your contacts. `ContactMatch` in the API client. */
+type OnParea = {
+  actorId: string;
+  handle: string | null;
+  displayName: string | null;
+  avatar: string | null;
+  standing?: 'friends' | 'asked' | 'asking' | 'none' | 'self';
+  number: string;
+};
+
 export function InviteContacts({
   t,
   Button,
   link,
+  onParea,
 }: {
   t: GroupTheme;
   Button: ButtonComponent;
   /** What the text carries: your profile, so they land on somebody they know. */
   link: string;
+  /**
+   * Checking the contacts against Parea, on a build that may. Absent, nothing
+   * leaves the phone. See the note at the top.
+   */
+  onParea?: {
+    /** The country a local number in the contacts is read as. */
+    dialCode: string;
+    find: (numbers: string[]) => Promise<OnParea[]>;
+    add: (actorId: string) => Promise<void>;
+    open: (handle: string) => void;
+  };
 }) {
   const [access, setAccess] = useState<Access>('checking');
   const [rows, setRows] = useState<PhoneContact[] | null>(null);
@@ -61,6 +87,57 @@ export function InviteContacts({
   const [shown, setShown] = useState(PAGE);
   /** Who has been texted from here, this visit. Nothing about it is kept. */
   const [invited, setInvited] = useState<Record<string, true>>({});
+  /** Contacts on Parea, by contact row id. Null until asked, or with nothing to ask. */
+  const [here, setHere] = useState<Record<string, OnParea> | null>(null);
+  /** Asks sent from here, this visit. */
+  const [asked, setAsked] = useState<Record<string, 'asking' | 'asked'>>({});
+
+  const find = onParea?.find;
+  const dialCode = onParea?.dialCode;
+  useEffect(() => {
+    if (!rows || rows.length === 0 || !find || !dialCode) return;
+    // One request, numbers only — no names, no labels — each sent once.
+    const byNumber = new Map<string, string[]>();
+    for (const row of rows) {
+      const e164 = toE164(row.number, dialCode);
+      if (e164) byNumber.set(e164, [...(byNumber.get(e164) ?? []), row.id]);
+    }
+    if (byNumber.size === 0) return;
+    let live = true;
+    void find([...byNumber.keys()])
+      .then((people) => {
+        if (!live) return;
+        const next: Record<string, OnParea> = {};
+        for (const person of people) {
+          for (const id of byNumber.get(person.number) ?? []) next[id] = person;
+        }
+        setHere(next);
+      })
+      // Not knowing who is here is the list as it was: everybody gets Invite.
+      .catch(() => {});
+    return () => {
+      live = false;
+    };
+  }, [rows, find, dialCode]);
+
+  const add = onParea?.add;
+  const askToBeFriends = useCallback(
+    async (person: OnParea) => {
+      if (!add) return;
+      setAsked((was) => ({ ...was, [person.actorId]: 'asking' }));
+      try {
+        await add(person.actorId);
+        setAsked((was) => ({ ...was, [person.actorId]: 'asked' }));
+      } catch {
+        setAsked((was) => {
+          const next = { ...was };
+          delete next[person.actorId];
+          return next;
+        });
+      }
+    },
+    [add],
+  );
 
   const read = useCallback(async () => {
     try {
@@ -115,26 +192,107 @@ export function InviteContacts({
     [link],
   );
 
+  /** On Parea, once each — two contacts can hold one person's number. */
+  const onHere = useMemo(() => {
+    if (!rows || !here) return [];
+    const seen = new Set<string>();
+    const out: { row: PhoneContact; person: OnParea }[] = [];
+    for (const row of rows) {
+      const person = here[row.id];
+      if (!person || seen.has(person.actorId)) continue;
+      seen.add(person.actorId);
+      out.push({ row, person });
+    }
+    return out;
+  }, [rows, here]);
+
   const matching = useMemo(() => {
     if (!rows) return [];
+    const invitable = here ? rows.filter((r) => !here[r.id]) : rows;
     const q = filter.trim().toLowerCase();
-    if (!q) return rows;
+    if (!q) return invitable;
     const digits = q.replace(/\D/g, '');
-    return rows.filter(
+    return invitable.filter(
       (r) =>
         r.name.toLowerCase().includes(q) ||
         (digits.length >= 3 && r.number.replace(/\D/g, '').includes(digits)),
     );
-  }, [rows, filter]);
+  }, [rows, here, filter]);
 
   if (access === 'checking') return null;
 
   return (
     <View style={styles.section}>
+      {onHere.length > 0 && onParea && (
+        <>
+          <Text style={[styles.sectionTitle, { color: t.fg }]}>Already on Parea</Text>
+          <View style={[styles.list, { backgroundColor: t.card, borderColor: t.line }]}>
+            {onHere.map(({ row, person }, i) => {
+              const standing = (asked[person.actorId] as OnParea['standing'] | undefined) ?? person.standing ?? 'none';
+              const lens = lensFor(person.handle ?? person.actorId);
+              return (
+                <Pressable
+                  key={person.actorId}
+                  onPress={() => person.handle && onParea.open(person.handle)}
+                  accessibilityRole="button"
+                  accessibilityLabel={`${row.name}, on Parea`}
+                  style={({ pressed }) => [
+                    styles.row,
+                    i > 0 && { borderTopWidth: 1, borderTopColor: t.line },
+                    { opacity: pressed ? 0.85 : 1 },
+                  ]}
+                >
+                  {person.avatar ? (
+                    <ExpoImage source={{ uri: person.avatar }} style={styles.disc} contentFit="cover" transition={120} />
+                  ) : (
+                    <View style={[styles.disc, { backgroundColor: lens.fill }]}>
+                      <Text style={[styles.initial, { color: lens.ink }]}>{initialOf(row.name)}</Text>
+                    </View>
+                  )}
+                  <View style={styles.rowText}>
+                    {/* Your name for them first: it is your contact. */}
+                    <Text style={[styles.rowName, { color: t.fg }]} numberOfLines={1}>
+                      {row.name}
+                    </Text>
+                    <Text style={[styles.small, { color: t.dim }]} numberOfLines={1}>
+                      {person.handle ? `@${person.handle}` : person.displayName ?? 'On Parea'}
+                    </Text>
+                  </View>
+                  {standing === 'friends' ? (
+                    <Text style={[styles.done, { color: t.dim }]}>Friends</Text>
+                  ) : standing === 'asked' ? (
+                    <Text style={[styles.done, { color: t.dim }]}>Asked</Text>
+                  ) : (
+                    <Pressable
+                      onPress={() => void askToBeFriends(person)}
+                      disabled={standing === 'asking'}
+                      accessibilityRole="button"
+                      accessibilityLabel={`Add ${row.name} as a friend`}
+                      hitSlop={8}
+                      style={({ pressed }) => [
+                        styles.invite,
+                        {
+                          backgroundColor: t.accent,
+                          borderColor: t.accent,
+                          opacity: standing === 'asking' ? 0.6 : pressed ? 0.8 : 1,
+                        },
+                      ]}
+                    >
+                      <Text style={[styles.inviteText, { color: t.onAccent }]}>Add</Text>
+                    </Pressable>
+                  )}
+                </Pressable>
+              );
+            })}
+          </View>
+        </>
+      )}
+
       <Text style={[styles.sectionTitle, { color: t.fg }]}>Invite your contacts</Text>
       <Text style={[styles.small, { color: t.dim }]}>
-        Your contacts stay on this phone. Parea never sees them, so it cannot
-        tell who is already here, and an invite is a text from you.
+        {onParea
+          ? 'Parea checks the numbers in your contacts against people who chose to be found by theirs, and keeps none of them. An invite is a text from you.'
+          : 'Your contacts stay on this phone. Parea never sees them, so it cannot tell who is already here, and an invite is a text from you.'}
       </Text>
 
       {access === 'ask' && (

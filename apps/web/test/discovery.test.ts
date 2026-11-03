@@ -31,6 +31,7 @@ import { fileURLToPath } from 'node:url';
 import { beforeAll, beforeEach, describe, expect, it } from 'vitest';
 
 import type { Db } from '@/db';
+import { stripComments } from './support/source';
 import { newLinkToken } from '@parea/core';
 import {
   findByEmail,
@@ -681,20 +682,32 @@ describe('no address book', () => {
   const source = (name: string) =>
     readFileSync(fileURLToPath(new URL(name, import.meta.url).href), 'utf8');
 
-  it('never receives an address book from either client', () => {
+  it('takes an address book at one door, and keeps nothing it carried', () => {
     /*
-     * The promise the whole design rests on, and the one no behavioural
-     * assertion above can protect: an uploaded address book is a list of people
-     * who never agreed to anything, and it would be one commit away.
+     * The promise used to be that no address book ever arrived. It arrives now
+     * — to say which of somebody's contacts are already here — and the promise
+     * that replaces it is the one that matters to the people in it: nothing is
+     * kept. One route, one client call, and neither writes nor logs.
      *
-     * The app does read the contacts now — to list them with an Invite beside
-     * each — and its permission string says they are never uploaded. The app's
-     * own tests hold the reader to that; this one holds the promise to the
-     * dialog that makes it.
+     * The app asks only on a build whose permission dialog says so; the app's
+     * own tests hold that, and this one holds the server to "never stored".
      */
-    const manifest = source('../../mobile/app.json');
-    expect(manifest).toMatch(/"contactsPermission": "[^"]*never uploaded/);
-    expect(source('../../mobile/src/api.ts')).not.toMatch(/contacts/i);
+    const api = stripComments(source('../../mobile/src/api.ts'));
+    expect(api.match(/\/api\/people\/contacts/g)?.length).toBe(1);
+
+    const route = stripComments(source('../app/api/people/contacts/route.ts'));
+    expect(route).not.toMatch(/\.insert\(|\.update\(|console\./);
+
+    const friends = source('../src/friends.ts');
+    const lookup = stripComments(
+      friends.slice(friends.indexOf('export async function findContacts'), friends.indexOf('export async function findByEmail')),
+    );
+    expect(lookup).not.toBe('');
+    expect(lookup).not.toMatch(/\.insert\(|\.update\(|console\./);
+    // findByPhone's terms exactly: proved, discoverable, reachable.
+    expect(lookup).toMatch(/isNotNull\(schema\.actors\.phoneVerifiedAt\)/);
+    expect(lookup).toMatch(/discoverableOnly/);
+    expect(lookup).toMatch(/reachable\(actorId\)/);
   });
 
   it('builds recommendations out of rolls, groups and friendships only', () => {

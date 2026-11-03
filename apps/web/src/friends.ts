@@ -15,7 +15,7 @@
  */
 
 import { handleKey, normaliseEmail, schema } from '@parea/core';
-import { and, eq, isNotNull, isNull, ne, not, or, sql } from 'drizzle-orm';
+import { and, eq, inArray, isNotNull, isNull, ne, not, or, sql } from 'drizzle-orm';
 
 import type { Db } from './db';
 import { blockedBetween } from './moderation';
@@ -465,6 +465,52 @@ export async function findByPhone(
     .limit(1);
 
   return rows;
+}
+
+/** Most numbers one address book check may carry. A large phone, not a phone book. */
+export const MAX_CONTACT_NUMBERS = 3000;
+
+/**
+ * Which of somebody's contacts are already here: `findByPhone`, for an address
+ * book at once.
+ *
+ * On exactly its terms — a proved number, an owner still discoverable, nobody
+ * blocked either way, never yourself — because a number in your contacts is
+ * the same introduction as a number typed into the search. What is different
+ * is only how many, so the caller is bounded (`MAX_CONTACT_NUMBERS`, and
+ * `CONTACTS_MATCH_LIMIT` on the route) rather than the rule.
+ *
+ * The numbers are hashed and compared and that is the end of them: nothing is
+ * written, logged or kept, and a number that matches nobody — somebody who is
+ * not here and never agreed to anything — is gone with the request. Each match
+ * comes back with the number the caller sent for it, so the phone can say which
+ * of its contacts this is; nothing goes back that the caller did not send.
+ */
+export async function findContacts(
+  db: Db,
+  actorId: string,
+  numbers: string[],
+): Promise<(FoundPerson & { number: string })[]> {
+  const byHash = new Map<string, string>();
+  for (const raw of numbers.slice(0, MAX_CONTACT_NUMBERS)) {
+    const e164 = typeof raw === 'string' ? normalisePhone(raw) : null;
+    if (e164) byHash.set(hashPhone(e164), raw);
+  }
+  if (byHash.size === 0) return [];
+
+  const rows = await db
+    .select({ ...found(actorId), phoneHash: schema.actors.phoneHash })
+    .from(schema.actors)
+    .where(
+      and(
+        inArray(schema.actors.phoneHash, [...byHash.keys()]),
+        isNotNull(schema.actors.phoneVerifiedAt),
+        discoverableOnly,
+        reachable(actorId),
+      ),
+    );
+
+  return rows.map(({ phoneHash, ...person }) => ({ ...person, number: byHash.get(phoneHash!)! }));
 }
 
 /**
