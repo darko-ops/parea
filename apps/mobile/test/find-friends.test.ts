@@ -79,7 +79,9 @@ describe('the address book stays on the phone', () => {
   });
 
   it('says so in the permission dialog and on the screen', () => {
-    expect(read('app.json')).toMatch(/"contactsPermission": "[^"]*never uploaded/);
+    // The dialog says what the build does: checked against Parea, never stored.
+    expect(read('app.json')).toMatch(/"contactsPermission": "[^"]*never stored/);
+    expect(read('app.json')).not.toMatch(/never uploaded/);
     expect(SCREEN).toMatch(/contacts never leave your phone/i);
     expect(INVITE).toMatch(/Your contacts stay on this phone/);
   });
