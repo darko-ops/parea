@@ -769,6 +769,38 @@ export default function App() {
   );
 
   /**
+   * Out of the queue, for a photograph somebody has given up on adding — a
+   * failed or stale one, never one still going. Through `serial` and into the
+   * running queue when there is one, as `addUploads` is, so the run's next
+   * save does not put it back. Its stand-in goes with it; see `nextPreviews`.
+   */
+  const forgetUploads = useCallback(
+    (sources: string[]) =>
+      serial(async () => {
+        const running = live.current;
+        if (running) {
+          running.forget(sources);
+          await saveQueue(running.state);
+          setUploads({ items: [...running.state.items] });
+          return;
+        }
+        const queue = new UploadQueue(
+          {
+            presign: async () => [],
+            upload: async () => {},
+            complete: async () => {},
+            save: async () => {},
+          },
+          await loadQueue(),
+        );
+        queue.forget(sources);
+        await saveQueue(queue.state);
+        setUploads({ items: [...queue.state.items] });
+      }),
+    [serial],
+  );
+
+  /**
    * The one album whose cover was given up on, until somebody has been told.
    *
    * Given up on is the only outcome worth saying out loud — a cover that is
@@ -1661,6 +1693,7 @@ export default function App() {
             uploads={uploads}
             onRunUploads={runUploads}
             onAddUploads={addUploads}
+            onForgetUploads={forgetUploads}
             previews={previews[route.event.id] ?? NO_PREVIEWS}
             onFeedSeen={feedSeen}
             webBase={API_BASE}
@@ -2545,6 +2578,7 @@ function EventScreen({
   uploads,
   onRunUploads,
   onAddUploads,
+  onForgetUploads,
   previews,
   onFeedSeen,
   webBase,
@@ -2617,6 +2651,8 @@ function EventScreen({
     linkToken: string,
     files: { id: string; source: string; name: string; size: number; mime: string }[],
   ) => Promise<void>;
+  /** Out of the queue, by source. See `forgetUploads`. */
+  onForgetUploads: (sources: string[]) => Promise<void>;
   /**
    * This roll's stand-ins, and where to say what its feed holds.
    *
@@ -4542,6 +4578,40 @@ function EventScreen({
     [api, event.linkToken, loadDrafts, pickFromLibrary],
   );
 
+  /**
+   * And the same question for a stand-in this phone gave up on: try it again
+   * (or, when its bytes are gone, choose it again), or take it out of the roll.
+   * Removing it drops it from the queue and, once a presign has given it a
+   * row, that row too — or it would come back as a draft on the next look.
+   */
+  const actOnStandIn = useCallback(
+    (item: StandIn) => {
+      const remove = {
+        text: 'Remove',
+        style: 'destructive' as const,
+        onPress: () => {
+          void onForgetUploads([item.copy]).then(() => {
+            if (item.photoId) void api.removeDraft(item.photoId).catch(() => {}).finally(loadDrafts);
+          });
+        },
+      };
+      if (item.state === 'failed') {
+        Alert.alert('Didn’t upload', 'Try it again, or take it out of the roll.', [
+          { text: 'Try again', onPress: () => void retryStuck() },
+          remove,
+          { text: 'Cancel', style: 'cancel' },
+        ]);
+        return;
+      }
+      Alert.alert('Choose it again', 'This photo can’t be read from your phone any more. Pick it again to add it, or take it out of the roll.', [
+        { text: 'Choose again', onPress: () => void pickFromLibrary() },
+        remove,
+        { text: 'Cancel', style: 'cancel' },
+      ]);
+    },
+    [api, loadDrafts, onForgetUploads, pickFromLibrary, retryStuck],
+  );
+
   const renderDraft = useCallback(
     (item: DraftTile) => {
       const stuck = item.state === 'failed' || item.state === 'needs_file';
@@ -4551,7 +4621,7 @@ function EventScreen({
           : item.state === 'processing'
             ? 'Processing'
             : item.state === 'failed'
-              ? 'Tap to retry'
+              ? 'Retry or remove'
               : 'Didn’t upload';
       return (
         <Pressable
@@ -4599,13 +4669,15 @@ function EventScreen({
       return (
         <Pressable
           style={{ width: gridTile, height: gridTile }}
-          disabled={item.state !== 'failed'}
-          onPress={() => void retryStuck()}
-          accessibilityRole={item.state === 'failed' ? 'button' : 'image'}
+          disabled={!trouble}
+          onPress={() => actOnStandIn(item)}
+          accessibilityRole={trouble ? 'button' : 'image'}
           accessibilityLabel={
             item.state === 'failed'
-              ? 'A photo that didn’t upload. Try again'
-              : `A photo you are adding. ${previewLabel(item.state)}`
+              ? 'A photo that didn’t upload. Try again or remove it'
+              : item.state === 'stale'
+                ? 'A photo that didn’t upload. Choose it again or remove it'
+                : `A photo you are adding. ${previewLabel(item.state)}`
           }
         >
           <ExpoImage
@@ -4624,7 +4696,7 @@ function EventScreen({
               </View>
             )}
             <Text style={styles.standInLabel} numberOfLines={1}>
-              {item.state === 'failed' ? 'Tap to retry' : previewLabel(item.state)}
+              {item.state === 'failed' ? 'Retry or remove' : previewLabel(item.state)}
             </Text>
           </View>
           {/*
@@ -4643,7 +4715,7 @@ function EventScreen({
         </Pressable>
       );
     },
-    [gridTile, retryStuck],
+    [gridTile, actOnStandIn],
   );
 
   const renderTile = useCallback(

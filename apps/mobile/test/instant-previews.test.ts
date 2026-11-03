@@ -265,12 +265,24 @@ describe('the roll’s grid', () => {
     expect(APP).toMatch(/`\$\{feed\.count\} \$\{feed\.count === 1 \? 'photo' : 'photos'\}`/);
   });
 
-  it('draws a stand-in that opens nothing but a retry', () => {
+  it('draws a stand-in that opens nothing but what to do about a failure', () => {
     const tile = APP.slice(APP.indexOf('const renderStandIn'), APP.indexOf('const renderTile'));
     expect(tile).not.toMatch(/setSelected|setScope/);
-    expect(tile).toMatch(/disabled=\{item\.state !== 'failed'\}/);
-    expect(tile).toMatch(/onPress=\{\(\) => void retryStuck\(\)\}/);
+    expect(tile).toMatch(/disabled=\{!trouble\}/);
+    expect(tile).toMatch(/onPress=\{\(\) => actOnStandIn\(item\)\}/);
     expect(APP).toMatch(/if \(isStandIn\(item\)\) return renderStandIn\(item\);/);
+  });
+
+  it('lets a stand-in that gave up be removed from the roll, row and all', () => {
+    const act = APP.slice(APP.indexOf('const actOnStandIn'), APP.indexOf('const renderDraft'));
+    expect(act).toMatch(/text: 'Try again', onPress: \(\) => void retryStuck\(\)/);
+    expect(act).toMatch(/text: 'Choose again'/);
+    expect(act).toMatch(/onForgetUploads\(\[item\.copy\]\)/);
+    expect(act).toMatch(/api\.removeDraft\(item\.photoId\)/);
+    // Through the queue lock and into a running queue, so a save cannot put it back.
+    const forget = APP.slice(APP.indexOf('const forgetUploads'), APP.indexOf('const forgetUploads') + 900);
+    expect(forget).toMatch(/serial\(async/);
+    expect(forget).toMatch(/running\.forget\(sources\)/);
   });
 
   it('decodes the phone’s copy at the tile’s size, not the camera’s', () => {
