@@ -99,9 +99,18 @@ export async function imageDataHash(path: string): Promise<string | null> {
   return value.length > 0 ? value : null;
 }
 
+/**
+ * Writing with `-m`: exiftool otherwise refuses to rewrite a file over a
+ * "[minor]" error — an IFD0 tag whose value overlaps the IFD, which some
+ * phone apps write — and the photo was failed for a fault in metadata it was
+ * about to rewrite anyway. A minor error is one exiftool can write past; the
+ * pixel hash and the private-metadata check after the strip still decide.
+ */
+const WRITE_ARGS = ['-m', '-overwrite_original', '-q'];
+
 /** Rewrites `path` in place. Throws if exiftool cannot write the format. */
 export async function stripPrivateMetadata(path: string): Promise<void> {
-  await exiftool(['-overwrite_original', '-q', ...STRIP_ARGS, path]);
+  await exiftool([...WRITE_ARGS, ...STRIP_ARGS, path]);
 }
 
 export async function extractMetadata(path: string): Promise<ExtractedMetadata> {
@@ -261,7 +270,7 @@ export async function stripAndVerify(path: string): Promise<StripOutcome> {
     '-echo3', SPLIT, '-echo4', SPLIT,
     '-execute',
     // 2. The strip.
-    '-overwrite_original', '-q', ...STRIP_ARGS, path,
+    ...WRITE_ARGS, ...STRIP_ARGS, path,
     '-echo3', SPLIT, '-echo4', SPLIT,
     '-execute',
     // 3. The pixels after, anything private left, and what the photo says
