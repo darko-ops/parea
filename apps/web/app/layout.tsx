@@ -3,6 +3,7 @@ import type { Metadata } from 'next';
 import { headers } from 'next/headers';
 import { redirect } from 'next/navigation';
 
+import { GetTheApp } from '@/../app/components/GetTheApp';
 import { SignInPage } from '@/../app/components/SignInPage';
 import { isSignedIn } from '@/access';
 import { getDb } from '@/db';
@@ -47,6 +48,11 @@ export const metadata: Metadata = {
   title: { default: `Parea — ${TITLE}`, template: '%s · Parea' },
   description: DESCRIPTION,
   applicationName: 'Parea',
+  /*
+   * Safari's Smart App Banner: "Get" on an iPhone without the app, "Open" on
+   * one with it. Other iOS browsers ignore the tag and get `GetTheApp`.
+   */
+  itunes: { appId: '6819904142' },
   openGraph: {
     type: 'website',
     siteName: 'Parea',
@@ -139,7 +145,10 @@ export default async function RootLayout({ children }: { children: React.ReactNo
         <script nonce={nonce} dangerouslySetInnerHTML={{ __html: CHOOSE }} />
         <script type="application/ld+json" nonce={nonce} dangerouslySetInnerHTML={{ __html: STRUCTURED }} />
       </head>
-      <body>{shown === 'show' ? children : <SignInPage />}</body>
+      <body>
+        {shown === 'show' ? children : <SignInPage />}
+        <GetTheApp />
+      </body>
     </html>
   );
 }

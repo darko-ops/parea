@@ -5952,3 +5952,57 @@ button.link {
   .spinner .spinner-moving { display: none !important; }
   .spinner .spinner-still { display: block !important; color: var(--fg); }
 }
+
+/* ---------------------------------------------------------------------------
+   Get the app — see GetTheApp.tsx. A card along the foot of the screen,
+   above the home indicator, on iOS browsers Safari's own banner does not
+   reach.
+   --------------------------------------------------------------------------- */
+.get-app {
+  position: fixed;
+  left: 12px;
+  right: 12px;
+  bottom: calc(12px + env(safe-area-inset-bottom));
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 12px 12px 12px;
+  background: var(--card);
+  color: var(--fg);
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, .18);
+  animation: get-app-in .28s ease-out;
+}
+.get-app-icon { width: 48px; height: 48px; border-radius: 11px; flex: none; }
+.get-app-text { display: flex; flex-direction: column; gap: 2px; min-width: 0; flex: 1; }
+.get-app-text strong { font-size: 15px; font-weight: 600; }
+.get-app-text span { font-size: 13px; color: var(--dim); line-height: 1.3; }
+.get-app-get {
+  flex: none;
+  padding: 8px 18px;
+  border-radius: 999px;
+  background: var(--accent);
+  color: var(--on-accent);
+  font-weight: 600;
+  font-size: 15px;
+  text-decoration: none;
+}
+.get-app-close {
+  flex: none;
+  width: 28px;
+  height: 28px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--accent-soft);
+  color: var(--dim);
+  font-size: 18px;
+  line-height: 1;
+  cursor: pointer;
+}
+@keyframes get-app-in {
+  from { transform: translateY(24px); opacity: 0; }
+  to { transform: none; opacity: 1; }
+}
+@media (prefers-reduced-motion: reduce) { .get-app { animation: none; } }
