@@ -17,16 +17,26 @@
  * The photograph is reached through `guard`, so the ordinary rule holds: if you
  * cannot see the event you cannot do anything to its photographs, whichever of
  * the two you are.
+ *
+ * **Somebody not in the roll is asked into it.** A tag still must not point at
+ * a person who cannot open the photograph and so cannot take it off — so
+ * tagging somebody from outside sends them an invitation to the roll, the same
+ * one Invite people sends, and they see it (and can remove it) when they come
+ * in. Only where the tagger could have invited them anyway: whoever runs the
+ * roll, or anybody in a public one outside a group. Elsewhere it is refused,
+ * because a tag is not a way round a host's guest list.
  */
 
 import { schema, visiblePhotos } from '@parea/core';
 import { and, eq } from 'drizzle-orm';
 import { NextResponse } from 'next/server';
 
-import { findEventById, guard, toResponse } from '@/access';
+import { decide, findEventById, guard, toResponse } from '@/access';
 import { getDb } from '@/db';
+import { invitable } from '@/friends';
+import { askIntoEvent, mayAskIn } from '@/invites';
 import { membersOf } from '@/members';
-import { nameOf, notifyPhotoTagged } from '@/notify';
+import { nameOf, notifyEventInvite, notifyPhotoTagged } from '@/notify';
 import { blockedEitherWay, viewerContext } from '@/moderation';
 import { tagPhoto, untagPhoto } from '@/photoTags';
 import { currentAccountActorId, currentActorId, requesterFor } from '@/session';
@@ -95,25 +105,49 @@ export async function POST(
   const target = typeof body.actorId === 'string' ? body.actorId : null;
   if (!target) return NextResponse.json({ error: 'bad_request' }, { status: 400 });
 
-  /*
-   * Only somebody already in the event.
-   *
-   * Tagging must not be a way to point at a person who cannot open the album
-   * and therefore cannot object to being pointed at. Checked here rather than
-   * trusted from the client, because the client's picker is a convenience and
-   * this is the rule.
-   */
-  const members = await membersOf(db, found.event.id, found.event.createdBy);
-  // Nor somebody across a block, either way. The same answer as not being in
-  // the album, so a tag attempt is not a way to learn that a block exists.
-  if (
-    !members.some((member) => member.actorId === target) ||
-    (await blockedEitherWay(db, actorId, target))
-  ) {
+  // Nobody across a block, either way — the same answer as somebody who
+  // cannot be found, so a tag attempt is not a way to learn a block exists.
+  if (await blockedEitherWay(db, actorId, target)) {
     return NextResponse.json({ error: 'not_in_event' }, { status: 403 });
   }
 
+  /*
+   * Somebody in the roll is tagged. Somebody outside it is asked in as well —
+   * see the header — where the tagger could have asked them in anyway, and is
+   * otherwise refused. Checked here rather than trusted from the client,
+   * because the picker is a convenience and this is the rule.
+   */
+  const members = await membersOf(db, found.event.id, found.event.createdBy);
+  const outside = !members.some((member) => member.actorId === target);
+  let invited = false;
+  if (outside) {
+    const mayInvite =
+      !found.event.groupId &&
+      ((await decide(db, found.event, 'administer', await requesterFor(found.event.id))).allow ||
+        (await mayAskIn(db, found.event, actorId)));
+    if (!mayInvite) return NextResponse.json({ error: 'cannot_invite' }, { status: 403 });
+    if (!(await invitable(db, actorId, target))) {
+      return NextResponse.json({ error: 'not_in_event' }, { status: 403 });
+    }
+    invited = await askIntoEvent(db, found.event.id, actorId, target);
+  }
+
   await tagPhoto(db, found.photo.id, target, actorId);
+
+  // Somebody asked in hears about the invitation, which is where they can act:
+  // a "tagged you" push would open a roll they are not in yet. Asked once
+  // already, they are not pushed again.
+  if (outside) {
+    if (invited) {
+      void notifyEventInvite(db, {
+        actorIds: [target],
+        eventId: found.event.id,
+        eventName: found.event.name,
+        who: await nameOf(db, actorId),
+      });
+    }
+    return NextResponse.json({ tagged: true, invited: true });
+  }
 
   /*
    * And tell them, which is most of the point.

@@ -12,7 +12,9 @@ const ROUTE = readFileSync(
   fileURLToPath(new URL('../app/api/events/[id]/invites/route.ts', import.meta.url)),
   'utf8',
 );
-const ask = ROUTE.slice(ROUTE.indexOf('async function mayAskIn'), ROUTE.indexOf('const MAX_PER_REQUEST'));
+// Shared with tagging, which asks people in on the same terms — see `@/invites`.
+const INVITES = readFileSync(fileURLToPath(new URL('../src/invites.ts', import.meta.url)), 'utf8');
+const ask = INVITES.slice(INVITES.indexOf('export async function mayAskIn'), INVITES.indexOf('export async function askIntoEvent'));
 
 describe('inviting from a public roll', () => {
   it('lets in whoever runs it, or somebody in it', () => {

@@ -513,24 +513,28 @@ describe('the photo options', () => {
     }
   });
 
-  it('tags from the roll’s own people, not from everybody', () => {
+  it('offers the roll’s own people first, and finds anybody else by search', () => {
     /*
-     * The server refuses a tag on somebody who is not in the event — tagging is
-     * not a way to point at a person who cannot open the album and so cannot
-     * object. The picker offers exactly what the server accepts, rather than
-     * searching every account and finding out on submit.
+     * Tagging somebody outside the roll asks them into it — the server sends
+     * the invitation, where the tagger could have sent one anyway — so the
+     * picker searches everybody, and says above those it found that tagging
+     * them asks them in.
      */
     const sheet = APP.slice(APP.indexOf('function PhotoActions'), APP.indexOf('// --- chrome ---'));
     expect(sheet).toMatch(/members: Member\[\]/);
-    expect(sheet).not.toMatch(/findPeople/);
     expect(APP).toMatch(/members=\{feed\?\.members \?\? \[\]\}/);
+    expect(sheet).toMatch(/\.findPeople\(q\)/);
+    expect(sheet).toMatch(/Not in this roll — tagging asks them in\./);
+    // Where the server refuses, it says who can ask them in instead.
+    expect(sheet).toMatch(/err\.code === 'cannot_invite'/);
   });
 
   it('lets a tag be taken off from here as well as added', () => {
-    // The uploader put it on, so the uploader can take it off. The person
-    // tagged can too, from their own side — the route allows both.
+    // The uploader put it on, so the uploader can take it off — somebody tagged
+    // from the search as well as somebody in the roll.
     const sheet = APP.slice(APP.indexOf('function PhotoActions'), APP.indexOf('// --- chrome ---'));
-    expect(sheet).toMatch(/\.untagPhoto\(photo\.id, member\.actorId\)/);
+    expect(sheet).toMatch(/member\?\.actorId \?\? \(who\.handle \? fromSearch\.current\.get\(who\.handle\) : undefined\)/);
+    expect(sheet).toMatch(/\.untagPhoto\(photo\.id, actorId\)/);
     expect(sheet).toMatch(/api\.tagPhoto\(photo\.id, actorId\)/);
   });
 

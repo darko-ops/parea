@@ -5871,12 +5871,9 @@ function EventScreen({
                 feed?.photos.find((p) => p.id === actionsFor.id) ?? actionsFor
               }
               /*
-                Who may be tagged: the people already in this album.
-
-                Not a search of everybody with an account. A tag is a claim
-                about somebody's face, and pointing at a person who cannot open
-                the album — and so cannot object — is the thing the server
-                refuses anyway. The picker offers what the server accepts.
+                Offered first when tagging: the people already in this album.
+                Anybody else is found by search, and tagging them asks them in
+                — see `PhotoActions`.
               */
               members={feed?.members ?? []}
               t={t}
@@ -7291,7 +7288,7 @@ function PhotoActions({
 }: {
   api: Api;
   photo: FeedPhoto;
-  /** The album's own people — the only ones who may be tagged. */
+  /** The album's own people, offered first. Anybody else is found by search. */
   members: Member[];
   t: Theme;
   onClose: () => void;
@@ -7300,6 +7297,36 @@ function PhotoActions({
   const [busy, setBusy] = useState(false);
   const [tagging, setTagging] = useState(false);
   const [term, setTerm] = useState('');
+  /** Everybody the search found for `term`, members or not. */
+  const [found, setFound] = useState<InvitablePerson[]>([]);
+  /**
+   * People tagged from the search, by handle, so their chip can be taken off
+   * again: they are not in `members`, which is where a chip finds its id.
+   */
+  const fromSearch = useRef(new Map<string, string>());
+
+  /*
+   * Anybody, by name or handle — the endpoint Find uses — once two letters are
+   * in, and a moment after the last one, so a name typed is one request.
+   */
+  useEffect(() => {
+    const q = term.trim();
+    if (!tagging || q.length < 2) {
+      setFound([]);
+      return;
+    }
+    let live = true;
+    const timer = setTimeout(() => {
+      void api
+        .findPeople(q)
+        .then((people) => live && setFound(people))
+        .catch(() => live && setFound([]));
+    }, 250);
+    return () => {
+      live = false;
+      clearTimeout(timer);
+    };
+  }, [api, term, tagging]);
 
   const act = async (label: string, fn: () => Promise<unknown>, done: string) => {
     setBusy(true);
@@ -7376,14 +7403,32 @@ function PhotoActions({
             .includes(term.trim().toLowerCase()),
     );
 
-  const tag = async (actorId: string) => {
+  /*
+   * And from the search, the people who are not here yet. Tagging one asks
+   * them into the roll — the server sends the invitation, and they see the tag
+   * when they come in — so the list says so above them.
+   */
+  const memberIds = new Set(members.map((member) => member.actorId));
+  const outsiders = found
+    .filter((person) => !memberIds.has(person.actorId))
+    .filter((person) => !tagged.has(person.handle ?? person.displayName ?? ''));
+
+  const tag = async (actorId: string, outsider?: InvitablePerson) => {
     setBusy(true);
     try {
       await api.tagPhoto(photo.id, actorId);
+      if (outsider?.handle) fromSearch.current.set(outsider.handle, actorId);
       setTerm('');
       await onChanged();
-    } catch {
-      Alert.alert('Could not tag', 'Try again in a moment.');
+    } catch (err) {
+      if (err instanceof ApiError && err.code === 'cannot_invite') {
+        Alert.alert(
+          'They are not in this roll',
+          'Only whoever runs this roll can ask new people into it. Ask them to invite this person, then tag them.',
+        );
+      } else {
+        Alert.alert('Could not tag', 'Try again in a moment.');
+      }
     } finally {
       setBusy(false);
     }
@@ -7471,10 +7516,12 @@ function PhotoActions({
                             const member = members.find(
                               (m) => (m.handle ?? m.name) === (who.handle ?? who.name),
                             );
-                            if (!member) return;
+                            const actorId =
+                              member?.actorId ?? (who.handle ? fromSearch.current.get(who.handle) : undefined);
+                            if (!actorId) return;
                             setBusy(true);
                             void api
-                              .untagPhoto(photo.id, member.actorId)
+                              .untagPhoto(photo.id, actorId)
                               .then(onChanged)
                               .catch(() => {})
                               .finally(() => setBusy(false));
@@ -7533,19 +7580,18 @@ function PhotoActions({
                   )}
 
                   {/*
-                    The album's own people, filtered as you type.
-
-                    No search of everybody with an account, because the server
-                    refuses a tag on somebody who is not in the event — a tag is
-                    not a way to point at a person who cannot open the album and
-                    so cannot object. The picker offers what the server accepts.
+                    The album's own people, filtered as you type — and under
+                    them, once something is typed, anybody else the search
+                    finds, whom tagging asks in.
                   */}
                   <ScrollView style={styles.tagList} keyboardShouldPersistTaps="handled">
-                    {offerable.length === 0 ? (
+                    {offerable.length === 0 && outsiders.length === 0 ? (
                       <Text style={[styles.small, { color: t.dim }]}>
-                        {members.length === 0
-                          ? 'Nobody else is in this roll yet.'
-                          : 'Everybody here is already tagged.'}
+                        {term.trim().length >= 2
+                          ? 'Nobody by that name.'
+                          : members.length === 0
+                            ? 'Type a name to find who is in it.'
+                            : 'Everybody here is already tagged. Type a name to find somebody else.'}
                       </Text>
                     ) : (
                       offerable.map((member) => (
@@ -7566,6 +7612,34 @@ function PhotoActions({
                           )}
                         </Pressable>
                       ))
+                    )}
+                    {outsiders.length > 0 && (
+                      <>
+                        <Text style={[styles.small, styles.tagNote, { color: t.dim }]}>
+                          Not in this roll — tagging asks them in.
+                        </Text>
+                        {outsiders.map((person) => {
+                          const name = person.displayName?.trim() || (person.handle ? `@${person.handle}` : 'Someone');
+                          return (
+                            <Pressable
+                              key={person.actorId}
+                              disabled={busy}
+                              onPress={() => void tag(person.actorId, person)}
+                              accessibilityRole="button"
+                              accessibilityLabel={`Tag ${name} and ask them into the roll`}
+                              style={({ pressed }) => [
+                                styles.tagPick,
+                                { borderBottomColor: t.line, opacity: pressed ? 0.6 : 1 },
+                              ]}
+                            >
+                              <Text style={[styles.tagName, { color: t.fg }]}>{name}</Text>
+                              {person.handle && (
+                                <Text style={[styles.small, { color: t.dim }]}>@{person.handle}</Text>
+                              )}
+                            </Pressable>
+                          );
+                        })}
+                      </>
                     )}
                   </ScrollView>
 
@@ -8553,6 +8627,7 @@ const styles = StyleSheet.create({
   /* Bounded, so a room of thirty does not push the field off the sheet. */
   tagList: { maxHeight: 220 },
   tagPick: { paddingVertical: 11, borderBottomWidth: 1, gap: 2 },
+  tagNote: { paddingTop: 14, paddingBottom: 2 },
   /* The bar that rides on top of the keyboard. Right-aligned, because that is
      where every system one puts its Done. */
   keyBar: {

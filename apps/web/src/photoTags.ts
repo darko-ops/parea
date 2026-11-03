@@ -12,13 +12,15 @@
  * say who is in it, and opening it wider turns a label into a thing strangers
  * can attach to somebody's face.
  *
- * **Only people already in the event may be tagged.** Tagging is not a way to
- * point at somebody who cannot open the album and therefore cannot object. It
- * also keeps the search local: the picker offers the roster, not everybody with
- * an account.
+ * **Somebody tagged can always open the photograph.** Tagging is not a way to
+ * point at somebody who cannot see the album and therefore cannot object — so
+ * tagging somebody from outside the roll asks them into it, where the tagger
+ * could have asked them in anyway, and is refused elsewhere. That is the route,
+ * `/api/photos/[id]/tags`.
  *
  * **A tag grants nothing.** It does not add a participant row and has no
- * bearing on what anybody can open. Being named in a photograph and being able
+ * bearing on what anybody can open; an invitation that comes with one is an
+ * ordinary invitation, answered or ignored in Invites. Being named in a photograph and being able
  * to see the evening are separate questions, and conflating them would make
  * tagging a way to hand out access.
  *

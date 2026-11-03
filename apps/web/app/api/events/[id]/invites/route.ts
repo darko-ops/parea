@@ -50,40 +50,11 @@ import { decide, findEventById } from '@/access';
 import { getDb } from '@/db';
 import { invitable } from '@/friends';
 import { inviteToGroup, membershipOf, notInGroup, outsideGroup } from '@/groups';
+import { mayAskIn } from '@/invites';
 import { notifyEventInvite } from '@/notify';
 import { currentActorId, requesterFor } from '@/session';
 
 export const runtime = 'nodejs';
-
-/**
- * Somebody in a public roll they do not run may ask people into it too.
- *
- * A public roll is open to anybody with an account already — anybody could be
- * sent its link — so somebody who is in it asking a friend by name grants
- * nothing the link would not. It is an invitation all the same: it lands in
- * Invites, where it can be ignored, and blocks hold as they do for a host.
- *
- * Not on a private roll, where being in is the owner's to decide, and not on a
- * roll in a group, where the group is.
- */
-async function mayAskIn(
-  db: ReturnType<typeof getDb>,
-  event: { id: string; accessPolicy: string; groupId: string | null; deletedAt: Date | null },
-  actorId: string,
-): Promise<boolean> {
-  if (event.accessPolicy !== 'public' || event.groupId || event.deletedAt) return false;
-  const [row] = await db
-    .select({ actorId: schema.eventParticipants.actorId })
-    .from(schema.eventParticipants)
-    .where(
-      and(
-        eq(schema.eventParticipants.eventId, event.id),
-        eq(schema.eventParticipants.actorId, actorId),
-      ),
-    )
-    .limit(1);
-  return row != null;
-}
 
 /** How many people one request may add. A guest list, not a broadcast. */
 const MAX_PER_REQUEST = 50;
