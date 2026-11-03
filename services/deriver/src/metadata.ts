@@ -219,6 +219,45 @@ function asNumber(value: unknown): number | null {
   return typeof value === 'number' && Number.isFinite(value) ? value : null;
 }
 
+/**
+ * What `rebuildExif` carries across: the tags the strip keeps on purpose,
+ * named one by one, so nothing the strip would remove can come along.
+ */
+const KEPT_EXIF = [
+  '-Orientation',
+  '-DateTimeOriginal',
+  '-CreateDate',
+  '-OffsetTimeOriginal',
+  '-OffsetTime',
+  '-Make',
+  '-Model',
+  '-ExposureTime',
+  '-FNumber',
+  '-ISO',
+  '-FocalLength',
+  '-LensModel',
+];
+
+/**
+ * A new EXIF block in place of one exiftool cannot rewrite, holding only
+ * `KEPT_EXIF`. Returns whether it wrote one.
+ *
+ * For the photo the strip refuses outright: an IFD0 entry with no valid
+ * format (`Bad format (0) for IFD0 entry 9`) is something exiftool will read
+ * past but not write back, and there is no rewriting around it in place. The
+ * block is dropped whole and what the grid needs copied from the original.
+ * The pixels are not touched, and the ordinary strip and its checks still run
+ * on the result — see `processPhoto`.
+ */
+export async function rebuildExif(path: string): Promise<boolean> {
+  try {
+    await exiftool([...WRITE_ARGS, '-exif:all=', '-tagsfromfile', '@', ...KEPT_EXIF, path]);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 /** Splits one exiftool run's output between its commands — see `stripAndVerify`. */
 const SPLIT = '@@parea-split@@';
 

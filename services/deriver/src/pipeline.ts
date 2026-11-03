@@ -41,6 +41,7 @@ import {
 import {
   hasPrivateMetadata,
   imageDataHash,
+  rebuildExif,
   stripAndVerify,
   stripPrivateMetadata,
 } from './metadata';
@@ -117,7 +118,13 @@ export async function processPhoto(
     // Hash, strip, check and read in one exiftool run — see `stripAndVerify`.
     // The pixel hashes prove the strip is metadata-only; null means exiftool
     // cannot hash this format, in which case there is nothing to compare.
-    const outcome = await stripAndVerify(working);
+    let outcome = await stripAndVerify(working);
+    if (outcome.stripError && (await rebuildExif(working))) {
+      // An EXIF block exiftool could not write back, replaced — and then
+      // stripped and checked as any other. The pixels are compared with the
+      // file as it arrived, not as it was rebuilt.
+      outcome = { ...(await stripAndVerify(working)), pixelsBefore: outcome.pixelsBefore };
+    }
     const { pixelsBefore, pixelsAfter, metadata } = outcome;
 
     if (outcome.stripError) {
