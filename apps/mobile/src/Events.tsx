@@ -1433,9 +1433,10 @@ export function ChatsTab({
   /*
    * The standing conversations, by when something was last said in them.
    *
-   * A group nobody has spoken in has no message to sort by and goes last,
-   * behind every group that has one — `lastActiveAt` would sort it by album
-   * activity, which is the other tab's subject and not this one's.
+   * A group nobody has spoken in has no message to sort by and goes by when
+   * this person joined it — so a new friend's chat arrives near the top rather
+   * than under everything. Not `lastActiveAt`, which would sort it by album
+   * activity, the other tab's subject and not this one's.
    */
   /*
    * Pinned ones first, newest pin on top — the server's `chatsInOrder`, which
@@ -1449,7 +1450,7 @@ export function ChatsTab({
         .sort(
           (a, b) =>
             (b.pinnedAt ?? '').localeCompare(a.pinnedAt ?? '') ||
-            (b.lastMessage?.at ?? '').localeCompare(a.lastMessage?.at ?? ''),
+            (b.lastMessage?.at ?? b.joinedAt ?? '').localeCompare(a.lastMessage?.at ?? a.joinedAt ?? ''),
         ),
     [groups],
   );

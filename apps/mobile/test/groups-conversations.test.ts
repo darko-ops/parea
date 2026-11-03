@@ -67,11 +67,12 @@ describe('which conversations appear', () => {
     // is the wrong answer on a tab about talking.
     /*
      * The group chats, by when something was last said. A group nobody has
-     * spoken in has no message to sort by and goes last — `lastActiveAt` would
-     * sort it by album activity, which is a different tab's subject.
+     * spoken in goes by when this person joined it — a new friend's chat near
+     * the top — and never by `lastActiveAt`, album activity, which is a
+     * different tab's subject.
      */
     expect(TAB).toMatch(
-      /\(b\.lastMessage\?\.at \?\? ''\)\.localeCompare\(a\.lastMessage\?\.at \?\? ''\)/,
+      /\(b\.lastMessage\?\.at \?\? b\.joinedAt \?\? ''\)\.localeCompare\(a\.lastMessage\?\.at \?\? a\.joinedAt \?\? ''\)/,
     );
   });
 

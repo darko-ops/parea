@@ -13,9 +13,10 @@ import { and, eq, or } from 'drizzle-orm';
 import { NextResponse } from 'next/server';
 
 import { isSignedIn } from '@/access';
-import { getDb } from '@/db';
+import { getDb, type Db } from '@/db';
 import { avatarUrl } from '@/accounts';
 import { befriend, friendsOf, requestsFor, unfriend } from '@/friends';
+import { ensureDirectChat } from '@/groups';
 import { notifyFriendRequest } from '@/notify';
 import { currentActorId } from '@/session';
 
@@ -131,6 +132,7 @@ export async function POST(request: Request) {
 
   if (incoming) {
     await befriend(db, actorId, target);
+    await openChat(db, actorId, target);
     await db
       .update(schema.friendRequests)
       .set({ status: 'accepted', resolvedAt: new Date() })
@@ -208,7 +210,10 @@ export async function PATCH(request: Request) {
   // The friendship first, for the same reason the event approval writes the
   // participant row first: a crash between the two leaves a request somebody
   // can answer again, rather than an answer that granted nothing.
-  if (action === 'accept') await befriend(db, actorId, row.fromActorId);
+  if (action === 'accept') {
+    await befriend(db, actorId, row.fromActorId);
+    await openChat(db, actorId, row.fromActorId);
+  }
 
   await db
     .update(schema.friendRequests)
@@ -216,6 +221,19 @@ export async function PATCH(request: Request) {
     .where(eq(schema.friendRequests.id, body.requestId));
 
   return NextResponse.json({ ok: true });
+}
+
+/**
+ * Their chat, on both Chats lists. See `ensureDirectChat`. A failure here is
+ * logged and not the answer: the friendship is what was asked for, and it is
+ * made, and "Chat" on their profile makes the same room later.
+ */
+async function openChat(db: Db, a: string, b: string): Promise<void> {
+  try {
+    await ensureDirectChat(db, a, b);
+  } catch (err) {
+    console.error(`could not open a chat for a new friendship: ${err}`);
+  }
 }
 
 /** Stopping. */

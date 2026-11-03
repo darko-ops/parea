@@ -600,6 +600,8 @@ export type MyGroup = {
   eventCount: number;
   /** ISO, from the newest event in it. Null for a group with no events yet. */
   lastActiveAt: string | null;
+  /** ISO. When this viewer joined it — where a room nobody has spoken in sorts on Chats. */
+  joinedAt: string;
   /** ISO. This viewer pinned it to the top of their Chats; null if not. */
   pinnedAt: string | null;
   /**
@@ -1047,6 +1049,36 @@ export async function directChatWith(
   return row ?? null;
 }
 
+/**
+ * The two of you have a chat, from the moment you are friends.
+ *
+ * A new friend is somebody you are about to want to say something to, and
+ * the Chats list is where you would look — so the room is there already, with
+ * their name on it, rather than behind "Chat" on their profile. The same room
+ * that button would open: one the two of you already have is kept, and one of
+ * you asked the other into — which, before a friendship, is how a chat with
+ * somebody starts — is accepted on their behalf, since becoming friends is
+ * the yes that invitation was waiting for.
+ *
+ * Nobody is notified and nobody is `addedBy`: nothing was said, and a push
+ * saying a friend put you in a chat would be about a button nobody pressed.
+ * Never with Parea, whose friendship nobody chose.
+ */
+export async function ensureDirectChat(db: Db, a: string, b: string): Promise<void> {
+  if (a === b || a === PAREA_ACTOR_ID || b === PAREA_ACTOR_ID) return;
+  for (const [invited, inviter] of [[a, b], [b, a]] as const) {
+    const offer = await directChatOffer(db, invited, inviter);
+    if (offer && (await answerGroupInvite(db, offer.inviteId, invited, true))) return;
+  }
+  if (await directChatWith(db, a, b)) return;
+  const [made] = await db
+    .insert(schema.groups)
+    .values({ name: null, slug: null, findable: false })
+    .returning();
+  await addMember(db, made!.id, a, 'admin');
+  await addMember(db, made!.id, b);
+}
+
 /** How many events a group's row previews before "View all N" takes over. */
 export const GROUP_STRIP = 3;
 /** How many faces the stack beside a group's name shows. */
@@ -1143,21 +1175,26 @@ export async function myGroupsDetailed(
  * The Chats list: one viewer's rooms as conversations.
  *
  * Pinned first, the most recently pinned on top; then the rest by when
- * something was last said, and a room nobody has spoken in last. A chat this
+ * something was last said — or, in a room nobody has spoken in, when this
+ * viewer joined it. A new friend's chat (`ensureDirectChat`) is a room with
+ * nothing in it yet, and sorting those last put it under every conversation
+ * somebody had ever had, where nobody would see it arrive. A chat this
  * viewer deleted is left out until somebody says something new in it — its
  * `lastMessage` is already only what came after.
  *
  * The app's Chats tab keeps the same rule; the two lists are one list.
  */
 export function chatsInOrder<
-  T extends Pick<MyGroup, 'pinnedAt' | 'clearedAt'> & { lastMessage: { at: string } | null },
+  T extends Pick<MyGroup, 'pinnedAt' | 'clearedAt'> & {
+    joinedAt?: string;
+    lastMessage: { at: string } | null;
+  },
 >(groups: T[]): T[] {
+  const at = (group: T) => group.lastMessage?.at ?? group.joinedAt ?? '';
   return groups
     .filter((group) => !(group.clearedAt && !group.lastMessage))
     .sort(
-      (a, b) =>
-        (b.pinnedAt ?? '').localeCompare(a.pinnedAt ?? '') ||
-        (b.lastMessage?.at ?? '').localeCompare(a.lastMessage?.at ?? ''),
+      (a, b) => (b.pinnedAt ?? '').localeCompare(a.pinnedAt ?? '') || at(b).localeCompare(at(a)),
     );
 }
 
@@ -1206,6 +1243,7 @@ export async function myGroups(db: Db, actorId: string | null): Promise<MyGroup[
       name: schema.groups.name,
       photoKey: schema.groups.photoKey,
       role: schema.groupMembers.role,
+      joinedAt: schema.groupMembers.joinedAt,
       pinnedAt: schema.groupMembers.pinnedAt,
       clearedAt: schema.groupMembers.clearedAt,
       /*
@@ -1245,6 +1283,7 @@ export async function myGroups(db: Db, actorId: string | null): Promise<MyGroup[
       ...titleFor(row.name, others.get(row.id) ?? []),
       photoUrl: await groupPhotoUrl(photoKey),
       lastActiveAt: row.lastActiveAt ? new Date(row.lastActiveAt).toISOString() : null,
+      joinedAt: new Date(row.joinedAt).toISOString(),
       pinnedAt: row.pinnedAt ? new Date(row.pinnedAt).toISOString() : null,
       clearedAt: row.clearedAt ? new Date(row.clearedAt).toISOString() : null,
     })),

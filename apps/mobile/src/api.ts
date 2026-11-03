@@ -636,10 +636,12 @@ export type MyGroupDetail = ThreadLine & {
   eventCount: number;
   lastActiveAt: string | null;
   /**
-   * ISO: pinned to the top of this person's Chats. Optional, as is the next,
-   * because a server from before either does not send it.
+   * ISO: pinned to the top of this person's Chats. Optional, as are the next
+   * two, because a server from before them does not send them.
    */
   pinnedAt?: string | null;
+  /** ISO: when this person joined it — where a room nobody has spoken in sorts on Chats. */
+  joinedAt?: string;
   /**
    * ISO: when this person deleted the chat. Only what was said after it
    * reaches them, and with nothing said since it is not on Chats.
