@@ -61,7 +61,12 @@ async function person(displayName: string) {
   return actor!.id;
 }
 
-function call(handler: typeof POST, actorId: string, method: string, body: unknown) {
+function call(
+  handler: (request: Request) => Promise<Response>,
+  actorId: string,
+  method: string,
+  body: unknown,
+) {
   headerBag.set('authorization', `Bearer ${sign(actorId)}`);
   return handler(
     new Request('https://parea.test/api/friends', {
