@@ -157,7 +157,7 @@
       [
         "expo-contacts",
         {
-          "contactsPermission": "Show your contacts so you can text them an invite to Parea. They stay on this phone and are never uploaded."
+          "contactsPermission": "Show your contacts so you can see who is already on Parea and text the rest an invite. Their numbers are checked against Parea and never stored."
         }
       ],
       [
