@@ -20,6 +20,7 @@ import { EMPTY_SUMMARY, groupThreadSummaries } from '@/groupMessages';
 import {
   addMember,
   deckFor,
+  directWith,
   directChatWith,
   facesFor,
   groupsFor,
@@ -124,6 +125,7 @@ export async function GET(request: Request) {
         ...group,
         ...(await facesFor(db, group.id)),
         ...(await deckFor(others.get(group.id) ?? [])),
+        directWith: directWith(group.kind, others.get(group.id) ?? []),
         ...(await (async () => {
           /*
            * The last speaker's face, signed here rather than in the query.

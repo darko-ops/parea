@@ -24,6 +24,7 @@
 
 import { PGlite } from '@electric-sql/pglite';
 import { schema } from '@parea/core';
+import { eq } from 'drizzle-orm';
 import { drizzle } from 'drizzle-orm/pglite';
 import { migrate } from 'drizzle-orm/pglite/migrator';
 import { fileURLToPath } from 'node:url';
@@ -174,6 +175,22 @@ describe('the list the app draws its rooms from', () => {
 
     const [row] = await detailed(me);
     expect(Object.keys(row!).sort()).toEqual(expect.arrayContaining(wanted.sort()));
+  });
+
+  it('names the other person of a chat with one, so its header opens them', async () => {
+    const me = await person('Demetri');
+    const them = await person('Ana');
+    await db.update(schema.actors).set({ handle: 'ana' }).where(eq(schema.actors.id, them));
+    const [chat] = await db.insert(schema.groups).values({ name: null, slug: null }).returning();
+    await addMember(db, chat!.id, me, 'admin');
+    await addMember(db, chat!.id, them);
+    const named = await group('Sunday tennis');
+    await addMember(db, named, me, 'admin');
+    await addMember(db, named, them);
+
+    const rows = await detailed(me);
+    expect(rows.find((row) => row.id === chat!.id)).toMatchObject({ kind: 'direct', directWith: 'ana' });
+    expect(rows.find((row) => row.id === named)).toMatchObject({ kind: 'named', directWith: null });
   });
 
   it('lists nothing for somebody in no groups', async () => {

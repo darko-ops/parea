@@ -232,6 +232,13 @@ describe('where a row goes', () => {
 });
 
 describe('a group’s own thread', () => {
+  it('opens the person, not a group page, from the header of a chat with one', () => {
+    expect(API).toMatch(/directWith\?: string \| null/);
+    expect(APP).toMatch(
+      /route\.group\.directWith\s*\?\s*\{ screen: 'person', handle: route\.group\.directWith, back: route \}\s*:\s*\{ screen: 'group', id: route\.group\.id \}/,
+    );
+  });
+
   it('reuses the roll’s thread rather than drawing a second one', () => {
     // Same composer, same tombstones, same mention rules.
     expect(GROUP_THREAD).toMatch(/import \{ Thread \} from '\.\/Thread'/);

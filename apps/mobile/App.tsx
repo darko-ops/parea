@@ -298,6 +298,8 @@ type Route =
         kind?: GroupKind;
         deck?: { name: string; avatarUrl: string | null }[];
         photoUrl?: string | null;
+        /* A chat with one person: their handle, so the bar opens them. */
+        directWith?: string | null;
       };
     }
   /**
@@ -1862,7 +1864,14 @@ export default function App() {
             t={t}
             dark={dark}
             onBack={leaveThread}
-            onOpenGroup={() => setRoute({ screen: 'group', id: route.group.id })}
+            onOpenGroup={() =>
+              // A chat with one person is not a group: their name opens them.
+              setRoute(
+                route.group.directWith
+                  ? { screen: 'person', handle: route.group.directWith, back: route }
+                  : { screen: 'group', id: route.group.id },
+              )
+            }
             onOpenMoment={openMoment}
           />
         </SwipeBack>

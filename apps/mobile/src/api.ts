@@ -611,6 +611,11 @@ export type MyGroupDetail = ThreadLine & {
   deck: { name: string; avatarUrl: string | null }[];
   /** Everybody the deck does not show. */
   deckMore: number;
+  /**
+   * The other person's handle when this is a chat with one person. Optional,
+   * because a server from before it does not send it.
+   */
+  directWith?: string | null;
   role: 'member' | 'admin';
   memberCount: number;
   eventCount: number;

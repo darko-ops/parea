@@ -647,6 +647,8 @@ export type MyGroupDetailed = MyGroup & {
    */
   deck: { name: string; avatarUrl: string | null }[];
   deckMore: number;
+  /** The other person's handle when this is a chat with one person, else null. */
+  directWith: string | null;
   /**
    * The group's own conversation, as one line.
    *
@@ -758,6 +760,7 @@ export function titleFor(
 export type GroupOther = {
   actorId: string;
   name: string;
+  handle: string | null;
   avatarKey: string | null;
 };
 
@@ -823,10 +826,19 @@ export async function othersInGroups(
     list.push({
       actorId: row.actorId,
       name: row.displayName?.trim() || (row.handle ? `@${row.handle}` : 'Someone'),
+      handle: row.handle,
       avatarKey: row.avatarKey,
     });
   }
   return found;
+}
+
+/**
+ * The other person's handle, for a chat with exactly one: that chat is them,
+ * not a group, so its name at the top of the conversation opens their profile.
+ */
+export function directWith(kind: GroupKind, others: GroupOther[]): string | null {
+  return kind === 'direct' && others.length === 1 ? others[0]!.handle : null;
 }
 
 /**
@@ -1146,10 +1158,11 @@ export async function myGroupsDetailed(
 
   return Promise.all(
     groups.map(async (group) => {
+      const inIt = others.get(group.id) ?? [];
       const [events, people, deck] = await Promise.all([
         groupArchive(db, group.id, actorId, since, GROUP_STRIP),
         facesFor(db, group.id),
-        deckFor(others.get(group.id) ?? []),
+        deckFor(inIt),
       ]);
       const thread = threads.get(group.id) ?? EMPTY_SUMMARY;
       /*
@@ -1166,7 +1179,7 @@ export async function myGroupsDetailed(
         lastMessage = { ...said, avatarUrl: await avatarUrl(avatarKey) };
       }
 
-      return { ...group, events, ...people, ...deck, ...thread, lastMessage };
+      return { ...group, events, ...people, ...deck, directWith: directWith(group.kind, inIt), ...thread, lastMessage };
     }),
   );
 }
