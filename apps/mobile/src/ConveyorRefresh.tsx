@@ -26,11 +26,11 @@
  * spinner. Their state lives in a store this module owns rather than in the
  * tab, so a frame of motion re-renders three dots and not a screen of cards.
  *
- * No haptic at the trigger, which the handoff asks for: the app has no haptics
- * module, and adding one is a native build. The dots all being out is the
- * sign the pull will take.
+ * A light tap at the trigger, once per pull: the moment letting go would
+ * start a refresh, felt as well as seen.
  */
 
+import * as Haptics from 'expo-haptics';
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import {
   Platform,
@@ -77,6 +77,8 @@ class Conveyor {
   /** Past the trigger with the finger down: hold the list open if let go here. */
   armed = false;
   onArm: ((armed: boolean) => void) | null = null;
+  /** The trigger's tap has been felt on this pull. */
+  tapped = false;
   palette = 0;
   prev: number | null = null;
   loadStart = 0;
@@ -132,6 +134,13 @@ class Conveyor {
       this.phase = 'pulling';
       this.palette = nextPalette(this.prev, this.allowed);
       this.prev = this.palette;
+      this.tapped = false;
+    }
+    if (this.phase === 'pulling' && this.dragging && !this.tapped && this.pull >= SPEC.triggerPull) {
+      this.tapped = true;
+      // Felt or not, the pull is the same pull: a phone with haptics off
+      // rejects this, and nothing should wait on it.
+      void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
     }
     const armed = this.phase === 'pulling' && this.dragging && this.pull >= SPEC.triggerPull;
     if (armed !== this.armed) {

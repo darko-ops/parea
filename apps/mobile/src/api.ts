@@ -48,26 +48,6 @@ export type SignedIn = {
   hasPasskey: boolean;
 };
 
-export type PasskeyListing = {
-  id: string;
-  label: string | null;
-  /** In a synced keychain, rather than on one device only. */
-  backedUp: boolean;
-  createdAt: string;
-  lastUsedAt: string | null;
-};
-
-/**
- * The two option blobs, passed through untouched.
- *
- * Deliberately not modelled field by field. They are WebAuthn's shapes, the
- * server builds them and the platform consumes them, and this client's only
- * job is not to interfere — a narrowed type here would be a third opinion
- * about a structure neither end asked it about.
- */
-export type PasskeyCreationOptions = Record<string, unknown>;
-export type PasskeyRequestOptions = Record<string, unknown>;
-
 export type DeviceListing = {
   id: string;
   /** "Safari on iPhone" — what the row says it is. */
@@ -2131,68 +2111,6 @@ export class Api {
   /** Back to the letter. The file goes with it. */
   removeAvatar(): Promise<unknown> {
     return this.call('/api/account/avatar', { method: 'DELETE' });
-  }
-
-  // --- passkeys ---------------------------------------------------------
-
-  /**
-   * What the platform needs to make a passkey, and keeping the result.
-   *
-   * Two calls around one Face ID prompt. The options carry a challenge the
-   * server has written down and spends on use, so the response is only worth
-   * anything against that one request.
-   */
-  passkeyRegistrationOptions(): Promise<PasskeyCreationOptions> {
-    return this.call('/api/account/passkeys/options', {
-      method: 'POST',
-      // Always the device's own. There is no QR-code fallback to preserve in an
-      // app: the whole feature here is the phone recognising its owner, and a
-      // phone that cannot do that has `isSupported()` false and never asks.
-      body: JSON.stringify({ platform: true }),
-    });
-  }
-
-  savePasskey(response: unknown): Promise<{ passkey: PasskeyListing }> {
-    return this.call('/api/account/passkeys', {
-      method: 'POST',
-      // `platform` names the key on the list. Without it every Android passkey
-      // would be labelled as an iOS one, which is worse than unlabelled.
-      body: JSON.stringify({ response, platform: this.client }),
-    });
-  }
-
-  passkeys(): Promise<{ passkeys: PasskeyListing[] }> {
-    return this.call('/api/account/passkeys');
-  }
-
-  removePasskey(id: string): Promise<unknown> {
-    return this.call(`/api/account/passkeys/${id}`, { method: 'DELETE' });
-  }
-
-  /**
-   * What the platform needs to sign in with one.
-   *
-   * No account and no address: the credential is discoverable, so it names its
-   * own account and nobody has to say who they are first.
-   */
-  passkeyChallenge(): Promise<PasskeyRequestOptions> {
-    return this.call('/api/account/passkeys/challenge', { method: 'POST' });
-  }
-
-  /**
-   * Present the assertion. Same route and same answer as a code.
-   *
-   * The token that comes back may not be the one this device had — signing in
-   * folds this actor into the account's, exactly as the code path does — so the
-   * caller has the same obligation to write it to the keychain.
-   */
-  async signInWithPasskey(assertion: unknown): Promise<SignedIn> {
-    const result = await this.call<SignedIn>('/api/account/session', {
-      method: 'POST',
-      body: JSON.stringify({ passkey: assertion, platform: this.client }),
-    });
-    this.token = result.actorToken;
-    return result;
   }
 
   // --- devices ----------------------------------------------------------

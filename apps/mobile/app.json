@@ -2,7 +2,7 @@
   "expo": {
     "name": "Parea",
     "slug": "parea",
-    "version": "1.0.0",
+    "version": "1.0.1",
     "orientation": "portrait",
     "userInterfaceStyle": "automatic",
     "scheme": "parea",
@@ -12,8 +12,7 @@
       "bundleIdentifier": "photos.parea",
       "associatedDomains": [
         "applinks:parea.photos",
-        "applinks:www.parea.photos",
-        "webcredentials:parea.photos"
+        "applinks:www.parea.photos"
       ],
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false,

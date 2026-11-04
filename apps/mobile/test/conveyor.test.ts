@@ -103,4 +103,11 @@ describe('where it is', () => {
     expect(loader).toMatch(/contentInset: \{ top: holding \|\| armed \? SPEC\.restPull : 0/);
     expect(loader).toMatch(/this\.phase === 'pulling' && this\.dragging && this\.pull >= SPEC\.triggerPull/);
   });
+
+  it('taps once as the pull crosses the trigger', () => {
+    const loader = read('src/ConveyorRefresh.tsx');
+    expect(loader).toMatch(
+      /!this\.tapped && this\.pull >= SPEC\.triggerPull\) \{\s*this\.tapped = true;[\s\S]{0,200}Haptics\.impactAsync\(Haptics\.ImpactFeedbackStyle\.Light\)/,
+    );
+  });
 });
