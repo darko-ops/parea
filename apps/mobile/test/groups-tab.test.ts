@@ -130,15 +130,13 @@ describe('what the screen may do', () => {
     expect(tab).not.toMatch(/method: 'POST'/);
   });
 
-  it('says there is nothing to recognise, and no more than that', () => {
+  it('says nothing when there is nothing to recognise', () => {
     /*
-     * The second half of this used to assert the explanation under the line —
-     * where groups come from, and what the box above would and would not
-     * find. Four sentences, read by somebody who has not asked a question
-     * yet, which is a paragraph in front of an empty screen. Removed by
-     * request; the line that says why the screen is empty stays.
+     * This was four sentences on where groups come from, then one line saying
+     * there were none. Both removed by request: with no groups the shelf is
+     * simply not drawn, and the suggestions under Recent fill the page.
      */
-    expect(flat(EVENTS)).toMatch(/You are not in any groups yet/);
+    expect(flat(EVENTS)).not.toMatch(/You are not in any groups yet/);
     expect(flat(EVENTS)).not.toMatch(/Groups are for the people who keep turning up/);
   });
 

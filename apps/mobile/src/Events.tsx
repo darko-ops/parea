@@ -90,6 +90,7 @@ import { DevicesCard } from './Devices';
 import { birthFieldsNeeded, birthValue } from './birth';
 import { SUSPENDED_NOTE } from './signin';
 import { Waiting } from './Waiting';
+import { reasonFor } from './answers';
 
 export type TabTheme = GroupTheme;
 
@@ -2175,6 +2176,19 @@ const GROUPS_SHOWN = GROUP_COLUMNS * 2;
  *   - **Events and photographs are never searchable.** That is the sentence at
  *     the foot, and it is the product's line rather than this screen's.
  */
+/**
+ * `reasonFor`, cut to a card 108 points wide: "In 3 rolls with you" does not
+ * fit under a face at 12pt, "3 rolls together" does.
+ */
+function shortReason(person: SuggestedPerson): string {
+  const albums = person.albums ?? 0;
+  const groups = person.groups ?? 0;
+  if (person.mutuals > 0) return plural(person.mutuals, 'mutual');
+  if (albums > 0) return albums === 1 ? 'In a roll with you' : `${albums} rolls together`;
+  if (groups > 0) return groups === 1 ? 'In a group with you' : `${groups} groups together`;
+  return 'You may know them';
+}
+
 /** The handles of the people in a recent list, as one stable key. */
 function facesKey(recent: RecentSearch[]): string {
   return recent
@@ -2835,7 +2849,8 @@ export function SearchTab({
       {/*
         People worth asking, above the groups and never anywhere else.
 
-        Friends of your friends, most mutuals first — `suggestionsFor`, the
+        Friends of your friends, most mutuals first, then the people from your
+        rolls and groups — `suggestionsFor`, the
         same list the web's Find page draws. It is the only thing on this page
         that is a *recommendation* rather than something already yours, which
         is why it leads: somebody opening Find without a question in mind is
@@ -2880,7 +2895,7 @@ export function SearchTab({
                       onPress={() => person.handle && onOpenPerson(person.handle)}
                       disabled={!person.handle}
                       accessibilityRole="button"
-                      accessibilityLabel={`${name}, ${plural(person.mutuals, 'mutual friend')}`}
+                      accessibilityLabel={`${name}, ${reasonFor(person)}`}
                       style={({ pressed }) => [{ alignItems: 'center', gap: 6, opacity: pressed ? 0.6 : 1 }]}
                     >
                       {person.avatar ? (
@@ -2917,7 +2932,7 @@ export function SearchTab({
                         people you know is the thing nobody taps.
                       */}
                       <Text style={[styles.suggestWhy, { color: t.dim }]} numberOfLines={1}>
-                        {plural(person.mutuals, 'mutual')}
+                        {shortReason(person)}
                       </Text>
                     </Pressable>
 
@@ -2968,15 +2983,15 @@ export function SearchTab({
       {/*
         And what the People filter says with nothing to suggest.
         *
-        * Suggestions are friends of your friends, so somebody with no friends
-        * yet has none by arithmetic rather than by anything being wrong. The
-        * box above is the way out of that, which is what this says.
+        * Suggestions are friends of your friends and people from your rolls
+        * and groups, so somebody with none of those yet has none by arithmetic
+        * rather than by anything being wrong. The box above is the way out of
+        * that, which is what this says.
         */}
       {!asked && ready && scope === 'people' && suggested !== null && suggested.length === 0 && (
         <Text style={[styles.small, { color: t.dim }]}>
-          Nobody to suggest yet. These are friends of your friends, so they
-          start appearing once you have a few — search a handle above to add the
-          first.
+          Nobody to suggest yet. These are friends of your friends and people
+          from your rolls and groups — search a handle above to add the first.
         </Text>
       )}
 
@@ -3134,22 +3149,6 @@ export function SearchTab({
               t={t}
             />
           ))}
-
-          {myRooms.length === 0 && clusters.length === 0 && (
-            /*
-              The fact, and nothing under it.
-
-              This was four sentences on where groups come from and what the
-              box above would and would not find. All true, and all of it
-              addressed to somebody who has not asked a question yet — a
-              paragraph in front of an empty screen is read as an apology for
-              the screen being empty. What is left is the line that says why
-              there is nothing here.
-            */
-            <Text style={[styles.body, { color: t.dim }]}>
-              You are not in any groups yet.
-            </Text>
-          )}
         </>
       )}
 

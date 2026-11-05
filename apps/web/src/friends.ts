@@ -236,12 +236,13 @@ export async function friendsSeenBy(
 }
 
 /**
- * People your friends are friends with, and you are not.
+ * People your friends are friends with, or who have been in a roll or a group
+ * with you, and are not your friends yet.
  *
- * The one suggestion this product makes about people, and it is deliberately
- * the weakest one available: a friend of a friend is somebody you can already
- * reach by asking the friend, so the suggestion saves a message rather than
- * disclosing a relationship you had no route to.
+ * Each is a person the reader already had a route to: a friend of a friend can
+ * be reached by asking the friend, and somebody in a roll or group with you is
+ * on a member list you can already read. So the suggestion saves a message
+ * rather than disclosing a relationship you had no route to.
  *
  * ## What a count discloses, and what a list would
  *
@@ -261,85 +262,39 @@ export async function friendsSeenBy(
  * reappearing in front of somebody who cut them off. And anybody you took off
  * the list with the × — see `suggestionDismissals`.
  */
-export type Suggestion = Person & { mutuals: number };
+export type Suggestion = Person & { mutuals: number; albums: number; groups: number };
 
 /** Enough to be worth a screen, few enough to read. */
 export const SUGGESTION_LIMIT = 12;
 
+/*
+ * Friends of friends first, then the people you have been in a roll or a group
+ * with — `recommendationsFor`'s list, cut to a row and without anybody taken
+ * off with the ×.
+ *
+ * It was friends of friends only, which is nobody at all for a new account:
+ * the page under Recent was empty for exactly the person it was for. A roll
+ * or a group is still a room the reader was in with them, so naming it
+ * discloses nothing they could not already see. One statement rather than a
+ * second query, so the two lists cannot disagree about who must not appear.
+ */
 export async function suggestionsFor(
   db: Db,
   actorId: string | null,
 ): Promise<Suggestion[]> {
-  if (!actorId) return [];
-
-  type Row = {
-    actorId: string;
-    handle: string | null;
-    displayName: string | null;
-    avatarKey: string | null;
-    mutuals: number;
-  };
-
-  const answer = await db.execute<Row>(sql`
-    select
-      a.id            as "actorId",
-      a.handle        as "handle",
-      a.display_name  as "displayName",
-      a.avatar_key    as "avatarKey",
-      count(*)::int   as "mutuals"
-    from "friendship" mine
-    join "friendship" theirs on theirs.actor_id = mine.friend_actor_id
-    join "actor" a on a.id = theirs.friend_actor_id
-    where mine.actor_id = ${actorId}
-      and theirs.friend_actor_id <> ${actorId}
-      -- Parea is a friend of everybody, so as a mutual it would suggest
-      -- everybody to everybody.
-      and mine.friend_actor_id <> ${PAREA_ACTOR_ID}
-      -- An account, not a device: the same test everything here uses for "a
-      -- person", and the same one the handle search applies.
-      and a.account_id is not null
-      and a.merged_into_id is null
-      and not exists (
-        select 1 from "friendship" f
-        where f.actor_id = ${actorId} and f.friend_actor_id = a.id
-      )
-      and not exists (
-        select 1 from "friend_request" r
-        where (r.from_actor_id = ${actorId} and r.to_actor_id = a.id)
-           or (r.from_actor_id = a.id and r.to_actor_id = ${actorId})
-      )
-      and not exists (
-        select 1 from "block" b
-        where (b.blocker_actor_id = ${actorId} and b.blocked_actor_id = a.id)
-           or (b.blocker_actor_id = a.id and b.blocked_actor_id = ${actorId})
-      )
-      -- Taken off this list with the ×. One way only: dismissing somebody says
-      -- nothing about whether they should be suggested to you.
-      and not exists (
-        select 1 from "suggestion_dismissal" d
-        where d.actor_id = ${actorId} and d.dismissed_actor_id = a.id
-      )
-    group by a.id, a.handle, a.display_name
-    -- Most mutual friends first: the strongest suggestion is the one the most
-    -- of your own people already know.
-    order by count(*) desc, a.handle asc
-    limit ${SUGGESTION_LIMIT}
-  `);
-
-  /*
-   * `db.execute` answers a `{ rows }` object on one driver and a bare array on
-   * the other. Both appear in this codebase — production and the test suite —
-   * so neither shape may be assumed. The note is in `groups.ts` twice and this
-   * is the third place to have learned it.
-   *
-   * It spread the result directly, which throws on the object shape rather
-   * than returning the wrong number. This ran only on the web's Find page, a
-   * server component, and so only ever on the driver where it happened to
-   * work — the first test ever written against it failed on the line below.
-   * Now that the app draws from it too, it gets both.
-   */
-  const rows = answer as unknown as Row[] | { rows: Row[] };
-  return Array.isArray(rows) ? rows : (rows.rows ?? []);
+  const found = await recommendationsFor(db, actorId, {
+    limit: SUGGESTION_LIMIT,
+    skipDismissed: true,
+  });
+  return found.map(({ actorId, handle, displayName, avatarKey, mutuals, albums, groups }) => ({
+    actorId,
+    handle,
+    displayName,
+    avatarKey,
+    mutuals,
+    albums,
+    groups,
+  }));
 }
 
 /**
@@ -626,6 +581,11 @@ export const RECOMMENDATION_LIMIT = 100;
 export async function recommendationsFor(
   db: Db,
   actorId: string | null,
+  {
+    limit = RECOMMENDATION_LIMIT,
+    // Find's row honours the ×; the Find Friends screen has none to honour.
+    skipDismissed = false,
+  }: { limit?: number; skipDismissed?: boolean } = {},
 ): Promise<Recommendation[]> {
   if (!actorId) return [];
 
@@ -682,6 +642,8 @@ export async function recommendationsFor(
     rooms as (
       select theirs.actor_id as id, count(distinct theirs.group_id)::int as groups
       from "group_member" mine
+      -- As with albums: a deleted group is not a room anybody is in.
+      join "groups" g on g.id = mine.group_id and g.deleted_at is null
       join "group_member" theirs
         on theirs.group_id = mine.group_id and theirs.actor_id <> ${actorId}
       where mine.actor_id = ${actorId}
@@ -762,6 +724,14 @@ export async function recommendationsFor(
         where (b.blocker_actor_id = ${actorId} and b.blocked_actor_id = a.id)
            or (b.blocker_actor_id = a.id and b.blocked_actor_id = ${actorId})
       )
+      ${
+        skipDismissed
+          ? sql`and not exists (
+              select 1 from "suggestion_dismissal" d
+              where d.actor_id = ${actorId} and d.dismissed_actor_id = a.id
+            )`
+          : sql``
+      }
     -- Mutual friends first, because it is the strongest of the three and the
     -- only one that says other people already vouched. Then albums, which is
     -- "we were in the same room", then groups, which is only "we are both on a
@@ -771,7 +741,7 @@ export async function recommendationsFor(
       coalesce(together.albums, 0) desc,
       coalesce(rooms.groups, 0) desc,
       a.handle asc
-    limit ${RECOMMENDATION_LIMIT}
+    limit ${limit}
   `);
 
   /*

@@ -173,8 +173,13 @@ describe('the suggestions row', () => {
   it('says why each person is there', () => {
     // Without it this is a row of strangers, and a row of strangers on a page
     // about the people you know is the thing nobody taps.
-    expect(TAB).toMatch(/plural\(person\.mutuals, 'mutual'\)/);
-    expect(TAB).toMatch(/plural\(person\.mutuals, 'mutual friend'\)/);
+    // Mutual friends first, then a shared roll or group — which is every
+    // reason a new account's suggestions have.
+    expect(TAB).toMatch(/\{shortReason\(person\)\}/);
+    expect(TAB).toMatch(/accessibilityLabel=\{`\$\{name\}, \$\{reasonFor\(person\)\}`\}/);
+    expect(EVENTS).toMatch(/if \(person\.mutuals > 0\) return plural\(person\.mutuals, 'mutual'\);/);
+    expect(EVENTS).toMatch(/'In a roll with you'/);
+    expect(EVENTS).toMatch(/'In a group with you'/);
   });
 
   it('asks without reloading the row', () => {

@@ -337,12 +337,12 @@ export default function PrivacyPage() {
             worked before, when nobody could be found at all. What a search
             returns is a handle and whatever name you chose to show: never your
             email address, never your rolls, never your photos, and never who
-            else you know. There is no public directory. The Find Friends page
-            does suggest people, drawn only from rolls you have both been in,
-            groups you are both in and friends you have in common, and it shows
-            each person the same way a search would. If you take somebody off
-            your suggestions, we keep that you did, so they are not suggested
-            to you again. They are not told.
+            else you know. There is no public directory. The Find and Find
+            Friends pages do suggest people, drawn only from rolls you have both
+            been in, groups you are both in and friends you have in common, and
+            they show each person the same way a search would. If you take
+            somebody off your suggestions, we keep that you did, so they are not
+            suggested to you again. They are not told.
           </p>
 
           <h3>What you did here</h3>
@@ -484,10 +484,10 @@ export default function PrivacyPage() {
             scrambled form, the two digits and the record that it was checked.
           </p>
           <p className="muted">
-            The people the Find Friends page suggests come from rolls you have
-            both been in, groups you are both in, and friends you have in common
-            &mdash; records this product already holds because you and they made
-            them. A number is asked for so that people who have yours can reach
+            The people the Find and Find Friends pages suggest come from rolls
+            you have both been in, groups you are both in, and friends you have
+            in common &mdash; records this product already holds because you and
+            they made them. A number is asked for so that people who have yours can reach
             you, not so that we can look through your phone.
           </p>
 
@@ -610,9 +610,10 @@ export default function PrivacyPage() {
             <li>No advertising identifiers, and no advertising.</li>
             <li>No third-party analytics or tracking SDK, in the app or on the web.</li>
             <li>
-              No contacts, no address book, no social graph import. The app can
-              show your contacts on your phone, for inviting; none of it is sent
-              to us.
+              No address book kept, and no social graph import. Find Friends
+              sends the phone numbers in your contacts to check which are on
+              Parea, and none of them are stored; names and everything else
+              in a contact stay on your phone.
             </li>
             <li>
               No background location, and no location at all beyond what is

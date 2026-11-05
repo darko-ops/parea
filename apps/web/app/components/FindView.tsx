@@ -97,7 +97,7 @@ type Person = {
   standing?: Standing;
 };
 type Standing = 'friends' | 'asked' | 'asking' | 'none';
-type Suggestion = Person & { mutuals: number };
+type Suggestion = Person & { mutuals: number; albums?: number; groups?: number };
 type Membership = {
   id: string;
   name: string;
@@ -990,8 +990,9 @@ export function FindView({
 
       {!asking && scope === 'people' && suggested.length === 0 && (
         <p className="find-empty">
-          Nobody to suggest yet — suggestions are friends of your friends. Type
-          a handle to find somebody directly.
+          Nobody to suggest yet — suggestions are friends of your friends and
+          people you have shared a roll or a group with. Type a handle to find
+          somebody directly.
         </p>
       )}
 
@@ -1143,11 +1144,25 @@ function mutualLine(group: SuggestedGroup): string {
 /**
  * Somebody you may know, as a card rather than a row.
  *
- * A face, a name and how many friends you have in common — the count only,
- * never which ones. Naming them tells the reader which of *their own* friends
+ * A face, a name and why they are here — how many friends you have in common,
+ * or else that you were in a roll or a group together. The count only, never
+ * which friends. Naming them tells the reader which of *their own* friends
  * knows this person, which is a fact about those two that neither was asked
  * about.
  */
+/**
+ * The strongest reason only, in the app's words (`answers.ts` `reasonFor`).
+ * Optional counts for the same reason the app's are: a page cached before the
+ * fields shipped would otherwise read "undefined".
+ */
+function reasonFor(person: Suggestion): string {
+  const { mutuals, albums = 0, groups = 0 } = person;
+  if (mutuals > 0) return `${mutuals} mutual ${mutuals === 1 ? 'friend' : 'friends'}`;
+  if (albums > 0) return albums === 1 ? 'In a roll with you' : `In ${albums} rolls with you`;
+  if (groups > 0) return groups === 1 ? 'In a group with you' : `In ${groups} groups with you`;
+  return 'You may know them';
+}
+
 function PersonCard({ person, onDismiss }: { person: Suggestion; onDismiss: () => void }) {
   /* Bare, like the row below and like the top of the page this leads to. The
      `@` marks a string as the thing you can type at a search box; in the slot
@@ -1187,7 +1202,7 @@ function PersonCard({ person, onDismiss }: { person: Suggestion; onDismiss: () =
         />
         <span className="face-card-name">{name}</span>
         <span className="face-card-note">
-          {person.mutuals} {person.mutuals === 1 ? 'mutual friend' : 'mutual friends'}
+          {reasonFor(person)}
         </span>
       </a>
       <button

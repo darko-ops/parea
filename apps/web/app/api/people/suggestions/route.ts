@@ -1,8 +1,8 @@
 /**
  * People worth asking to be friends with — design.md §3.
  *
- * Friends of your friends, most mutuals first, minus everybody you are already
- * friends with, have a request open either way with, or have blocked in either
+ * Friends of your friends, most mutuals first, then people you have been in a
+ * roll or a group with — minus everybody you are already friends with, have a request open either way with, or have blocked in either
  * direction. All of that is `suggestionsFor`, which the web's Find page has
  * been calling directly since it was a server component.
  *
@@ -53,6 +53,12 @@ export async function GET() {
          * is the sentence that makes an unfamiliar handle worth tapping.
          */
         mutuals: person.mutuals,
+        /*
+         * And the two weaker reasons, for a row with no mutuals to count: a
+         * new account's suggestions are all of this kind.
+         */
+        albums: person.albums,
+        groups: person.groups,
       })),
     ),
   });

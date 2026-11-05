@@ -1116,9 +1116,19 @@ export type ContactMatch = InvitablePerson & { number: string };
  *
  * `mutuals` is how many of your own friends already know them, and it is the
  * whole difference between a suggestion and a list: "3 mutual friends" is what
- * makes an unfamiliar handle worth tapping.
+ * makes an unfamiliar handle worth tapping. With none, `albums` and `groups`
+ * say where you have been together instead.
  */
-export type SuggestedPerson = InvitablePerson & { mutuals: number };
+export type SuggestedPerson = InvitablePerson & {
+  mutuals: number;
+  /*
+   * Rolls and groups you share, for somebody with no mutuals to count — which
+   * is every suggestion a new account gets. Optional because a build outlives
+   * its server.
+   */
+  albums?: number;
+  groups?: number;
+};
 
 /**
  * You, as your own profile draws you.
@@ -2562,7 +2572,8 @@ export class Api {
   /**
    * People worth asking, for the resting state of Find.
    *
-   * Friends of friends, most mutuals first — the same `suggestionsFor` the
+   * Friends of friends, most mutuals first, then people from your rolls and
+   * groups — the same `suggestionsFor` the
    * web's own Find page draws, reached through a route because the app cannot
    * call a server component.
    *

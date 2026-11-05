@@ -202,8 +202,10 @@ describe('an empty page says so the same way everywhere', () => {
 });
 
 describe('Find says less', () => {
-  it('states the fact about groups and stops', () => {
-    expect(FIND).toMatch(/You are not in any groups yet\./);
+  it('says nothing about having no groups', () => {
+    // An empty shelf is drawn as no shelf; the suggestions under Recent are
+    // what fills the page for somebody new.
+    expect(FIND).not.toMatch(/You are not in any groups yet/);
     expect(FIND).not.toMatch(/once you have shared a couple of albums/);
     expect(FIND).not.toMatch(/asking to be let in/);
   });

@@ -37,8 +37,10 @@ import {
   findByEmail,
   findByPhone,
   findPeople,
+  dismissSuggestion,
   looksLikeEmail,
   recommendationsFor,
+  suggestionsFor,
 } from '@/friends';
 import {
   MAX_PHONE_ATTEMPTS,
@@ -67,7 +69,8 @@ beforeEach(async () => {
   const { sql } = await import('drizzle-orm');
   await db.execute(sql`
     truncate "account", "actor", "block", "friend_request", "friendship",
-      "groups", "group_member", "event", "event_participant", "phone_code"
+      "groups", "group_member", "event", "event_participant", "phone_code",
+      "suggestion_dismissal"
     restart identity cascade
   `);
 });
@@ -676,6 +679,41 @@ describe('people you may know', () => {
   });
 });
 
+describe('the suggestions row on Find', () => {
+  it('fills from rolls and groups for somebody with no friends yet', async () => {
+    // The new account the row is for: friends of friends is nobody.
+    const me = await person('me');
+    const byRoll = await person('byroll');
+    const byGroup = await person('bygroup');
+    await wereThere(await event('Naxos', me), [me, byRoll]);
+    await group('Sunday', [me, byGroup]);
+
+    expect(await suggestionsFor(db, me)).toMatchObject([
+      { handle: 'byroll', mutuals: 0, albums: 1, groups: 0 },
+      { handle: 'bygroup', mutuals: 0, albums: 0, groups: 1 },
+    ]);
+  });
+
+  it('honours the × where Find Friends does not', async () => {
+    const me = await person('me');
+    const gone = await person('gone');
+    await wereThere(await event('Naxos', me), [me, gone]);
+    await dismissSuggestion(db, me, gone);
+
+    expect(await suggestionsFor(db, me)).toEqual([]);
+    expect((await recommendationsFor(db, me)).map((p) => p.handle)).toEqual(['gone']);
+  });
+
+  it('forgets a group that was deleted', async () => {
+    const me = await person('me');
+    const them = await person('them');
+    const id = await group('Sunday', [me, them]);
+    await db.update(schema.groups).set({ deletedAt: new Date() }).where(eq(schema.groups.id, id));
+
+    expect(await suggestionsFor(db, me)).toEqual([]);
+  });
+});
+
 // --- what the feature is built out of ---------------------------------------
 
 describe('no address book', () => {
@@ -731,9 +769,11 @@ describe('no address book', () => {
       'friend_request',
       'friendship',
       'group_member',
-      // Read for a group's name only, as evidence for a reason group_member
-      // already gave — not a fourth source of reasons.
+      // Read for a group's name, and whether it was deleted — not a fourth
+      // source of reasons.
       'groups',
+      // Only to leave somebody out: the × on Find's row.
+      'suggestion_dismissal',
     ]);
   });
 });

@@ -190,15 +190,20 @@ describe('who a suggestion may be', () => {
     FRIENDS.indexOf('export type FriendRequest'),
   );
 
-  it('is a friend of a friend, and nothing looser', () => {
+  it('is a friend of a friend, or somebody from a roll or a group you are in', () => {
     /*
-     * The weakest suggestion available, and that is the point: somebody you
-     * could already reach by asking the friend you have in common. Anything
-     * broader — people in your events, people who share a group — would be a
-     * relationship the product invented rather than one that exists.
+     * It was friends of friends and nothing looser, which for a new account is
+     * nobody, and Find under Recent was empty for exactly the person it was
+     * for. Widened by request to the rooms the reader was in: a roll or a
+     * group whose member list they can already read, so nothing is disclosed
+     * that they had no route to. Still nothing past those three — no contacts,
+     * no "people near you".
      */
+    expect(SUGGEST).toMatch(/recommendationsFor\(db, actorId, \{\s*limit: SUGGESTION_LIMIT,\s*skipDismissed: true/);
     expect(SUGGEST).toMatch(/from "friendship" mine/);
     expect(SUGGEST).toMatch(/join "friendship" theirs on theirs\.actor_id = mine\.friend_actor_id/);
+    expect(SUGGEST).toMatch(/from "event_participant" mine/);
+    expect(SUGGEST).toMatch(/from "group_member" mine/);
   });
 
   it('excludes yourself, your friends, open requests and blocks', () => {
@@ -217,8 +222,8 @@ describe('who a suggestion may be', () => {
      * with this person — a fact about those two that neither was asked about.
      * The count is the line; the names are past it.
      */
-    expect(SUGGEST).toMatch(/count\(\*\)::int\s+as "mutuals"/);
-    expect(VIEW).toMatch(/mutual friends?/);
+    expect(SUGGEST).toMatch(/count\(\*\)::int as mutuals/);
+    expect(VIEW).toMatch(/`\$\{mutuals\} mutual \$\{mutuals === 1 \? 'friend' : 'friends'\}`/);
     /*
      * `person.mutuals` is a number and is only ever drawn as one. A group
      * card does name friends — deliberately, and they are a different set:
@@ -230,7 +235,8 @@ describe('who a suggestion may be', () => {
 
   it('is bounded', () => {
     expect(FRIENDS).toMatch(/export const SUGGESTION_LIMIT = 12/);
-    expect(SUGGEST).toMatch(/limit \$\{SUGGESTION_LIMIT\}/);
+    expect(SUGGEST).toMatch(/limit: SUGGESTION_LIMIT/);
+    expect(SUGGEST).toMatch(/limit \$\{limit\}/);
   });
 });
 
