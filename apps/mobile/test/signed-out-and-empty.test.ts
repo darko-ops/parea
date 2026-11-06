@@ -134,9 +134,10 @@ describe('a shelf with nothing on it', () => {
   it('goes the moment there is one', () => {
     // Guarded on the count rather than toggled by the press: a prompt that
     // hid itself would stay hidden for an album that failed to be made.
-    expect(PROFILE).toMatch(/\{account && events\.length === 0 && \(/);
-    // `shelf` is `events` in the order Organize Rolls left them.
-    expect(PROFILE).toMatch(/shelf\.length > 0 && \(\s*\n\s*<View style=\{\[styles\.grid/);
+    // Per tab: Created empty offers the `+`, Joined empty has its own line.
+    expect(PROFILE).toMatch(/\{account && visible\.length === 0 && tab === 'mine' && \(/);
+    // `visible` is the tab's half of `shelf`, in the order Organize Rolls left them.
+    expect(PROFILE).toMatch(/visible\.length > 0 && \(\s*\n\s*<View style=\{\[styles\.grid/);
   });
 });
 

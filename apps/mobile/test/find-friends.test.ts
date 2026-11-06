@@ -276,8 +276,10 @@ describe('what the screen will not draw', () => {
   });
 
   it('tells "nobody yet" apart from "could not load"', () => {
-    // Two different sentences, and only one of them is worth a retry under.
-    expect(SCREEN).toMatch(/Nobody new to suggest right now/);
+    // Nobody yet is no section at all, with the contact list straight under
+    // the number; could not load is a sentence worth a retry under.
+    expect(SCREEN).not.toMatch(/Nobody new to suggest/);
+    expect(SCREEN).toMatch(/\{state\.people\.length > 0 && \(/);
     expect(SCREEN).toMatch(/Could not load this/);
   });
 

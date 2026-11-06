@@ -41,6 +41,17 @@ describe('the shared drawings', () => {
     expect(GLYPH).toMatch(/<Circle cx=\{9\.5\} cy=\{8\.5\} r=\{3\.5\} \/>/);
   });
 
+  it('draws the Joined tab’s sunglasses exactly as the web rail does', () => {
+    for (const d of ['M10.8 12.2c.8-.6 1.6-.6 2.4 0', 'M3.2 12.3 2 9', 'M20.8 12.3 22 9']) {
+      expect(RAIL).toContain(d);
+      expect(GLYPH).toContain(d);
+    }
+    for (const cx of [7, 17]) {
+      expect(RAIL).toContain(`<circle cx="${cx}" cy="13" r="3.8" />`);
+      expect(GLYPH).toContain(`<Circle cx={${cx}} cy={13} r={3.8} />`);
+    }
+  });
+
   it('draws a person exactly as the web rail does', () => {
     expect(RAIL).toContain('M5 20c0-3.6 3.1-5.5 7-5.5s7 1.9 7 5.5');
     expect(GLYPH).toContain('M5 20c0-3.6 3.1-5.5 7-5.5s7 1.9 7 5.5');

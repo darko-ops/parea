@@ -39,6 +39,15 @@ export function RollTile({ event, t }: { event: EventListing; t: GroupTheme }) {
   /* When the album was made, which is what the card on the home screen
      already leads with — see the note where the shelf is drawn. */
   const when = dateLabel(event.createdAt);
+  const count =
+    event.photoCount === 0
+      ? 'Nothing in it yet'
+      : when
+        ? `${when} · ${event.photoCount}`
+        : `${event.photoCount} ${event.photoCount === 1 ? 'photo' : 'photos'}`;
+  /* A roll somebody else made leads with whose it is — the Joined tab is
+     everybody's rolls but yours, and the cover alone does not say whose. */
+  const host = event.mine ? null : (event.creator.name ?? event.creator.handle);
   return (
     <>
       {event.cover ? (
@@ -61,11 +70,7 @@ export function RollTile({ event, t }: { event: EventListing; t: GroupTheme }) {
           </View>
         )}
         <Text style={[styles.tileMeta, { color: t.dim, flexShrink: 1 }]} numberOfLines={1}>
-          {event.photoCount === 0
-            ? 'Nothing in it yet'
-            : when
-              ? `${when} · ${event.photoCount}`
-              : `${event.photoCount} ${event.photoCount === 1 ? 'photo' : 'photos'}`}
+          {host ? `${host} · ${count}` : count}
         </Text>
       </View>
     </>

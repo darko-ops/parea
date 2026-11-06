@@ -713,30 +713,11 @@ export function FindFriends({
                     </Pressable>
                   </View>
 
-                  {state.people.length === 0 ? (
-                    /*
-                      The empty state, and it has to be a sentence rather than a
-                      shrug.
-
-                      This list is built from albums, groups and friends in
-                      common, so empty means something specific and cheerful: the
-                      product has nothing to go on yet. Saying that is the
-                      difference between a page that looks broken and one that
-                      tells somebody what would fill it.
-                    */
-                    <View style={styles.nothing}>
-                      <Glyph name="add-person" size={34} color={t.dim} />
-                      <Text style={[styles.nothingText, { color: t.dim }]}>
-                        Nobody new to suggest right now.
-                      </Text>
-                      <Text style={[styles.nothingText, { color: t.dim }]}>
-                        Suggestions come from rolls you have both been in,
-                        groups you are both in, and friends you have in common —
-                        so this fills up as you share evenings with people. You
-                        can also find anybody by their handle on Find.
-                      </Text>
-                    </View>
-                  ) : (
+                  {/* No suggestions is no section at all: the contact list
+                      below is the answer to an empty page, so it comes up
+                      straight under the number rather than under an
+                      explanation of why there is nothing here. */}
+                  {state.people.length > 0 && (
                     <View style={styles.section}>
                       <View style={styles.sectionHead}>
                         <Text style={[styles.sectionTitle, { color: t.fg }]}>
@@ -1013,6 +994,4 @@ const styles = StyleSheet.create({
   rowText: { flex: 1, minWidth: 0, gap: 2 },
   rowName: { fontSize: 15.5, fontWeight: '600' },
 
-  nothing: { paddingTop: 40, alignItems: 'center', gap: 12 },
-  nothingText: { fontSize: 14, lineHeight: 21, textAlign: 'center', maxWidth: 320 },
 });

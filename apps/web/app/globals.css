@@ -2292,6 +2292,17 @@ fieldset.field > legend { padding: 0; margin-bottom: 8px; }
   gap: 6px 12px; flex-wrap: wrap; margin-bottom: 8px;
 }
 .you-events-head h2 { margin: 0; }
+/* The profile's Created / Joined tabs: two halves on a hairline, the chosen
+   one underlined on top of it and drawn half a stroke bolder. */
+.roll-tabs { display: flex; border-bottom: 1px solid var(--hairline); margin-bottom: 22px; }
+.roll-tabs button {
+  flex: 1; display: flex; justify-content: center;
+  padding: 4px 0 11px; margin-bottom: -1px;
+  background: none; border: 0; border-bottom: 2px solid transparent;
+  color: var(--dim); cursor: pointer;
+}
+.roll-tabs button:hover { color: var(--fg); }
+.roll-tabs button[aria-selected='true'] { color: var(--fg); border-bottom-color: var(--fg); }
 
 /* ---------------------------------------------------------------------------
    The create form's newer parts: a place lookup, a member picker, and the

@@ -71,7 +71,10 @@ export type RailGlyph =
   /* A moment: a drop and the rings it sends out. The app's own, path for
      path — the outer ring at the light weight, fading, so the three read as
      one motion rather than as a target. */
-  | 'ripple';
+  | 'ripple'
+  /* Round lenses: rolls somebody else made that you are in — the profile's
+     Joined tab. The app's own, path for path. */
+  | 'sunglasses';
 
 /**
  * The star, as a path.
@@ -124,16 +127,19 @@ export function RailIcon({
    * is the app's own decision.
    */
   filled = false,
+  /** The box, in px. The rail's rows are 18; the profile's tabs draw 22. */
+  size = 18,
 }: {
   glyph: RailGlyph;
   weight?: number;
   filled?: boolean;
+  size?: number;
 }) {
   return (
     <svg
       className="rail-icon"
-      width="18"
-      height="18"
+      width={size}
+      height={size}
       viewBox="0 0 24 24"
       fill={filled ? 'currentColor' : 'none'}
       stroke="currentColor"
@@ -271,6 +277,15 @@ export function RailIcon({
         <>
           <circle cx="12" cy="8" r="3.5" />
           <path d="M5 20c0-3.6 3.1-5.5 7-5.5s7 1.9 7 5.5" />
+        </>
+      )}
+      {glyph === 'sunglasses' && (
+        <>
+          <circle cx="7" cy="13" r="3.8" />
+          <circle cx="17" cy="13" r="3.8" />
+          <path d="M10.8 12.2c.8-.6 1.6-.6 2.4 0" />
+          <path d="M3.2 12.3 2 9" />
+          <path d="M20.8 12.3 22 9" />
         </>
       )}
       {glyph === 'settings' && (

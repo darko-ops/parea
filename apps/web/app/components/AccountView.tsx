@@ -31,6 +31,7 @@ import { EditProfile } from './EditProfile';
 import { EventCard } from './EventCard';
 import { LoginScreen } from './LoginScreen';
 import { MomentStrip } from './MomentStrip';
+import { RailIcon } from './RailIcon';
 import { STALE_SIGN_IN } from './passkey';
 import { Shell } from './Shell';
 import { ShareProfile } from './ShareProfile';
@@ -133,8 +134,11 @@ export function AccountView() {
    * Which albums to show. Client state rather than a URL: it is a way of
    * looking at one list, not a second page, and somebody sending their profile
    * to themselves should not be sending a filter with it.
+   *
+   * Two halves, Created first: the shelf is the rolls you made, and the ones
+   * other people asked you into sit behind the second tab.
    */
-  const [lens, setLens] = useState<'all' | 'mine' | 'joined'>('all');
+  const [lens, setLens] = useState<'mine' | 'joined'>('mine');
   const [friends, setFriends] = useState<number | null>(null);
   const [busy, setBusy] = useState(false);
   const [note, setNote] = useState<string | null>(null);
@@ -253,7 +257,7 @@ export function AccountView() {
    */
   const mine = events.filter((event) => event.mine);
   const joined = events.filter((event) => !event.mine);
-  const shown = lens === 'mine' ? mine : lens === 'joined' ? joined : events;
+  const shown = lens === 'mine' ? mine : joined;
   /* What is in all of them, for the middle of the three counts. Every album
      on the shelf, not the lens: the line is about this person rather than
      about which half of their shelf is showing. */
@@ -580,38 +584,43 @@ export function AccountView() {
           deliberately stopped doing that. Asked for, so it is here, but it is
           the only place it says it.
         */}
-        <div className="you-events-head">
-          <h2>Your Rolls</h2>
-          {/*
-            Three ways of reading one list. The counts are on the buttons
-            because the difference between them is the answer somebody wants —
-            "how many of these did I actually make" — and a filter that has to
-            be pressed to find out is a filter you press three times.
-
-            Only when there is a mix. With every event made by the same person
-            these are three buttons, two of which empty the screen.
-          */}
-          {mine.length > 0 && joined.length > 0 && (
-            <div className="pills">
-              {(
-                [
-                  ['all', 'All', events.length],
-                  ['mine', 'Created', mine.length],
-                  ['joined', 'Joined', joined.length],
-                ] as const
-              ).map(([id, label, count]) => (
-                <button
-                  key={id}
-                  type="button"
-                  className="pill small"
-                  aria-pressed={lens === id}
-                  onClick={() => setLens(id)}
-                >
-                  {label} <span className="pill-count">{count}</span>
-                </button>
-              ))}
-            </div>
-          )}
+        {/*
+          Created and Joined, as the app draws them: two icon tabs on a
+          hairline, no counts. Always there once signed in, even with both
+          halves empty, so the shape is learnt before there is anything in it.
+          Arrow keys move between the two, as a tablist's should.
+        */}
+        <div
+          className="roll-tabs"
+          role="tablist"
+          onKeyDown={(e) => {
+            if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return;
+            e.preventDefault();
+            const next = lens === 'mine' ? 'joined' : 'mine';
+            setLens(next);
+            e.currentTarget.querySelector<HTMLButtonElement>(`[data-lens="${next}"]`)?.focus();
+          }}
+        >
+          {(
+            [
+              ['mine', 'photos', 'Rolls you created'],
+              ['joined', 'sunglasses', 'Rolls you joined'],
+            ] as const
+          ).map(([id, glyph, label]) => (
+            <button
+              key={id}
+              type="button"
+              role="tab"
+              data-lens={id}
+              aria-selected={lens === id}
+              aria-label={label}
+              title={label}
+              tabIndex={lens === id ? 0 : -1}
+              onClick={() => setLens(id)}
+            >
+              <RailIcon glyph={glyph} size={22} weight={lens === id ? 2.5 : 2} />
+            </button>
+          ))}
         </div>
         <div className="cards">
           {shown.map((event) => (
@@ -671,7 +680,7 @@ export function AccountView() {
             was the whole page. See the note on `HomeView`; the argument and
             the seven words are both shared.
 
-            Only under All and Created. Under Joined it would be offering to
+            Only under Created. Under Joined it would be offering to
             make an album on the shelf that is deliberately showing the ones
             somebody else made, so that one keeps its own sentence.
           */}

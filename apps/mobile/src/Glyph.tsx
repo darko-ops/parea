@@ -59,6 +59,8 @@ export type GlyphName =
   | 'ripple'
   | 'bird-flying'
   | 'bird-perched'
+  /** Round lenses: rolls somebody else made that you are in. The web rail's own, path for path. */
+  | 'sunglasses'
   | 'chevron';
 
 /**
@@ -499,6 +501,21 @@ function paths(name: GlyphName, weight: number) {
           <Path d="M10.3 13.8v4.2" />
           <Path d="M13 13.8v4.2" />
           <Path d="M4 18h16" />
+        </>
+      );
+
+    /*
+     * Two round lenses on a bridge, temples up and out: the profile's Joined
+     * tab, beside `photos` for Created. Same paths as the web rail's.
+     */
+    case 'sunglasses':
+      return (
+        <>
+          <Circle cx={7} cy={13} r={3.8} />
+          <Circle cx={17} cy={13} r={3.8} />
+          <Path d="M10.8 12.2c.8-.6 1.6-.6 2.4 0" />
+          <Path d="M3.2 12.3 2 9" />
+          <Path d="M20.8 12.3 22 9" />
         </>
       );
 

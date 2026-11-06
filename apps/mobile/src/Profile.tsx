@@ -198,6 +198,12 @@ export function ProfileScreen({
   const [organizing, setOrganizing] = useState(false);
   const [arranged, setArranged] = useState<string[] | null>(null);
   const [dragging, setDragging] = useState(false);
+  /*
+   * Which half of the shelf is showing: rolls you made, or everybody else's
+   * that you are in. In memory only, so it is Created again whenever the
+   * screen comes back — the same reasoning as the web's lens.
+   */
+  const [tab, setTab] = useState<'mine' | 'joined'>('mine');
   const shelf = useMemo(() => {
     const sorted = shelfOrder(events);
     if (!arranged) return sorted;
@@ -211,6 +217,14 @@ export function ProfileScreen({
   useEffect(() => {
     if (!organizing) setArranged(null);
   }, [events]); // eslint-disable-line react-hooks/exhaustive-deps
+  const inTab = useCallback((event: EventListing) => (tab === 'mine' ? event.mine : !event.mine), [tab]);
+  const visible = useMemo(() => shelf.filter(inTab), [inTab, shelf]);
+  /* Organizing arranges the half on screen. The other half keeps its order
+     behind it, so saving one tab never shuffles the other. */
+  const arrangeVisible = useCallback(
+    (ids: string[]) => setArranged([...ids, ...shelf.filter((event) => !inTab(event)).map((event) => event.id)]),
+    [inTab, shelf],
+  );
   const startOrganizing = useCallback(() => {
     setHeld(null);
     setArranged(shelf.map((event) => event.id));
@@ -589,7 +603,45 @@ export function ProfileScreen({
         your first one, standing over a shelf that already has one, is a
         prompt nobody needs twice.
       */}
-      {account && events.length === 0 && (
+      {/*
+        Created and Joined: the shelf in two halves, as icon tabs. Always there
+        once signed in, even with both halves empty, so the shape is learnt
+        before there is anything in it. Held still while organizing — Done
+        saves the half on screen.
+      */}
+      {account && (
+        <View style={styles.gutter}>
+          <View accessibilityRole="tablist" style={[styles.tabs, { borderColor: t.line }]}>
+            {(
+              [
+                ['mine', 'photos', 'Rolls you created'],
+                ['joined', 'sunglasses', 'Rolls you joined'],
+              ] as const
+            ).map(([key, glyph, label]) => {
+              const selected = tab === key;
+              return (
+                <Pressable
+                  key={key}
+                  onPress={() => setTab(key)}
+                  disabled={organizing}
+                  hitSlop={{ top: 6, bottom: 6 }}
+                  accessibilityRole="tab"
+                  accessibilityState={{ selected }}
+                  accessibilityLabel={label}
+                  style={({ pressed }) => [
+                    styles.tab,
+                    { borderBottomColor: selected ? t.fg : 'transparent', opacity: pressed ? 0.6 : 1 },
+                  ]}
+                >
+                  <Glyph name={glyph} size={22} weight={selected ? 2.5 : 2} color={selected ? t.fg : t.dim} />
+                </Pressable>
+              );
+            })}
+          </View>
+        </View>
+      )}
+
+      {account && visible.length === 0 && tab === 'mine' && (
         <View style={[styles.noAlbums, styles.gutter]}>
           <Text style={[styles.noAlbumsText, { color: t.dim }]}>
             No Rolls Yet. Create One Now.
@@ -599,27 +651,35 @@ export function ProfileScreen({
           </RoundButton>
         </View>
       )}
+      {/* Joined, empty: nothing to make here — somebody else asks you in. */}
+      {account && visible.length === 0 && tab === 'joined' && (
+        <View style={[styles.noAlbums, styles.gutter]}>
+          <Text style={[styles.noAlbumsText, { color: t.dim }]}>
+            Nothing yet. Rolls other people ask you into show up here.
+          </Text>
+        </View>
+      )}
 
       {/* Organizing: what to do, where the bio's buttons end and the shelf begins. */}
       {organizing && (
         <Text style={[styles.organizeHint, { color: t.dim }]}>Drag to arrange your shelf.</Text>
       )}
 
-      {organizing && shelf.length > 0 ? (
+      {organizing && visible.length > 0 ? (
         <View style={styles.gutter}>
           <OrganizeShelf
-            events={shelf}
+            events={visible}
             tile={tile}
             gap={GAP}
             t={t}
-            onOrder={setArranged}
+            onOrder={arrangeVisible}
             onDragging={setDragging}
           />
         </View>
       ) : (
-        shelf.length > 0 && (
+        visible.length > 0 && (
         <View style={[styles.grid, styles.gutter]}>
-          {shelf.map((event) => (
+          {visible.map((event) => (
               <Pressable
                 key={event.id}
                 onPress={() => onOpen(event)}
@@ -629,6 +689,10 @@ export function ProfileScreen({
                 delayLongPress={320}
                 accessibilityRole="button"
                 accessibilityLabel={`${event.name}, ${
+                  event.mine
+                    ? ''
+                    : `${event.creator.name ?? event.creator.handle ?? 'Somebody else'}’s, `
+                }${
                   event.accessPolicy === 'private' ? 'private, ' : ''
                 }${event.photoCount} ${event.photoCount === 1 ? 'photo' : 'photos'}`}
                 accessibilityHint="Hold to organize your rolls"
@@ -1318,6 +1382,10 @@ const styles = StyleSheet.create({
   noAlbums: { alignItems: 'center', gap: 14, paddingTop: 24 },
   noAlbumsText: { fontSize: 15, lineHeight: 21, textAlign: 'center' },
   actions: { flexDirection: 'row', gap: 8 },
+  /* Created / Joined: two halves on a hairline, the selected one underlined
+     on top of it — the floating tab bar's rule of bold-and-bright for chosen. */
+  tabs: { flexDirection: 'row', borderBottomWidth: 1 },
+  tab: { flex: 1, alignItems: 'center', paddingTop: 6, paddingBottom: 11, marginBottom: -1, borderBottomWidth: 2 },
   action: { flex: 1, borderWidth: 1, borderRadius: 12, paddingVertical: 11, alignItems: 'center' },
   actionText: { fontSize: 15, fontWeight: '600' },
   /* Two across with gutters: these are cards of separate evenings, not one
