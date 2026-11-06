@@ -202,8 +202,13 @@ export function ProfileScreen({
    * Which half of the shelf is showing: rolls you made, or everybody else's
    * that you are in. In memory only, so it is Created again whenever the
    * screen comes back — the same reasoning as the web's lens.
+   *
+   * Only offered once somebody is in a roll they did not make: with nothing
+   * to put behind Joined there is no second tab, and the shelf is just yours.
    */
-  const [tab, setTab] = useState<'mine' | 'joined'>('mine');
+  const [chosen, setTab] = useState<'mine' | 'joined'>('mine');
+  const hasJoined = useMemo(() => events.some((event) => !event.mine), [events]);
+  const tab = hasJoined ? chosen : 'mine';
   const shelf = useMemo(() => {
     const sorted = shelfOrder(events);
     if (!arranged) return sorted;
@@ -604,12 +609,12 @@ export function ProfileScreen({
         prompt nobody needs twice.
       */}
       {/*
-        Created and Joined: the shelf in two halves, as icon tabs. Always there
-        once signed in, even with both halves empty, so the shape is learnt
-        before there is anything in it. Held still while organizing — Done
-        saves the half on screen.
+        Created and Joined: the shelf in two halves, as icon tabs. Only once
+        there is a Joined half — a row with one tab in it is a line under the
+        only thing there is. Held still while organizing — Done saves the half
+        on screen.
       */}
-      {account && (
+      {account && hasJoined && (
         <View style={styles.gutter}>
           <View accessibilityRole="tablist" style={[styles.tabs, { borderColor: t.line }]}>
             {(
@@ -641,7 +646,7 @@ export function ProfileScreen({
         </View>
       )}
 
-      {account && visible.length === 0 && tab === 'mine' && (
+      {account && visible.length === 0 && (
         <View style={[styles.noAlbums, styles.gutter]}>
           <Text style={[styles.noAlbumsText, { color: t.dim }]}>
             No Rolls Yet. Create One Now.
@@ -649,14 +654,6 @@ export function ProfileScreen({
           <RoundButton t={t} onPress={onCreateEvent} accessibilityLabel="Create a roll">
             <Glyph name="plus" size={20} color={t.fg} />
           </RoundButton>
-        </View>
-      )}
-      {/* Joined, empty: nothing to make here — somebody else asks you in. */}
-      {account && visible.length === 0 && tab === 'joined' && (
-        <View style={[styles.noAlbums, styles.gutter]}>
-          <Text style={[styles.noAlbumsText, { color: t.dim }]}>
-            Nothing yet. Rolls other people ask you into show up here.
-          </Text>
         </View>
       )}
 

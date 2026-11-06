@@ -403,7 +403,9 @@ describe('an empty shelf', () => {
      * that matched nothing.
      */
     expect(HOME).toMatch(/\{!searching && shown\.length === 0 && \(/);
-    expect(ACCOUNT).toMatch(/\{lens !== 'joined' && shown\.length === 0 && \(/);
+    // The profile's only empty shelf is Created's: Joined is no tab until it has something in it.
+    expect(ACCOUNT).toMatch(/const tab = joined\.length > 0 \? lens : 'mine';/);
+    expect(ACCOUNT).toMatch(/\{shown\.length === 0 && \(/);
     // Gone, not hidden.
     expect(HOME).not.toMatch(/CreateCard/);
     expect(ACCOUNT).not.toMatch(/CreateCard/);

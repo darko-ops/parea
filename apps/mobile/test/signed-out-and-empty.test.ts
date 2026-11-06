@@ -134,8 +134,8 @@ describe('a shelf with nothing on it', () => {
   it('goes the moment there is one', () => {
     // Guarded on the count rather than toggled by the press: a prompt that
     // hid itself would stay hidden for an album that failed to be made.
-    // Per tab: Created empty offers the `+`, Joined empty has its own line.
-    expect(PROFILE).toMatch(/\{account && visible\.length === 0 && tab === 'mine' && \(/);
+    // Joined is only a tab once it has something in it, so an empty shelf is always Created's.
+    expect(PROFILE).toMatch(/\{account && visible\.length === 0 && \(/);
     // `visible` is the tab's half of `shelf`, in the order Organize Rolls left them.
     expect(PROFILE).toMatch(/visible\.length > 0 && \(\s*\n\s*<View style=\{\[styles\.grid/);
   });

@@ -257,7 +257,10 @@ export function AccountView() {
    */
   const mine = events.filter((event) => event.mine);
   const joined = events.filter((event) => !event.mine);
-  const shown = lens === 'mine' ? mine : joined;
+  /* No Joined tab until there is something to put behind it, and back to
+     Created if the last one goes while it is showing. */
+  const tab = joined.length > 0 ? lens : 'mine';
+  const shown = tab === 'mine' ? mine : joined;
   /* What is in all of them, for the middle of the three counts. Every album
      on the shelf, not the lens: the line is about this person rather than
      about which half of their shelf is showing. */
@@ -586,17 +589,18 @@ export function AccountView() {
         */}
         {/*
           Created and Joined, as the app draws them: two icon tabs on a
-          hairline, no counts. Always there once signed in, even with both
-          halves empty, so the shape is learnt before there is anything in it.
-          Arrow keys move between the two, as a tablist's should.
+          hairline, no counts. Only once there is a Joined half: a row with
+          one tab in it is a line under the only thing there is. Arrow keys
+          move between the two, as a tablist's should.
         */}
+        {joined.length > 0 && (
         <div
           className="roll-tabs"
           role="tablist"
           onKeyDown={(e) => {
             if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return;
             e.preventDefault();
-            const next = lens === 'mine' ? 'joined' : 'mine';
+            const next = tab === 'mine' ? 'joined' : 'mine';
             setLens(next);
             e.currentTarget.querySelector<HTMLButtonElement>(`[data-lens="${next}"]`)?.focus();
           }}
@@ -612,16 +616,17 @@ export function AccountView() {
               type="button"
               role="tab"
               data-lens={id}
-              aria-selected={lens === id}
+              aria-selected={tab === id}
               aria-label={label}
               title={label}
-              tabIndex={lens === id ? 0 : -1}
+              tabIndex={tab === id ? 0 : -1}
               onClick={() => setLens(id)}
             >
-              <RailIcon glyph={glyph} size={22} weight={lens === id ? 2.5 : 2} />
+              <RailIcon glyph={glyph} size={22} weight={tab === id ? 2.5 : 2} />
             </button>
           ))}
         </div>
+        )}
         <div className="cards">
           {shown.map((event) => (
             <EventCard
@@ -680,22 +685,16 @@ export function AccountView() {
             was the whole page. See the note on `HomeView`; the argument and
             the seven words are both shared.
 
-            Only under Created. Under Joined it would be offering to
-            make an album on the shelf that is deliberately showing the ones
-            somebody else made, so that one keeps its own sentence.
+            Only ever under Created: Joined is not a tab until it has
+            something in it.
           */}
-          {lens !== 'joined' && shown.length === 0 && (
+          {shown.length === 0 && (
             <div className="blank">
               <p className="blank-note">No Rolls Yet. Create One Now.</p>
               <a className="blank-do" href="/" aria-label="Create a roll">
                 <span aria-hidden="true">+</span>
               </a>
             </div>
-          )}
-          {lens === 'joined' && shown.length === 0 && (
-            <p className="field-help">
-              Nothing yet. Rolls other people ask you into show up here.
-            </p>
           )}
         </div>
       </section>
