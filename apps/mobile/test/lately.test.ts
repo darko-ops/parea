@@ -473,6 +473,15 @@ describe('a row about a person and a photograph', () => {
   });
 });
 
+describe('pulling to refresh', () => {
+  it('runs the conveyor the tabs use, not the system spinner', () => {
+    expect(LATELY).toMatch(/useConveyorRefresh\(\{\s*onRefresh: load,/);
+    expect(LATELY).toMatch(/<ConveyorDots conveyor=\{pull\.conveyor\} \/>/);
+    expect(LATELY).toMatch(/\{\.\.\.pull\.scrollProps\}/);
+    expect(code(LATELY)).not.toMatch(/RefreshControl/);
+  });
+});
+
 describe('back from a notification', () => {
   it('returns to Lately, from a roll, a profile or a group', () => {
     const lately = APP.slice(APP.indexOf('<Lately'), APP.indexOf('<Lately') + 1500);

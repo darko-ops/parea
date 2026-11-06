@@ -45,11 +45,19 @@
  */
 
 import { Image as ExpoImage } from 'expo-image';
-import { useCallback, useEffect, useState } from 'react';
-import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import {
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+  useWindowDimensions,
+} from 'react-native';
 
 import type { ActivityRow, Api, PendingRequest } from './api';
 import { askNotInGroup, notInGroupOf } from './notInGroup';
+import { ConveyorDots, isDarkPage, useConveyorRefresh } from './ConveyorRefresh';
 import { FrostedGlass } from './FrostedGlass';
 import { Glyph } from './Glyph';
 import type { GroupTheme } from './Groups';
@@ -151,7 +159,6 @@ export function Lately({
 }) {
   const [waiting, setWaiting] = useState<PendingRequest[]>([]);
   const [items, setItems] = useState<ActivityRow[] | null>(null);
-  const [refreshing, setRefreshing] = useState(false);
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -173,6 +180,18 @@ export function Lately({
   useEffect(() => {
     void load();
   }, [load]);
+
+  // The conveyor the tabs pull with, not the system spinner — this page is
+  // pushed over them and should refresh the way they do. See `ConveyorRefresh.tsx`.
+  const scroller = useRef<ScrollView>(null);
+  const { width } = useWindowDimensions();
+  const pull = useConveyorRefresh({
+    onRefresh: load,
+    scroller,
+    dark: isDarkPage(t.bg),
+    width,
+    tint: t.dim,
+  });
 
   /**
    * Optimistic in one direction, as the bubble on Home is.
@@ -262,19 +281,11 @@ export function Lately({
         <Back color={t.fg} />
       </RoundButton>
 
+      <ConveyorDots conveyor={pull.conveyor} />
       <ScrollView
+        ref={scroller}
         contentContainerStyle={[styles.scroll, items === null && styles.filling]}
-        refreshControl={
-          <RefreshControl
-            refreshing={refreshing}
-            tintColor={t.dim}
-            onRefresh={async () => {
-              setRefreshing(true);
-              await load();
-              setRefreshing(false);
-            }}
-          />
-        }
+        {...pull.scrollProps}
       >
         <Text style={[styles.h1, { color: t.fg }]}>Lately</Text>
 
