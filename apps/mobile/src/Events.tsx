@@ -66,7 +66,7 @@ import { SwipeRow } from './SwipeRow';
 import { Notifications, PageHead } from './PageHead';
 import { ROUND, RoundButton } from './RoundButton';
 import { MomentsBar, MomentsViewer, useMoments } from './Moments';
-import { IconField } from './IconField';
+import { FrostedGlass } from './FrostedGlass';
 import { StartSomething } from './StartSomething';
 import { IconGlyph } from './IconGlyph';
 import { Wordmark } from './Wordmark';
@@ -745,8 +745,12 @@ function EventCard({
               accessibilityRole="button"
               accessibilityLabel={`${plural(rest, 'more photo')} in ${event.name}`}
             >
+              {/*
+                The frosted pane a shut roll wears, seeded by this roll: the
+                photographs not shown here, as colour behind glass.
+              */}
               <View style={styles.sheetRest}>
-                <IconField />
+                <FrostedGlass seed={event.id} plain style={StyleSheet.absoluteFill} />
                 <Text style={styles.sheetRestText}>+{rest}</Text>
               </View>
             </Pressable>
@@ -4383,8 +4387,10 @@ const styles = StyleSheet.create({
    * White, and the same in both schemes.
    *
    * It read `dim` on the page's own card colour, which followed the scheme
-   * because its background did. The glass does not: the icon's field is the
-   * icon's field at midnight, so the ink on it has to be fixed too.
+   * because its background did. The glass does not: the frosted pane is the
+   * same pane at midnight, so the ink on it has to be fixed too. (It was the
+   * icon's field until the tile took a shut roll's pane; the history below is
+   * from then.)
    *
    * It was a dark plum, which is what the pastels underneath it wanted. The
    * field is dark now and the plum went with it — white is what the icon puts
@@ -4392,7 +4398,16 @@ const styles = StyleSheet.create({
    * digits occupy, the deep blue middle being the darkest part of the square
    * rather than the brightest.
    */
-  sheetRestText: { fontSize: 13, fontWeight: '700', color: '#ffffff' },
+  /* And a soft shadow under it now: the frosted pane can be sun or leaf behind
+     the digits, where white alone washes out. */
+  sheetRestText: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#ffffff',
+    textShadowColor: 'rgba(0, 0, 0, 0.35)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 6,
+  },
   /* The byline, above the photograph. Aligned to the same column as the title
      below it — `under`'s 4, so the face, the name and the date share an edge. */
   /*

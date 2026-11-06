@@ -254,6 +254,15 @@ describe('the roll’s grid', () => {
     expect(APP).toMatch(/\.filter\(\(draft\) => !local\.has\(draft\.id\) && !shown\.has\(draft\.id\)\)/);
   });
 
+  it('draws one square per photograph while it processes, not a draft beside its stand-in', () => {
+    // The queue forgets an upload once its bytes land; the stand-in stays as
+    // "processing" and the server lists the same photograph as a draft. The
+    // stand-ins on screen are asked too, so it is drawn once.
+    expect(APP).toMatch(
+      /\.\.\.pendingTiles\.flatMap\(\(preview\) => \(preview\.photoId \? \[preview\.photoId\] : \[\]\)\)/,
+    );
+  });
+
   it('drops a stand-in in the same render its photograph arrives', () => {
     expect(APP).toMatch(/previews\.filter\(\(p\) => !\(p\.photoId && feedIds\.has\(p\.photoId\)\)\)/);
   });

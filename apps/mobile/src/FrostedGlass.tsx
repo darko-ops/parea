@@ -24,10 +24,15 @@
  *
  * At a notification's 34 points the roundel is wider than the tile, so `small`
  * draws the padlock bare on the glass, white, and takes no note.
+ *
+ * ## Plain
+ *
+ * The glass and nothing on it, for a tile that puts its own words there — the
+ * `+N` at the end of a roll's strip.
  */
 
 import { frostedGlass } from '@parea/cards';
-import { useEffect, useMemo, useRef } from 'react';
+import { useEffect, useId, useMemo, useRef } from 'react';
 import { Animated, StyleSheet, View, type StyleProp, type ViewStyle } from 'react-native';
 import Svg, { Defs, LinearGradient, RadialGradient, Rect, Stop } from 'react-native-svg';
 
@@ -43,6 +48,7 @@ export function FrostedGlass({
   seed,
   note = null,
   small = false,
+  plain = false,
   style,
 }: {
   seed: string;
@@ -50,9 +56,18 @@ export function FrostedGlass({
   note?: string | null;
   /** A thumbnail: the padlock alone, no roundel. See above. */
   small?: boolean;
+  /** No padlock and no note. See above. */
+  plain?: boolean;
   style?: StyleProp<ViewStyle>;
 }) {
   const pane = useMemo(() => frostedGlass(seed), [seed]);
+  /*
+   * Ids unique to the instance, as `IconField` and `Mark` have them:
+   * `react-native-svg` resolves paint references against a registry that is
+   * not per-`Svg` on every platform, and a home screen has one of these on
+   * every card — shared ids would paint every pane in one roll's colours.
+   */
+  const uid = useId().replace(/[^a-zA-Z0-9]/g, '');
   const open = useRef(new Animated.Value(note ? 1 : 0)).current;
   // The last words shown, so they stay put while the pill folds back up.
   const shown = useRef(note);
@@ -73,7 +88,7 @@ export function FrostedGlass({
           {pane.lights.map((light, i) => (
             <RadialGradient
               key={i}
-              id={`light-${i}`}
+              id={`${uid}light${i}`}
               cx={light.x * W}
               cy={light.y * H}
               r={light.r * reach}
@@ -85,18 +100,18 @@ export function FrostedGlass({
             </RadialGradient>
           ))}
           {/* The frost: a milky sheen, brightest where the light catches it. */}
-          <LinearGradient id="frost" x1="0" y1="0" x2="1" y2="1">
+          <LinearGradient id={`${uid}frost`} x1="0" y1="0" x2="1" y2="1">
             <Stop offset="0" stopColor="#fff" stopOpacity={0.38} />
             <Stop offset="0.6" stopColor="#fff" stopOpacity={0.16} />
             <Stop offset="1" stopColor="#fff" stopOpacity={0.26} />
           </LinearGradient>
         </Defs>
         {pane.lights.map((_, i) => (
-          <Rect key={i} width={W} height={H} fill={`url(#light-${i})`} />
+          <Rect key={i} width={W} height={H} fill={`url(#${uid}light${i})`} />
         ))}
-        <Rect width={W} height={H} fill="url(#frost)" />
+        <Rect width={W} height={H} fill={`url(#${uid}frost)`} />
       </Svg>
-      {small ? (
+      {plain ? null : small ? (
         <View style={styles.center} pointerEvents="none">
           <Glyph name="locked" size={14} weight={2.4} color="#fff" />
         </View>

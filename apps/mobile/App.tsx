@@ -4520,14 +4520,26 @@ function EventScreen({
    * feed's photographs alone; and the count under the cover is the server's.
    * A stand-in is a promise, and none of those are places to count one.
    */
-  // A draft this phone's queue is still working on already has a stand-in.
+  /*
+   * A draft this phone is still adding already has a stand-in — one square per
+   * photograph.
+   *
+   * The queue alone was not enough to say so. An upload leaves the queue the
+   * moment its bytes are accepted, and its stand-in stays, as "processing",
+   * until the feed has it; the server lists the same photograph as a
+   * processing draft for exactly that stretch, so it was drawn twice. The
+   * stand-ins on screen are asked as well.
+   */
   const draftTiles = useMemo(() => {
-    const local = new Set(uploads.items.flatMap((item) => (item.photoId ? [item.photoId] : [])));
+    const local = new Set([
+      ...uploads.items.flatMap((item) => (item.photoId ? [item.photoId] : [])),
+      ...pendingTiles.flatMap((preview) => (preview.photoId ? [preview.photoId] : [])),
+    ]);
     const shown = new Set((feed?.photos ?? []).map((photo) => photo.id));
     return drafts
       .filter((draft) => !local.has(draft.id) && !shown.has(draft.id))
       .map((draft) => ({ ...draft, draftTile: true as const }));
-  }, [drafts, uploads, feed]);
+  }, [drafts, uploads, pendingTiles, feed]);
 
   const gridTiles = useMemo<GridTile[]>(
     () => [

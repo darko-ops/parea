@@ -331,7 +331,7 @@ describe('the card the home list draws', () => {
     expect(code(CARD)).not.toMatch(/ScrollView/);
   });
 
-  it('pours the app icon’s own field behind the count, rather than a grey square', () => {
+  it('pours a field of colour behind the count, rather than a grey square', () => {
     /*
      * The "+N" tile was `card` over `line` — white on a white page, and in the
      * dark scheme a dark grey square, which is what a photograph looks like
@@ -347,7 +347,14 @@ describe('the card the home list draws', () => {
      */
     // Its own file now, because the moments row's rings wear it too.
     const GLASS = read('src/IconField.tsx');
-    expect(EVENTS).toMatch(/<IconField \/>/);
+    /*
+     * The tile itself wears the frosted pane a shut roll wears now, seeded by
+     * the roll — by request, so the photographs not shown read as the same
+     * colour-behind-glass as a roll you cannot see into. The icon's field is
+     * still the moments rings', and what follows still pins it.
+     */
+    expect(EVENTS).toMatch(/<FrostedGlass seed=\{event\.id\} plain style=\{StyleSheet\.absoluteFill\} \/>/);
+    expect(read('src/FrostedGlass.tsx')).toMatch(/useId\(\)\.replace\(/);
     expect(GLASS).toContain("const GLASS_BASE = '#173EA8';");
     expect(ICON_SCRIPT).toContain("const FIELD_BASE = '#173EA8';");
 
@@ -408,7 +415,7 @@ describe('the card the home list draws', () => {
      * midnight too — white, which is what the icon itself puts on this
      * surface, on a middle that is the darkest part of the square.
      */
-    expect(EVENTS).toMatch(/sheetRestText: \{[^}]*color: '#ffffff' \}/);
+    expect(EVENTS).toMatch(/sheetRestText: \{[^}]*color: '#ffffff',/);
   });
 
   it('sends a thumbnail to its own photograph and the count to the grid', () => {
