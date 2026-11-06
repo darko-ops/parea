@@ -18,6 +18,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import type { Api, InvitablePerson } from './api';
+import { BELOW_TABS } from './chrome';
 import type { GroupTheme } from './Groups';
 import { initialOf, lensFor } from './lens';
 import { Back, RoundButton } from './RoundButton';
@@ -162,7 +163,9 @@ const styles = StyleSheet.create({
   root: { flex: 1 },
   /* Find Friends' corner and inset, so Back is where it always is. */
   back: { position: 'absolute', top: 52, left: 16, zIndex: 3 },
-  scroll: { paddingTop: 100, paddingHorizontal: 20, paddingBottom: 48, gap: 16 },
+  /* `BELOW_TABS` at the foot, as on the profile it opens from: the tab bar is
+     drawn over this page, and 48 left the last friend under it. */
+  scroll: { paddingTop: 100, paddingHorizontal: 20, paddingBottom: BELOW_TABS, gap: 16 },
   filling: { flexGrow: 1 },
   h1: { fontSize: 30, fontWeight: '700', letterSpacing: -0.6 },
   note: { fontSize: 14, lineHeight: 21 },
