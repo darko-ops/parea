@@ -22,7 +22,14 @@ vi.mock('next/headers', () => ({
   cookies: async () => ({ get: () => undefined, set: () => {} }),
   headers: async () => ({ get: (name: string) => headerBag.get(name.toLowerCase()) ?? null }),
 }));
-vi.mock('@/notify', () => ({ notifyFriendRequest: async () => {} }));
+/** Who was told their ask was answered yes, and by whom. */
+const accepted: { toActorId: string; fromActorId: string }[] = [];
+vi.mock('@/notify', () => ({
+  notifyFriendRequest: async () => {},
+  notifyFriendAccepted: async (_db: unknown, input: { toActorId: string; fromActorId: string }) => {
+    accepted.push(input);
+  },
+}));
 
 const { __setDbForTests } = await import('@/db');
 const { sign } = await import('@/auth/cookies');
@@ -40,6 +47,7 @@ beforeAll(async () => {
 });
 
 beforeEach(async () => {
+  accepted.length = 0;
   const { sql } = await import('drizzle-orm');
   await db.execute(sql`
     truncate "account", "actor", "groups", "group_member", "group_invite", "friend_request", "friendship"
@@ -97,6 +105,8 @@ describe('a new friend’s chat', () => {
     expect(await membersOfEachRoom()).toEqual([[me, them].sort()]);
     const [room] = await db.select().from(schema.groups);
     expect(room).toMatchObject({ name: null, findable: false });
+    // The asker hears the yes, after the chat it opens on exists.
+    expect(accepted).toEqual([{ toActorId: me, fromActorId: them }]);
   });
 
   it('is made when asking somebody who had already asked you', async () => {
@@ -106,6 +116,7 @@ describe('a new friend’s chat', () => {
     const answered = await call(POST, me, 'POST', { actorId: them });
     expect(await answered.json()).toEqual({ status: 'accepted' });
     expect(await membersOfEachRoom()).toEqual([[me, them].sort()]);
+    expect(accepted).toEqual([{ toActorId: them, fromActorId: me }]);
   });
 
   it('is not made for a request declined', async () => {
@@ -115,6 +126,8 @@ describe('a new friend’s chat', () => {
     const [request] = await db.select().from(schema.friendRequests);
     await call(PATCH, them, 'PATCH', { requestId: request!.id, action: 'decline' });
     expect(await membersOfEachRoom()).toEqual([]);
+    // A no is not announced.
+    expect(accepted).toEqual([]);
   });
 
   it('is the chat the two of you already have, not a second one', async () => {

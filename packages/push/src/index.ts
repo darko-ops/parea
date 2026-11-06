@@ -44,6 +44,12 @@ export type Notification =
   /** Somebody asked to be your friend. Nothing else tells you. */
   | { kind: 'friend_requested'; who: string }
   /**
+   * The other half: somebody said yes to you. The asker is otherwise left
+   * waiting on an answer that already came. `groupId` is the chat the
+   * friendship opened, so the tap lands where the next thing gets said.
+   */
+  | { kind: 'friend_accepted'; who: string; groupId?: string }
+  /**
    * Somebody said something about a photograph you added.
    *
    * Worth interrupting for because it is addressed to you and nothing else
@@ -138,6 +144,7 @@ const KINDS: Record<Notification['kind'], true> = {
   removal_answered: true,
   access_requested: true,
   friend_requested: true,
+  friend_accepted: true,
   photo_comment: true,
   photo_tagged: true,
   photo_liked: true,
@@ -247,6 +254,12 @@ export function render(notification: Notification): { title: string; body: strin
       return {
         title: 'Parea',
         body: `${notification.who} wants to be friends.`,
+      };
+    case 'friend_accepted':
+      return {
+        title: 'Parea',
+        // The sentence Lately keeps for it, so the push and the row agree.
+        body: `You and ${notification.who} are friends now.`,
       };
     case 'photo_comment':
       return {

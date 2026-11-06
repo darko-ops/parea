@@ -17,7 +17,7 @@ import { getDb, type Db } from '@/db';
 import { avatarUrl } from '@/accounts';
 import { befriend, friendsOf, requestsFor, unfriend } from '@/friends';
 import { ensureDirectChat } from '@/groups';
-import { notifyFriendRequest } from '@/notify';
+import { notifyFriendAccepted, notifyFriendRequest } from '@/notify';
 import { currentActorId } from '@/session';
 
 export const runtime = 'nodejs';
@@ -137,6 +137,8 @@ export async function POST(request: Request) {
       .update(schema.friendRequests)
       .set({ status: 'accepted', resolvedAt: new Date() })
       .where(eq(schema.friendRequests.id, incoming.id));
+    // Asking somebody who already asked you is a yes, and they are told so.
+    await notifyFriendAccepted(db, { toActorId: target, fromActorId: actorId });
     return NextResponse.json({ status: 'accepted' });
   }
 
@@ -219,6 +221,12 @@ export async function PATCH(request: Request) {
     .update(schema.friendRequests)
     .set({ status: action === 'accept' ? 'accepted' : 'declined', resolvedAt: new Date() })
     .where(eq(schema.friendRequests.id, body.requestId));
+
+  // A yes is told to whoever asked; a no is not — being turned down is not
+  // something anybody needs a banner for.
+  if (action === 'accept') {
+    await notifyFriendAccepted(db, { toActorId: row.fromActorId, fromActorId: actorId });
+  }
 
   return NextResponse.json({ ok: true });
 }

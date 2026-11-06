@@ -38,6 +38,19 @@ describe('messages, likes and requests', () => {
       notificationTarget({ kind: 'group_join_requested', groupId: GROUP, groupName: 'Flat', who: 'Ana' }),
     ).toEqual({ screen: 'group', groupId: GROUP });
   });
+
+  it('sends a friend request to Lately, where it can be answered', () => {
+    expect(notificationTarget({ kind: 'friend_requested', who: 'Ana' })).toEqual({ screen: 'lately' });
+  });
+
+  it('sends a yes to the chat it opened, or Lately without one', () => {
+    expect(notificationTarget({ kind: 'friend_accepted', who: 'Ana', groupId: GROUP })).toEqual({
+      screen: 'chat',
+      groupId: GROUP,
+      name: 'Ana',
+    });
+    expect(notificationTarget({ kind: 'friend_accepted', who: 'Ana' })).toEqual({ screen: 'lately' });
+  });
 });
 
 describe('the three notifications', () => {

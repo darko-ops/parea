@@ -112,10 +112,12 @@ export function notificationTarget(
       // the whole of what was being offered.
       return eventId ? { screen: 'event', eventId } : null;
     case 'friend_requested':
-      // Nowhere to send them: this client has no friends screen yet, and the
-      // web one is not somewhere a tap should leave the app for. Opening to
-      // the tab bar is the honest outcome until there is a screen.
-      return null;
+      // Lately, where the ask waits at the top with Accept and Decline on it.
+      return { screen: 'lately' };
+    case 'friend_accepted':
+      // The chat the friendship opened, titled with them as a chat of two is.
+      // Without one, Lately, which says you are friends now.
+      return groupId ? { screen: 'chat', groupId, name: who ?? 'Chat' } : { screen: 'lately' };
     case 'group_invited':
       /*
        * Somebody asked them into a group, or into a chat — a chat with

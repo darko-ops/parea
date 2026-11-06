@@ -123,6 +123,7 @@ describe('what can be sent', () => {
       { kind: 'removal_answered', eventId: 'e', removed: true },
       { kind: 'access_requested', eventId: 'e', eventName: 'Party', who: 'Ana' },
       { kind: 'friend_requested', who: 'Ana' },
+      { kind: 'friend_accepted', who: 'Ana', groupId: 'g' },
       { kind: 'photo_comment', eventId: 'e', eventName: 'Party', who: 'Ana', said: 'hi' },
       { kind: 'photo_tagged', eventId: 'e', eventName: 'Party', who: 'Ana' },
       { kind: 'event_invited', eventId: 'e', eventName: 'Party', who: 'Ana' },

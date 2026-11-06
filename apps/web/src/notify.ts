@@ -16,7 +16,7 @@ import { sendAll, toMessage, type Notification } from '@parea/push';
 import { and, eq, inArray, isNotNull, ne, or } from 'drizzle-orm';
 
 import type { Db } from './db';
-import { othersInGroups, titleFor } from './groups';
+import { directChatWith, othersInGroups, titleFor } from './groups';
 
 async function deliver(
   db: Db,
@@ -234,6 +234,30 @@ export async function notifyFriendRequest(
 ): Promise<void> {
   try {
     await deliver(db, [input.toActorId], { kind: 'friend_requested', who: input.who });
+  } catch {
+    /* see the module header */
+  }
+}
+
+/**
+ * Somebody said yes to your friend request — told to the one who asked, with
+ * the chat the friendship just opened as where the tap lands.
+ */
+export async function notifyFriendAccepted(
+  db: Db,
+  input: { toActorId: string; fromActorId: string },
+): Promise<void> {
+  try {
+    const [who, chat] = await Promise.all([
+      nameOf(db, input.fromActorId),
+      directChatWith(db, input.toActorId, input.fromActorId),
+    ]);
+    await deliver(
+      db,
+      [input.toActorId],
+      { kind: 'friend_accepted', who, ...(chat ? { groupId: chat.id } : {}) },
+      input.fromActorId,
+    );
   } catch {
     /* see the module header */
   }
