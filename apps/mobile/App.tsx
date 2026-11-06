@@ -1958,9 +1958,9 @@ export default function App() {
               void refreshGroups();
               void refreshWaiting();
             }}
-            onOpenEvent={(id) => {
+            onOpenEvent={(id, photo) => {
               const listing = events.find((e) => e.id === id);
-              if (listing) openListing(listing);
+              if (listing) openListing(listing, photo);
             }}
             onOpenPerson={(handle) => setRoute({ screen: 'person', handle })}
             onOpenGroup={(id) => setRoute({ screen: 'group', id })}

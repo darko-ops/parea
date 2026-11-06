@@ -455,9 +455,21 @@ describe('where a row goes', () => {
      * respond — leaving the app to read a notification about the app is the
      * worst answer available, and `/friends` is the one that would do it.
      */
-    expect(LATELY).toMatch(/\^\\\/event\\\/\(\[0-9a-f-\]\{36\}\)\$/);
+    // A roll, and optionally the one photograph in it.
+    expect(LATELY).toMatch(/\^\\\/event\\\/\(\[0-9a-f-\]\{36\}\)\(\?:\\\?photo=/);
     expect(LATELY).toMatch(/\^\\\/u\\\/\(\[\^\/\]\+\)\$/);
     expect(code(LATELY)).not.toMatch(/Linking|openURL|WebBrowser/);
+  });
+});
+
+describe('a row about a person and a photograph', () => {
+  it('opens the person from their name and face, and the photo from the photo', () => {
+    // "Wren liked your photo" is about two things; one tap reached only one.
+    expect(LATELY).toMatch(/onPress=\{row\.whoHref \? \(\) => follow\(row\.whoHref\) : undefined\}/);
+    expect(LATELY).toMatch(/onPress=\{\(\) => follow\(row\.whoHref\)\}\s*disabled=\{!row\.whoHref\}/);
+    expect(LATELY).toMatch(/onPress=\{\(\) => follow\(row\.imagesHref \?\? row\.href\)\}/);
+    // Anywhere else is the line's own destination, as before.
+    expect(LATELY).toMatch(/onPress=\{\(\) => follow\(row\.href\)\}/);
   });
 });
 

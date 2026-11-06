@@ -162,6 +162,12 @@ export type ActivityItem = {
   who: string;
   /** What they did, as one line. */
   what: string;
+  /**
+   * The profile of whoever `who` names, so the name on the row opens them
+   * rather than the thing they did. Null on a line that opens with "You", and
+   * for anybody without a handle to open.
+   */
+  whoHref?: string | null;
   /** Where it happened, if there is somewhere to go. */
   href: string | null;
   /**
@@ -199,7 +205,16 @@ export type ActivityItem = {
    * the list scan as two lists, one with pictures and one without.
    */
   images: string[];
+  /**
+   * Where the photographs in `images` go: the one photograph, on a line about
+   * one, and the roll on a line about several. Unset where `images` is empty.
+   */
+  imagesHref?: string;
 };
+
+/** A person's page, for `whoHref`. */
+const profileOf = (handle: string | null | undefined) =>
+  handle ? `/u/${encodeURIComponent(handle)}` : null;
 
 /**
  * How much of the past to show. A list, not an archive.
@@ -336,6 +351,7 @@ export async function activityFor(
         emoji: schema.messageReactions.emoji,
         at: schema.messageReactions.createdAt,
         who: NAME,
+        whoHandle: schema.actors.handle,
         avatarKey: schema.actors.avatarKey,
         eventId: schema.eventMessages.eventId,
       })
@@ -379,6 +395,7 @@ export async function activityFor(
         emoji: schema.photoReactions.emoji,
         at: schema.photoReactions.createdAt,
         who: NAME,
+        whoHandle: schema.actors.handle,
         avatarKey: schema.actors.avatarKey,
         eventId: schema.photos.eventId,
         eventName: schema.events.name,
@@ -417,6 +434,7 @@ export async function activityFor(
             id: schema.eventMessages.id,
             at: schema.eventMessages.createdAt,
             who: NAME,
+            whoHandle: schema.actors.handle,
             avatarKey: schema.actors.avatarKey,
             eventId: schema.eventMessages.eventId,
             body: schema.eventMessages.body,
@@ -458,6 +476,7 @@ export async function activityFor(
         id: schema.eventMessages.id,
         at: schema.eventMessages.createdAt,
         who: NAME,
+        whoHandle: schema.actors.handle,
         avatarKey: schema.actors.avatarKey,
         eventId: schema.eventMessages.eventId,
         eventName: schema.events.name,
@@ -500,6 +519,7 @@ export async function activityFor(
         id: schema.eventMessages.id,
         at: schema.eventMessages.createdAt,
         who: NAME,
+        whoHandle: schema.actors.handle,
         avatarKey: schema.actors.avatarKey,
         eventId: schema.eventMessages.eventId,
         eventName: schema.events.name,
@@ -542,6 +562,7 @@ export async function activityFor(
         photoId: schema.photoTags.photoId,
         at: schema.photoTags.createdAt,
         who: NAME,
+        whoHandle: schema.actors.handle,
         avatarKey: schema.actors.avatarKey,
         eventId: schema.photos.eventId,
         eventName: schema.events.name,
@@ -608,6 +629,7 @@ export async function activityFor(
         capEpoch: schema.events.capEpoch,
         uploaderId: schema.actors.id,
         who: NAME,
+        whoHandle: schema.actors.handle,
         avatarKey: schema.actors.avatarKey,
         n: sql<number>`count(*)::int`,
         at: sql<Date>`max(${schema.photos.uploadedAt})`,
@@ -766,6 +788,7 @@ export async function activityFor(
         actorId: schema.eventParticipants.actorId,
         at: schema.eventParticipants.firstSeenAt,
         who: NAME,
+        whoHandle: schema.actors.handle,
         avatarKey: schema.actors.avatarKey,
         name: schema.events.name,
         eventId: schema.events.id,
@@ -836,6 +859,7 @@ export async function activityFor(
         id: schema.groupInvites.id,
         at: schema.groupInvites.respondedAt,
         who: NAME,
+        whoHandle: schema.actors.handle,
         avatarKey: schema.actors.avatarKey,
         groupId: schema.groups.id,
         name: schema.groups.name,
@@ -868,6 +892,7 @@ export async function activityFor(
         eventId: schema.events.id,
         at: schema.events.createdAt,
         who: NAME,
+        whoHandle: schema.actors.handle,
         avatarKey: schema.actors.avatarKey,
         name: schema.events.name,
         groupName: schema.groups.name,
@@ -903,6 +928,7 @@ export async function activityFor(
         groupId: schema.groups.id,
         at: schema.groupMembers.joinedAt,
         who: NAME,
+        whoHandle: schema.actors.handle,
         avatarKey: schema.actors.avatarKey,
         name: schema.groups.name,
       })
@@ -929,6 +955,7 @@ export async function activityFor(
         eventId: schema.events.id,
         at: schema.events.handedAt,
         who: NAME,
+        whoHandle: schema.actors.handle,
         avatarKey: schema.actors.avatarKey,
         fromId: schema.events.handedByActorId,
         name: schema.events.name,
@@ -951,6 +978,7 @@ export async function activityFor(
         groupId: schema.groups.id,
         at: schema.groupMembers.handedAt,
         who: NAME,
+        whoHandle: schema.actors.handle,
         avatarKey: schema.actors.avatarKey,
         fromId: schema.groupMembers.handedByActorId,
         name: schema.groups.name,
@@ -1046,6 +1074,7 @@ export async function activityFor(
       kind: 'reaction' as const,
       at: r.at.toISOString(),
       who: r.who,
+      whoHref: profileOf(r.whoHandle),
       // Every reaction is a like now — see `LIKE` in `./reactions`.
       what: 'liked something you wrote',
       href: `/event/${r.eventId}`,
@@ -1059,8 +1088,10 @@ export async function activityFor(
       kind: 'photo_reaction' as const,
       at: r.at.toISOString(),
       who: r.who,
+      whoHref: profileOf(r.whoHandle),
       what: `liked your photo in ${r.eventName}`,
       href: `/event/${r.eventId}`,
+      imagesHref: `/event/${r.eventId}?photo=${r.photoId}`,
       image: await avatarUrl(r.avatarKey),
       /*
        * And the photograph, which is the exception `images` exists for — see
@@ -1085,6 +1116,7 @@ export async function activityFor(
       kind: 'mention' as const,
       at: m.at.toISOString(),
       who: m.who,
+      whoHref: profileOf(m.whoHandle),
       // The message itself, trimmed. A mention with no context is a
       // notification that can only be answered by opening it.
       what: `mentioned you: “${m.body.slice(0, 90)}${m.body.length > 90 ? '…' : ''}”`,
@@ -1120,8 +1152,10 @@ export async function activityFor(
       kind: 'photos_added' as const,
       at: new Date(row.at).toISOString(),
       who: row.who,
+      whoHref: profileOf(row.whoHandle),
       what: `added ${row.n} ${row.n === 1 ? 'photo' : 'photos'} to ${row.eventName}`,
       href: `/event/${row.eventId}`,
+      imagesHref: `/event/${row.eventId}`,
       image: await avatarUrl(row.avatarKey),
       // The photographs themselves, signed the way every photograph is: against
       // the event's `cap_epoch`, so rotating its link stops these resolving
@@ -1160,6 +1194,7 @@ export async function activityFor(
       kind: 'joined_yours' as const,
       at: a.at.toISOString(),
       who: a.who,
+      whoHref: profileOf(a.whoHandle),
       what: `joined ${a.name}`,
       href: `/event/${a.eventId}`,
       image: await avatarUrl(a.avatarKey),
@@ -1170,6 +1205,7 @@ export async function activityFor(
       kind: 'group_joined' as const,
       at: g.at!.toISOString(),
       who: g.who,
+      whoHref: profileOf(g.whoHandle),
       /*
        * A named group by its name. An unnamed one is titled from its members
        * (`titleFor`), which now includes the person this line is about —
@@ -1187,6 +1223,7 @@ export async function activityFor(
       kind: 'photo_comment' as const,
       at: c.at.toISOString(),
       who: c.who,
+      whoHref: profileOf(c.whoHandle),
       /*
        * The remark itself, not the fact that one exists.
        *
@@ -1204,6 +1241,7 @@ export async function activityFor(
       kind: 'comment_reply' as const,
       at: c.at.toISOString(),
       who: c.who,
+      whoHref: profileOf(c.whoHandle),
       /*
        * The remark, and whose photograph it is under — which is the part that
        * locates it. "Replied to you" is a line somebody has to open an album
@@ -1219,8 +1257,10 @@ export async function activityFor(
       kind: 'tagged' as const,
       at: g.at.toISOString(),
       who: g.who,
+      whoHref: profileOf(g.whoHandle),
       what: `tagged you in a photo in ${g.eventName}`,
       href: `/event/${g.eventId}`,
+      imagesHref: `/event/${g.eventId}?photo=${g.photoId}`,
       // The person who said it, because the line is about them saying it.
       image: await avatarUrl(g.avatarKey),
       /*
@@ -1271,6 +1311,7 @@ export async function activityFor(
       kind: 'group_roll' as const,
       at: r.at.toISOString(),
       who: r.who,
+      whoHref: profileOf(r.whoHandle),
       what: r.groupName?.trim()
         ? `started ${r.name} in ${r.groupName.trim()}`
         : `started ${r.name}`,
@@ -1283,6 +1324,7 @@ export async function activityFor(
       kind: 'group_added' as const,
       at: g.at.toISOString(),
       who: g.who,
+      whoHref: profileOf(g.whoHandle),
       what: `added you to ${g.name!.trim()}`,
       href: `/group/${g.groupId}`,
       image: await avatarUrl(g.avatarKey),
@@ -1294,7 +1336,7 @@ export async function activityFor(
       kind: 'roll_handed' as const,
       at: r.at!.toISOString(),
       ...(r.fromId
-        ? { who: r.who, what: `handed you ${r.name} — you run it now` }
+        ? { who: r.who, whoHref: profileOf(r.whoHandle), what: `handed you ${r.name} — you run it now` }
         : { who: 'You', what: `run ${r.name} now — its Host left Parea`, face: r.name }),
       href: `/event/${r.eventId}`,
       image: r.fromId ? await avatarUrl(r.avatarKey) : null,
@@ -1307,7 +1349,7 @@ export async function activityFor(
         kind: 'group_handed' as const,
         at: g.at!.toISOString(),
         ...(g.fromId
-          ? { who: g.who, what: `made you the admin of ${name}` }
+          ? { who: g.who, whoHref: profileOf(g.whoHandle), what: `made you the admin of ${name}` }
           : { who: 'You', what: `run ${name} now — its last admin left Parea`, face: name }),
         href: `/group/${g.groupId}`,
         image: g.fromId ? await avatarUrl(g.avatarKey) : null,
@@ -1378,6 +1420,7 @@ export async function activityFor(
       kind: 'welcome',
       at: (arrived ?? new Date()).toISOString(),
       who: PAREA_NAME,
+      whoHref: `/u/${PAREA_HANDLE}`,
       what:
         'welcomed you. When somebody adds photos to a roll you are in, says ' +
         'something about yours, or opens one to you, it turns up here.',

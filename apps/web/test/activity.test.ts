@@ -673,6 +673,10 @@ describe('a photograph of yours, and one you are in', () => {
     // And the picture. A claim about one of your photographs is one nobody can
     // evaluate without seeing which — the same exception `tagged` makes.
     expect(line!.images).toHaveLength(1);
+    // The name opens the person who liked it, and the picture opens the
+    // picture — two things the line is about, one tap each.
+    expect(line!.whoHref).toBe('/u/them');
+    expect(line!.imagesHref).toBe(`/event/${made.id}?photo=${shot.id}`);
   });
 
   it('does not tell you about your own reaction to your own photograph', async () => {

@@ -944,6 +944,11 @@ export type PendingRequest = {
 export type ActivityRow = {
   id: string;
   who: string;
+  /**
+   * The profile of whoever `who` names, as a web path — what the name opens.
+   * Null on a line about "You". Optional for a server that predates it.
+   */
+  whoHref?: string | null;
   what: string;
   /** "4 hours ago". */
   when: string;
@@ -956,8 +961,10 @@ export type ActivityRow = {
    * Wren are friends now", not "You". Optional for a server that predates it.
    */
   face?: string;
-  /** The photographs the line is about. Only `photos_added` has any. */
+  /** The photographs the line is about: added, liked, or tagged in. */
   images: string[];
+  /** Where those photographs go — the one photograph, or the roll. */
+  imagesHref?: string | null;
   /** "Today", "Earlier this week", "March" — the server's words. */
   bucket: string;
   /** Arrived since the last look. */

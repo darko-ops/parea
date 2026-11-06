@@ -138,7 +138,8 @@ export function Lately({
    * them.
    */
   onAnswered: () => void;
-  onOpenEvent: (eventId: string) => void;
+  /** `photo` lands on that photograph inside the roll. */
+  onOpenEvent: (eventId: string, photo?: string) => void;
   onOpenPerson: (handle: string) => void;
   onOpenGroup: (groupId: string) => void;
 }) {
@@ -236,12 +237,12 @@ export function Lately({
    * somebody with no handle — is the one that would do it.
    */
   const follow = useCallback(
-    (row: ActivityRow) => {
-      const event = row.href?.match(/^\/event\/([0-9a-f-]{36})$/i);
-      if (event) return onOpenEvent(event[1]!);
-      const person = row.href?.match(/^\/u\/([^/]+)$/);
+    (href: string | null | undefined) => {
+      const event = href?.match(/^\/event\/([0-9a-f-]{36})(?:\?photo=([0-9a-f-]{36}))?$/i);
+      if (event) return onOpenEvent(event[1]!, event[2]);
+      const person = href?.match(/^\/u\/([^/]+)$/);
       if (person) return onOpenPerson(decodeURIComponent(person[1]!));
-      const group = row.href?.match(/^\/group\/([0-9a-f-]{36})$/i);
+      const group = href?.match(/^\/group\/([0-9a-f-]{36})$/i);
       if (group) return onOpenGroup(group[1]!);
     },
     [onOpenEvent, onOpenPerson, onOpenGroup],
@@ -370,7 +371,7 @@ export function Lately({
                 {day.rows.map((row) => (
                   <Pressable
                     key={row.id}
-                    onPress={() => follow(row)}
+                    onPress={() => follow(row.href)}
                     accessibilityRole={row.href ? 'button' : 'text'}
                     style={({ pressed }) => [
                       styles.row,
@@ -382,15 +383,42 @@ export function Lately({
                       pressed && row.href ? { opacity: 0.7 } : null,
                     ]}
                   >
-                    <Tile
-                      image={row.image}
-                      name={row.face ?? row.who}
-                      keyed={row.id}
-                      size={34}
-                      radius={9}
-                    />
+                    {/*
+                      Three places to press, three places to go.
+
+                      The person — their face and their name — opens them; the
+                      photographs on the right open the photograph, or the roll
+                      when there are several; anywhere else on the row is the
+                      line's own destination, as it always was. "Wren liked
+                      your photo" is about two things, and one tap could only
+                      ever reach one of them.
+
+                      The face is only theirs when the row is about them: on a
+                      "You joined Barcelona" line the tile is Barcelona's, and
+                      `whoHref` is null there anyway.
+                    */}
+                    <Pressable
+                      onPress={() => follow(row.whoHref)}
+                      disabled={!row.whoHref}
+                      accessibilityRole="button"
+                      accessibilityLabel={row.whoHref ? `${row.who}, profile` : undefined}
+                      hitSlop={6}
+                    >
+                      <Tile
+                        image={row.image}
+                        name={row.face ?? row.who}
+                        keyed={row.id}
+                        size={34}
+                        radius={9}
+                      />
+                    </Pressable>
                     <Text style={[styles.rowText, { color: t.fg }]}>
-                      <Text style={styles.rowWho}>{row.who} </Text>
+                      <Text
+                        style={styles.rowWho}
+                        onPress={row.whoHref ? () => follow(row.whoHref) : undefined}
+                      >
+                        {row.who}
+                      </Text>{' '}
                       {row.what}
                     </Text>
 
@@ -401,7 +429,13 @@ export function Lately({
                       a notification you have to open to evaluate.
                     */}
                     {row.images.length > 0 && (
-                      <View style={styles.rowShots}>
+                      <Pressable
+                        onPress={() => follow(row.imagesHref ?? row.href)}
+                        accessibilityRole="button"
+                        accessibilityLabel={row.images.length === 1 ? 'Open the photo' : 'Open the roll'}
+                        hitSlop={6}
+                        style={({ pressed }) => [styles.rowShots, pressed && { opacity: 0.7 }]}
+                      >
                         {row.images.slice(0, 2).map((src) => (
                           <ExpoImage
                             key={src}
@@ -411,7 +445,7 @@ export function Lately({
                             transition={120}
                           />
                         ))}
-                      </View>
+                      </Pressable>
                     )}
 
                     <Text style={[styles.rowWhen, { color: t.dim }]}>{row.when}</Text>

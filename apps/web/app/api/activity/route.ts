@@ -75,12 +75,14 @@ export async function GET() {
     items: items.map((item) => ({
       id: item.id,
       who: item.who,
+      whoHref: item.whoHref ?? null,
       what: item.what,
       when: agoShort(item.at, now),
       href: item.href,
       image: item.image,
       face: item.face ?? item.who,
       images: item.images,
+      imagesHref: item.imagesHref ?? null,
       bucket: bucketFor(item.at, now),
       // Your own asking is never news to you.
       unread: item.kind !== 'asked_to_join' && (since === null || item.at > since),
