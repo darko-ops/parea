@@ -83,6 +83,9 @@ export async function GET() {
       face: item.face ?? item.who,
       images: item.images,
       imagesHref: item.imagesHref ?? null,
+      // A roll you asked into and cannot open yet: the app draws its tile as
+      // the frosted pane a shut roll wears on a profile, not a letter.
+      locked: item.kind === 'asked_to_join',
       bucket: bucketFor(item.at, now),
       // Your own asking is never news to you.
       unread: item.kind !== 'asked_to_join' && (since === null || item.at > since),

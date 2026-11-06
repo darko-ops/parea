@@ -50,6 +50,7 @@ import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'r
 
 import type { ActivityRow, Api, PendingRequest } from './api';
 import { askNotInGroup, notInGroupOf } from './notInGroup';
+import { FrostedGlass } from './FrostedGlass';
 import { Glyph } from './Glyph';
 import type { GroupTheme } from './Groups';
 import { initialOf, lensFor } from './lens';
@@ -79,6 +80,11 @@ function byDay(rows: ActivityRow[]): { bucket: string; rows: ActivityRow[] }[] {
 }
 
 /** A person's face or an album's cover, else the letter on its lens. */
+/** The roll a line is about, from its `/event/<id>` — the pane's seed. */
+function shutRoll(href: string | null): string | null {
+  return href?.match(/^\/event\/([0-9a-f-]{36})/i)?.[1] ?? null;
+}
+
 function Tile({
   image,
   name,
@@ -404,13 +410,22 @@ export function Lately({
                       accessibilityLabel={row.whoHref ? `${row.who}, profile` : undefined}
                       hitSlop={6}
                     >
-                      <Tile
-                        image={row.image}
-                        name={row.face ?? row.who}
-                        keyed={row.id}
-                        size={34}
-                        radius={9}
-                      />
+                      {/*
+                        A roll you asked into is shut, so it wears what a shut
+                        roll wears on a profile — the same pane, seeded by the
+                        same id — rather than the first letter of its name.
+                      */}
+                      {row.locked && shutRoll(row.href) ? (
+                        <FrostedGlass seed={shutRoll(row.href)!} small style={styles.shut} />
+                      ) : (
+                        <Tile
+                          image={row.image}
+                          name={row.face ?? row.who}
+                          keyed={row.id}
+                          size={34}
+                          radius={9}
+                        />
+                      )}
                     </Pressable>
                     <Text style={[styles.rowText, { color: t.fg }]}>
                       <Text
@@ -513,6 +528,8 @@ const styles = StyleSheet.create({
   rowText: { flex: 1, minWidth: 0, fontSize: 14.5, lineHeight: 21 },
   rowWho: { fontWeight: '600' },
   rowShots: { flexDirection: 'row', gap: 4 },
+  /* The tile's own size and corner, so a shut roll lines up with a face. */
+  shut: { width: 34, height: 34, borderRadius: 9 },
   rowShot: { width: 38, height: 38, borderRadius: 8, backgroundColor: '#8883' },
   rowWhen: { fontSize: 12.5 },
 

@@ -19,6 +19,11 @@
  * roundel morphs rather than swaps — its width runs out to the pill's while
  * the padlock fades and the words come up — so it reads as the lock itself
  * answering, not as a label appearing over it.
+ *
+ * ## Small
+ *
+ * At a notification's 34 points the roundel is wider than the tile, so `small`
+ * draws the padlock bare on the glass, white, and takes no note.
  */
 
 import { frostedGlass } from '@parea/cards';
@@ -37,11 +42,14 @@ const PILL = 112;
 export function FrostedGlass({
   seed,
   note = null,
+  small = false,
   style,
 }: {
   seed: string;
   /** Words in place of the padlock, or null for the padlock. See above. */
   note?: string | null;
+  /** A thumbnail: the padlock alone, no roundel. See above. */
+  small?: boolean;
   style?: StyleProp<ViewStyle>;
 }) {
   const pane = useMemo(() => frostedGlass(seed), [seed]);
@@ -88,32 +96,38 @@ export function FrostedGlass({
         ))}
         <Rect width={W} height={H} fill="url(#frost)" />
       </Svg>
-      <View style={styles.center} pointerEvents="none">
-        <Animated.View
-          style={[
-            styles.roundel,
-            { width: open.interpolate({ inputRange: [0, 1], outputRange: [ROUND, PILL] }) },
-          ]}
-        >
+      {small ? (
+        <View style={styles.center} pointerEvents="none">
+          <Glyph name="locked" size={14} weight={2.4} color="#fff" />
+        </View>
+      ) : (
+        <View style={styles.center} pointerEvents="none">
           <Animated.View
             style={[
-              styles.layer,
-              { opacity: open.interpolate({ inputRange: [0, 0.5], outputRange: [1, 0], extrapolate: 'clamp' }) },
+              styles.roundel,
+              { width: open.interpolate({ inputRange: [0, 1], outputRange: [ROUND, PILL] }) },
             ]}
           >
-            <Glyph name="locked" size={18} color="#fff" />
+            <Animated.View
+              style={[
+                styles.layer,
+                { opacity: open.interpolate({ inputRange: [0, 0.5], outputRange: [1, 0], extrapolate: 'clamp' }) },
+              ]}
+            >
+              <Glyph name="locked" size={18} color="#fff" />
+            </Animated.View>
+            <Animated.Text
+              numberOfLines={1}
+              style={[
+                styles.note,
+                { opacity: open.interpolate({ inputRange: [0.5, 1], outputRange: [0, 1], extrapolate: 'clamp' }) },
+              ]}
+            >
+              {shown.current}
+            </Animated.Text>
           </Animated.View>
-          <Animated.Text
-            numberOfLines={1}
-            style={[
-              styles.note,
-              { opacity: open.interpolate({ inputRange: [0.5, 1], outputRange: [0, 1], extrapolate: 'clamp' }) },
-            ]}
-          >
-            {shown.current}
-          </Animated.Text>
-        </Animated.View>
-      </View>
+        </View>
+      )}
     </View>
   );
 }

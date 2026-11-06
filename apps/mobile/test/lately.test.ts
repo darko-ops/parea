@@ -473,6 +473,22 @@ describe('a row about a person and a photograph', () => {
   });
 });
 
+describe('back from a notification', () => {
+  it('returns to Lately, from a roll, a profile or a group', () => {
+    const lately = APP.slice(APP.indexOf('<Lately'), APP.indexOf('<Lately') + 1500);
+    expect(lately).toMatch(/openListing\(listing, photo, undefined, \{ screen: 'lately' \}\)/);
+    expect(lately).toMatch(/screen: 'person', handle, back: \{ screen: 'lately' \}/);
+    expect(lately).toMatch(/screen: 'group', id, back: \{ screen: 'lately' \}/);
+  });
+});
+
+describe('a roll you asked into', () => {
+  it('wears the shut pane with a padlock, not its first letter', () => {
+    expect(LATELY).toMatch(/row\.locked && shutRoll\(row\.href\)/);
+    expect(LATELY).toMatch(/<FrostedGlass seed=\{shutRoll\(row\.href\)!\} small/);
+  });
+});
+
 describe('the kind that could not be answered', () => {
   it('is a group invitation, and now it can', () => {
     /*

@@ -965,6 +965,8 @@ export type ActivityRow = {
   images: string[];
   /** Where those photographs go — the one photograph, or the roll. */
   imagesHref?: string | null;
+  /** A roll you asked into and cannot open yet. Drawn as `FrostedGlass`. */
+  locked?: boolean;
   /** "Today", "Earlier this week", "March" — the server's words. */
   bucket: string;
   /** Arrived since the last look. */

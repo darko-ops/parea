@@ -270,7 +270,8 @@ type Route =
    * screen to put the message on.
    */
   | { screen: 'door'; eventId: string; name: string }
-  | { screen: 'group'; id: string }
+  /** A group's page. `back` as on the event route: where its arrow goes. */
+  | { screen: 'group'; id: string; back?: Route }
   /**
    * A group's conversation, which is not the group.
    *
@@ -1414,7 +1415,7 @@ export default function App() {
     // A room holds its conversation as a pane, so this is a way out of a
     // thread as much as `leaveThread` is. See there.
     void refreshWaiting();
-    setRoute({ screen: 'tabs' });
+    setRoute((was) => (was.screen === 'group' && was.back ? was.back : { screen: 'tabs' }));
   }, [refreshEvents, refreshGroups, refreshWaiting]);
 
   /**
@@ -1886,9 +1887,7 @@ export default function App() {
             onBack={leaveGroup}
             // With the group as the way back, so leaving the roll returns
             // here rather than to the tabs — see `back` on the event route.
-            onOpenEvent={(event) =>
-              open(event, undefined, undefined, undefined, { screen: 'group', id: route.id })
-            }
+            onOpenEvent={(event) => open(event, undefined, undefined, undefined, route)}
             onCreateEvent={(name) => setRoute({ screen: 'pick', groupId: route.id, groupName: name })}
             /*
               No `onOpenThread` any more: the room holds its own conversation
@@ -1958,12 +1957,18 @@ export default function App() {
               void refreshGroups();
               void refreshWaiting();
             }}
+            /*
+              Each with Lately as the way back, so a notification opened and
+              read returns to the list it came from rather than to the tabs.
+            */
             onOpenEvent={(id, photo) => {
               const listing = events.find((e) => e.id === id);
-              if (listing) openListing(listing, photo);
+              if (listing) openListing(listing, photo, undefined, { screen: 'lately' });
             }}
-            onOpenPerson={(handle) => setRoute({ screen: 'person', handle })}
-            onOpenGroup={(id) => setRoute({ screen: 'group', id })}
+            onOpenPerson={(handle) =>
+              setRoute({ screen: 'person', handle, back: { screen: 'lately' } })
+            }
+            onOpenGroup={(id) => setRoute({ screen: 'group', id, back: { screen: 'lately' } })}
           />
         </SwipeBack>
       )}
