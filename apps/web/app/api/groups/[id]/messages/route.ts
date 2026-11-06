@@ -27,6 +27,7 @@ import {
 } from '@/groupMessages';
 import { findGroup, membershipOf } from '@/groups';
 import { authorOf, canSeeMoment } from '@/moments';
+import { notifyGroupMessage } from '@/notify';
 import { currentAccountActorId, requesterFor } from '@/session';
 
 export const runtime = 'nodejs';
@@ -119,6 +120,20 @@ export async function POST(
   }
 
   const messageId = await postGroupMessage(db, group.id, actorId, text, { photoId, momentId });
+
+  /*
+   * Everybody else in the room, as a banner. Awaited rather than left running:
+   * a promise nobody waits on may be frozen with the function once the
+   * response is out, and a chat whose replies sometimes never arrive is worse
+   * than one a beat slower to send. `notifyGroupMessage` never throws.
+   */
+  await notifyGroupMessage(db, {
+    groupId: group.id,
+    groupName: group.name,
+    authorActorId: actorId,
+    said: text || (photoId ? 'Sent a photo' : 'Sent a moment'),
+  });
+
   return NextResponse.json({ id: messageId }, { status: 201 });
 }
 

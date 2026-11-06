@@ -18,6 +18,7 @@ import {
   openJoinRequests,
   participatedInGroup,
 } from '@/groups';
+import { notifyGroupJoinRequested } from '@/notify';
 import { currentAccountActorId } from '@/session';
 
 export const runtime = 'nodejs';
@@ -76,10 +77,15 @@ export async function POST(
     return NextResponse.json({ member: true }, { status: 201 });
   }
 
-  await db
+  const asked = await db
     .insert(schema.groupJoinRequests)
     .values({ groupId: group.id, actorId })
-    .onConflictDoNothing();
+    .onConflictDoNothing()
+    .returning({ id: schema.groupJoinRequests.id });
+  // Told once, when the request is made — asking again is not a second knock.
+  if (asked.length > 0) {
+    await notifyGroupJoinRequested(db, { groupId: group.id, groupName: group.name, fromActorId: actorId });
+  }
 
   return NextResponse.json({ requested: true }, { status: 201 });
 }

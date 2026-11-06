@@ -60,6 +60,12 @@ export type Notification =
    * to know about now, and sometimes to undo.
    */
   | { kind: 'photo_tagged'; eventId: string; eventName: string; who: string }
+  /**
+   * Somebody liked a photograph you added. Only the uploader, never about
+   * their own, and only when the like is put on — taking one off says nothing.
+   * `photoId` lets the tap open the picture rather than only its roll.
+   */
+  | { kind: 'photo_liked'; eventId: string; eventName: string; photoId: string; who: string }
   /** A friend put you in an event, rather than sending you a link. */
   | { kind: 'event_invited'; eventId: string; eventName: string; who: string }
   /**
@@ -97,7 +103,24 @@ export type Notification =
    */
   | { kind: 'roll_handed'; eventId: string; eventName: string; who?: string }
   /** The same for a group, whose last admin left it or left Parea. */
-  | { kind: 'group_handed'; groupId: string; groupName: string; who?: string };
+  | { kind: 'group_handed'; groupId: string; groupName: string; who?: string }
+  /**
+   * Somebody said something in a chat or a group you are in.
+   *
+   * A message is addressed to you in a way nothing else in this product is,
+   * and a chat whose replies only arrive when you happen to open the app is
+   * not a conversation. `direct` is a chat of two, titled with the other
+   * person's name — so the body is the words alone, without the name the
+   * title has already said. `said` is what the message showed: its words, or
+   * what was sent when there were none.
+   */
+  | { kind: 'group_message'; groupId: string; groupName: string; who: string; said: string; direct?: boolean }
+  /**
+   * Somebody found a group by name and asked to join it. To its admins: the
+   * request waits on them, and like a roll's it is otherwise found only by
+   * whoever happens to open the group's people.
+   */
+  | { kind: 'group_join_requested'; groupId: string; groupName: string; who: string };
 
 /**
  * The set, enumerable at runtime.
@@ -117,6 +140,7 @@ const KINDS: Record<Notification['kind'], true> = {
   friend_requested: true,
   photo_comment: true,
   photo_tagged: true,
+  photo_liked: true,
   event_invited: true,
   group_invited: true,
   group_added: true,
@@ -124,6 +148,8 @@ const KINDS: Record<Notification['kind'], true> = {
   moment_reaction: true,
   roll_handed: true,
   group_handed: true,
+  group_message: true,
+  group_join_requested: true,
 };
 
 export const NOTIFICATION_KINDS = Object.keys(KINDS) as Notification['kind'][];
@@ -264,6 +290,11 @@ export function render(notification: Notification): { title: string; body: strin
         // is half of what you are being told.
         body: `${notification.who} tagged you in a photo.`,
       };
+    case 'photo_liked':
+      return {
+        title: notification.eventName,
+        body: `${notification.who} liked your photo.`,
+      };
     case 'event_invited':
       return {
         title: notification.eventName,
@@ -306,7 +337,26 @@ export function render(notification: Notification): { title: string; body: strin
           ? `${notification.who} made you the admin.`
           : 'Its admin has left, so you run it now.',
       };
+    case 'group_message': {
+      const said = clip(notification.said);
+      return {
+        title: notification.groupName,
+        // A chat of two is already titled with who is speaking.
+        body: notification.direct ? said : `${notification.who}: ${said}`,
+      };
+    }
+    case 'group_join_requested':
+      return {
+        title: notification.groupName,
+        // The same sentence a roll's door uses: the decision is about a person.
+        body: `${notification.who} is asking to come in.`,
+      };
   }
+}
+
+/** Trimmed where a notification is trimmed anyway, but ending in an ellipsis. */
+function clip(said: string): string {
+  return said.length > 80 ? `${said.slice(0, 80).trimEnd()}…` : said;
 }
 
 export function toMessage(token: string, notification: Notification): PushMessage {

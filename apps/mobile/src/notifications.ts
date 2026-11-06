@@ -28,7 +28,7 @@
  */
 
 export type NotificationTarget =
-  | { screen: 'event'; eventId: string }
+  | { screen: 'event'; eventId: string; photoId?: string }
   | { screen: 'group'; groupId: string }
   | { screen: 'chat'; groupId: string; name: string }
   | { screen: 'lately' };
@@ -51,6 +51,7 @@ export function notificationTarget(
   const eventId = typeof data.eventId === 'string' ? data.eventId : null;
   const groupId = typeof data.groupId === 'string' ? data.groupId : null;
   const who = typeof data.who === 'string' ? data.who : null;
+  const photoId = typeof data.photoId === 'string' ? data.photoId : null;
 
   switch (kind) {
     /*
@@ -81,6 +82,25 @@ export function notificationTarget(
     case 'photo_comment':
     case 'photo_tagged':
       return eventId ? { screen: 'event', eventId } : null;
+    case 'photo_liked':
+      // Unlike a comment, a like is nothing to read in the album, so it opens
+      // on the photograph itself where the roll is on this phone.
+      return eventId ? { screen: 'event', eventId, ...(photoId ? { photoId } : {}) } : null;
+    /*
+     * A message. A chat of two opens straight onto the conversation, titled
+     * with the other person as its push was. A group opens on the group, which
+     * knows how many are in it — the thread's bar would otherwise have to be
+     * handed a count the payload does not carry.
+     */
+    case 'group_message':
+      if (!groupId) return null;
+      return data.direct === 'true'
+        ? { screen: 'chat', groupId, name: typeof data.groupName === 'string' ? data.groupName : who ?? 'Chat' }
+        : { screen: 'group', groupId };
+    case 'group_join_requested':
+      // The admin, told somebody is at the door: the group's people is where
+      // the request waits with its Approve.
+      return groupId ? { screen: 'group', groupId } : null;
     case 'roll_handed':
       // They run it now; the roll is where that means anything.
       return eventId ? { screen: 'event', eventId } : null;

@@ -23,6 +23,7 @@ import { NextResponse } from 'next/server';
 import { findEventById, guard, toResponse } from '@/access';
 import { getDb } from '@/db';
 import { viewerContext } from '@/moderation';
+import { notifyPhotoLiked } from '@/notify';
 import { togglePhotoReaction } from '@/photoReactions';
 import { LIKE } from '@/reactions';
 import { currentAccountActorId, currentActorId, requesterFor } from '@/session';
@@ -52,7 +53,11 @@ export async function POST(
   if (!row) return NextResponse.json({ error: 'not_found' }, { status: 404 });
 
   const [photo] = await db
-    .select({ id: schema.photos.id, eventId: schema.photos.eventId })
+    .select({
+      id: schema.photos.id,
+      eventId: schema.photos.eventId,
+      uploaderId: schema.photos.uploaderId,
+    })
     .from(schema.photos)
     .where(
       and(
@@ -82,5 +87,17 @@ export async function POST(
   // A like, whatever was asked for. See `LIKE`.
   const emoji = LIKE;
   const state = await togglePhotoReaction(db, photo.id, actorId, emoji);
+
+  // Whoever added it, when a like goes on — not off, and not their own.
+  if (state === 'added' && photo.uploaderId && photo.uploaderId !== actorId) {
+    await notifyPhotoLiked(db, {
+      toActorId: photo.uploaderId,
+      fromActorId: actorId,
+      eventId: event.id,
+      eventName: event.name,
+      photoId: photo.id,
+    });
+  }
+
   return NextResponse.json({ state });
 }

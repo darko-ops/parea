@@ -17,6 +17,29 @@ import { notificationTarget } from '../src/notifications';
 const EVENT = '3f1c9a2e-4b5d-4e6f-8a9b-0c1d2e3f4a5b';
 const GROUP = '7a2b1c3d-8e9f-4a5b-9c8d-1e2f3a4b5c6d';
 
+describe('messages, likes and requests', () => {
+  it('opens a chat of two on the conversation, and a group on the group', () => {
+    expect(
+      notificationTarget({ kind: 'group_message', groupId: GROUP, groupName: 'Ana', who: 'Ana', said: 'hi', direct: 'true' }),
+    ).toEqual({ screen: 'chat', groupId: GROUP, name: 'Ana' });
+    expect(
+      notificationTarget({ kind: 'group_message', groupId: GROUP, groupName: 'Flat', who: 'Ana', said: 'hi' }),
+    ).toEqual({ screen: 'group', groupId: GROUP });
+  });
+
+  it('opens a liked photograph on the photograph', () => {
+    expect(
+      notificationTarget({ kind: 'photo_liked', eventId: EVENT, eventName: 'Party', photoId: 'p', who: 'Ana' }),
+    ).toEqual({ screen: 'event', eventId: EVENT, photoId: 'p' });
+  });
+
+  it('sends a request to join a group to the group', () => {
+    expect(
+      notificationTarget({ kind: 'group_join_requested', groupId: GROUP, groupName: 'Flat', who: 'Ana' }),
+    ).toEqual({ screen: 'group', groupId: GROUP });
+  });
+});
+
 describe('the three notifications', () => {
   it('sends a nudge to its event', () => {
     expect(

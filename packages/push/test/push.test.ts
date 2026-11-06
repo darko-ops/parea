@@ -49,6 +49,18 @@ describe('what can be sent', () => {
     expect(kinds).toHaveLength(3);
   });
 
+  it('names the speaker in a group and not in a chat of two', () => {
+    expect(
+      render({ kind: 'group_message', groupId: 'g', groupName: 'Flat', who: 'Ana', said: 'hi' }),
+    ).toEqual({ title: 'Flat', body: 'Ana: hi' });
+    expect(
+      render({ kind: 'group_message', groupId: 'g', groupName: 'Ana', who: 'Ana', said: 'hi', direct: true }),
+    ).toEqual({ title: 'Ana', body: 'hi' });
+    expect(
+      render({ kind: 'group_message', groupId: 'g', groupName: 'Ana', who: 'Ana', said: 'x'.repeat(120), direct: true }).body,
+    ).toBe(`${'x'.repeat(80)}…`);
+  });
+
   it('says something different when an event is still empty', () => {
     expect(
       render({ kind: 'nudge', eventId: 'e', eventName: 'Party', photoCount: 0 }).body,
@@ -120,6 +132,9 @@ describe('what can be sent', () => {
       { kind: 'moment_reaction', groupId: 'g', momentId: 'm', who: 'Ana', emoji: '🔥' },
       { kind: 'roll_handed', eventId: 'e', eventName: 'Party', who: 'Ana' },
       { kind: 'group_handed', groupId: 'g', groupName: 'Flat' },
+      { kind: 'group_message', groupId: 'g', groupName: 'Ana', who: 'Ana', said: 'hi', direct: true },
+      { kind: 'photo_liked', eventId: 'e', eventName: 'Party', photoId: 'p', who: 'Ana' },
+      { kind: 'group_join_requested', groupId: 'g', groupName: 'Flat', who: 'Ana' },
     ];
     // One per kind, so a kind added without one fails here rather than going
     // silent on somebody's phone.

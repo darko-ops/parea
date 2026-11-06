@@ -554,3 +554,122 @@ export async function notifyGroupHanded(
     /* see the module header */
   }
 }
+
+/**
+ * Somebody said something in a chat or a group — to everybody else in it.
+ *
+ * Bucketed by what the room is called to each reader, as `byTitle` does, and
+ * by whether it is a chat of two: there the title is the speaker, so the push
+ * says the words alone. The route has already written the message; a block
+ * between the speaker and a member keeps that member from being told, the same
+ * rule every other push here keeps.
+ */
+export async function notifyGroupMessage(
+  db: Db,
+  input: {
+    groupId: string;
+    /** As stored: null for a room nobody has named. */
+    groupName: string | null;
+    authorActorId: string;
+    /** The words, or what was sent where there were none. */
+    said: string;
+  },
+): Promise<void> {
+  try {
+    const members = await othersInGroups(db, [input.groupId], null);
+    const all = members.get(input.groupId) ?? [];
+    const recipients = all.map((p) => p.actorId).filter((id) => id !== input.authorActorId);
+    if (recipients.length === 0) return;
+
+    const who = await nameOf(db, input.authorActorId);
+    const buckets = new Map<string, { groupName: string; direct: boolean; actorIds: string[] }>();
+    for (const actorId of recipients) {
+      const { title, kind } = titleFor(
+        input.groupName,
+        all.filter((person) => person.actorId !== actorId),
+      );
+      const key = `${kind}:${title}`;
+      const seen = buckets.get(key);
+      if (seen) seen.actorIds.push(actorId);
+      else buckets.set(key, { groupName: title, direct: kind === 'direct', actorIds: [actorId] });
+    }
+    for (const { groupName, direct, actorIds } of buckets.values()) {
+      await deliver(
+        db,
+        actorIds,
+        {
+          kind: 'group_message',
+          groupId: input.groupId,
+          groupName,
+          who,
+          said: input.said,
+          ...(direct ? { direct: true } : {}),
+        },
+        input.authorActorId,
+      );
+    }
+  } catch {
+    /* see the module header */
+  }
+}
+
+/** Somebody asked to join a findable group. Its admins decide, so its admins are told. */
+export async function notifyGroupJoinRequested(
+  db: Db,
+  input: { groupId: string; groupName: string | null; fromActorId: string },
+): Promise<void> {
+  try {
+    const admins = await db
+      .select({ actorId: schema.groupMembers.actorId })
+      .from(schema.groupMembers)
+      .where(
+        and(
+          eq(schema.groupMembers.groupId, input.groupId),
+          eq(schema.groupMembers.role, 'admin'),
+        ),
+      );
+    const who = await nameOf(db, input.fromActorId);
+    const buckets = await byTitle(
+      db,
+      admins.map((a) => a.actorId),
+      input.groupId,
+      input.groupName,
+    );
+    for (const [groupName, actorIds] of buckets) {
+      await deliver(
+        db,
+        actorIds,
+        { kind: 'group_join_requested', groupId: input.groupId, groupName, who },
+        input.fromActorId,
+      );
+    }
+  } catch {
+    /* see the module header */
+  }
+}
+
+/**
+ * Somebody liked a photograph you added. The route calls this only when the
+ * like was put on, and never for the uploader's own.
+ */
+export async function notifyPhotoLiked(
+  db: Db,
+  input: { toActorId: string; fromActorId: string; eventId: string; eventName: string; photoId: string },
+): Promise<void> {
+  try {
+    await deliver(
+      db,
+      [input.toActorId],
+      {
+        kind: 'photo_liked',
+        eventId: input.eventId,
+        eventName: input.eventName,
+        photoId: input.photoId,
+        who: await nameOf(db, input.fromActorId),
+      },
+      input.fromActorId,
+    );
+  } catch {
+    /* see the module header */
+  }
+}

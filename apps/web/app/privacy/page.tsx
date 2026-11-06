@@ -265,14 +265,15 @@ export default function PrivacyPage() {
           <h3>A notification token, if you turn notifications on</h3>
           <p className="muted">
             Only in the app, only after you allow it, and only used for the
-            fourteen notifications this product sends: one reminder about a roll
+            seventeen notifications this product sends: one reminder about a roll
             you joined and have not added anything to, a new roll in a group
             you are in, the host&rsquo;s answer when you have asked for a photo
             of you to be taken down, that somebody is asking to come into a private
-            roll you made, that somebody wants to be friends, that somebody
+            roll you made or a group you run, that somebody wants to be friends, that somebody
             has asked you into a roll, that somebody has asked you into a
             group, that somebody has put you in a group they made, that somebody
-            has commented on a photograph you added, that somebody has
+            has commented on or liked a photograph you added, that somebody
+            has sent a message in a chat or group you are in, that somebody has
             commented on or liked a moment you shared, that you now run
             a roll or a group &mdash; because somebody handed it to you, or
             because whoever ran it left &mdash; and that somebody has said

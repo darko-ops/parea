@@ -1338,6 +1338,24 @@ export class Api {
     this.token = token;
   }
 
+  /**
+   * Called after something this person did will be answered by somebody else:
+   * a message sent, a roll or a group asked into, a friend asked. That answer
+   * arrives as a notification, so it is the moment to ask for them — the app
+   * sets this to its once-only ask. Never awaited and never allowed to fail
+   * the call it follows.
+   */
+  onReachedOut: (() => void) | null = null;
+
+  private reachedOut<T>(result: T): T {
+    try {
+      this.onReachedOut?.();
+    } catch {
+      // See above.
+    }
+    return result;
+  }
+
   private async call<T>(path: string, init: RequestInit = {}): Promise<T> {
     const headers: Record<string, string> = {
       'content-type': 'application/json',
@@ -1517,7 +1535,7 @@ export class Api {
     return this.call<{ id: string }>(`/api/events/${eventId}/messages`, {
       method: 'POST',
       body: JSON.stringify(photoId ? { body, photoId } : { body }),
-    });
+    }).then((r) => this.reachedOut(r));
   }
 
   editMessage(messageId: string, body: string): Promise<unknown> {
@@ -1586,7 +1604,7 @@ export class Api {
     return this.call<{ id: string }>(`/api/groups/${groupId}/messages`, {
       method: 'POST',
       body: JSON.stringify({ body, ...attached }),
-    });
+    }).then((r) => this.reachedOut(r));
   }
 
   /*
@@ -2530,9 +2548,10 @@ export class Api {
    * it.
    */
   askToJoin(eventId: string): Promise<{ status?: string }> {
-    return this.call(`/api/events/${encodeURIComponent(eventId)}/access-requests`, {
-      method: 'POST',
-    });
+    return this.call<{ status?: string }>(
+      `/api/events/${encodeURIComponent(eventId)}/access-requests`,
+      { method: 'POST' },
+    ).then((r) => this.reachedOut(r));
   }
 
   /**
@@ -2543,10 +2562,10 @@ export class Api {
    * and comes back `accepted`.
    */
   askFriend(actorId: string): Promise<{ status?: string }> {
-    return this.call('/api/friends', {
+    return this.call<{ status?: string }>('/api/friends', {
       method: 'POST',
       body: JSON.stringify({ actorId }),
-    });
+    }).then((r) => this.reachedOut(r));
   }
 
   /**
@@ -2758,7 +2777,10 @@ export class Api {
    * to an admin, and the response says which happened.
    */
   joinGroup(id: string): Promise<{ member?: boolean; requested?: boolean }> {
-    return this.call(`/api/groups/${id}/requests`, { method: 'POST', body: '{}' });
+    return this.call<{ member?: boolean; requested?: boolean }>(`/api/groups/${id}/requests`, {
+      method: 'POST',
+      body: '{}',
+    }).then((r) => this.reachedOut(r));
   }
 
   /** Pins a chat to the top of this person's Chats, or unpins it. Theirs alone. */

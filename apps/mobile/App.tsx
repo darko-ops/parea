@@ -411,6 +411,30 @@ export default function App() {
     [],
   );
 
+  /*
+   * Notifications are asked for the first time somebody does something that
+   * somebody else will answer — a message, a request, a friend asked — as well
+   * as after a first upload. Only asking after an upload left everybody who
+   * chats or asks into rolls without banners for the answers. Once, ever:
+   * `registerForPush` records the ask before it makes it.
+   */
+  useEffect(() => {
+    api.onReachedOut = () => {
+      void (async () => {
+        if (await pushAlreadyAsked()) return;
+        const token = await registerForPush();
+        if (token) {
+          await api
+            .registerDevice(token, RNPlatform.OS === 'android' ? 'android' : 'ios')
+            .catch(() => {});
+        }
+      })().catch(() => {});
+    };
+    return () => {
+      api.onReachedOut = null;
+    };
+  }, [api]);
+
   const [ready, setReady] = useState(false);
   /** The launch has finished and faded. See `Launch`. */
   const [launched, setLaunched] = useState(false);
@@ -1584,7 +1608,7 @@ export default function App() {
       // on the device. If it is not — a reinstall — there is nothing to open
       // with, and dropping them on the home screen beats a broken event.
       const saved = (await loadEvents()).find((e) => e.id === target.eventId);
-      if (saved) void open(saved);
+      if (saved) void open(saved, undefined, undefined, target.photoId);
     },
     [open],
   );

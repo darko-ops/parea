@@ -110,8 +110,8 @@ describe('the closed list of what is collected', () => {
      * Counted against the union rather than the word "three", so a fourth kind
      * fails here instead of quietly making the sentence wrong again.
      */
-    expect(NOTIFICATION_KINDS).toHaveLength(14);
-    expect(PRIVACY).toMatch(/fourteen\s+notifications/);
+    expect(NOTIFICATION_KINDS).toHaveLength(17);
+    expect(PRIVACY).toMatch(/seventeen\s+notifications/);
 
     // One phrase per kind, each distinguishing it from the others. The fourth
     // arrived after this test did, and the test is what made the page follow.
@@ -125,7 +125,11 @@ describe('the closed list of what is collected', () => {
     // Distinguished from the one above by the verb, which is the whole
     // difference: one waits for an answer and this one does not.
     expect(PRIVACY, 'group_added').toMatch(/put you in a group they made/);
-    expect(PRIVACY, 'photo_comment').toMatch(/commented on a photograph you added/);
+    // Both photo kinds in one phrase, as the moment kinds are below.
+    expect(PROSE, 'photo_comment').toMatch(/commented on or liked a photograph you added/);
+    expect(PROSE, 'photo_liked').toMatch(/commented on or liked a photograph you added/);
+    expect(PROSE, 'group_message').toMatch(/sent a message in a chat or group you are in/);
+    expect(PROSE, 'group_join_requested').toMatch(/come into a private\s+roll you made or a group you run/);
     // Both moment kinds in one phrase: to its author, about their moment.
     expect(PROSE, 'moment_comment').toMatch(/commented on or liked a moment you shared/);
     expect(PROSE, 'moment_reaction').toMatch(/commented on or liked a moment you shared/);
