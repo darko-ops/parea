@@ -194,7 +194,7 @@ describe('the header picture', () => {
     expect(PERSON).toMatch(/import \{ HangingTab, TAB_H \} from '\.\/HangingTab'/);
     for (const source of [PROFILE, PERSON]) {
       expect(source).toMatch(/<HangingTab/);
-      expect(source).toMatch(/scroll: \{ paddingTop: TAB_H \+ 22,/);
+      expect(source).toMatch(/scroll: \{ paddingTop: TAB_H \+ 14,/);
     }
     // Yours opens the editor; theirs is a photograph. A control that does
     // nothing is one somebody presses to find out it does nothing.
@@ -260,7 +260,7 @@ describe('the header picture', () => {
      */
     expect(PROFILE).toMatch(/aspect: \[1, 1\]/);
     expect(TAB).toMatch(/const PHOTO_H = TAB_W;/);
-    expect(TAB).toMatch(/const TAB_W = 152;/);
+    expect(TAB).toMatch(/const TAB_W = 172;/);
   });
 
   it('grows the letter with the box it is now in', () => {
@@ -392,7 +392,7 @@ describe('a link on a profile', () => {
      * Neither of the old numbers: not the -8 that pulled against a 104pt
      * picture beside the text, and not the -6 that pulled against the gap.
      */
-    expect(PROFILE).toMatch(/bio: \{[\s\S]{0,200}?alignSelf: 'stretch',[\s\S]{0,40}?marginTop: 6,/);
+    expect(PROFILE).toMatch(/bio: \{[\s\S]{0,200}?alignSelf: 'stretch',[\s\S]{0,40}?marginTop: 4,/);
     expect(PROFILE).toMatch(/bio: \{[\s\S]{0,200}?textAlign: 'center',[\s\S]{0,40}?paddingHorizontal: 16,/);
     expect(PROFILE).not.toMatch(/marginTop: -8/);
     expect(PROFILE).not.toMatch(/marginTop: -6/);

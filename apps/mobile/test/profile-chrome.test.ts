@@ -137,7 +137,7 @@ describe('the profile details', () => {
   it('sit below the tab rather than under the clock', () => {
     // Derived from the tab rather than typed: its height is two numbers that
     // can each move, and a literal here would be the third place to change.
-    expect(PROFILE).toMatch(/scroll: \{ paddingTop: TAB_H \+ 22,/);
+    expect(PROFILE).toMatch(/scroll: \{ paddingTop: TAB_H \+ 14,/);
     expect(PROFILE).not.toMatch(/headLower/);
     expect(TAB).toMatch(/export const TAB_H = CAP_H \+ PHOTO_H;/);
   });
@@ -322,7 +322,7 @@ describe('the tab that hangs from the top', () => {
      * drawn whole: `PHOTO_H` is `TAB_W`, so `cover` trims nothing.
      */
     expect(TAB).toMatch(/const CAP_H = 56;/);
-    expect(TAB).toMatch(/const TAB_W = 152;/);
+    expect(TAB).toMatch(/const TAB_W = 172;/);
     expect(TAB).toMatch(/const PHOTO_H = TAB_W;/);
     expect(PROFILE).toMatch(/aspect: \[1, 1\]/);
     expect(TAB).toMatch(/photo: \{ position: 'absolute', top: CAP_H, left: 0, right: 0, bottom: 0 \}/);

@@ -1285,7 +1285,7 @@ const styles = StyleSheet.create({
    * than typed: the height is two numbers that can each move, and a literal
    * here would be the third place to change them.
    */
-  scroll: { paddingTop: TAB_H + 22, paddingBottom: BELOW_TABS, gap: 16, flexGrow: 1 },
+  scroll: { paddingTop: TAB_H + 14, paddingBottom: BELOW_TABS, gap: 8, flexGrow: 1 },
   /* Above the tab, and fixed: these do not scroll and are not part of it. */
   corner: { position: 'absolute', top: 62, left: 20, zIndex: 3 },
   cornerRight: { left: undefined, right: 20 },
@@ -1293,8 +1293,10 @@ const styles = StyleSheet.create({
      one number. */
   gutter: { paddingHorizontal: 20 },
   /* The strip pads itself for the badge on each tile; 12 more is the page's
-     20 gutter for the tiles. */
-  moments: { marginHorizontal: 12, marginTop: 4, marginBottom: 0 },
+     20 gutter for the tiles. Its 8 underneath is given back: these tiles are
+     plain, with nothing hanging off the bottom, so the padding was only blank
+     between the strip and the shelf's tabs. */
+  moments: { marginHorizontal: 12, marginTop: 0, marginBottom: -8 },
   /*
    * A centred column, not a row with a picture on the end.
    *
@@ -1305,10 +1307,10 @@ const styles = StyleSheet.create({
   head: { alignItems: 'center' },
   who: { alignSelf: 'stretch', alignItems: 'center' },
   name: { textAlign: 'center', fontSize: 28, lineHeight: 31, fontWeight: '700', letterSpacing: -0.5 },
-  handle: { textAlign: 'center', fontSize: 14.5, marginTop: 3 },
+  handle: { textAlign: 'center', fontSize: 14.5, marginTop: 1 },
   /* One line at the handle's size and in the handle's colour: three figures
      set larger than the name they belong to is a dashboard. */
-  counts: { textAlign: 'center', fontSize: 14.5, fontWeight: '600', marginTop: 8 },
+  counts: { textAlign: 'center', fontSize: 14.5, fontWeight: '600', marginTop: 4 },
   /*
    * Pulled up against the header above it.
    *
@@ -1344,7 +1346,7 @@ const styles = StyleSheet.create({
    */
   bio: {
     alignSelf: 'stretch',
-    marginTop: 6,
+    marginTop: 4,
     fontSize: 15,
     lineHeight: 21,
     textAlign: 'center',
@@ -1359,7 +1361,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: 5,
-    marginTop: 6,
+    marginTop: 4,
   },
   link: { fontSize: 14.5, flexShrink: 1 },
   /* Centred, and given room: this is the only thing on the lower half of the
@@ -1370,7 +1372,7 @@ const styles = StyleSheet.create({
   /* Created / Joined: two halves on a hairline, the selected one underlined
      on top of it — the floating tab bar's rule of bold-and-bright for chosen. */
   tabs: { flexDirection: 'row', borderBottomWidth: 1 },
-  tab: { flex: 1, alignItems: 'center', paddingTop: 6, paddingBottom: 11, marginBottom: -1, borderBottomWidth: 2 },
+  tab: { flex: 1, alignItems: 'center', paddingTop: 0, paddingBottom: 7, marginBottom: -1, borderBottomWidth: 2 },
   action: { flex: 1, borderWidth: 1, borderRadius: 12, paddingVertical: 11, alignItems: 'center' },
   actionText: { fontSize: 15, fontWeight: '600' },
   /* Two across with gutters: these are cards of separate evenings, not one

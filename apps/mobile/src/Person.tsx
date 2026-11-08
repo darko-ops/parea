@@ -942,7 +942,7 @@ const styles = StyleSheet.create({
    * ends in a wall of covers with nothing after it, and the app's own bar is
    * over it.
    */
-  scroll: { paddingTop: TAB_H + 22, paddingBottom: BELOW_TABS, gap: 14 },
+  scroll: { paddingTop: TAB_H + 14, paddingBottom: BELOW_TABS, gap: 14 },
   /* A page with nobody on it keeps no room for a picture of them. */
   absent: { paddingTop: 110, paddingBottom: BELOW_TABS, gap: 14 },
   gutter: { paddingHorizontal: 20 },
@@ -970,10 +970,10 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     letterSpacing: -0.5,
   },
-  handle: { textAlign: 'center', fontSize: 14.5, marginTop: 3 },
+  handle: { textAlign: 'center', fontSize: 14.5, marginTop: 1 },
   /* One line at the handle's size and in the handle's colour: three figures
      set larger than the name they belong to is a dashboard. */
-  counts: { textAlign: 'center', fontSize: 14.5, fontWeight: '600', marginTop: 8 },
+  counts: { textAlign: 'center', fontSize: 14.5, fontWeight: '600', marginTop: 4 },
   /* The same size and rhythm as the counts line above it, in the accent — the
      one thing in this header that goes somewhere. Your own profile's to the
      point: one link, one line, one set of numbers for it. */
@@ -984,7 +984,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: 5,
-    marginTop: 6,
+    marginTop: 4,
   },
   link: { fontSize: 14.5, flexShrink: 1 },
   /*
@@ -999,7 +999,7 @@ const styles = StyleSheet.create({
    */
   bio: {
     alignSelf: 'stretch',
-    marginTop: 6,
+    marginTop: 4,
     fontSize: 15,
     lineHeight: 21,
     textAlign: 'center',

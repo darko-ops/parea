@@ -50,11 +50,11 @@ describe('the shape of somebody else’s page', () => {
     for (const source of [PERSON, PROFILE]) {
       expect(source).toMatch(/head: \{ alignItems: 'center' \}/);
       expect(source).toMatch(/name: \{[\s\S]{0,120}?textAlign: 'center',[\s\S]{0,160}?fontSize: 28,/);
-      expect(source).toMatch(/handle: \{ textAlign: 'center', fontSize: 14\.5, marginTop: 3 \}/);
-      expect(source).toMatch(/counts: \{ textAlign: 'center', fontSize: 14\.5, fontWeight: '600', marginTop: 8 \}/);
+      expect(source).toMatch(/handle: \{ textAlign: 'center', fontSize: 14\.5, marginTop: 1 \}/);
+      expect(source).toMatch(/counts: \{ textAlign: 'center', fontSize: 14\.5, fontWeight: '600', marginTop: 4 \}/);
       // The link is a centred row now, with its icon beside it; the same six
       // under the counts.
-      expect(source).toMatch(/linkRow: \{\s*flexDirection: 'row',\s*alignItems: 'center',\s*justifyContent: 'center',\s*gap: 5,\s*marginTop: 6,\s*\}/);
+      expect(source).toMatch(/linkRow: \{\s*flexDirection: 'row',\s*alignItems: 'center',\s*justifyContent: 'center',\s*gap: 5,\s*marginTop: 4,\s*\}/);
       expect(source).toMatch(/link: \{ fontSize: 14\.5, flexShrink: 1 \}/);
       /*
        * And the bio in the column with them rather than under it.
@@ -67,7 +67,7 @@ describe('the shape of somebody else’s page', () => {
        * the inset is 16 against the gutter's 20: the 36 this had when it was
        * full width, kept to the point.
        */
-      expect(source).toMatch(/bio: \{[\s\S]{0,200}?alignSelf: 'stretch',[\s\S]{0,40}?marginTop: 6,/);
+      expect(source).toMatch(/bio: \{[\s\S]{0,200}?alignSelf: 'stretch',[\s\S]{0,40}?marginTop: 4,/);
       expect(source).toMatch(/bio: \{[\s\S]{0,200}?textAlign: 'center',[\s\S]{0,40}?paddingHorizontal: 16,/);
       expect(source).not.toMatch(/bio: \{ fontSize: 15, lineHeight: 21, textAlign: 'center', paddingHorizontal: 36 \}/);
     }
@@ -89,7 +89,7 @@ describe('the shape of somebody else’s page', () => {
     for (const source of [PERSON, PROFILE]) {
       expect(source).toMatch(/import \{ HangingTab, TAB_H \} from '\.\/HangingTab'/);
       expect(source).toMatch(/<HangingTab/);
-      expect(source).toMatch(/scroll: \{ paddingTop: TAB_H \+ 22,/);
+      expect(source).toMatch(/scroll: \{ paddingTop: TAB_H \+ 14,/);
     }
     // Yours opens the editor. Theirs is a photograph and nothing to press —
     // the same argument the standings below it settle for this screen.
