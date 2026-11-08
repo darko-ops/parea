@@ -275,16 +275,15 @@ describe('the profile at two widths', () => {
     expect(CSS).toMatch(/\.main \{ --page-top: 20px; padding: 20px; \}/);
   });
 
-  it('draws the link, on both profiles, under the counts', () => {
+  it('draws the link, on both profiles, between the bio and the counts', () => {
     /*
      * The field is validated at length above and was rendered nowhere on the
      * web: your own profile printed a name, a bio and three numbers, and
      * somebody else's page did not even receive the value. A link whose whole
      * purpose is other people's screens, kept off every screen.
      *
-     * Under the counts and above nothing, which is where the app puts it: the
-     * line above is what this person has, and an address is the same kind of
-     * thing. A real anchor on both — checking that what you typed opens is most
+     * Under the bio and above the counts, which is where the app puts it: name,
+     * bio, link, then the figures. A real anchor on both — checking that what you typed opens is most
      * of what somebody wants from seeing their own link — with `nofollow ugc`
      * because somebody else wrote it and the page is not an endorsement, and
      * `noopener` with the new tab so the profile is still behind you.
@@ -298,8 +297,11 @@ describe('the profile at two widths', () => {
       expect(source).toMatch(/rel="nofollow ugc noopener noreferrer"/);
       expect(source).toMatch(/target="_blank"/);
       expect(source).toMatch(/replace\(\/\^https\?:\\\/\\\/\/, ''\)/);
-      // After the counts, not above them and not under the bio.
+      // After the bio and before the counts.
       expect(source.indexOf('className="you-link"')).toBeGreaterThan(
+        source.indexOf('className="you-bio"'),
+      );
+      expect(source.indexOf('className="you-link"')).toBeLessThan(
         source.indexOf('className="you-counts"'),
       );
     }

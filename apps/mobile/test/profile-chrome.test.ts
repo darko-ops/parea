@@ -322,7 +322,7 @@ describe('the tab that hangs from the top', () => {
      * drawn whole: `PHOTO_H` is `TAB_W`, so `cover` trims nothing.
      */
     expect(TAB).toMatch(/const CAP_H = 56;/);
-    expect(TAB).toMatch(/const TAB_W = 172;/);
+    expect(TAB).toMatch(/const TAB_W = 152;/);
     expect(TAB).toMatch(/const PHOTO_H = TAB_W;/);
     expect(PROFILE).toMatch(/aspect: \[1, 1\]/);
     expect(TAB).toMatch(/photo: \{ position: 'absolute', top: CAP_H, left: 0, right: 0, bottom: 0 \}/);

@@ -260,7 +260,7 @@ describe('the header picture', () => {
      */
     expect(PROFILE).toMatch(/aspect: \[1, 1\]/);
     expect(TAB).toMatch(/const PHOTO_H = TAB_W;/);
-    expect(TAB).toMatch(/const TAB_W = 172;/);
+    expect(TAB).toMatch(/const TAB_W = 152;/);
   });
 
   it('grows the letter with the box it is now in', () => {
@@ -330,19 +330,18 @@ describe('the counts and the clearance', () => {
 describe('a link on a profile', () => {
   const flat = (source: string) => source.replace(/\s+/g, ' ');
 
-  it('sits under the counts and above the bio', () => {
+  it('sits under the bio and above the counts', () => {
     /*
-     * With the facts, not under the sentence. The line above it is what this
-     * person has, and an address is the same kind of thing; under the bio it
-     * would read as a footnote to a sentence rather than as part of the
-     * header.
+     * Name, bio, link, counts: what somebody wrote about themselves straight
+     * under who they are, then where to find more of them, then the figures
+     * the page worked out.
      */
-    const counts = PROFILE.indexOf('styles.counts');
-    const link = PROFILE.indexOf('accessibilityRole="link"');
     const bio = PROFILE.indexOf('styles.bio,');
-    expect(counts).toBeGreaterThan(-1);
-    expect(link).toBeGreaterThan(counts);
-    expect(bio).toBeGreaterThan(link);
+    const link = PROFILE.indexOf('accessibilityRole="link"');
+    const counts = PROFILE.indexOf('styles.counts');
+    expect(bio).toBeGreaterThan(PROFILE.indexOf('styles.handle'));
+    expect(link).toBeGreaterThan(bio);
+    expect(counts).toBeGreaterThan(link);
   });
 
   it('draws nothing at all without one', () => {

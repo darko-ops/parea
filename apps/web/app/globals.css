@@ -5021,7 +5021,7 @@ img.you-face { object-fit: cover; }
    the only thing in the header that goes somewhere, and the app's version of
    this line is the same size, the same colour and in the same place.
 
-   Six under the counts, the same step the app uses, and truncated rather than
+   Six under the bio, the same step the app uses, and truncated rather than
    wrapped: a long address broken over two lines is the widest thing in the
    header and it is not what the page is about. `direction` is left alone —
    an ellipsis belongs at the end of a domain, not in front of one. */

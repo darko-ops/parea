@@ -474,8 +474,29 @@ export function AccountView() {
               the third place to change one. */}
           {account?.handle && <p className="muted you-handle">@{account.handle}</p>}
           {/* What somebody wrote about themselves, under the handle and above
-              the counts the page worked out. */}
+              the link and the counts the page worked out. */}
           {account?.bio && <p className="you-bio">{account.bio}</p>}
+          {/*
+            Your own link, under the bio and above the counts — the same place
+            as on somebody else's page.
+
+            It is a real link here too, not plain text. Checking that what you
+            typed actually opens is most of what somebody wants from seeing it
+            on their own profile, and the one way to check is to follow it. New
+            tab and `noopener`, so the profile is still behind you.
+
+            `nofollow ugc` for the same reason it is there on a stranger's page:
+            the rel is about what kind of link this is, not about whose it is,
+            and two spellings of it would be a difference nobody meant.
+          */}
+          {account?.link && (
+            <p className="you-link">
+              <LinkIcon />
+              <a href={account.link} target="_blank" rel="nofollow ugc noopener noreferrer">
+                {account.link.replace(/^https?:\/\//, '').replace(/\/$/, '')}
+              </a>
+            </p>
+          )}
           {/*
             A count that goes somewhere. Null until the answer arrives rather
             than 0, because "0 friends" flashing on the profile of somebody
@@ -509,28 +530,6 @@ export function AccountView() {
               </a>
             )}
           </p>
-          {/*
-            Your own link, under the counts — the same place, and the same
-            reasoning, as on somebody else's page: an address is a fact about
-            you, and the line above it is the other three.
-
-            It is a real link here too, not plain text. Checking that what you
-            typed actually opens is most of what somebody wants from seeing it
-            on their own profile, and the one way to check is to follow it. New
-            tab and `noopener`, so the profile is still behind you.
-
-            `nofollow ugc` for the same reason it is there on a stranger's page:
-            the rel is about what kind of link this is, not about whose it is,
-            and two spellings of it would be a difference nobody meant.
-          */}
-          {account?.link && (
-            <p className="you-link">
-              <LinkIcon />
-              <a href={account.link} target="_blank" rel="nofollow ugc noopener noreferrer">
-                {account.link.replace(/^https?:\/\//, '').replace(/\/$/, '')}
-              </a>
-            </p>
-          )}
         </div>
 
         {/*

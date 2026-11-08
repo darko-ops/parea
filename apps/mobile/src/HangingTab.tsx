@@ -47,7 +47,7 @@ import type { Lens } from './lens';
  * something calm to sit on. So nothing above the picture is dead space, and
  * nothing of the picture is behind the pill.
  */
-const TAB_W = 172;
+const TAB_W = 152;
 const CAP_H = 56;
 /**
  * The picture is square, because the crop is square.

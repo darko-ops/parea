@@ -415,6 +415,49 @@ export function ProfileScreen({
             </Text>
           )}
           {/*
+            The bio, straight under the name it belongs to and above the
+            address and the counts: the person's own sentence first, then the
+            facts the page worked out about them.
+
+            It wraps rather than truncating. It is two hundred characters at
+            most and somebody wrote it on purpose; an ellipsis in the middle of
+            it says less than the third line would have.
+          */}
+          {account?.bio && (
+            <Text style={[styles.bio, { color: t.fg }]}>{account.bio}</Text>
+          )}
+          {account === null && (
+            <Text style={[styles.bio, { color: t.dim }]}>
+              This device is not signed in. The rolls below are the ones its
+              links reach; signing in is what makes them a new phone away.
+            </Text>
+          )}
+          {/*
+            The one link, under the bio and above the counts: what they wrote,
+            then where to find more of them, then what they have here.
+
+            Shown without its scheme. `https://` in front of a domain is four
+            characters of protocol on a screen about a person, and the stored
+            value keeps it so that opening needs no guessing — the server
+            refuses anything that is not http or https, which is what makes
+            this safe to hand straight to the browser.
+          */}
+          {account?.link && (
+            <View style={styles.linkRow}>
+              <LinkIcon color={t.dim} />
+              <Text
+                onPress={() => void Linking.openURL(account.link!)}
+                suppressHighlighting
+                accessibilityRole="link"
+                accessibilityLabel={`${account.link.replace(/^https?:\/\//, '')}, opens in your browser`}
+                numberOfLines={1}
+                style={[styles.link, { color: t.link }]}
+              >
+                {account.link.replace(/^https?:\/\//, '').replace(/\/$/, '')}
+              </Text>
+            </View>
+          )}
+          {/*
             One line, one colour, at the size of the handle.
 
             None of the three is a score: the albums are the ones this person
@@ -460,62 +503,7 @@ export function ProfileScreen({
               {friends !== null && friends.length === 1 ? 'friend' : 'friends'}
             </Text>
           </Text>
-
-          {/*
-            The one link, under the counts and above the bio.
-
-            Here rather than under the bio because it belongs with the facts:
-            the line above it is what this person has, and an address is the
-            same kind of thing. Under the bio it would read as a footnote to
-            the sentence rather than as part of the header.
-
-            Shown without its scheme. `https://` in front of a domain is four
-            characters of protocol on a screen about a person, and the stored
-            value keeps it so that opening needs no guessing — the server
-            refuses anything that is not http or https, which is what makes
-            this safe to hand straight to the browser.
-          */}
-          {account?.link && (
-            <View style={styles.linkRow}>
-              <LinkIcon color={t.dim} />
-              <Text
-                onPress={() => void Linking.openURL(account.link!)}
-                suppressHighlighting
-                accessibilityRole="link"
-                accessibilityLabel={`${account.link.replace(/^https?:\/\//, '')}, opens in your browser`}
-                numberOfLines={1}
-                style={[styles.link, { color: t.link }]}
-              >
-                {account.link.replace(/^https?:\/\//, '').replace(/\/$/, '')}
-              </Text>
-            </View>
-          )}
         </View>
-
-        {/*
-          Inside the header column, not under it.
-
-          It used to be a child of the scroller, which meant the space above it
-          was the 16 the scroller puts between its rows and not a number anybody
-          had chosen — under a link that sits 6 under the counts, that read as
-          the header having finished and the bio starting a new section. In the
-          column it carries its own margin, in the same three-to-eight rhythm as
-          every other line up there.
-
-          The bio wraps rather than truncating. It is two hundred characters at
-          most and somebody wrote it on purpose; an ellipsis in the middle of it
-          says less than the third line would have.
-        */}
-        {account?.bio && (
-          <Text style={[styles.bio, { color: t.fg }]}>{account.bio}</Text>
-        )}
-        {account === null && (
-          <Text style={[styles.bio, { color: t.dim }]}>
-            This device is not signed in. The rolls below are the ones its
-            links reach; signing in is what makes them a new phone away.
-          </Text>
-        )}
-
       </View>
 
       {/*

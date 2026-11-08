@@ -469,6 +469,37 @@ export function PersonScreen({
         <Text style={[styles.handle, { color: t.dim }]} numberOfLines={1}>
           @{person.handle}
         </Text>
+        {/* Under the handle, before the link and the counts. In the column rather than under it, so the space above it is a
+            number somebody chose rather than the scroller's gap — see the note
+            on `bio`, and the same move on your own profile. */}
+        {person.bio && <Text style={[styles.bio, { color: t.fg }]}>{person.bio}</Text>}
+        {/*
+          The one link they put on their profile, under the bio and above the
+          counts — the same place your own page puts yours.
+
+          This is the screen the field was always for. A link only its owner
+          could see was a bookmark; the value is stored with its scheme and the
+          server refuses anything that is not http or https, which is what
+          makes it safe to hand straight to the browser. Shown without the
+          scheme, because `https://` in front of a domain is four characters of
+          protocol on a screen about a person.
+        */}
+        {person.link && (
+          <View style={styles.linkRow}>
+            <LinkIcon color={t.dim} />
+            <Text
+              onPress={() => void Linking.openURL(person.link!)}
+              suppressHighlighting
+              accessibilityRole="link"
+              accessibilityLabel={`${person.link.replace(/^https?:\/\//, '')}, opens in your browser`}
+              numberOfLines={1}
+              style={[styles.link, { color: t.link }]}
+            >
+              {person.link.replace(/^https?:\/\//, '').replace(/\/$/, '')}
+            </Text>
+          </View>
+        )}
+
         {/*
           The three their own profile prints, in the same order and at the
           same size.
@@ -507,39 +538,7 @@ export function PersonScreen({
           </Text>
         </Text>
 
-        {/*
-          The one link they put on their profile, under the counts and above
-          the bio — the same place your own page puts yours, for the reason
-          written there: the line above is what this person has, and an address
-          is the same kind of thing.
 
-          This is the screen the field was always for. A link only its owner
-          could see was a bookmark; the value is stored with its scheme and the
-          server refuses anything that is not http or https, which is what
-          makes it safe to hand straight to the browser. Shown without the
-          scheme, because `https://` in front of a domain is four characters of
-          protocol on a screen about a person.
-        */}
-        {person.link && (
-          <View style={styles.linkRow}>
-            <LinkIcon color={t.dim} />
-            <Text
-              onPress={() => void Linking.openURL(person.link!)}
-              suppressHighlighting
-              accessibilityRole="link"
-              accessibilityLabel={`${person.link.replace(/^https?:\/\//, '')}, opens in your browser`}
-              numberOfLines={1}
-              style={[styles.link, { color: t.link }]}
-            >
-              {person.link.replace(/^https?:\/\//, '').replace(/\/$/, '')}
-            </Text>
-          </View>
-        )}
-
-        {/* In the column rather than under it, so the space above it is a
-            number somebody chose rather than the scroller's gap — see the note
-            on `bio`, and the same move on your own profile. */}
-        {person.bio && <Text style={[styles.bio, { color: t.fg }]}>{person.bio}</Text>}
       </View>
 
       {/*
