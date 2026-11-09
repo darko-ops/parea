@@ -162,11 +162,15 @@ export function windowOf(photos: LibraryPhoto[]): Window | null {
 /**
  * Where copies of chosen photographs wait to be uploaded.
  *
- * The cache rather than documents: these are reproducible from the library, so
- * iOS is welcome to reclaim them under pressure — which is exactly the bargain
- * `Paths.cache` describes. They are deleted once nothing needs them — the queue
- * has let the item go and no stand-in in a roll is drawing it — by
- * `releaseCopies`, and anything that slipped past that by `sweepOutbox`.
+ * Documents rather than the cache, so a copy is here until its upload is
+ * confirmed. The cache was chosen because these were reproducible from the
+ * library, and half of them are not: a photograph added through the system
+ * picker has no library id, its own temporary file is long gone, and a cache
+ * iOS emptied under pressure left it `SourceGone` — "add them again" for a
+ * photograph that was waiting for a signal. They are deleted once nothing
+ * needs them — the queue has let the item go and no stand-in in a roll is
+ * drawing it — by `releaseCopies`, and anything that slipped past that by
+ * `sweepOutbox`, which also clears what the old cache outbox still holds.
  */
 export const OUTBOX = 'outbox';
 
@@ -194,11 +198,11 @@ export function isLibraryAsset(id: string): boolean {
 /**
  * The outbox, made if it is not there.
  *
- * Idempotent, and called per copy rather than once at startup, because
- * `Paths.cache` is a directory iOS empties whenever it likes.
+ * Idempotent, and called per copy rather than once at startup: cheap, and
+ * nothing then depends on startup having run first.
  */
 function outboxDir(): Directory {
-  const dir = new Directory(Paths.cache, OUTBOX);
+  const dir = new Directory(Paths.document, OUTBOX);
   dir.create({ idempotent: true });
   return dir;
 }
@@ -353,22 +357,27 @@ export const OUTBOX_STRAY_MS = 60 * 60 * 1000;
  *
  * Old as well as unnamed, by the newer of the two times the file has, because
  * the queue can be a moment behind the outbox. And kept when it has neither
- * time: a stray that stays is a few megabytes in a cache the system empties,
- * and a photograph deleted before it went up is gone.
+ * time: a stray that stays is a few megabytes, and a photograph deleted
+ * before it went up is gone.
+ *
+ * Both outboxes: the cache one is where copies lived before documents, and an
+ * item queued then still names its copy there until it goes up.
  */
 export function sweepOutbox(queued: readonly string[], now: number = Date.now()): number {
-  const dir = new Directory(Paths.cache, OUTBOX);
-  if (!dir.exists) return 0;
   const keep = new Set(queued.map(outboxName));
   let swept = 0;
-  for (const entry of dir.list()) {
-    if (!(entry instanceof File) || keep.has(outboxName(entry.uri))) continue;
-    try {
-      const at = Math.max(entry.modificationTime ?? 0, entry.creationTime ?? 0);
-      if (at === 0 || now - at < OUTBOX_STRAY_MS) continue;
-      entry.delete();
-      swept += 1;
-    } catch {}
+  for (const root of [Paths.document, Paths.cache]) {
+    const dir = new Directory(root, OUTBOX);
+    if (!dir.exists) continue;
+    for (const entry of dir.list()) {
+      if (!(entry instanceof File) || keep.has(outboxName(entry.uri))) continue;
+      try {
+        const at = Math.max(entry.modificationTime ?? 0, entry.creationTime ?? 0);
+        if (at === 0 || now - at < OUTBOX_STRAY_MS) continue;
+        entry.delete();
+        swept += 1;
+      } catch {}
+    }
   }
   return swept;
 }

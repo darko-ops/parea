@@ -301,7 +301,7 @@ describe('the sandbox copy', () => {
      * are saved and will go up on their own" — not waiting, not saved, never
      * going up.
      */
-    expect(LIBRARY).toMatch(/new Directory\(Paths\.cache, OUTBOX\)/);
+    expect(LIBRARY).toMatch(/new Directory\(Paths\.document, OUTBOX\)/);
     expect(LIBRARY).toMatch(/await new File\(uri\)\.copy\(copy\)/);
     // The copy is what the queue is handed, not the asset.
     expect(LIBRARY).toMatch(/source: copy\.uri/);
@@ -333,11 +333,15 @@ describe('the sandbox copy', () => {
     expect(LIBRARY_RELEASE).toMatch(/inOutbox\(uri\)/);
   });
 
-  it('keeps the copies somewhere the system may reclaim', () => {
-    // They are reproducible from the library, which is exactly the bargain
-    // `Paths.cache` describes.
-    expect(LIBRARY).toMatch(/Paths\.cache/);
-    expect(LIBRARY).not.toMatch(/Paths\.document, OUTBOX/);
+  it('keeps the copies where the system will not reclaim them before they go up', () => {
+    // A picked photograph is not reproducible from the library, so a cache iOS
+    // emptied while it waited for a signal lost it for good.
+    const dir = LIBRARY.slice(LIBRARY.indexOf('function outboxDir'));
+    expect(dir).toMatch(/^[^}]*Paths\.document, OUTBOX/);
+    expect(dir).not.toMatch(/^[^}]*Paths\.cache, OUTBOX/);
+    // And the old cache outbox is still swept, for items queued before.
+    const sweep = LIBRARY.slice(LIBRARY.indexOf('export function sweepOutbox'));
+    expect(sweep).toMatch(/\[Paths\.document, Paths\.cache\]/);
   });
 });
 

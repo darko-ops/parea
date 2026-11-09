@@ -47,7 +47,7 @@ export class R2Storage implements Storage {
     key: string,
     contentType: string,
     byteSize: number,
-    ttlSeconds = 900,
+    ttlSeconds = 3600,
   ): Promise<PresignedUpload> {
     /*
      * `ContentLength` is signed, and that is what makes the quota true.

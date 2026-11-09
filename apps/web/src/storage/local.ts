@@ -52,7 +52,7 @@ export class LocalStorage implements Storage {
     key: string,
     contentType: string,
     byteSize: number,
-    ttlSeconds = 900,
+    ttlSeconds = 3600,
   ): Promise<PresignedUpload> {
     return {
       url: this.signedUrl(key, 'put', ttlSeconds, byteSize),

@@ -23,8 +23,8 @@ import { and, desc, eq, inArray, isNotNull, isNull, or, type SQL } from 'drizzle
 
 import type { Db } from './db';
 
-/** A grant is good for fifteen minutes; after that, an upload with no file has stopped. */
-export const SENDING_GRACE_MS = 15 * 60 * 1000;
+/** A grant is good for an hour; after that, an upload with no file has stopped. */
+export const SENDING_GRACE_MS = 60 * 60 * 1000;
 
 export type DraftState =
   /** Granted moments ago; the device is (probably) still sending it. */

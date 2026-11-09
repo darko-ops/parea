@@ -347,8 +347,9 @@ export async function uploadItem(item: QueueItem): Promise<void> {
    * persisted, so an item may carry the asset's own path from before the copy
    * existed — `/var/mobile/Media/DCIM/…`, which a background session can never
    * open. But a copy this function made can also be *gone*: it is deleted once
-   * its upload is finished with, and `Paths.cache` is a directory iOS empties whenever
-   * it likes. Checking only "is it ours" sent `UploadTask` at a path that had
+   * its upload is finished with, and copies queued before the outbox moved to
+   * documents live in `Paths.cache`, a directory iOS empties whenever it
+   * likes. Checking only "is it ours" sent `UploadTask` at a path that had
    * been deleted, and the native side does not return an error for that — it
    * raises, and an uncaught ObjC exception takes the whole app down:
    *
