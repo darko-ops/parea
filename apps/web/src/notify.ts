@@ -63,7 +63,11 @@ async function deliver(
   // The ids that fetch Expo's receipts — the only place a push Apple refused
   // after Expo accepted it is ever reported. See `tickets` in `@parea/push`.
   if (result.tickets.length > 0) {
-    console.log(`[push] ${notification.kind}: accepted ${result.tickets.join(',')}`);
+    console.log(
+      `[push] ${notification.kind}: accepted ${result.tickets.join(',')} to ${tokens
+        .map((t) => `…${t.slice(-7, -1)}`)
+        .join(',')}`,
+    );
   }
 
   if (result.failed > 0) {

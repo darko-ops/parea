@@ -74,6 +74,7 @@ export async function POST(request: Request) {
       // here, and one whose phone signed in again follows the new session.
       .set({ lastSeenAt: new Date(), sessionId })
       .where(eq(schema.devices.id, existing.id));
+    console.log(`[push] register ${actorId} …${pushToken.slice(-7, -1)} (kept)`);
     return NextResponse.json({ registered: true });
   }
 
@@ -81,6 +82,9 @@ export async function POST(request: Request) {
     .insert(schema.devices)
     .values({ actorId, platform, pushToken, sessionId, lastSeenAt: new Date() });
 
+  // The tail of the token, never the token: enough to tell which phone a push
+  // went to against which phone last said hello, not enough to send anything.
+  console.log(`[push] register ${actorId} …${pushToken.slice(-7, -1)} (new)`);
   return NextResponse.json({ registered: true }, { status: 201 });
 }
 
