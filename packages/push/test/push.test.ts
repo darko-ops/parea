@@ -27,7 +27,7 @@ function message(to = TOKEN): PushMessage {
 
 /** Answers with one ticket per message, per Expo's shape. */
 function fakeExpo(
-  tickets: (message: PushMessage) => { status: string; details?: { error?: string } },
+  tickets: (message: PushMessage) => { status: string; id?: string; details?: { error?: string } },
 ) {
   const calls: PushMessage[][] = [];
   const fetcher = vi.fn(async (_url: string, init?: RequestInit) => {
@@ -168,7 +168,15 @@ describe('delivery', () => {
   it('reports what was sent', async () => {
     const { fetcher } = fakeExpo(() => ({ status: 'ok' }));
     const result = await sendAll([message(), message()], { fetcher });
-    expect(result).toEqual({ sent: 2, failed: 0, unregistered: [], errors: [] });
+    expect(result).toEqual({ sent: 2, failed: 0, unregistered: [], errors: [], tickets: [] });
+  });
+
+  it('keeps the ticket id of every accepted message, for its receipt', async () => {
+    // Accepted is not delivered: Apple's refusal only ever shows in the receipt.
+    let n = 0;
+    const { fetcher } = fakeExpo(() => ({ status: 'ok', id: `ticket-${++n}` }));
+    const result = await sendAll([message(), message()], { fetcher });
+    expect(result.tickets).toEqual(['ticket-1', 'ticket-2']);
   });
 
   it('chunks past Expo’s per-request limit', async () => {
@@ -216,6 +224,7 @@ describe('delivery', () => {
       failed: 1,
       unregistered: [],
       errors: ['network'],
+      tickets: [],
     });
   });
 
@@ -224,12 +233,12 @@ describe('delivery', () => {
       async () => new Response('nope', { status: 500 }),
     ) as unknown as typeof fetch;
     const result = await sendAll([message()], { fetcher });
-    expect(result).toEqual({ sent: 0, failed: 1, unregistered: [], errors: ['http_500'] });
+    expect(result).toEqual({ sent: 0, failed: 1, unregistered: [], errors: ['http_500'], tickets: [] });
   });
 
   it('sends nothing when there is nothing to send', async () => {
     const { fetcher, calls } = fakeExpo(() => ({ status: 'ok' }));
-    expect(await sendAll([], { fetcher })).toEqual({ sent: 0, failed: 0, unregistered: [], errors: [] });
+    expect(await sendAll([], { fetcher })).toEqual({ sent: 0, failed: 0, unregistered: [], errors: [], tickets: [] });
     expect(calls).toHaveLength(0);
   });
 

@@ -418,6 +418,13 @@ export type DeliveryResult = {
    * did — which is how a phone went a week without a banner and nothing said so.
    */
   errors: string[];
+  /**
+   * Expo's ticket id for every message it accepted. Accepted is not
+   * delivered: Apple can still turn a push down — a revoked key, a token from
+   * the other environment — and Expo only says so in the receipt these ids
+   * fetch (`getReceipts`), never in the answer to the send.
+   */
+  tickets: string[];
 };
 
 export type Fetcher = typeof fetch;
@@ -436,7 +443,7 @@ export async function sendAll(
   const send = options.fetcher ?? fetch;
   const token = options.accessToken ?? process.env.EXPO_ACCESS_TOKEN;
 
-  const result: DeliveryResult = { sent: 0, failed: 0, unregistered: [], errors: [] };
+  const result: DeliveryResult = { sent: 0, failed: 0, unregistered: [], errors: [], tickets: [] };
   const valid = messages.filter((m) => isExpoPushToken(m.to));
   const fail = (n: number, why: string) => {
     result.failed += n;
@@ -463,7 +470,7 @@ export async function sendAll(
       }
 
       const body = (await response.json()) as {
-        data?: { status?: string; details?: { error?: string } }[];
+        data?: { status?: string; id?: string; details?: { error?: string } }[];
       };
       const tickets = body.data ?? [];
 
@@ -471,6 +478,7 @@ export async function sendAll(
         const ticket = tickets[index];
         if (ticket?.status === 'ok') {
           result.sent++;
+          if (ticket.id) result.tickets.push(ticket.id);
           return;
         }
         fail(1, ticket?.details?.error ?? 'no_ticket');

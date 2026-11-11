@@ -60,6 +60,12 @@ async function deliver(
 
   const result = await sendAll(tokens.map((t) => toMessage(t, notification)));
 
+  // The ids that fetch Expo's receipts — the only place a push Apple refused
+  // after Expo accepted it is ever reported. See `tickets` in `@parea/push`.
+  if (result.tickets.length > 0) {
+    console.log(`[push] ${notification.kind}: accepted ${result.tickets.join(',')}`);
+  }
+
   if (result.failed > 0) {
     console.warn(
       `[push] ${notification.kind}: ${result.sent} sent, ${result.failed} failed (${[
