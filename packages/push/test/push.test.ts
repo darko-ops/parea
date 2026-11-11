@@ -168,7 +168,7 @@ describe('delivery', () => {
   it('reports what was sent', async () => {
     const { fetcher } = fakeExpo(() => ({ status: 'ok' }));
     const result = await sendAll([message(), message()], { fetcher });
-    expect(result).toEqual({ sent: 2, failed: 0, unregistered: [] });
+    expect(result).toEqual({ sent: 2, failed: 0, unregistered: [], errors: [] });
   });
 
   it('chunks past Expo’s per-request limit', async () => {
@@ -202,6 +202,7 @@ describe('delivery', () => {
     const result = await sendAll([message()], { fetcher });
     expect(result.failed).toBe(1);
     expect(result.unregistered).toEqual([]);
+    expect(result.errors).toEqual(['MessageRateExceeded']);
   });
 
   it('survives the push service being down', async () => {
@@ -214,6 +215,7 @@ describe('delivery', () => {
       sent: 0,
       failed: 1,
       unregistered: [],
+      errors: ['network'],
     });
   });
 
@@ -222,12 +224,12 @@ describe('delivery', () => {
       async () => new Response('nope', { status: 500 }),
     ) as unknown as typeof fetch;
     const result = await sendAll([message()], { fetcher });
-    expect(result).toEqual({ sent: 0, failed: 1, unregistered: [] });
+    expect(result).toEqual({ sent: 0, failed: 1, unregistered: [], errors: ['http_500'] });
   });
 
   it('sends nothing when there is nothing to send', async () => {
     const { fetcher, calls } = fakeExpo(() => ({ status: 'ok' }));
-    expect(await sendAll([], { fetcher })).toEqual({ sent: 0, failed: 0, unregistered: [] });
+    expect(await sendAll([], { fetcher })).toEqual({ sent: 0, failed: 0, unregistered: [], errors: [] });
     expect(calls).toHaveLength(0);
   });
 

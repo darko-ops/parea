@@ -33,7 +33,7 @@ async function deliver(
   if (actorIds.length === 0) return;
 
   const devices = await db
-    .select({ token: schema.devices.pushToken })
+    .select({ actorId: schema.devices.actorId, token: schema.devices.pushToken })
     .from(schema.devices)
     .where(
       and(
@@ -42,10 +42,31 @@ async function deliver(
       ),
     );
 
+  /*
+   * Said in the logs, both ways a push can reach nobody. Everything below is
+   * swallowed by design, so these two lines are the only trace there is of a
+   * like that never became a banner: a recipient with no phone on file, which
+   * is a registration that never landed, and a send Expo refused, which is
+   * credentials or limits. Actor ids only — never a token, never a name.
+   */
+  const withDevice = new Set(devices.map((d) => d.actorId));
+  const without = actorIds.filter((id) => !withDevice.has(id));
+  if (without.length > 0) {
+    console.warn(`[push] ${notification.kind}: no device for ${without.join(',')}`);
+  }
+
   const tokens = [...new Set(devices.map((d) => d.token!).filter(Boolean))];
   if (tokens.length === 0) return;
 
   const result = await sendAll(tokens.map((t) => toMessage(t, notification)));
+
+  if (result.failed > 0) {
+    console.warn(
+      `[push] ${notification.kind}: ${result.sent} sent, ${result.failed} failed (${[
+        ...new Set(result.errors),
+      ].join(',')})`,
+    );
+  }
 
   if (result.unregistered.length > 0) {
     await db

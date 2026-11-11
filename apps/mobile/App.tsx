@@ -137,6 +137,7 @@ import {
   type OwedCover,
   type SavedEvent,
 } from './src/platform';
+import { reportProblem } from './src/crashReports';
 import {
   MAX_PER_SELECTION,
   Offline,
@@ -426,7 +427,7 @@ export default function App() {
         if (token) {
           await api
             .registerDevice(token, RNPlatform.OS === 'android' ? 'android' : 'ios')
-            .catch(() => {});
+            .catch((err) => reportProblem('push registration refused', err));
         }
       })().catch(() => {});
     };
@@ -1338,7 +1339,7 @@ export default function App() {
       if (pushToken) {
         void api
           .registerDevice(pushToken, RNPlatform.OS === 'android' ? 'android' : 'ios')
-          .catch(() => {});
+          .catch((err) => reportProblem('push registration refused', err));
       }
     }
   }, [api]);
@@ -3231,7 +3232,7 @@ function EventScreen({
     if (token) {
       await api
         .registerDevice(token, RNPlatform.OS === 'android' ? 'android' : 'ios')
-        .catch(() => {});
+        .catch((err) => reportProblem('push registration refused', err));
     }
   }, [api]);
 

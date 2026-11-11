@@ -42,3 +42,23 @@ export function startCrashReports(dsn = process.env.EXPO_PUBLIC_SENTRY_DSN): boo
     return false;
   }
 }
+
+/**
+ * Something that went wrong without crashing, worth knowing about anyway.
+ *
+ * For the failures this app swallows on purpose — push registration above
+ * all, where a refusal must never block anybody and so used to leave no trace
+ * at all: a phone with notifications allowed and no token on the server looked,
+ * from every side, like a quiet week. Goes through the same `scrub` as a crash.
+ * Silent when crash reports are off or the SDK is missing.
+ */
+export function reportProblem(what: string, err?: unknown): void {
+  if (!process.env.EXPO_PUBLIC_SENTRY_DSN) return;
+  try {
+    const Sentry = require('@sentry/react-native') as typeof SentryModule;
+    const detail = err instanceof Error ? err.message : err === undefined ? '' : String(err);
+    Sentry.captureMessage(detail ? `${what}: ${detail}` : what, 'warning');
+  } catch {
+    // Reporting a problem must never become one.
+  }
+}

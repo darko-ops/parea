@@ -22,6 +22,7 @@ import {
 } from '@parea/upload';
 
 import { ApiError } from './api';
+import { reportProblem } from './crashReports';
 import { inOutbox, isLibraryAsset, sandboxCopy } from './library';
 
 const ACTOR_KEY = 'parea.actorToken';
@@ -831,8 +832,26 @@ export async function currentPushToken(): Promise<string | null> {
   try {
     const existing = await Notifications.getPermissionsAsync();
     if (!existing.granted) return null;
-    return (await Notifications.getExpoPushTokenAsync()).data ?? null;
-  } catch {
+  } catch (err) {
+    reportProblem('push permission unreadable', err);
+    return null;
+  }
+  return expoPushToken();
+}
+
+/**
+ * The token itself, once permission is in hand — and said when it cannot be
+ * had. Permission granted and no token is the one state nobody can see from
+ * outside: Settings says notifications are on, the server has nothing to send
+ * to, and every banner is lost without a word.
+ */
+async function expoPushToken(): Promise<string | null> {
+  try {
+    const token = (await Notifications.getExpoPushTokenAsync()).data ?? null;
+    if (!token) reportProblem('push token empty');
+    return token;
+  } catch (err) {
+    reportProblem('push token unavailable', err);
     return null;
   }
 }
@@ -847,12 +866,11 @@ export async function registerForPush(): Promise<string | null> {
       existing.granted ||
       (existing.canAskAgain && (await Notifications.requestPermissionsAsync()).granted);
     if (!granted) return null;
-
-    const token = await Notifications.getExpoPushTokenAsync();
-    return token.data ?? null;
-  } catch {
+  } catch (err) {
+    reportProblem('push permission request failed', err);
     return null;
   }
+  return expoPushToken();
 }
 
 // --- saving to the camera roll -----------------------------------------------

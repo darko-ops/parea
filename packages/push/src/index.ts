@@ -409,6 +409,15 @@ export type DeliveryResult = {
    * future send.
    */
   unregistered: string[];
+  /**
+   * Why the failures failed, one entry per failed message: Expo's error code
+   * (`InvalidCredentials`, `MessageRateExceeded`…), `http_<status>` for a
+   * refused request, `network` for one that never arrived, `not_a_token` for
+   * something that was never an Expo token. Nothing here throws, so without
+   * this a send that never reaches anybody is indistinguishable from one that
+   * did — which is how a phone went a week without a banner and nothing said so.
+   */
+  errors: string[];
 };
 
 export type Fetcher = typeof fetch;
@@ -427,9 +436,13 @@ export async function sendAll(
   const send = options.fetcher ?? fetch;
   const token = options.accessToken ?? process.env.EXPO_ACCESS_TOKEN;
 
-  const result: DeliveryResult = { sent: 0, failed: 0, unregistered: [] };
+  const result: DeliveryResult = { sent: 0, failed: 0, unregistered: [], errors: [] };
   const valid = messages.filter((m) => isExpoPushToken(m.to));
-  result.failed += messages.length - valid.length;
+  const fail = (n: number, why: string) => {
+    result.failed += n;
+    for (let i = 0; i < n; i++) result.errors.push(why);
+  };
+  fail(messages.length - valid.length, 'not_a_token');
 
   for (let at = 0; at < valid.length; at += CHUNK) {
     const chunk = valid.slice(at, at + CHUNK);
@@ -445,7 +458,7 @@ export async function sendAll(
       });
 
       if (!response.ok) {
-        result.failed += chunk.length;
+        fail(chunk.length, `http_${response.status}`);
         continue;
       }
 
@@ -460,13 +473,13 @@ export async function sendAll(
           result.sent++;
           return;
         }
-        result.failed++;
+        fail(1, ticket?.details?.error ?? 'no_ticket');
         if (ticket?.details?.error === 'DeviceNotRegistered') {
           result.unregistered.push(message.to);
         }
       });
     } catch {
-      result.failed += chunk.length;
+      fail(chunk.length, 'network');
     }
   }
 

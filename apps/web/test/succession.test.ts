@@ -26,7 +26,7 @@ vi.mock('@parea/push', async (actual) => ({
   ...(await actual<typeof import('@parea/push')>()),
   sendAll: async (messages: { to: string; body: string; data: Record<string, string> }[]) => {
     pushed.push(...messages);
-    return { sent: messages.length, failed: 0, unregistered: [] };
+    return { sent: messages.length, failed: 0, unregistered: [], errors: [] };
   },
 }));
 

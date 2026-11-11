@@ -25,11 +25,18 @@ export async function POST(request: Request) {
     platform?: unknown;
   };
 
+  // Both refusals are said in the logs: the app swallows them (a failed
+  // registration must never block anything), so this is the only place a
+  // phone that is never told anything shows up.
   const actorId = await currentAccountActorId();
-  if (!actorId) return NextResponse.json({ error: 'no_actor' }, { status: 403 });
+  if (!actorId) {
+    console.warn('[push] register refused: no signed-in account on the request');
+    return NextResponse.json({ error: 'no_actor' }, { status: 403 });
+  }
 
   const pushToken = typeof body.pushToken === 'string' ? body.pushToken : '';
   if (!isExpoPushToken(pushToken)) {
+    console.warn(`[push] register refused for ${actorId}: not an Expo token`);
     return NextResponse.json({ error: 'invalid_token' }, { status: 400 });
   }
   const platform = body.platform === 'android' ? 'android' : 'ios';
