@@ -190,6 +190,32 @@ async function readStaged(
   return { ok: true, bytes: Buffer.from(await res.arrayBuffer()) };
 }
 
+/** The stored copy and the strip's square, or why the bytes would not decode. */
+async function encode(
+  bytes: Buffer,
+): Promise<
+  | { ok: true; out: { data: Buffer; info: { width: number; height: number } }; thumb: Buffer }
+  | { ok: false; reason: string }
+> {
+  try {
+    const out = await decode(bytes)
+      .rotate()
+      // Never cropped: this is somebody's whole photograph, drawn whole.
+      .resize({ width: EDGE, height: EDGE, fit: 'inside', withoutEnlargement: true })
+      .jpeg({ quality: 84, mozjpeg: true })
+      .toBuffer({ resolveWithObject: true });
+    // Square, because the strip is squares — cut from the re-encoded copy,
+    // so nothing but pixels reaches this one either.
+    const thumb = await decode(out.data)
+      .resize({ width: THUMB_EDGE, height: THUMB_EDGE, fit: 'cover', position: 'attention' })
+      .jpeg({ quality: 78, mozjpeg: true })
+      .toBuffer();
+    return { ok: true, out, thumb };
+  } catch (err) {
+    return { ok: false, reason: err instanceof Error ? err.message : String(err) };
+  }
+}
+
 async function makeMoment(
   actorId: string,
   incoming: Buffer,
@@ -207,41 +233,37 @@ async function makeMoment(
    * instead: a well-formed photo in a format this route cannot read, which a
    * client can turn into a sentence.
    */
-  // Checked against the child-safety provider before anything is made of it.
-  // A moment is on everybody's Home, and this route stores it itself rather
-  // than through the deriver — see `@/safety`.
-  const refused = await screenUpload(admitted.bytes, admitted.mime, { kind: 'moment' }, actorId);
+  /*
+   * Checked against the child-safety provider before anything is stored. A
+   * moment is on everybody's Home, and this route stores it itself rather
+   * than through the deriver — see `@/safety`.
+   *
+   * The re-encode runs while the scan is out, rather than after it: the scan
+   * is a round trip to another machine and the re-encode is a second of CPU
+   * here, and one waiting on the other made Share slower by the shorter of
+   * the two. What the scan guards is unchanged — the copies stay in memory,
+   * and nothing is written, inserted or served until it has answered.
+   */
+  const screened = screenUpload(admitted.bytes, admitted.mime, { kind: 'moment' }, actorId);
+  const unreadable = admitted.mime === 'image/heic' || admitted.mime === 'image/avif';
+  const encoded = unreadable ? null : encode(admitted.bytes);
+  const [refused, made] = await Promise.all([screened, encoded]);
   if (refused) return refused;
 
-  if (admitted.mime === 'image/heic' || admitted.mime === 'image/avif') {
+  if (unreadable || !made) {
     console.warn('moment refused', { error: 'unsupported_type', mime: admitted.mime });
     return NextResponse.json({ error: 'unsupported_type' }, { status: 415 });
   }
-
-  let out: { data: Buffer; info: { width: number; height: number } };
-  let thumb: Buffer;
-  try {
-    out = await decode(admitted.bytes)
-      .rotate()
-      // Never cropped: this is somebody's whole photograph, drawn whole.
-      .resize({ width: EDGE, height: EDGE, fit: 'inside', withoutEnlargement: true })
-      .jpeg({ quality: 84, mozjpeg: true })
-      .toBuffer({ resolveWithObject: true });
-    // Square, because the strip is squares — cut from the re-encoded copy,
-    // so nothing but pixels reaches this one either.
-    thumb = await decode(out.data)
-      .resize({ width: THUMB_EDGE, height: THUMB_EDGE, fit: 'cover', position: 'attention' })
-      .jpeg({ quality: 78, mozjpeg: true })
-      .toBuffer();
-  } catch (err) {
+  if (!made.ok) {
     console.warn('moment refused', {
       error: 'not_an_image',
       mime: admitted.mime,
       bytes: admitted.bytes.byteLength,
-      reason: err instanceof Error ? err.message : String(err),
+      reason: made.reason,
     });
     return NextResponse.json({ error: 'not_an_image' }, { status: 400 });
   }
+  const { out, thumb } = made;
 
   const db = getDb();
   const [row] = await db

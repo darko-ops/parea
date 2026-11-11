@@ -31,6 +31,11 @@ export function AddMoment() {
   // and can still be tried; it just cannot be shown here.
   const { ref, failed, onError } = useImageFailure(preview ?? '');
 
+  // The scanner wakes while a photo is chosen, not under the Share button.
+  useEffect(() => {
+    void fetch('/api/moments/warm', { method: 'POST' }).catch(() => {});
+  }, []);
+
   // The preview is a blob URL, which lives until it is revoked.
   useEffect(() => {
     if (!file) return;

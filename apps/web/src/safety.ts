@@ -95,6 +95,26 @@ async function scanCopy(
 }
 
 /**
+ * Starts the deriver, if that is where scans go, before an image arrives.
+ *
+ * The deriver stops when idle and takes about three seconds to answer once a
+ * request starts it — and a moment's Share used to be the request that did,
+ * so somebody waited out a cold start with the spinner going. Asked for when
+ * the composer opens instead, it is up by the time they have chosen a photo.
+ * `/health` touches no database, so this wakes the machine and nothing else.
+ *
+ * Never throws and never decides anything: a wake that fails leaves the scan
+ * to start it, as before.
+ */
+export async function wakeScanner(env: Record<string, string | undefined> = process.env): Promise<void> {
+  const url = env.DERIVER_SCAN_URL?.trim();
+  if (!url || !deriverScannerFromEnv(env)) return;
+  await fetch(new URL('/health', url), { signal: AbortSignal.timeout(10_000) })
+    .then((res) => res.body?.cancel())
+    .catch(() => {});
+}
+
+/**
  * Checks an image before it is stored. `null` means go ahead; a response means
  * return it and store nothing.
  *

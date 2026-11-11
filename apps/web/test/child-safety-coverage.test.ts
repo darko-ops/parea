@@ -25,15 +25,25 @@ const TERMS = read('../app/terms/page.tsx');
 
 describe('the images the web app stores itself', () => {
   for (const [kind, source] of Object.entries(ROUTES)) {
-    it(`checks a ${kind} before it is decoded or stored`, () => {
-      const screened = source.indexOf('await screenUpload(');
+    it(`checks a ${kind} before it is stored`, () => {
+      const screened = source.indexOf('screenUpload(');
       expect(screened, 'calls screenUpload').toBeGreaterThan(-1);
       expect(source.slice(screened, screened + 200)).toContain(`kind: '${kind}'`);
-      // After the file is admitted, and before anything is decoded or written.
+      // After the file is admitted, and the verdict in before anything is written.
       expect(screened).toBeGreaterThan(source.indexOf('admit('));
-      expect(screened).toBeLessThan(source.indexOf('decode(', source.indexOf('admit(')));
-      expect(screened).toBeLessThan(source.indexOf('putSmall('));
-      expect(source).toMatch(/if \(refused\) return refused;/);
+      const refusedAt = source.indexOf('if (refused) return refused;');
+      expect(refusedAt).toBeGreaterThan(screened);
+      expect(refusedAt).toBeLessThan(source.indexOf('putSmall('));
+      const inserted = source.indexOf('.insert(', screened);
+      if (inserted > -1) expect(refusedAt).toBeLessThan(inserted);
+      if (kind === 'moment') {
+        // A moment re-encodes in memory while its scan is out, so Share waits
+        // on the longer of the two, not both; only the writes wait on it.
+        expect(screened).toBeLessThan(source.indexOf('encode(admitted.bytes)'));
+      } else {
+        expect(source).toContain('await screenUpload(');
+        expect(screened).toBeLessThan(source.indexOf('decode(', source.indexOf('admit(')));
+      }
     });
   }
 

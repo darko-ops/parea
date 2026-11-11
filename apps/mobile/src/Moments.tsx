@@ -200,6 +200,11 @@ export function AddMoment({
   const [sharing, setSharing] = useState(false);
   const [fetching, setFetching] = useState(Boolean(seed));
 
+  // The scanner wakes while a photo is chosen, not under the Share button.
+  useEffect(() => {
+    api.warmMoment().catch(() => {});
+  }, [api]);
+
   useEffect(() => {
     if (!seed) return;
     let live = true;

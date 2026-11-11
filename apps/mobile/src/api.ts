@@ -2129,6 +2129,14 @@ export class Api {
     });
   }
 
+  /**
+   * The composer is open: start what will scan the moment, so Share does not
+   * wait for it to wake. Nothing hangs on the answer.
+   */
+  warmMoment(): Promise<unknown> {
+    return this.call('/api/moments/warm', { method: 'POST' });
+  }
+
   /** The original is in storage; make it a moment, with its caption if any. */
   finishMoment(key: string, caption = ''): Promise<{ id: string }> {
     return this.call('/api/moments', {
