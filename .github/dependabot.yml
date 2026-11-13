@@ -23,6 +23,19 @@ updates:
       # and only with an SDK upgrade; Next.js majors change conventions.
       - dependency-name: '*'
         update-types: ['version-update:semver-major']
+      # The Expo SDK pins React and React Native exactly, and React Native's
+      # "minors" (0.86 → 0.88) are breaking. They move only with an SDK
+      # upgrade, never in the weekly group: 0.88 failed typecheck in #37.
+      - dependency-name: react-native
+        update-types: ['version-update:semver-minor']
+      - dependency-name: react
+        update-types: ['version-update:semver-minor']
+      - dependency-name: react-dom
+        update-types: ['version-update:semver-minor']
+      - dependency-name: '@types/react'
+        update-types: ['version-update:semver-minor']
+      - dependency-name: '@types/react-dom'
+        update-types: ['version-update:semver-minor']
 
   - package-ecosystem: github-actions
     directory: /
