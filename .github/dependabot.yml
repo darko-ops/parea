@@ -48,3 +48,9 @@ updates:
     directory: /services/deriver
     schedule:
       interval: monthly
+    ignore:
+      # Node majors are a decision, and odd ones never reach LTS: #9 and #38
+      # offered 25 and the deriver build failed on it. Stay on the LTS line
+      # until it moves on purpose; trixie-slim rebuilds still come through.
+      - dependency-name: node
+        update-types: ['version-update:semver-major']
