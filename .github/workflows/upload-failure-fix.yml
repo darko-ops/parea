@@ -186,7 +186,7 @@ jobs:
       # No `cache: npm`. The patch's code runs here, and a cache this job saved
       # is one the default branch's CI could restore: a poisoned ~/.npm would
       # outlive the pull request somebody declined.
-      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         if: steps.apply.outputs.proposed == 'true'
         with:
           node-version: 22
