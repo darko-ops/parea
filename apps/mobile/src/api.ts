@@ -1055,6 +1055,11 @@ export type SharedEvent = {
   caption: string | null;
   lastActiveAt: string;
   thumb: string | null;
+  /**
+   * Whether they made it: Created rather than Joined on their profile. Optional
+   * because a server from before it sends nothing; see `PersonScreen`.
+   */
+  byThem?: boolean;
 };
 
 /**

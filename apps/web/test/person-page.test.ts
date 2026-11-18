@@ -253,7 +253,7 @@ describe('what the page looks like', () => {
     expect(VIEW).toMatch(/className="you-head"/);
     expect(VIEW).toMatch(/<Avatar\s+url=\{person\.avatar\}/);
     expect(VIEW).toMatch(/className="you-name"/);
-    expect(VIEW).toMatch(/<EventCard\s+key=\{event\.id\}/);
+    expect(VIEW).toMatch(/<li key=\{event\.id\}>\s*<EventCard/);
     // Opened from here, a roll's back arrow comes back here.
     expect(VIEW).toContain('href: `/event/${event.id}?person=${encodeURIComponent(person.handle)}`');
     expect(VIEW).toContain('`/event/${album.id}?person=${encodeURIComponent(person.handle)}`');
@@ -263,9 +263,26 @@ describe('what the page looks like', () => {
   it('draws the events with the builder every other screen uses', () => {
     // An event should not look like a different kind of thing depending on
     // which page it is on.
-    expect(PAGE).toMatch(/events=\{await toCards\(shared,/);
+    expect(PAGE).toMatch(/events=\{await toCards\(\s*shared\.filter\(\(listing\) => theirs\.has\(listing\.id\)\)/);
+    expect(PAGE).toMatch(/joined=\{await toCards\(\s*shared\.filter\(\(listing\) => !theirs\.has\(listing\.id\)\)/);
     // Led by each roll's own first photograph, not its newest — see `firstShots`.
     expect(PAGE).toMatch(/firstShots\(db, shared\.map/);
+  });
+
+  it('splits the shelf into Created and Joined, as your own profile does', () => {
+    /*
+     * The photo stack for what they made, the sunglasses for somebody else's
+     * roll they are in. "Theirs" is `albumsBy`, which is `created_by`; Joined
+     * comes only from `eventsWithBoth`, the viewer's own list, so a roll the
+     * viewer is not in is never listed as one they joined. No tab row until
+     * there is a Joined half.
+     */
+    expect(PAGE).toMatch(/const theirs = new Set\(albums\.map\(\(album\) => album\.id\)\)/);
+    expect(VIEW).toMatch(/const tabs = joined\.length > 0;/);
+    expect(VIEW).toMatch(/\['mine', 'photos', `Rolls \$\{name\} created`\]/);
+    expect(VIEW).toMatch(/\['joined', 'sunglasses', `Rolls \$\{name\} joined`\]/);
+    // Joined draws no albums: those are all theirs.
+    expect(VIEW).toMatch(/const shelfAlbums = tab === 'mine' \? albums : \[\];/);
   });
 
   it('says which kind of nothing it is', () => {

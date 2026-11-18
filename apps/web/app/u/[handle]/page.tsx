@@ -96,6 +96,9 @@ export default async function PersonPage({
    * sign — `albumsBy` dropped it — so this loop cannot leak one by accident.
    */
   const shownTwice = new Set(shared.map((listing) => listing.id));
+  // What they made, for the Created and Joined tabs: a shared roll is theirs
+  // when it is one of `albumsBy`'s, and Joined when it is somebody else's.
+  const theirs = new Set(albums.map((album) => album.id));
   // Each roll as it leads with itself, so adding a photograph to one does not
   // change it here — the home screen is where the newest one goes.
   const leads = await firstShots(db, shared.map((listing) => listing.id), actorId);
@@ -141,7 +144,16 @@ export default async function PersonPage({
           // The same cards the home screen and your own profile draw, from the
           // same builder: an event should not look like a different kind of
           // thing depending on which page it is on.
-          events={await toCards(shared, undefined, (listing) => leads.get(listing.id) ?? null)}
+          events={await toCards(
+            shared.filter((listing) => theirs.has(listing.id)),
+            undefined,
+            (listing) => leads.get(listing.id) ?? null,
+          )}
+          joined={await toCards(
+            shared.filter((listing) => !theirs.has(listing.id)),
+            undefined,
+            (listing) => leads.get(listing.id) ?? null,
+          )}
           albums={albumCards}
           moments={moments}
         />

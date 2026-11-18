@@ -190,7 +190,7 @@ describe('somebody else’s rolls, on their page', () => {
     // And what the padlocks are for, said once above the shelf rather than
     // per tile — a wall of shut doors with no sentence is a refusal.
     expect(PERSON).toMatch(/Become friends to see what&rsquo;s inside\./);
-    expect(PERSON).toMatch(/standing !== 'friends' && shelf\.some\(\(item\) => item\.locked\)/);
+    expect(PERSON).toMatch(/standing !== 'friends' && visible\.some\(\(item\) => item\.locked\)/);
     /*
      * And the two lists become one shelf, with `locked` carried across rather
      * than inferred from a missing cover — an unlocked album with no cover yet
@@ -382,5 +382,26 @@ describe('who can add photos', () => {
     // replaced, and prose about a property is not a read of one.
     expect(code(APP)).not.toMatch(/uploadsOpen/);
     expect(read('src/api.ts')).toMatch(/canAdd: boolean;/);
+  });
+});
+
+describe('somebody else’s shelf, in Created and Joined', () => {
+  /*
+   * The two tabs the viewer's own profile draws: the photo stack for the rolls
+   * they made, the sunglasses for somebody else's roll they are in. Joined is
+   * only ever the viewer's own rolls (`shared`), so it names nobody's roll to a
+   * stranger; the tab row waits until there is a Joined half.
+   */
+  const SOURCE = readFileSync(fileURLToPath(new URL('../src/Person.tsx', import.meta.url)), 'utf8');
+
+  it('splits on whether they made it', () => {
+    expect(SOURCE).toMatch(/byThem: event\.byThem \?\? mine\?\.creator\.handle === person\.handle/);
+    expect(SOURCE).toMatch(/const hasJoined = shelf\.some\(\(item\) => !item\.byThem\)/);
+    expect(SOURCE).toMatch(/\{hasJoined && \(/);
+  });
+
+  it('draws the same two tabs as your own profile', () => {
+    expect(SOURCE).toMatch(/\['mine', 'photos', `Rolls \$\{nameOf\(person\)\} created`\]/);
+    expect(SOURCE).toMatch(/\['joined', 'sunglasses', `Rolls \$\{nameOf\(person\)\} joined`\]/);
   });
 });

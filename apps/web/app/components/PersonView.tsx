@@ -64,6 +64,7 @@ import { EventCard, Padlock } from './EventCard';
 import { FrostedGlass } from './FrostedGlass';
 import { Menu } from './Menu';
 import { MomentStrip } from './MomentStrip';
+import { RailIcon } from './RailIcon';
 import { blockAsk, blockName, blockPerson, blockSaid, reportContent, reportSaid } from './report';
 import { LinkIcon } from './LinkIcon';
 
@@ -210,18 +211,30 @@ type Person = {
 export function PersonView({
   person,
   events,
+  joined,
   albums,
   moments,
 }: {
   person: Person;
   /** Their moments this viewer may see, newest first. Empty for a stranger. */
   moments: MomentsResponse;
-  /** Events the viewer can see that this person is also in. */
+  /** Events the viewer can see that this person made and is in. */
   events: CardEvent[];
+  /**
+   * Events the viewer can see that this person is in and somebody else made —
+   * their Joined tab. Only ever the viewer's own rolls; see `eventsWithBoth`.
+   */
+  joined: CardEvent[];
   /** Everything this person made, minus the ones already drawn above. */
   albums: ProfileAlbumCard[];
 }) {
   const [standing, setStanding] = useState<Standing>(person.standing);
+  /* Created or Joined, held only while there is a Joined half to show. */
+  const [lens, setLens] = useState<'mine' | 'joined'>('mine');
+  const tabs = joined.length > 0;
+  const tab = tabs ? lens : 'mine';
+  const cards = tab === 'mine' ? events : joined;
+  const shelfAlbums = tab === 'mine' ? albums : [];
   const [busy, setBusy] = useState(false);
   /** The locked album showing "Ask to join", if any. See `LockedCover`. */
   const [armed, setArmed] = useState<string | null>(null);
@@ -670,44 +683,67 @@ export function PersonView({
         label={`Moments from ${name}`}
       />
 
-      {events.length > 0 && (
-        <section className="you-events">
-          <div className="you-events-head">
-            <h2>Rolls</h2>
-          </div>
-          <div className="cards">
-            {/* Opened from here, so the roll's back arrow comes back here. */}
-            {events.map((event) => (
-              <EventCard
-                key={event.id}
-                event={
-                  person.handle
-                    ? { ...event, href: `/event/${event.id}?person=${encodeURIComponent(person.handle)}` }
-                    : event
-                }
-              />
+      <section className="you-events">
+        {/*
+          Created and Joined, as their own profile draws them: the photo stack
+          for the rolls they made, the sunglasses for somebody else's that they
+          are in. Only once there is a Joined half — one tab on a hairline is a
+          line under the only thing there is — and until then the old heading.
+          Joined is only rolls the viewer is in too: being in somebody else's
+          roll is that roll's to disclose, so a stranger's is never listed.
+        */}
+        {tabs ? (
+          <div
+            className="roll-tabs"
+            role="tablist"
+            onKeyDown={(e) => {
+              if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return;
+              e.preventDefault();
+              const next = tab === 'mine' ? 'joined' : 'mine';
+              setLens(next);
+              e.currentTarget.querySelector<HTMLButtonElement>(`[data-lens="${next}"]`)?.focus();
+            }}
+          >
+            {(
+              [
+                ['mine', 'photos', `Rolls ${name} created`],
+                ['joined', 'sunglasses', `Rolls ${name} joined`],
+              ] as const
+            ).map(([id, glyph, label]) => (
+              <button
+                key={id}
+                type="button"
+                role="tab"
+                data-lens={id}
+                aria-selected={tab === id}
+                aria-label={label}
+                title={label}
+                tabIndex={tab === id ? 0 : -1}
+                onClick={() => setLens(id)}
+              >
+                <RailIcon glyph={glyph} size={22} weight={tab === id ? 2.5 : 2} />
+              </button>
             ))}
           </div>
-        </section>
-      )}
-
-      {albums.length > 0 && (
-        <section className="you-events">
-          <div className="you-events-head">
-            <h2>{events.length > 0 ? 'Their other rolls' : 'Rolls'}</h2>
-          </div>
-          {/*
-            What the padlocks are for, said once above them rather than per
-            card. A wall of shut doors is a page that reads as a refusal; the
-            sentence is what turns it into a queue. Only while there is
-            something shut and a way to open it — a friend reading this would
-            be told to do a thing they have already done.
-          */}
-          {standing !== 'friends' && albums.some((album) => album.locked) && (
-            <p className="muted person-locked-note">
-              Become friends to see what&rsquo;s inside.
-            </p>
-          )}
+        ) : (
+          (cards.length > 0 || shelfAlbums.length > 0) && (
+            <div className="you-events-head">
+              <h2>Rolls</h2>
+            </div>
+          )
+        )}
+        {/*
+          What the padlocks are for, said once above them rather than per
+          card. A wall of shut doors is a page that reads as a refusal; the
+          sentence is what turns it into a queue. Only while there is
+          something shut and a way to open it — a friend reading this would
+          be told to do a thing they have already done.
+        */}
+        {standing !== 'friends' && shelfAlbums.some((album) => album.locked) && (
+          <p className="muted person-locked-note">
+            Become friends to see what&rsquo;s inside.
+          </p>
+        )}
           {/*
             The grid the rest of the product draws albums in.
 
@@ -728,8 +764,27 @@ export function PersonView({
             the same grid your own profile and the home page use, so the shelf
             is the same shelf wherever somebody meets it.
           */}
+          {/*
+            One grid, the rolls you are both in first and then the rest of what
+            they made — the app's shelf. They were two sections, "Rolls" and
+            "Their other rolls", which said more about where the data came from
+            than about them.
+          */}
+        {(cards.length > 0 || shelfAlbums.length > 0) && (
           <ul className="cards album-shelf">
-            {albums.map((album) => {
+            {/* Opened from here, so the roll's back arrow comes back here. */}
+            {cards.map((event) => (
+              <li key={event.id}>
+                <EventCard
+                  event={
+                    person.handle
+                      ? { ...event, href: `/event/${event.id}?person=${encodeURIComponent(person.handle)}` }
+                      : event
+                  }
+                />
+              </li>
+            ))}
+            {shelfAlbums.map((album) => {
               // A locked album is not a link — see the note below.
               const Card = album.locked ? 'div' : 'a';
               return (
@@ -823,25 +878,23 @@ export function PersonView({
               );
             })}
           </ul>
-        </section>
-      )}
+        )}
 
-      {events.length === 0 && albums.length === 0 && (
-        /*
-          One empty state now, where there were two.
+        {cards.length === 0 && shelfAlbums.length === 0 && (
+          /*
+            One empty state now, where there were two.
 
-          "Account Private" was the honest answer when a profile listed nothing
-          a stranger was not already in: not that they have nothing, but that
-          what somebody has made is theirs to send you a link to. Albums are
-          listed now, so that sentence would be a lie — the page has just shown
-          you everything they made, and there was none of it.
-        */
-        <section className="you-events">
+            "Account Private" was the honest answer when a profile listed nothing
+            a stranger was not already in: not that they have nothing, but that
+            what somebody has made is theirs to send you a link to. Albums are
+            listed now, so that sentence would be a lie — the page has just shown
+            you everything they made, and there was none of it.
+          */
           <p className="muted person-empty">
             {standing === 'friends' ? 'No rolls to show yet' : 'Nothing here yet'}
           </p>
-        </section>
-      )}
+        )}
+      </section>
     </>
   );
 }

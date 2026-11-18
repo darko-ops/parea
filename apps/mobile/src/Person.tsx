@@ -172,6 +172,8 @@ export function PersonScreen({
     touchedAlbum.current = null;
   }, [armed]);
   const [standing, setStanding] = useState<Standing>('none');
+  /** Which half of their shelf is showing. See `hasJoined`. */
+  const [half, setHalf] = useState<'mine' | 'joined'>('mine');
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   /* Their moments, newest first, and which one is open. */
@@ -410,6 +412,12 @@ export function PersonScreen({
         isPrivate: (mine?.accessPolicy ?? event.accessPolicy) === 'private',
         open: mine ? () => onOpenEvent(mine) : null,
         album: null as ProfileAlbum | null,
+        /*
+         * Theirs or somebody else's, for the Created and Joined tabs. The
+         * server says; one from before it did is read off the host's handle
+         * in this app's own copy, which is the same fact a step removed.
+         */
+        byThem: event.byThem ?? mine?.creator.handle === person.handle,
       };
     }),
     ...albums.map((album) => ({
@@ -433,8 +441,22 @@ export function PersonScreen({
               setError(opened ? null : 'Could not open that roll. Try again in a moment.');
             }),
       album,
+      // Everything in this list is theirs: it is `albumsBy`, by `created_by`.
+      byThem: true,
     })),
   ];
+
+  /*
+   * Created and Joined, as the viewer's own profile splits its shelf: the
+   * photo stack for what they made, the sunglasses for somebody else's roll
+   * they are in. Joined is only ever rolls the viewer is in too — `shared` is
+   * the viewer's own list — so it names nobody's roll to a stranger. No tab
+   * row until there is a Joined half: one tab on a hairline is a line under
+   * the only thing there is.
+   */
+  const hasJoined = shelf.some((item) => !item.byThem);
+  const tab = hasJoined ? half : 'mine';
+  const visible = shelf.filter((item) => (tab === 'mine' ? item.byThem : !item.byThem));
 
   return (
     <View style={styles.screen} onTouchStart={touchAnywhere}>
@@ -720,13 +742,44 @@ export function PersonScreen({
         shut and a way to open it — friends see the insides, so a friend
         reading this would be told to do something they have already done.
       */}
-      {standing !== 'friends' && shelf.some((item) => item.locked) && (
+      {hasJoined && (
+        <View style={styles.gutter}>
+          <View accessibilityRole="tablist" style={[styles.tabs, { borderColor: t.line }]}>
+            {(
+              [
+                ['mine', 'photos', `Rolls ${nameOf(person)} created`],
+                ['joined', 'sunglasses', `Rolls ${nameOf(person)} joined`],
+              ] as const
+            ).map(([key, glyph, label]) => {
+              const selected = tab === key;
+              return (
+                <Pressable
+                  key={key}
+                  onPress={() => setHalf(key)}
+                  hitSlop={{ top: 6, bottom: 6 }}
+                  accessibilityRole="tab"
+                  accessibilityState={{ selected }}
+                  accessibilityLabel={label}
+                  style={({ pressed }) => [
+                    styles.tab,
+                    { borderBottomColor: selected ? t.fg : 'transparent', opacity: pressed ? 0.6 : 1 },
+                  ]}
+                >
+                  <Glyph name={glyph} size={22} weight={selected ? 2.5 : 2} color={selected ? t.fg : t.dim} />
+                </Pressable>
+              );
+            })}
+          </View>
+        </View>
+      )}
+
+      {standing !== 'friends' && visible.some((item) => item.locked) && (
         <Text style={[styles.small, styles.gutter, { color: t.dim }]}>
           Become friends to see what&rsquo;s inside.
         </Text>
       )}
 
-      {shelf.length === 0 ? (
+      {visible.length === 0 ? (
         <Text style={[styles.body, styles.gutter, { color: t.dim }]}>
           {/*
             Two ways of having none, and they are different sentences. A friend
@@ -737,7 +790,7 @@ export function PersonScreen({
         </Text>
       ) : (
         <View style={[styles.grid, styles.gutter]}>
-          {shelf.map((item) => {
+          {visible.map((item) => {
             const status = item.album ? asked[item.album.id] : undefined;
             const when = dateLabel(item.at);
             return (
@@ -1012,6 +1065,9 @@ const styles = StyleSheet.create({
   /* Two across with gutters: these are separate albums, not one object the
      way a wall of photographs would be. */
   grid: { flexDirection: 'row', flexWrap: 'wrap', gap: GAP },
+  /* Created and Joined: the profile's own two tabs, at the profile's sizes. */
+  tabs: { flexDirection: 'row', borderBottomWidth: 1 },
+  tab: { flex: 1, alignItems: 'center', paddingTop: 0, paddingBottom: 7, marginBottom: -1, borderBottomWidth: 2 },
   tile: { width: '100%', height: 150, borderRadius: 12, backgroundColor: '#8881' },
   tileEmpty: {
     borderWidth: 1,

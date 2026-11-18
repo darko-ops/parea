@@ -45,6 +45,9 @@ export async function GET(
     albumsBy(db, actorId, person.actorId),
   ]);
   const alsoShared = new Set(shared.map((listing) => listing.id));
+  /* Everything they made, for splitting the shared rolls into theirs and
+     somebody else's — the profile's Created and Joined. See `byThem`. */
+  const theirs = new Set(albums.map((album) => album.id));
   const leads = await firstShots(db, [...alsoShared], actorId);
 
   return NextResponse.json({
@@ -98,6 +101,12 @@ export async function GET(
         accessPolicy: listing.accessPolicy,
         caption: listing.caption,
         lastActiveAt: listing.lastActiveAt,
+        /*
+         * Whether they made it, for the Created and Joined tabs. Nothing new
+         * crosses here: Joined is only ever rolls the viewer is in too, so who
+         * is in them is something the viewer can already see from inside.
+         */
+        byThem: theirs.has(listing.id),
         // The roll's own lead, not its newest: see `eventShot`.
         thumb: await eventCover({ ...listing, shot: leads.get(listing.id) ?? null }),
       })),
